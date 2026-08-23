@@ -1,0 +1,36 @@
+# Dependencias regenerables
+/vendor/
+/edusync/vendor/
+/edusync/node_modules/
+
+# Sesiones, temporales y registros de ejecución
+/edusync/tmp/*
+!/edusync/tmp/.gitkeep
+*.log
+/edusync/error.txt
+/edusync/error_log_test.txt
+/edusync/output.txt
+/edusync/out.txt
+/edusync/curl_output_test.txt
+/edusync/api/debug_log.txt
+
+# Certificados y llaves privadas
+*.p12
+*.pfx
+*.pem
+/edusync/uploads/certificados/
+
+# Configuración local y archivos del editor/sistema
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Archivos temporales comunes
+*.tmp
+*.bak
+*.swp
+~$*

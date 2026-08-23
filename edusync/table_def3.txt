@@ -1,0 +1,14 @@
+CREATE TABLE `general_course_competencies` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `course_id` int(11) NOT NULL,
+  `teacher_id` int(11) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `percentage` decimal(5,2) NOT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `course_id` (`course_id`,`teacher_id`,`name`),
+  KEY `teacher_id` (`teacher_id`),
+  CONSTRAINT `general_course_competencies_ibfk_1` FOREIGN KEY (`course_id`) REFERENCES `academic_courses` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `general_course_competencies_ibfk_2` FOREIGN KEY (`teacher_id`) REFERENCES `teacher` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=529 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

@@ -1,0 +1,8 @@
+{
+    "require": {
+        "greenter/greenter": "^5.2",
+        "greenter/xml": "*",
+        "greenter/report": "*",
+        "phpoffice/phpspreadsheet": "2.2"
+    }
+}

@@ -1,0 +1,7 @@
+{
+    "name": "escuela/edusync",
+    "require": {
+        "greenter/greenter": "^5.1",
+        "tecnickcom/tcpdf": "^6.10"
+    }
+}

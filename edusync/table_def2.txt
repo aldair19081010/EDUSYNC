@@ -1,0 +1,14 @@
+CREATE TABLE `evaluation_grades` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `evaluation_id` int(11) NOT NULL,
+  `competencia_id` int(11) NOT NULL,
+  `student_id` int(11) NOT NULL,
+  `grade` varchar(10) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `evaluation_id` (`evaluation_id`),
+  KEY `student_id` (`student_id`),
+  KEY `fk_evaluation_grades_competencia` (`competencia_id`),
+  CONSTRAINT `evaluation_grades_ibfk_1` FOREIGN KEY (`evaluation_id`) REFERENCES `evaluations` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `evaluation_grades_ibfk_2` FOREIGN KEY (`student_id`) REFERENCES `student` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_evaluation_grades_competencia` FOREIGN KEY (`competencia_id`) REFERENCES `general_course_competencies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=68462 DEFAULT CHARSET=utf8 COLLATE=utf8_spanish2_ci

@@ -1,0 +1,10 @@
+CREATE TABLE `evaluation_competencias` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `evaluation_id` int(11) NOT NULL,
+  `competencia_id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_eval_comp` (`evaluation_id`,`competencia_id`),
+  KEY `competencia_id` (`competencia_id`),
+  CONSTRAINT `evaluation_competencias_ibfk_1` FOREIGN KEY (`evaluation_id`) REFERENCES `evaluations` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `evaluation_competencias_ibfk_2` FOREIGN KEY (`competencia_id`) REFERENCES `general_course_competencies` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3554 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
