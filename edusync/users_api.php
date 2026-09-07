@@ -44,30 +44,6 @@ function user_api_audit($conn, $school_id, $target_user_id, $target_username, $a
     $stmt->close();
 }
 
-$login_id = intval($_SESSION['login_id'] ?? 0);
-$school_id = intval($_SESSION['login_school_id'] ?? 0);
-if (!$login_id || !$school_id) user_api_reply(0, 'Sesión no válida. Vuelve a iniciar sesión.');
-
-$role_stmt = $conn->prepare('SELECT type FROM users WHERE id = ? AND school_id = ? LIMIT 1');
-$role_stmt->bind_param('ii', $login_id, $school_id);
-$role_stmt->execute();
-$role_row = $role_stmt->get_result()->fetch_assoc();
-$role_stmt->close();
-if (!$role_row || intval($role_row['type']) !== 1) user_api_reply(0, 'No tienes permisos para administrar usuarios.');
-
-$csrf = (string)($_POST['csrf_token'] ?? '');
-$session_csrf = (string)($_SESSION['csrf_token'] ?? '');
-if ($csrf === '' || $session_csrf === '' || !hash_equals($session_csrf, $csrf)) {
-    http_response_code(403);
-    user_api_reply(0, 'La sesión de seguridad venció. Recarga la página.');
-}
-
-if (!user_api_column_exists($conn, 'users', 'status') || !user_api_table_exists($conn, 'user_audit_log')) {
-    user_api_reply(0, 'Falta actualizar la base de datos. Ejecuta sql/users_module_upgrade.sql.');
-}
-
-$action = $_POST['action'] ?? '';
-
 function load_target_user($conn, $id, $school_id) {
     $stmt = $conn->prepare('SELECT id, school_id, name, username, type, is_director, teacher_id, status FROM users WHERE id = ? AND school_id = ? LIMIT 1');
     $stmt->bind_param('ii', $id, $school_id);
@@ -88,6 +64,41 @@ function count_active_admins($conn, $school_id, $exclude_id = 0) {
     $stmt->close();
     return intval($row['total'] ?? 0);
 }
+
+function load_teacher_for_user($conn, $teacher_id, $school_id) {
+    if ($teacher_id <= 0) return null;
+    $stmt = $conn->prepare('SELECT id, name, status FROM teacher WHERE id = ? AND school_id = ? LIMIT 1');
+    $stmt->bind_param('ii', $teacher_id, $school_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+$login_id = intval($_SESSION['login_id'] ?? 0);
+$school_id = intval($_SESSION['login_school_id'] ?? 0);
+if (!$login_id || !$school_id) user_api_reply(0, 'Sesión no válida. Vuelve a iniciar sesión.');
+
+if (!user_api_column_exists($conn, 'users', 'status') || !user_api_table_exists($conn, 'user_audit_log')) {
+    user_api_reply(0, 'Falta actualizar la base de datos. Ejecuta sql/users_module_upgrade.sql.');
+}
+
+$role_stmt = $conn->prepare('SELECT type, status FROM users WHERE id = ? AND school_id = ? LIMIT 1');
+$role_stmt->bind_param('ii', $login_id, $school_id);
+$role_stmt->execute();
+$role_row = $role_stmt->get_result()->fetch_assoc();
+$role_stmt->close();
+if (!$role_row || intval($role_row['type']) !== 1) user_api_reply(0, 'No tienes permisos para administrar usuarios.');
+if (($role_row['status'] ?? 'Inactivo') !== 'Activo') user_api_reply(0, 'Tu cuenta está inactiva. Vuelve a iniciar sesión con una cuenta autorizada.');
+
+$csrf = (string)($_POST['csrf_token'] ?? '');
+$session_csrf = (string)($_SESSION['csrf_token'] ?? '');
+if ($csrf === '' || $session_csrf === '' || !hash_equals($session_csrf, $csrf)) {
+    http_response_code(403);
+    user_api_reply(0, 'La sesión de seguridad venció. Recarga la página.');
+}
+
+$action = $_POST['action'] ?? '';
 
 if ($action === 'save') {
     $id = intval($_POST['id'] ?? 0);
@@ -128,13 +139,14 @@ if ($action === 'save') {
 
     if ($type === 2) {
         if ($teacher_id <= 0) user_api_reply(0, 'Selecciona el docente vinculado a esta cuenta.');
-        $tstmt = $conn->prepare('SELECT id, name, status FROM teacher WHERE id = ? AND school_id = ? LIMIT 1');
-        $tstmt->bind_param('ii', $teacher_id, $school_id);
-        $tstmt->execute();
-        $teacher = $tstmt->get_result()->fetch_assoc();
-        $tstmt->close();
+        $teacher = load_teacher_for_user($conn, $teacher_id, $school_id);
         if (!$teacher) user_api_reply(0, 'El docente seleccionado no pertenece a este colegio.');
-        if (($teacher['status'] ?? 'Activo') !== 'Activo') user_api_reply(0, 'El docente seleccionado está inactivo.');
+
+        $same_existing_link = $current && intval($current['type']) === 2 && intval($current['teacher_id']) === $teacher_id;
+        if (($teacher['status'] ?? 'Activo') !== 'Activo') {
+            if (!$same_existing_link) user_api_reply(0, 'El docente seleccionado está inactivo.');
+            if ($status === 'Activo') user_api_reply(0, 'La cuenta debe permanecer inactiva mientras el docente vinculado esté inactivo.');
+        }
 
         $link = $conn->prepare('SELECT id FROM users WHERE school_id = ? AND teacher_id = ? AND id <> ? LIMIT 1');
         $link->bind_param('iii', $school_id, $teacher_id, $id);
@@ -190,6 +202,11 @@ if ($action === 'toggle_status') {
     if ($new_status === 'Inactivo' && intval($target['type']) === 1 && count_active_admins($conn, $school_id, $id) < 1) {
         user_api_reply(0, 'No puedes desactivar al último administrador activo.');
     }
+    if ($new_status === 'Activo' && intval($target['type']) === 2) {
+        $teacher = load_teacher_for_user($conn, intval($target['teacher_id']), $school_id);
+        if (!$teacher) user_api_reply(0, 'No puedes activar esta cuenta porque no tiene un docente válido vinculado.');
+        if (($teacher['status'] ?? 'Inactivo') !== 'Activo') user_api_reply(0, 'No puedes activar esta cuenta porque el docente vinculado está inactivo.');
+    }
 
     $stmt = $conn->prepare('UPDATE users SET status = ? WHERE id = ? AND school_id = ?');
     $stmt->bind_param('sii', $new_status, $id, $school_id);
@@ -224,7 +241,12 @@ if ($action === 'history') {
     $target = load_target_user($conn, $id, $school_id);
     if (!$target) user_api_reply(0, 'Usuario no encontrado.');
 
-    $stmt = $conn->prepare('SELECT l.action, l.details, l.ip_address, l.created_at, COALESCE(a.name, CONCAT("Usuario #", l.actor_user_id), "Sistema") AS actor_name FROM user_audit_log l LEFT JOIN users a ON a.id = l.actor_user_id WHERE l.school_id = ? AND l.target_user_id = ? ORDER BY l.id DESC LIMIT 100');
+    $stmt = $conn->prepare("SELECT l.action, l.details, l.ip_address, l.created_at,
+                                  COALESCE(a.name, CONCAT('Usuario #', l.actor_user_id), 'Sistema') AS actor_name
+                           FROM user_audit_log l
+                           LEFT JOIN users a ON a.id = l.actor_user_id
+                           WHERE l.school_id = ? AND l.target_user_id = ?
+                           ORDER BY l.id DESC LIMIT 100");
     $stmt->bind_param('ii', $school_id, $id);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -244,17 +266,15 @@ if ($action === 'delete_permanent') {
     if (!$target) user_api_reply(0, 'Usuario no encontrado.');
     if ($id === $login_id) user_api_reply(0, 'No puedes eliminar tu propia cuenta.');
     if ($target['status'] !== 'Inactivo') user_api_reply(0, 'Primero debes desactivar al usuario antes de eliminarlo definitivamente.');
-    if (intval($target['type']) === 1 && count_active_admins($conn, $school_id, $id) < 1) {
-        user_api_reply(0, 'Debe existir al menos otro administrador activo antes de eliminar esta cuenta.');
-    }
 
-    user_api_audit($conn, $school_id, $id, $target['username'], 'DELETED', ['name' => $target['name'], 'type' => intval($target['type']), 'teacher_id' => $target['teacher_id']]);
-    $stmt = $conn->prepare('DELETE FROM users WHERE id = ? AND school_id = ? AND status = "Inactivo"');
+    $stmt = $conn->prepare("DELETE FROM users WHERE id = ? AND school_id = ? AND status = 'Inactivo'");
     $stmt->bind_param('ii', $id, $school_id);
     $ok = $stmt->execute();
     $affected = $stmt->affected_rows;
     $stmt->close();
     if (!$ok || $affected < 1) user_api_reply(0, 'No se pudo eliminar el usuario.');
+
+    user_api_audit($conn, $school_id, $id, $target['username'], 'DELETED', ['name' => $target['name'], 'type' => intval($target['type']), 'teacher_id' => $target['teacher_id']]);
     user_api_reply(1, 'Usuario eliminado definitivamente.');
 }
 
