@@ -286,8 +286,9 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- Core plugin JavaScript-->
     <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
 
-    <!-- Custom scripts for all pages-->
-    <script src="js/sb-admin-2.min.js"></script>
+    <!-- Custom scripts for all pages. filemtime evita servir una versión antigua desde caché. -->
+    <?php $sb_admin_js_version = @filemtime(__DIR__ . '/js/sb-admin-2.min.js') ?: time(); ?>
+    <script src="js/sb-admin-2.min.js?v=<?php echo $sb_admin_js_version; ?>"></script>
 
     <!-- Sidebar toggle guard: rebinds the click handlers in case another script detaches them -->
     <script>
