@@ -87,7 +87,12 @@
     return isNaN(num) ? null : num;
   }
 
+  function roundGrade(score) {
+    return score === null || score === undefined || isNaN(score) ? null : Math.round(Number(score));
+  }
+
   function gradeStatus(score) {
+    score = roundGrade(score);
     if (score === null) {
       return { letter: '—', label: 'Sin datos', className: 'ir-status-none', color: '#858796' };
     }
@@ -135,6 +140,26 @@
     $('<style>', { id: 'grades-individual-status-styles', text: css }).appendTo('head');
   }
 
+  function roundDisplayedCalculationGrades($report) {
+    $report.find('.ir-card table').each(function() {
+      var $table = $(this);
+      var headers = [];
+      $table.find('thead th').each(function(index) {
+        headers[index] = $.trim($(this).text()).toLowerCase();
+      });
+
+      $table.find('tbody tr, tfoot tr').each(function() {
+        $(this).find('td,th').each(function(index) {
+          if (headers[index] !== 'promedio' && $.trim($(this).text()).toLowerCase() !== 'promedio final del bimestre') return;
+          var $cell = $(this);
+          var value = parseGradeNumber($cell.text());
+          if (value === null) return;
+          $cell.text(roundGrade(value));
+        });
+      });
+    });
+  }
+
   function enhanceIndividualReport(root) {
     var $report = $(root);
     if (!$report.length || $report.attr('data-status-enhanced') === '1') return;
@@ -150,8 +175,13 @@
       if (!$avgLabel.length) return;
 
       var $avgCell = $avgLabel.next('td');
-      var score = parseGradeNumber($avgCell.text());
+      var rawScore = parseGradeNumber($avgCell.text());
+      var score = roundGrade(rawScore);
       if (score === null) return;
+
+      var $scoreStrong = $avgCell.find('strong').first();
+      if ($scoreStrong.length) $scoreStrong.text(score);
+      else $avgCell.text(score);
 
       var status = gradeStatus(score);
       competencyStates.push(status);
@@ -165,11 +195,13 @@
       $avgCell.append($('<div>', { class: 'mt-1' }).append(statusBadge(status)));
     });
 
-    var finalScore = parseGradeNumber($report.find('.ir-result strong').first().text());
+    var $result = $report.find('.ir-result').first();
+    var rawFinalScore = parseGradeNumber($result.find('strong').first().text());
+    var finalScore = roundGrade(rawFinalScore);
     if (!competencyStates.length && finalScore === 0) finalScore = null;
     var finalStatus = gradeStatus(finalScore);
-    var $result = $report.find('.ir-result').first();
     if ($result.length) {
+      $result.find('strong').first().text(finalScore === null ? '—' : finalScore);
       $result.addClass('ir-result-status').css({
         borderColor: finalStatus.color,
         boxShadow: 'inset 4px 0 0 ' + finalStatus.color
@@ -177,6 +209,8 @@
       $result.find('.ir-final-status').remove();
       $result.append(statusBadge(finalStatus, 'ir-final-status'));
     }
+
+    roundDisplayedCalculationGrades($report);
 
     if (competencyStates.length && !$report.find('.ir-summary-grid').length) {
       var counts = { good: 0, process: 0, start: 0 };
