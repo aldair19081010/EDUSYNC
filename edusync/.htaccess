@@ -1,0 +1,8 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Compatibilidad: cualquier cliente antiguo que todavía invoque
+    # ajax.php?action=login pasa por el autenticador moderno.
+    RewriteCond %{QUERY_STRING} (^|&)action=login(&|$) [NC]
+    RewriteRule ^ajax\.php$ auth_login.php [L]
+</IfModule>
