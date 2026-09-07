@@ -31,7 +31,7 @@ $role_query->bind_param('i', $user_id);
 $role_query->execute();
 $role = $role_query->get_result()->fetch_assoc();
 $role_query->close();
-if (!$role || ((int)$role['type'] !== 1 && (int)$role['is_director'] !== 1)) {
+if (!$role || (int)$role['type'] !== 1) {
     http_response_code(403);
     exit('No tienes permisos para exportar estudiantes.');
 }

@@ -1,5 +1,5 @@
 <?php include 'db_connect.php' ?>
-<?php include_once 'includes/session_check.php'; require_login_modal(); ?>
+<?php include_once 'includes/session_check.php'; require_login_modal(); if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32)); $bulk_csrf=$_SESSION['csrf_token']; $bulk_school=(int)($_SESSION['login_school_id']??0); ?>
 <style>
 /* Estilos específicos e independientes para el modal de asignación masiva */
 /* Solo se aplicarán cuando el modal tenga el formulario #bulk-assign-fees */
@@ -142,6 +142,7 @@
 
 <div class="container-fluid">
     <form id="bulk-assign-fees">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($bulk_csrf); ?>">
         <div id="msg"></div>
         
         <!-- Grid de dos columnas independiente -->
@@ -234,25 +235,6 @@
                 <div class="row">
                     <div class="col-12">
                         <div class="filter-box">
-                            <label class="form-label">Filtrar por Año Académico:</label>
-                            <select id="filter-year" class="form-control form-control-sm">
-                                <option value="">Todos los años</option>
-                                <?php
-                                $years = $conn->query("SELECT DISTINCT year, is_active FROM academic_year ORDER BY year DESC");
-                                if ($years) {
-                                    while($year = $years->fetch_assoc()):
-                                        $selected = ($year['is_active'] == 1) ? 'selected' : '';
-                                ?>
-                                    <option value="<?php echo $year['year'] ?>" <?php echo $selected; ?>><?php echo $year['year'] ?></option>
-                                <?php 
-                                    endwhile;
-                                }
-                                ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-12">
-                        <div class="filter-box">
                             <label class="form-label">Buscar Concepto:</label>
                             <input type="text" id="filter-concept" class="form-control form-control-sm" placeholder="Buscar concepto...">
                         </div>
@@ -294,6 +276,8 @@
                 <strong>Total de asignaciones que se crearán: <span id="total-assignments" class="text-primary"></span></strong>
             </div>
         </div>
+
+        <div class="card border-0 bg-light mb-3"><div class="card-body py-3"><div class="form-group mb-0"><label>Fecha de vencimiento (opcional)</label><input type="date" id="bulk-due-date" class="form-control"><small class="form-text text-muted">Los conceptos se tomarán automáticamente del año académico activo.</small></div></div></div>
 
         <!-- Botones de Acción -->
         <div class="text-right">
@@ -599,14 +583,12 @@ function filterStudents() {
 
 // Filtrar conceptos
 function filterConcepts() {
-    var year = $('#filter-year').val();
     var conceptName = $('#filter-concept').val().toLowerCase();
     
     var filteredConcepts = allConcepts.filter(function(concept) {
-        var matchYear = !year || concept.year === year;
         var matchName = !conceptName || concept.course.toLowerCase().indexOf(conceptName) !== -1;
         
-        return matchYear && matchName;
+        return matchName;
     });
     
     displayConcepts(filteredConcepts);
@@ -845,7 +827,7 @@ $(document).ready(function() {
         filterStudents();
     });
     
-    $('#filter-year, #filter-concept').on('change keyup', function() {
+    $('#filter-concept').on('change keyup', function() {
         filterConcepts();
     });
 
@@ -896,15 +878,18 @@ $(document).ready(function() {
         start_load();
         
         $.ajax({
-            url: 'ajax.php?action=bulk_assign_fees',
+            url: 'fees_api.php?action=bulk_assign',
             method: 'POST',
             data: {
                 students: selectedStudents,
-                concepts: selectedConcepts
+                concepts: selectedConcepts,
+                due_date: $('#bulk-due-date').val(),
+                csrf_token: $('#bulk-assign-fees input[name="csrf_token"]').val()
             },
             dataType: 'json',
             success: function(resp) {
                 if (resp.status == 1) {
+                    end_load();
                     alert_toast(resp.message, 'success');
                     setTimeout(function() {
                         $('#uni_modal').modal('hide');

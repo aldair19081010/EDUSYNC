@@ -1,379 +1,84 @@
-<?php 
-include 'db_connect.php'; 
-
-// Comprobar si el usuario está logueado y tiene los permisos adecuados
-if(!isset($_SESSION['login_id']) || (isset($_SESSION['login_type']) && $_SESSION['login_type'] != 1)){
-    header('location: login.php');
-    exit;
-}
-
-$school_id = $_SESSION['login_school_id'] ?? 0;
+<?php
+include 'db_connect.php';
+if(empty($_SESSION['login_id'])||(int)($_SESSION['login_type']??0)!==1){header('location: login.php');exit;}
+$school_id=(int)($_SESSION['login_school_id']??0);
+if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
+$csrf=$_SESSION['csrf_token'];
+// Solo comprobar el esquema. Las migraciones se ejecutan manualmente mediante SQL.
+function ayp_col($db,$name){$v=$db->real_escape_string($name);$q=$db->query("SHOW COLUMNS FROM academic_year LIKE '$v'");return $q&&$q->num_rows;}
+$migration_ready=true;
+foreach(['status','period_type','closed_at','closed_by','close_notes','reopened_at','reopened_by','reopen_reason'] as $column){if(!ayp_col($conn,$column)){$migration_ready=false;break;}}
+foreach(['academic_periods','academic_year_audit','bimester_locks'] as $table){$safe=$conn->real_escape_string($table);$q=$conn->query("SHOW TABLES LIKE '$safe'");if(!$q||!$q->num_rows){$migration_ready=false;break;}}
+if($migration_ready){$q=$conn->query("SHOW COLUMNS FROM academic_periods LIKE 'start_date'");$start=$q?$q->fetch_assoc():null;$q=$conn->query("SHOW COLUMNS FROM academic_periods LIKE 'end_date'");$end=$q?$q->fetch_assoc():null;if(!$start||!$end||strtoupper($start['Null']??'NO')!=='YES'||strtoupper($end['Null']??'NO')!=='YES')$migration_ready=false;}
+if(!$migration_ready):
 ?>
+<div class="container-fluid"><div class="alert alert-warning shadow-sm"><h5><i class="fa fa-database mr-2"></i>Actualización de base de datos pendiente</h5><p class="mb-2">El módulo no modificará automáticamente la estructura de la base de datos.</p><p class="mb-0">Ejecute manualmente <code>sql/academic_year_lifecycle_upgrade.sql</code> y vuelva a cargar esta página.</p></div></div>
+<?php return; endif;
+$years=[];$s=$conn->prepare("SELECT * FROM academic_year WHERE school_id=? ORDER BY FIELD(status,'Activo','Borrador','Cerrado','Archivado'),start_date DESC");$s->bind_param('i',$school_id);$s->execute();$r=$s->get_result();while($x=$r->fetch_assoc())$years[]=$x;$s->close();
+$active=null;foreach($years as $y)if((int)$y['is_active']===1){$active=$y;break;}
+function ay_badge($status){return ['Activo'=>'success','Borrador'=>'warning','Cerrado'=>'secondary','Archivado'=>'dark'][$status]??'secondary';}
+?>
+<style>
+.ay-shell{max-width:1500px;margin:auto;padding-top:8px}.ay-hero{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;padding:0 4px;background:transparent;color:inherit}.ay-heading{display:flex;align-items:center;gap:12px}.ay-hero-icon{width:46px;height:46px;border-radius:12px;background:#eaf2ff;color:#2f6fed;display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 46px}.ay-hero h5{margin:0;font-weight:700;color:#233b52}.ay-hero small{display:block;color:#6c757d;margin-top:2px}.ay-stat{background:#fff;border:1px solid #e3e8f0;border-radius:12px;padding:16px;height:100%}.ay-stat strong{font-size:1.45rem;color:#172b4d}.ay-actions .btn{margin:2px}.period-row{display:grid;grid-template-columns:45px 1fr 150px 150px 85px 40px;gap:8px;align-items:center;margin-bottom:8px}.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.audit-list{max-height:390px;overflow:auto}@media(max-width:768px){.ay-hero{align-items:flex-start;flex-direction:column}.period-row{grid-template-columns:35px 1fr 1fr}.period-row .period-name{grid-column:2/4}.compare-grid{grid-template-columns:1fr}}
+</style>
+<div class="container-fluid ay-shell">
+ <div class="ay-hero">
+  <div class="ay-heading"><div class="ay-hero-icon"><i class="fa fa-calendar-alt"></i></div><div><h5>Años académicos</h5><small>Administra la apertura, los periodos y el cierre de cada año escolar</small></div></div>
+  <button class="btn btn-primary" id="new-year"><i class="fa fa-plus mr-1"></i>Nuevo año</button>
+ </div>
+ <?php if($active): ?>
+ <div class="row mb-4">
+  <div class="col-md-3 mb-2"><div class="ay-stat"><small class="text-muted">Año operativo</small><br><strong><?php echo htmlspecialchars($active['year']); ?></strong></div></div>
+  <div class="col-md-3 mb-2"><div class="ay-stat"><small class="text-muted">Inicio</small><br><strong><?php echo date('d/m/Y',strtotime($active['start_date'])); ?></strong></div></div>
+  <div class="col-md-3 mb-2"><div class="ay-stat"><small class="text-muted">Finalización</small><br><strong><?php echo date('d/m/Y',strtotime($active['end_date'])); ?></strong></div></div>
+  <div class="col-md-3 mb-2"><div class="ay-stat"><small class="text-muted">Organización</small><br><strong><?php echo htmlspecialchars($active['period_type']); ?></strong></div></div>
+ </div>
+ <?php else: ?><div class="alert alert-warning"><i class="fa fa-exclamation-triangle mr-1"></i>No hay un año activo. Prepare periodos en un borrador y actívelo.</div><?php endif; ?>
 
-<div class="container-fluid">
-    <div class="col-lg-12">
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card shadow mb-4 border-left-primary">
-                    <div class="card-header bg-primary text-white py-3">
-                        <h4 class="m-0 font-weight-bold"><i class="fa fa-calendar-alt mr-2"></i> Gestión de Años Académicos</h4>
-                    </div>
-                    <div class="card-body">
-                        <form id="manage-academic-year-form" method="post" action="#">
-                            <input type="hidden" name="id" id="academic-year-id">
-                            <input type="hidden" name="school_id" value="<?php echo $school_id; ?>">
-                            
-                            <div class="row form-group">
-                                <div class="col-md-6">
-                                    <label for="year" class="font-weight-bold">Año Académico</label>
-                                    <input type="text" name="year" id="year" class="form-control" placeholder="Ej: 2025" required>
-                                    <small class="form-text text-muted">Formato: YYYY (año en concreto)</small>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="is_active" class="font-weight-bold">Estado</label>
-                                    <select name="is_active" id="is_active" class="form-control" required>
-                                        <option value="1">Activo</option>
-                                        <option value="0">Inactivo</option>
-                                    </select>
-                                    <small class="form-text text-muted">Solo puede haber un año activo a la vez</small>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="description" class="font-weight-bold">Descripción</label>
-                                <textarea name="description" id="description" rows="2" class="form-control" placeholder="Descripción opcional"></textarea>
-                            </div>
-                            
-                            <div class="row form-group">
-                                <div class="col-md-6">
-                                    <label for="start_date" class="font-weight-bold">Fecha de inicio</label>
-                                    <input type="date" name="start_date" id="start_date" class="form-control" required>
-                                </div>
-                                <div class="col-md-6">
-                                    <label for="end_date" class="font-weight-bold">Fecha de finalización</label>
-                                    <input type="date" name="end_date" id="end_date" class="form-control" required>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group">
-                                <button type="submit" class="btn btn-primary btn-block">Guardar Año Académico</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="col-md-6">
-                <div class="card shadow mb-4 border-left-info">
-                    <div class="card-header bg-info text-white py-3">
-                        <h4 class="m-0 font-weight-bold"><i class="fa fa-info-circle mr-2"></i> Información del Sistema</h4>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info" role="alert">
-                            <h5 class="alert-heading"><i class="fa fa-lightbulb mr-2"></i> Importante</h5>
-                            <p class="mb-2">El año académico se utiliza para organizar las evaluaciones y registros académicos. Tenga en cuenta que:</p>
-                            <ul class="mb-0">
-                                <li>Solo puede haber un año académico activo a la vez</li>
-                                <li>Al activar un nuevo año, el sistema desactivará automáticamente el año anterior</li>
-                                <li>Las evaluaciones creadas se asociarán automáticamente al año activo</li>
-                                <li>Puede consultar evaluaciones de años anteriores desde el filtro de evaluaciones</li>
-                            </ul>
-                        </div>
-                        
-                        <?php
-                        $active_year_query = $conn->query("SELECT * FROM academic_year WHERE is_active = 1 AND school_id = $school_id LIMIT 1");
-                        if($active_year_query && $active_year_query->num_rows > 0):
-                            $active_year = $active_year_query->fetch_assoc();
-                        ?>
-                        <div class="card bg-light border-left-success">
-                            <div class="card-body">
-                                <h5 class="text-success font-weight-bold"><i class="fa fa-check-circle mr-2"></i> Año Académico Activo</h5>
-                                <div class="row mt-3">
-                                    <div class="col-md-6">
-                                        <p class="mb-2"><strong>Año:</strong> <span class="badge badge-success"><?php echo $active_year['year']; ?></span></p>
-                                        <p class="mb-0"><strong>Inicio:</strong> <?php echo date('d/m/Y', strtotime($active_year['start_date'])); ?></p>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <p class="mb-2"><strong>Descripción:</strong> <?php echo $active_year['description'] ?? 'No disponible'; ?></p>
-                                        <p class="mb-0"><strong>Fin:</strong> <?php echo date('d/m/Y', strtotime($active_year['end_date'])); ?></p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <?php else: ?>
-                        <div class="alert alert-warning" role="alert">
-                            <h5 class="alert-heading"><i class="fa fa-exclamation-triangle mr-2"></i> Atención</h5>
-                            <p class="mb-0">No hay ningún año académico activo. Por favor, cree uno para continuar utilizando el sistema correctamente.</p>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="m-0 font-weight-bold text-primary"><i class="fa fa-history mr-2"></i> Histórico de Años Académicos</h5>
-                    <button id="btn-bimester-locks" type="button" class="btn btn-sm btn-outline-secondary">
-                        <i class="fa fa-lock mr-1"></i> Bloqueos de Bimestres
-                    </button>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover" id="academic-years-table">
-                        <thead class="bg-light">
-                            <tr>
-                                <th>#</th>
-                                <th>Año</th>
-                                <th>Descripción</th>
-                                <th>Fecha Inicio</th>
-                                <th>Fecha Fin</th>
-                                <th>Estado</th>
-                                <th>Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php 
-                            $i = 1;
-                            $years_query = $conn->query("SELECT * FROM academic_year WHERE school_id = $school_id ORDER BY is_active DESC, start_date DESC");
-                            if($years_query && $years_query->num_rows > 0):
-                                while($row = $years_query->fetch_assoc()):
-                            ?>
-                            <tr>
-                                <td><?php echo $i++; ?></td>
-                                <td><strong><?php echo $row['year']; ?></strong></td>
-                                <td><?php echo htmlspecialchars($row['description'] ?? '---'); ?></td>
-                                <td><?php echo date('d/m/Y', strtotime($row['start_date'])); ?></td>
-                                <td><?php echo date('d/m/Y', strtotime($row['end_date'])); ?></td>
-                                <td>
-                                    <?php if($row['is_active']): ?>
-                                        <span class="badge badge-success">Activo</span>
-                                    <?php else: ?>
-                                        <span class="badge badge-secondary">Inactivo</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <button type="button" class="btn btn-outline-primary edit-year" data-id="<?php echo $row['id']; ?>">
-                                            <i class="fa fa-edit"></i>
-                                        </button>
-                                        <?php if(!$row['is_active']): ?>
-                                        <button type="button" class="btn btn-outline-success activate-year" data-id="<?php echo $row['id']; ?>">
-                                            <i class="fa fa-check"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger delete-year" data-id="<?php echo $row['id']; ?>">
-                                            <i class="fa fa-trash"></i>
-                                        </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                            </tr>
-                            <?php 
-                                endwhile;
-                            endif;
-                            ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+ <div class="card shadow-sm mb-4"><div class="card-header d-flex justify-content-between align-items-center"><strong>Historial y ciclo de vida</strong><div><button class="btn btn-sm btn-outline-info" id="open-compare"><i class="fa fa-balance-scale mr-1"></i>Comparar</button> <button class="btn btn-sm btn-outline-secondary" id="open-audit"><i class="fa fa-history mr-1"></i>Auditoría</button></div></div>
+ <div class="card-body table-responsive"><table class="table table-hover" id="years-table"><thead><tr><th>Año</th><th>Fechas</th><th>Periodos</th><th>Estado</th><th class="text-right">Acciones</th></tr></thead><tbody>
+ <?php foreach($years as $y): $status=$y['status']?:((int)$y['is_active']?'Activo':'Borrador'); ?>
+ <tr data-id="<?php echo (int)$y['id']; ?>" data-status="<?php echo htmlspecialchars($status); ?>"><td><strong><?php echo htmlspecialchars($y['year']); ?></strong><div class="small text-muted"><?php echo htmlspecialchars($y['description']?:'Sin descripción'); ?></div></td><td><?php echo date('d/m/Y',strtotime($y['start_date'])); ?> — <?php echo date('d/m/Y',strtotime($y['end_date'])); ?></td><td><?php echo htmlspecialchars($y['period_type']); ?></td><td><span class="badge badge-<?php echo ay_badge($status); ?>"><?php echo htmlspecialchars($status); ?></span></td><td class="text-right ay-actions">
+  <button class="btn btn-sm btn-outline-info summary-year" title="Resumen"><i class="fa fa-chart-bar"></i></button>
+  <?php if(!in_array($status,['Cerrado','Archivado'],true)): ?><button class="btn btn-sm btn-outline-primary periods-year" title="Periodos"><i class="fa fa-calendar-check"></i></button><button class="btn btn-sm btn-outline-primary edit-year" title="Editar"><i class="fa fa-edit"></i></button><?php endif; ?>
+  <?php if($status==='Borrador'): ?><button class="btn btn-sm btn-outline-info copy-year" title="Copiar configuración"><i class="fa fa-copy"></i></button><button class="btn btn-sm btn-outline-success activate-year" title="Activar"><i class="fa fa-play"></i></button><button class="btn btn-sm btn-outline-danger delete-year" title="Eliminar si está vacío"><i class="fa fa-trash"></i></button><?php endif; ?>
+  <?php if($status==='Activo'): ?><button class="btn btn-sm btn-outline-danger close-year" title="Cerrar"><i class="fa fa-lock"></i></button><?php endif; ?>
+  <?php if($status==='Cerrado'): ?><button class="btn btn-sm btn-outline-warning reopen-year" title="Reabrir"><i class="fa fa-unlock"></i></button><button class="btn btn-sm btn-outline-dark archive-year" title="Archivar"><i class="fa fa-archive"></i></button><?php endif; ?>
+ </td></tr><?php endforeach; ?>
+ </tbody></table></div></div>
 </div>
 
+<div class="modal fade" id="year-modal"><div class="modal-dialog"><div class="modal-content"><form id="year-form"><div class="modal-header"><h5 class="modal-title">Preparar año académico</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>"><input type="hidden" name="id" id="year-id"><div id="year-msg"></div><div class="form-row"><div class="form-group col-6"><label>Año</label><input class="form-control" name="year" id="year-name" maxlength="4" required></div><div class="form-group col-6"><label>Organización</label><select class="form-control" name="period_type" id="period-type"><option>Bimestre</option><option>Trimestre</option><option>Semestre</option><option>Personalizado</option></select></div></div><div class="form-group"><label>Descripción</label><textarea class="form-control" name="description" id="year-description" rows="2"></textarea></div><div class="form-row"><div class="form-group col-6"><label>Inicio</label><input type="date" class="form-control" name="start_date" id="year-start" required></div><div class="form-group col-6"><label>Fin</label><input type="date" class="form-control" name="end_date" id="year-end" required></div></div><div class="alert alert-light small mb-0">El año se guarda como <strong>Borrador</strong>. Configure sus periodos antes de activarlo.</div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button class="btn btn-primary">Guardar</button></div></form></div></div></div>
+
+<div class="modal fade" id="period-modal"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="period-form"><div class="modal-header"><h5 class="modal-title">Periodos académicos</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div><div class="modal-body"><input type="hidden" id="period-year-id"><div class="d-flex justify-content-between mb-3"><small class="text-muted">Las fechas son opcionales. Si las utiliza, complete inicio y fin sin superponer periodos.</small><button type="button" class="btn btn-sm btn-outline-primary" id="add-period"><i class="fa fa-plus"></i> Añadir</button></div><div id="period-list"></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button class="btn btn-primary">Guardar periodos</button></div></form></div></div></div>
+
+<div class="modal fade" id="copy-modal"><div class="modal-dialog"><div class="modal-content"><form id="copy-form"><div class="modal-header"><h5 class="modal-title">Copiar configuración</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div><div class="modal-body"><input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>"><input type="hidden" name="target_year_id" id="copy-target"><div class="form-group"><label>Año de origen</label><select name="source_year_id" class="form-control" required><option value="">Seleccione</option><?php foreach($years as $y): ?><option value="<?php echo (int)$y['id']; ?>"><?php echo htmlspecialchars($y['year'].' - '.$y['status']); ?></option><?php endforeach; ?></select></div><?php foreach(['copy_areas_courses'=>'Áreas y cursos','copy_assignments'=>'Asignaciones docentes','copy_competencies'=>'Competencias','copy_periods'=>'Periodos (ajustando las fechas)'] as $name=>$label): ?><div class="custom-control custom-checkbox mb-2"><input type="checkbox" class="custom-control-input" name="<?php echo $name; ?>" value="1" id="<?php echo $name; ?>" checked><label class="custom-control-label" for="<?php echo $name; ?>"><?php echo $label; ?></label></div><?php endforeach; ?><div class="alert alert-warning small mt-3 mb-0">No se copian estudiantes, notas ni evaluaciones.</div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button class="btn btn-info">Copiar</button></div></form></div></div></div>
+
+<div class="modal fade" id="info-modal"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="info-title">Información</h5><button type="button" class="close" data-dismiss="modal">&times;</button></div><div class="modal-body" id="info-body"></div></div></div></div>
+
 <script>
-function submitAcademicYearForm(e){
-    if (e) e.preventDefault();
-    start_load();
-    
-    // Validación de formato de año
-    const yearPattern = /^\d{4}$/;
-    const yearInput = $('#year').val();
-    if (!yearPattern.test(yearInput)) {
-        alert_toast("El formato del año debe ser YYYY (ej: 2025)", 'warning');
-        end_load();
-        return;
-    }
-    
-    // Validación de fechas
-    const startDate = new Date($('#start_date').val());
-    const endDate = new Date($('#end_date').val());
-    if (endDate <= startDate) {
-        alert_toast("La fecha de finalización debe ser posterior a la fecha de inicio", 'warning');
-        end_load();
-        return;
-    }
-    
-    $.ajax({
-        url: 'ajax.php?action=save_academic_year',
-        method: 'POST',
-        data: $('#manage-academic-year-form').serialize(),
-        dataType: 'json',
-        success: function(resp){
-            end_load();
-            if(resp.status == 1){
-                alert_toast("Año académico guardado exitosamente", 'success');
-                setTimeout(function(){
-                    window.location.href = 'index.php?page=academic_year';
-                }, 1500);
-            } else {
-                alert_toast(resp.msg || "Error al guardar el año académico", 'error');
-            }
-        },
-        error: function(err){
-            end_load();
-            console.log(err);
-            alert_toast("Ocurrió un error", 'error');
-        }
-    });
-}
-
-$(document).ready(function(){
-    // Manejo del formulario
-    $(document).off('submit.academicYear', '#manage-academic-year-form').on('submit.academicYear', '#manage-academic-year-form', submitAcademicYearForm);
-    $(document).off('click.academicYear', '#manage-academic-year-form button[type="submit"]').on('click.academicYear', '#manage-academic-year-form button[type="submit"]', submitAcademicYearForm);
-
-    // Inicializar DataTable
-    try {
-        $('#academic-years-table').dataTable({
-            "language": {
-                "search": "Buscar:",
-                "lengthMenu": "Mostrar _MENU_ registros por página",
-                "zeroRecords": "No se encontraron resultados",
-                "info": "Mostrando _START_ a _END_ de _TOTAL_ registros",
-                "infoEmpty": "Mostrando 0 a 0 de 0 registros",
-                "infoFiltered": "(filtrados de _MAX_ registros totales)",
-                "emptyTable": "No hay años académicos registrados",
-                "paginate": {
-                    "first": "Primero",
-                    "last": "Último",
-                    "next": "Siguiente",
-                    "previous": "Anterior"
-                }
-            },
-            "columnDefs": [
-                { "orderable": false, "targets": [6] }
-            ]
-        });
-    } catch (e) {
-        console.error('Error inicializando DataTable academic_year:', e);
-    }
-    
-    // Editar año académico
-    $(document).on('click', '.edit-year', function(){
-        start_load();
-        const id = $(this).data('id');
-        $.ajax({
-            url: 'ajax.php?action=get_academic_year',
-            method: 'POST',
-            data: {id: id},
-            dataType: 'json',
-            success: function(data){
-                end_load();
-                if(data){
-                    $('#academic-year-id').val(data.id);
-                    $('#year').val(data.year);
-                    $('#description').val(data.description);
-                    $('#is_active').val(data.is_active);
-                    $('#start_date').val(data.start_date);
-                    $('#end_date').val(data.end_date);
-                    
-                    $('html, body').animate({
-                        scrollTop: $("#manage-academic-year-form").offset().top - 100
-                    }, 500);
-                }
-            },
-            error: function(err){
-                end_load();
-                console.log(err);
-                alert_toast("Error al cargar los datos", 'error');
-            }
-        });
-    });
-    
-    // Activar año académico
-    $(document).on('click', '.activate-year', function(){
-        const id = $(this).data('id');
-        _conf("¿Está seguro de activar este año académico?<br><small>Esto desactivará el año actualmente activo.</small>", "activate_academic_year", [id]);
-    });
-    
-    // Eliminar año académico
-    $(document).on('click', '.delete-year', function(){
-        const id = $(this).data('id');
-        _conf("¿Está seguro de eliminar este año académico?<br><small>Esta acción no se puede deshacer.</small>", "delete_academic_year", [id]);
-    });
-});
-
-function activate_academic_year(id){
-    start_load();
-    $.ajax({
-        url: 'ajax.php?action=activate_academic_year',
-        method: 'POST',
-        data: {id: id},
-        dataType: 'json',
-        success: function(resp){
-            end_load();
-            if(resp.status == 1){
-                alert_toast("Año académico activado exitosamente", 'success');
-                setTimeout(function(){
-                    window.location.href = 'index.php?page=academic_year';
-                }, 1500);
-            } else {
-                alert_toast(resp.msg || "Error al activar el año académico", 'error');
-            }
-        },
-        error: function(err){
-            end_load();
-            console.log(err);
-            alert_toast("Ocurrió un error", 'error');
-        }
-    });
-}
-
-function delete_academic_year(id){
-    start_load();
-    $.ajax({
-        url: 'ajax.php?action=delete_academic_year',
-        method: 'POST',
-        data: {id: id},
-        dataType: 'json',
-        success: function(resp){
-            end_load();
-            if(resp.status == 1){
-                alert_toast("Año académico eliminado exitosamente", 'success');
-                setTimeout(function(){
-                    window.location.href = 'index.php?page=academic_year';
-                }, 1500);
-            } else {
-                alert_toast(resp.msg || "Error al eliminar el año académico", 'error');
-            }
-        },
-        error: function(err){
-            end_load();
-            console.log(err);
-            alert_toast("Ocurrió un error", 'error');
-        }
-    });
-}
-
-// --- Bloqueos de Bimestres ---
-$(document).on('click', '#btn-bimester-locks', function(){
-    // Obtener el ID del año activo
-    const activeBtn = $('span.badge-success').closest('tr').find('.edit-year');
-    const yearId = activeBtn.length ? activeBtn.data('id') : 0;
-    if(!yearId){
-        alert_toast('No hay año académico activo para configurar.', 'warning');
-        return;
-    }
-    openBimesterLocksModal(yearId);
-});
-
-function openBimesterLocksModal(academicYearId){
-    if(!academicYearId){
-        alert_toast('No hay año académico activo para configurar.', 'warning');
-        return;
-    }
-    uni_modal('Bloqueos de Bimestres', 'manage_bimester_locks.php?academic_year_id=' + academicYearId, 'mid-large');
-}
+(function(){
+const csrf=<?php echo json_encode($csrf); ?>, years=<?php echo json_encode(array_map(fn($y)=>['id'=>(int)$y['id'],'year'=>$y['year'],'start'=>$y['start_date'],'end'=>$y['end_date'],'type'=>$y['period_type']],$years),JSON_UNESCAPED_UNICODE); ?>;
+function post(action,data){data=data||{};data.csrf_token=csrf;return $.ajax({url:'ajax.php?action='+action,method:'POST',data:data,dataType:'json'});}function done(r){if(r&&r.status==1){alert_toast(r.msg||'Operación completada','success');setTimeout(()=>location.reload(),650);}else alert_toast((r&&r.msg)||'No se pudo completar','error');}
+$('#new-year').on('click',function(){$('#year-form')[0].reset();$('#year-id').val('');$('#year-modal').modal('show');});
+$(document).on('click','.edit-year',function(){post('get_academic_year',{id:$(this).closest('tr').data('id')}).done(function(y){if(!y)return;$('#year-id').val(y.id);$('#year-name').val(y.year);$('#year-description').val(y.description);$('#year-start').val(y.start_date);$('#year-end').val(y.end_date);$('#period-type').val(y.period_type);$('#year-modal').modal('show');});});
+$('#year-form').on('submit',function(e){e.preventDefault();post('save_academic_year',$(this).serialize()).done(done);});
+function periodRow(p){return $('<div class="period-row"><span class="period-number badge badge-light"></span><input class="form-control period-name" placeholder="Nombre" required><input type="date" class="form-control period-start" title="Inicio opcional"><input type="date" class="form-control period-end" title="Fin opcional"><label class="small mb-0"><input type="checkbox" class="period-lock"> Bloqueado</label><button type="button" class="btn btn-sm btn-outline-danger remove-period">&times;</button></div>').each(function(){$(this).find('.period-name').val(p&&p.name||'');$(this).find('.period-start').val(p&&p.start_date||'');$(this).find('.period-end').val(p&&p.end_date||'');$(this).find('.period-lock').prop('checked',!!(p&&+p.is_locked));});}
+function renumber(){$('#period-list .period-row').each(function(i){$(this).find('.period-number').text(i+1);});}
+$(document).on('click','.periods-year',function(){let id=$(this).closest('tr').data('id');$('#period-year-id').val(id);$.getJSON('ajax.php?action=get_academic_periods',{academic_year_id:id}).done(function(r){$('#period-list').empty();(r.periods||[]).forEach(p=>$('#period-list').append(periodRow(p)));if(!r.periods||!r.periods.length){let y=years.find(x=>x.id==id),count=y.type==='Semestre'?2:y.type==='Trimestre'?3:y.type==='Bimestre'?4:1;for(let i=0;i<count;i++)$('#period-list').append(periodRow({name:(y.type==='Personalizado'?'Periodo':y.type)+' '+(i+1)}));}renumber();$('#period-modal').modal('show');});});
+$('#add-period').on('click',()=>{$('#period-list').append(periodRow());renumber();});$(document).on('click','.remove-period',function(){$(this).closest('.period-row').remove();renumber();});
+$('#period-form').on('submit',function(e){e.preventDefault();let items=[];$('#period-list .period-row').each(function(){items.push({name:$(this).find('.period-name').val(),start_date:$(this).find('.period-start').val(),end_date:$(this).find('.period-end').val(),is_locked:$(this).find('.period-lock').is(':checked')?1:0});});post('save_academic_periods',{academic_year_id:$('#period-year-id').val(),periods:JSON.stringify(items)}).done(done);});
+$(document).on('click','.copy-year',function(){$('#copy-target').val($(this).closest('tr').data('id'));$('#copy-modal').modal('show');});$('#copy-form').on('submit',function(e){e.preventDefault();post('copy_academic_year',$(this).serialize()).done(done);});
+$(document).on('click','.activate-year',function(){if(confirm('¿Activar este año? El año activo actual quedará cerrado.'))post('activate_academic_year',{id:$(this).closest('tr').data('id')}).done(done);});
+$(document).on('click','.archive-year',function(){if(confirm('¿Archivar este año? Su historial se conservará.'))post('archive_academic_year',{id:$(this).closest('tr').data('id')}).done(done);});
+$(document).on('click','.delete-year',function(){if(confirm('Solo se eliminará si está completamente vacío. ¿Continuar?'))post('delete_academic_year',{id:$(this).closest('tr').data('id')}).done(function(r){if(r.status!=1&&r.dependencies)r.msg+=' '+Object.entries(r.dependencies).map(x=>x[0]+': '+x[1]).join(', ');done(r);});});
+$(document).on('click','.reopen-year',function(){let reason=prompt('Motivo obligatorio de reapertura:');if(reason)post('reopen_academic_year',{id:$(this).closest('tr').data('id'),reason:reason}).done(done);});
+$(document).on('click','.close-year',function(){let id=$(this).closest('tr').data('id');$.getJSON('ajax.php?action=get_close_checklist',{id:id}).done(function(r){let html='<ul class="list-group mb-3">';(r.items||[]).forEach(x=>html+='<li class="list-group-item d-flex justify-content-between"><span>'+x.label+'</span><span class="badge badge-'+(x.blocking?'warning':'success')+'">'+x.count+'</span></li>');html+='</ul><div class="form-group"><label>Observación de cierre</label><textarea id="close-notes" class="form-control"></textarea></div><button class="btn btn-danger" id="confirm-close" data-id="'+id+'">Cerrar y bloquear periodos</button>';$('#info-title').text('Checklist de cierre');$('#info-body').html(html);$('#info-modal').modal('show');});});
+$(document).on('click','#confirm-close',function(){let id=$(this).data('id'),notes=$('#close-notes').val();post('close_academic_year',{id:id,notes:notes}).done(function(r){if(r.status==2&&confirm(r.msg))post('close_academic_year',{id:id,notes:notes,force:1}).done(done);else done(r);});});
+$(document).on('click','.summary-year',function(){let id=$(this).closest('tr').data('id');$.getJSON('ajax.php?action=get_year_summary',{id:id}).done(function(r){let html='<div class="row">';Object.entries(r.summary||{}).forEach(x=>html+='<div class="col-md-4 mb-2"><div class="ay-stat"><small>'+x[0]+'</small><br><strong>'+x[1]+'</strong></div></div>');html+='</div>';$('#info-title').text('Resumen '+r.year.year);$('#info-body').html(html);$('#info-modal').modal('show');});});
+$('#open-audit').on('click',function(){$.getJSON('ajax.php?action=get_academic_year_audit').done(function(r){let html='<div class="audit-list list-group">';(r.audit||[]).forEach(x=>html+='<div class="list-group-item"><strong>'+x.action+'</strong><span class="float-right small">'+x.created_at+'</span><div class="small text-muted">'+x.user_name+'</div></div>');$('#info-title').text('Auditoría de años académicos');$('#info-body').html(html||'Sin movimientos');$('#info-modal').modal('show');});});
+$('#open-compare').on('click',function(){let opts=years.map(x=>'<option value="'+x.id+'">'+x.year+'</option>').join('');$('#info-title').text('Comparar años');$('#info-body').html('<div class="form-row"><div class="col"><select id="compare-a" class="form-control">'+opts+'</select></div><div class="col"><select id="compare-b" class="form-control">'+opts+'</select></div><div class="col-auto"><button id="run-compare" class="btn btn-info">Comparar</button></div></div><div id="compare-result" class="mt-3"></div>');$('#info-modal').modal('show');});
+$(document).on('click','#run-compare',function(){let a=$('#compare-a').val(),b=$('#compare-b').val();$.getJSON('ajax.php?action=compare_academic_years',{year_a:a,year_b:b}).done(function(r){let keys=[...new Set(Object.keys(r.a.summary).concat(Object.keys(r.b.summary)))],html='<div class="text-right mb-2"><a class="btn btn-sm btn-outline-success" href="export_academic_year_comparison.php?year_a='+a+'&year_b='+b+'"><i class="fa fa-file-excel mr-1"></i>Exportar CSV</a></div><table class="table"><thead><tr><th>Indicador</th><th>'+r.a.year.year+'</th><th>'+r.b.year.year+'</th></tr></thead><tbody>';keys.forEach(k=>html+='<tr><td>'+k+'</td><td>'+(r.a.summary[k]||0)+'</td><td>'+(r.b.summary[k]||0)+'</td></tr>');$('#compare-result').html(html+'</tbody></table>');});});
+try{$('#years-table').DataTable({order:[],columnDefs:[{orderable:false,targets:[4]}],language:{search:'Buscar:',lengthMenu:'Mostrar _MENU_',info:'_START_–_END_ de _TOTAL_',paginate:{previous:'Anterior',next:'Siguiente'}}});}catch(e){}
+})();
 </script>

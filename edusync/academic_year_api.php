@@ -1,239 +1,82 @@
 <?php
-// Endpoints para la gestión de años académicos
-// Para incluir en ajax.php
+header('Content-Type: application/json; charset=utf-8');
 
-// Helper: asegurar tabla de bloqueos de bimestres
-function ensure_bimester_locks_table($conn) {
-    $conn->query("CREATE TABLE IF NOT EXISTS bimester_locks (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        academic_year_id INT NOT NULL,
-        school_id INT NOT NULL,
-        bimester TINYINT NOT NULL,
-        is_locked TINYINT NOT NULL DEFAULT 0,
-        UNIQUE KEY uniq_year_school_bim (academic_year_id, school_id, bimester)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+function ayResponse($data){ echo json_encode($data, JSON_UNESCAPED_UNICODE); exit; }
+function ayHasTable($db,$table){$v=$db->real_escape_string($table);$q=$db->query("SHOW TABLES LIKE '$v'");return $q&&$q->num_rows>0;}
+function ayHasColumn($db,$table,$column){$v=$db->real_escape_string($column);$q=$db->query("SHOW COLUMNS FROM `$table` LIKE '$v'");return $q&&$q->num_rows>0;}
+function ayMigrationReady($db){
+    $columns=['status','period_type','closed_at','closed_by','close_notes','reopened_at','reopened_by','reopen_reason'];
+    foreach($columns as $column)if(!ayHasColumn($db,'academic_year',$column))return false;
+    if(!ayHasTable($db,'academic_periods')||!ayHasTable($db,'academic_year_audit')||!ayHasTable($db,'bimester_locks'))return false;
+    if(!ayHasColumn($db,'academic_periods','start_date')||!ayHasColumn($db,'academic_periods','end_date'))return false;
+    $q=$db->query("SHOW COLUMNS FROM academic_periods LIKE 'start_date'");$start=$q?$q->fetch_assoc():null;
+    $q=$db->query("SHOW COLUMNS FROM academic_periods LIKE 'end_date'");$end=$q?$q->fetch_assoc():null;
+    return $start&&$end&&strtoupper($start['Null']??'NO')==='YES'&&strtoupper($end['Null']??'NO')==='YES';
 }
+function ayAudit($db,$school,$year,$action,$details=[]){$user=(int)($_SESSION['login_id']??0);$ip=$_SERVER['REMOTE_ADDR']??null;$json=json_encode($details,JSON_UNESCAPED_UNICODE);$s=$db->prepare('INSERT INTO academic_year_audit(school_id,academic_year_id,user_id,action,details,ip_address) VALUES(?,NULLIF(?,0),NULLIF(?,0),?,?,?)');if($s){$s->bind_param('iiisss',$school,$year,$user,$action,$json,$ip);$s->execute();$s->close();}}
+function ayGet($db,$id,$school){$s=$db->prepare('SELECT * FROM academic_year WHERE id=? AND school_id=? LIMIT 1');$s->bind_param('ii',$id,$school);$s->execute();$r=$s->get_result()->fetch_assoc();$s->close();return $r?:null;}
+function ayCount($db,$table,$column,$year,$extra=''){if(!ayHasTable($db,$table)||!ayHasColumn($db,$table,$column))return 0;$q=$db->query("SELECT COUNT(*) total FROM `$table` WHERE `$column`=".(int)$year." $extra");return $q?(int)$q->fetch_assoc()['total']:0;}
+function ayDependencies($db,$year){$map=['Áreas'=>['areas','academic_year_id'],'Cursos académicos'=>['academic_courses','academic_year_id'],'Asignaciones docentes'=>['teacher_courses','academic_year_id'],'Competencias'=>['general_course_competencies','academic_year_id'],'Evaluaciones'=>['evaluations','academic_year_id'],'Estudiantes actuales'=>['student','academic_year_id'],'Historial estudiantil'=>['student_academic_history','academic_year_id'],'Historial laboral'=>['teacher_employment_history','academic_year_id'],'Conceptos de pago'=>['courses','academic_year_id'],'Periodos'=>['academic_periods','academic_year_id']];$out=[];foreach($map as $label=>$cfg){$n=ayCount($db,$cfg[0],$cfg[1],$year);if($n)$out[$label]=$n;}return $out;}
+function aySummary($db,$year){$out=ayDependencies($db,$year);$out['Periodos abiertos']=ayCount($db,'academic_periods','academic_year_id',$year,'AND is_locked=0');return $out;}
 
-// Guardar o actualizar año académico
-if ($action == 'save_academic_year') {
-    header('Content-Type: application/json');
-    
-    // Validación de datos
-    $id = isset($_POST['id']) && !empty($_POST['id']) ? intval($_POST['id']) : null;
-    $year = isset($_POST['year']) ? $conn->real_escape_string($_POST['year']) : '';
-    $description = isset($_POST['description']) ? $conn->real_escape_string($_POST['description']) : '';
-    $start_date = isset($_POST['start_date']) ? $conn->real_escape_string($_POST['start_date']) : '';
-    $end_date = isset($_POST['end_date']) ? $conn->real_escape_string($_POST['end_date']) : '';
-    $is_active = isset($_POST['is_active']) ? intval($_POST['is_active']) : 0;
-    $school_id = isset($_POST['school_id']) ? intval($_POST['school_id']) : 0;
-    
-    // Validar permisos (solo admin puede hacer esto)
-    if (!isset($_SESSION['login_type']) || $_SESSION['login_type'] != 1) {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'No tiene permisos para realizar esta acción.'
-        ]);
-        exit;
-    }
-    
-    // Si es activo, primero desactivar todos los demás años académicos
-    if ($is_active) {
-        $conn->query("UPDATE academic_year SET is_active = 0 WHERE school_id = $school_id");
-    }
-    
-    // Insertar o actualizar
-    if ($id) {
-        $sql = "UPDATE academic_year SET 
-                year = '$year', 
-                description = '$description', 
-                start_date = '$start_date', 
-                end_date = '$end_date', 
-                is_active = $is_active 
-                WHERE id = $id AND school_id = $school_id";
-    } else {
-        $sql = "INSERT INTO academic_year (year, description, start_date, end_date, is_active, school_id) 
-                VALUES ('$year', '$description', '$start_date', '$end_date', $is_active, $school_id)";
-    }
-    
-    if ($conn->query($sql)) {
-        echo json_encode(['status' => 1]);
-    } else {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'Error al guardar el año académico: ' . $conn->error
-        ]);
-    }
-    exit;
-} 
+$school_id=(int)($_SESSION['login_school_id']??0);
+if(!$school_id||empty($_SESSION['login_id'])||(int)($_SESSION['login_type']??0)!==1)ayResponse(['status'=>0,'msg'=>'No tiene permisos para realizar esta acción.']);
+if(!ayMigrationReady($conn))ayResponse(['status'=>0,'migration_required'=>true,'msg'=>'Falta actualizar la base de datos. Ejecute sql/academic_year_lifecycle_upgrade.sql.']);
+if($_SERVER['REQUEST_METHOD']==='POST'){$sent=(string)($_POST['csrf_token']??'');$saved=(string)($_SESSION['csrf_token']??'');if(!$sent||!$saved||!hash_equals($saved,$sent))ayResponse(['status'=>0,'msg'=>'La sesión de seguridad venció. Recargue la página.']);}
 
-// Obtener un año académico por ID
-elseif ($action == 'get_academic_year') {
-    header('Content-Type: application/json');
-    
-    $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
-    $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
-    
-    if (!$id || !$school_id) {
-        echo json_encode(null);
-        exit;
-    }
-    
-    $query = $conn->query("SELECT * FROM academic_year WHERE id = $id AND school_id = $school_id");
-    if ($query && $query->num_rows > 0) {
-        $data = $query->fetch_assoc();
-        // Formatear fechas para input date HTML
-        $data['start_date'] = date('Y-m-d', strtotime($data['start_date']));
-        $data['end_date'] = date('Y-m-d', strtotime($data['end_date']));
-        echo json_encode($data);
-    } else {
-        echo json_encode(null);
-    }
-    exit;
+if($action==='save_academic_year'){
+    $id=(int)($_POST['id']??0);$year=trim($_POST['year']??'');$description=trim($_POST['description']??'');$start=trim($_POST['start_date']??'');$end=trim($_POST['end_date']??'');$type=trim($_POST['period_type']??'Bimestre');
+    if(!preg_match('/^\d{4}$/',$year)||!in_array($type,['Bimestre','Trimestre','Semestre','Personalizado'],true))ayResponse(['status'=>0,'msg'=>'Revise el año y el tipo de periodos.']);
+    if(!$start||!$end||$end<=$start)ayResponse(['status'=>0,'msg'=>'La fecha final debe ser posterior a la fecha inicial.']);
+    $s=$conn->prepare('SELECT id FROM academic_year WHERE school_id=? AND year=? AND id<>? LIMIT 1');$s->bind_param('isi',$school_id,$year,$id);$s->execute();if($s->get_result()->fetch_assoc()){ $s->close();ayResponse(['status'=>0,'msg'=>'Ese año académico ya existe.']);}$s->close();
+    $s=$conn->prepare("SELECT year FROM academic_year WHERE school_id=? AND id<>? AND status<>'Archivado' AND start_date<=? AND end_date>=? LIMIT 1");$s->bind_param('iiss',$school_id,$id,$end,$start);$s->execute();$overlap=$s->get_result()->fetch_assoc();$s->close();if($overlap)ayResponse(['status'=>0,'msg'=>'Las fechas se superponen con el año '.$overlap['year'].'.']);
+    if($id){$current=ayGet($conn,$id,$school_id);if(!$current||in_array($current['status'],['Cerrado','Archivado'],true))ayResponse(['status'=>0,'msg'=>'Un año cerrado o archivado no puede editarse.']);$s=$conn->prepare('UPDATE academic_year SET year=?,description=?,start_date=?,end_date=?,period_type=? WHERE id=? AND school_id=?');$s->bind_param('sssssii',$year,$description,$start,$end,$type,$id,$school_id);$ok=$s->execute();$s->close();$saved=$id;$event='year_updated';}
+    else{$s=$conn->prepare("INSERT INTO academic_year(year,description,start_date,end_date,is_active,status,period_type,school_id) VALUES(?,?,?,?,0,'Borrador',?,?)");$s->bind_param('sssssi',$year,$description,$start,$end,$type,$school_id);$ok=$s->execute();$saved=$s->insert_id;$s->close();$event='year_created';}
+    if(!$ok)ayResponse(['status'=>0,'msg'=>'No se pudo guardar el año.']);ayAudit($conn,$school_id,$saved,$event,['year'=>$year]);ayResponse(['status'=>1,'id'=>$saved,'msg'=>'Año guardado como borrador.']);
 }
-
-// Activar un año académico
-elseif ($action == 'activate_academic_year') {
-    header('Content-Type: application/json');
-    
-    $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
-    $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
-    
-    if (!$id || !$school_id) {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'Parámetros inválidos'
-        ]);
-        exit;
-    }
-    
-    // Verificar permisos
-    if (!isset($_SESSION['login_type']) || $_SESSION['login_type'] != 1) {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'No tiene permisos para realizar esta acción.'
-        ]);
-        exit;
-    }
-    
-    // Desactivar todos los años
-    $conn->query("UPDATE academic_year SET is_active = 0 WHERE school_id = $school_id");
-    
-    // Activar el año seleccionado
-    if ($conn->query("UPDATE academic_year SET is_active = 1 WHERE id = $id AND school_id = $school_id")) {
-        echo json_encode(['status' => 1]);
-    } else {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'Error al activar el año académico: ' . $conn->error
-        ]);
-    }
-    exit;
+elseif($action==='get_academic_year'){ayResponse(ayGet($conn,(int)($_POST['id']??$_GET['id']??0),$school_id));}
+elseif($action==='activate_academic_year'){
+    $id=(int)($_POST['id']??0);$year=ayGet($conn,$id,$school_id);if(!$year||$year['status']==='Archivado')ayResponse(['status'=>0,'msg'=>'El año no se puede activar.']);if(!ayCount($conn,'academic_periods','academic_year_id',$id))ayResponse(['status'=>0,'msg'=>'Configure los periodos antes de activar el año.']);
+    $uid=(int)$_SESSION['login_id'];$conn->begin_transaction();try{$s=$conn->prepare("UPDATE academic_year SET is_active=0,status='Cerrado',closed_at=NOW(),closed_by=? WHERE school_id=? AND id<>? AND is_active=1");$s->bind_param('iii',$uid,$school_id,$id);if(!$s->execute())throw new Exception($s->error);$s->close();$s=$conn->prepare("UPDATE academic_year SET is_active=1,status='Activo',closed_at=NULL,closed_by=NULL,close_notes=NULL WHERE id=? AND school_id=?");$s->bind_param('ii',$id,$school_id);if(!$s->execute()||$s->affected_rows<1)throw new Exception($s->error);$s->close();$conn->commit();}catch(Throwable $e){$conn->rollback();ayResponse(['status'=>0,'msg'=>'No se pudo activar el año.']);}ayAudit($conn,$school_id,$id,'year_activated');ayResponse(['status'=>1,'msg'=>'Año activado; el anterior quedó cerrado.']);
 }
-
-// Eliminar un año académico
-elseif ($action == 'delete_academic_year') {
-    header('Content-Type: application/json');
-    
-    $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
-    $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
-    
-    if (!$id || !$school_id) {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'Parámetros inválidos'
-        ]);
-        exit;
-    }
-    
-    // Verificar permisos
-    if (!isset($_SESSION['login_type']) || $_SESSION['login_type'] != 1) {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'No tiene permisos para realizar esta acción.'
-        ]);
-        exit;
-    }
-    
-    // Verificar que no sea el año activo
-    $check = $conn->query("SELECT is_active FROM academic_year WHERE id = $id AND school_id = $school_id");
-    if ($check && $check->num_rows > 0) {
-        $is_active = $check->fetch_assoc()['is_active'];
-        if ($is_active) {
-            echo json_encode([
-                'status' => 0,
-                'msg' => 'No se puede eliminar un año académico activo.'
-            ]);
-            exit;
-        }
-    }
-    
-    // Verificar si hay evaluaciones asociadas
-    $check_evals = $conn->query("SELECT COUNT(*) as total FROM evaluations WHERE academic_year_id = $id");
-    if ($check_evals && $check_evals->fetch_assoc()['total'] > 0) {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'No se puede eliminar este año académico porque tiene evaluaciones asociadas.'
-        ]);
-        exit;
-    }
-    
-    // Eliminar
-    if ($conn->query("DELETE FROM academic_year WHERE id = $id AND school_id = $school_id AND is_active = 0")) {
-        echo json_encode(['status' => 1]);
-    } else {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'Error al eliminar el año académico: ' . $conn->error
-        ]);
-    }
-    exit;
+elseif($action==='get_year_summary'){$id=(int)($_GET['id']??0);$year=ayGet($conn,$id,$school_id);if(!$year)ayResponse(['status'=>0,'msg'=>'Año no encontrado.']);ayResponse(['status'=>1,'year'=>$year,'summary'=>aySummary($conn,$id)]);}
+elseif($action==='get_close_checklist'){
+    $id=(int)($_GET['id']??0);$year=ayGet($conn,$id,$school_id);if(!$year)ayResponse(['status'=>0,'msg'=>'Año no encontrado.']);$open=ayCount($conn,'academic_periods','academic_year_id',$id,'AND is_locked=0');$courses=ayCount($conn,'academic_courses','academic_year_id',$id,'AND is_active=1');$assigned=0;if(ayHasTable($conn,'teacher_courses')){$q=$conn->query("SELECT COUNT(DISTINCT course_id) total FROM teacher_courses WHERE school_id=$school_id AND academic_year_id=$id");$assigned=$q?(int)$q->fetch_assoc()['total']:0;}$incomplete=0;if(ayHasTable($conn,'general_course_competencies')){$q=$conn->query("SELECT COUNT(*) total FROM(SELECT course_id,teacher_id,SUM(percentage) p FROM general_course_competencies WHERE academic_year_id=$id AND is_active=1 GROUP BY course_id,teacher_id HAVING ABS(p-100)>0.01)x");$incomplete=$q?(int)$q->fetch_assoc()['total']:0;}$items=[['label'=>'Periodos abiertos','count'=>$open,'blocking'=>$open>0],['label'=>'Cursos activos sin docente','count'=>max(0,$courses-$assigned),'blocking'=>$courses>$assigned],['label'=>'Competencias con porcentaje distinto de 100%','count'=>$incomplete,'blocking'=>$incomplete>0],['label'=>'Evaluaciones registradas','count'=>ayCount($conn,'evaluations','academic_year_id',$id),'blocking'=>false]];ayResponse(['status'=>1,'year'=>$year,'items'=>$items,'can_close'=>!array_filter($items,fn($x)=>$x['blocking'])]);
 }
-
-// Obtener bloqueos de bimestres para un año académico
-elseif ($action == 'get_bimester_locks') {
-    header('Content-Type: application/json');
-    $academic_year_id = isset($_GET['academic_year_id']) ? intval($_GET['academic_year_id']) : (isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0);
-    $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
-    if (!$academic_year_id || !$school_id) {
-        echo json_encode(['status' => 0, 'msg' => 'Parámetros inválidos']);
-        exit;
-    }
-    ensure_bimester_locks_table($conn);
-    $locks = [1 => 0, 2 => 0, 3 => 0, 4 => 0];
-    $res = $conn->query("SELECT bimester, is_locked FROM bimester_locks WHERE academic_year_id = $academic_year_id AND school_id = $school_id");
-    if ($res) {
-        while ($row = $res->fetch_assoc()) {
-            $b = intval($row['bimester']);
-            if ($b >= 1 && $b <= 4) $locks[$b] = intval($row['is_locked']);
-        }
-    }
-    echo json_encode(['status' => 1, 'locks' => $locks]);
-    exit;
+elseif($action==='close_academic_year'){
+    $id=(int)($_POST['id']??0);$notes=trim($_POST['notes']??'');$force=(int)($_POST['force']??0);$year=ayGet($conn,$id,$school_id);if(!$year||$year['status']!=='Activo')ayResponse(['status'=>0,'msg'=>'Solo puede cerrar el año activo.']);if(strlen($notes)<5)ayResponse(['status'=>0,'msg'=>'Indique una observación de cierre.']);$open=ayCount($conn,'academic_periods','academic_year_id',$id,'AND is_locked=0');if($open&&!$force)ayResponse(['status'=>2,'needs_confirmation'=>true,'msg'=>"Hay $open periodo(s) abiertos. Confirme para bloquearlos y cerrar."]);$uid=(int)$_SESSION['login_id'];$conn->begin_transaction();try{$s=$conn->prepare("UPDATE academic_year SET status='Cerrado',is_active=0,closed_at=NOW(),closed_by=?,close_notes=? WHERE id=? AND school_id=?");$s->bind_param('isii',$uid,$notes,$id,$school_id);if(!$s->execute())throw new Exception($s->error);$s->close();$conn->query("UPDATE academic_periods SET is_locked=1 WHERE academic_year_id=$id AND school_id=$school_id");$conn->query("UPDATE bimester_locks SET is_locked=1 WHERE academic_year_id=$id AND school_id=$school_id");$conn->commit();}catch(Throwable $e){$conn->rollback();ayResponse(['status'=>0,'msg'=>'No se pudo cerrar el año.']);}ayAudit($conn,$school_id,$id,'year_closed',['notes'=>$notes]);ayResponse(['status'=>1,'msg'=>'Año cerrado y periodos bloqueados.']);
 }
-
-// Guardar bloqueos de bimestres para un año académico
-elseif ($action == 'save_bimester_locks') {
-    header('Content-Type: application/json');
-    $academic_year_id = isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0;
-    $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
-    if (!$academic_year_id || !$school_id) {
-        echo json_encode(['status' => 0, 'msg' => 'Parámetros inválidos']);
-        exit;
-    }
-    ensure_bimester_locks_table($conn);
-    // Parsear valores enviados (lock_1..lock_4)
-    for ($b = 1; $b <= 4; $b++) {
-        $key = 'lock_' . $b;
-        $is_locked = isset($_POST[$key]) ? intval($_POST[$key]) : 0;
-        // Upsert
-        $sql = "INSERT INTO bimester_locks (academic_year_id, school_id, bimester, is_locked)
-                VALUES ($academic_year_id, $school_id, $b, $is_locked)
-                ON DUPLICATE KEY UPDATE is_locked = VALUES(is_locked)";
-        if (!$conn->query($sql)) {
-            echo json_encode(['status' => 0, 'msg' => 'Error al guardar: ' . $conn->error]);
-            exit;
-        }
-    }
-    echo json_encode(['status' => 1]);
-    exit;
+elseif($action==='reopen_academic_year'){$id=(int)($_POST['id']??0);$reason=trim($_POST['reason']??'');$year=ayGet($conn,$id,$school_id);if(!$year||$year['status']!=='Cerrado'||strlen($reason)<5)ayResponse(['status'=>0,'msg'=>'Indique un motivo válido para reabrir un año cerrado.']);$uid=(int)$_SESSION['login_id'];$s=$conn->prepare("UPDATE academic_year SET status='Borrador',is_active=0,reopened_at=NOW(),reopened_by=?,reopen_reason=? WHERE id=? AND school_id=?");$s->bind_param('isii',$uid,$reason,$id,$school_id);$ok=$s->execute();$s->close();if(!$ok)ayResponse(['status'=>0,'msg'=>'No se pudo reabrir.']);ayAudit($conn,$school_id,$id,'year_reopened',['reason'=>$reason]);ayResponse(['status'=>1,'msg'=>'Año reabierto como borrador.']);}
+elseif($action==='archive_academic_year'){$id=(int)($_POST['id']??0);$year=ayGet($conn,$id,$school_id);if(!$year||$year['is_active'])ayResponse(['status'=>0,'msg'=>'No puede archivar el año activo.']);$s=$conn->prepare("UPDATE academic_year SET status='Archivado',is_active=0 WHERE id=? AND school_id=?");$s->bind_param('ii',$id,$school_id);$ok=$s->execute();$s->close();if(!$ok)ayResponse(['status'=>0,'msg'=>'No se pudo archivar.']);ayAudit($conn,$school_id,$id,'year_archived');ayResponse(['status'=>1,'msg'=>'Año archivado; su historial se conserva.']);}
+elseif($action==='delete_academic_year'){$id=(int)($_POST['id']??0);$year=ayGet($conn,$id,$school_id);if(!$year||$year['is_active'])ayResponse(['status'=>0,'msg'=>'No puede eliminar el año activo.']);$deps=ayDependencies($conn,$id);unset($deps['Periodos']);if($deps)ayResponse(['status'=>0,'msg'=>'El año tiene información relacionada y debe archivarse.','dependencies'=>$deps]);$conn->begin_transaction();try{$conn->query("DELETE FROM academic_periods WHERE academic_year_id=$id AND school_id=$school_id");$conn->query("DELETE FROM bimester_locks WHERE academic_year_id=$id AND school_id=$school_id");$s=$conn->prepare('DELETE FROM academic_year WHERE id=? AND school_id=? AND is_active=0');$s->bind_param('ii',$id,$school_id);if(!$s->execute()||$s->affected_rows<1)throw new Exception('delete');$s->close();$conn->commit();}catch(Throwable $e){$conn->rollback();ayResponse(['status'=>0,'msg'=>'No se pudo eliminar.']);}ayAudit($conn,$school_id,0,'year_deleted',['year'=>$year['year']]);ayResponse(['status'=>1,'msg'=>'Borrador vacío eliminado.']);}
+elseif($action==='get_academic_periods'){$id=(int)($_GET['academic_year_id']??0);if(!ayGet($conn,$id,$school_id))ayResponse(['status'=>0,'msg'=>'Año inválido.']);$s=$conn->prepare('SELECT * FROM academic_periods WHERE academic_year_id=? AND school_id=? ORDER BY period_number');$s->bind_param('ii',$id,$school_id);$s->execute();$items=[];$r=$s->get_result();while($x=$r->fetch_assoc())$items[]=$x;$s->close();ayResponse(['status'=>1,'periods'=>$items]);}
+elseif($action==='save_academic_periods'){
+    $id=(int)($_POST['academic_year_id']??0);$year=ayGet($conn,$id,$school_id);$periods=json_decode($_POST['periods']??'[]',true);
+    if(!$year||in_array($year['status'],['Cerrado','Archivado'],true)||!is_array($periods)||!count($periods))ayResponse(['status'=>0,'msg'=>'Los periodos no son válidos o el año está bloqueado.']);
+    $dated=[];foreach($periods as $p){$name=trim($p['name']??'');$start=trim($p['start_date']??'');$end=trim($p['end_date']??'');if(!$name)ayResponse(['status'=>0,'msg'=>'Todos los periodos deben tener un nombre.']);if(($start==='')!==($end===''))ayResponse(['status'=>0,'msg'=>'Si define fechas, complete inicio y fin.']);if($start!==''&&($start<$year['start_date']||$end>$year['end_date']||$end<$start))ayResponse(['status'=>0,'msg'=>'Las fechas deben estar dentro del año académico.']);if($start!=='')$dated[]=['start'=>$start,'end'=>$end];}
+    usort($dated,fn($a,$b)=>strcmp($a['start'],$b['start']));$previous='';foreach($dated as $range){if($previous&&$range['start']<=$previous)ayResponse(['status'=>0,'msg'=>'Las fechas configuradas no pueden superponerse.']);$previous=$range['end'];}
+    $conn->begin_transaction();try{
+        $delete=$conn->prepare('DELETE FROM academic_periods WHERE academic_year_id=? AND school_id=?');if(!$delete)throw new Exception($conn->error);$delete->bind_param('ii',$id,$school_id);if(!$delete->execute())throw new Exception($delete->error);$delete->close();
+        $withDates=$conn->prepare('INSERT INTO academic_periods(school_id,academic_year_id,period_number,name,start_date,end_date,is_locked) VALUES(?,?,?,?,?,?,?)');
+        $withoutDates=$conn->prepare('INSERT INTO academic_periods(school_id,academic_year_id,period_number,name,start_date,end_date,is_locked) VALUES(?,?,?,?,NULL,NULL,?)');
+        $sync=$conn->prepare('INSERT INTO bimester_locks(academic_year_id,school_id,bimester,is_locked) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE is_locked=VALUES(is_locked)');
+        if(!$withDates||!$withoutDates||!$sync)throw new Exception($conn->error);
+        foreach($periods as $i=>$p){$num=$i+1;$name=trim($p['name']);$start=trim($p['start_date']??'');$end=trim($p['end_date']??'');$locked=!empty($p['is_locked'])?1:0;if($start===''){$withoutDates->bind_param('iiisi',$school_id,$id,$num,$name,$locked);if(!$withoutDates->execute())throw new Exception($withoutDates->error);}else{$withDates->bind_param('iiisssi',$school_id,$id,$num,$name,$start,$end,$locked);if(!$withDates->execute())throw new Exception($withDates->error);}if($num<=4){$sync->bind_param('iiii',$id,$school_id,$num,$locked);if(!$sync->execute())throw new Exception($sync->error);}}
+        $withDates->close();$withoutDates->close();$sync->close();$conn->commit();
+    }catch(Throwable $e){$conn->rollback();error_log('[academic_year] save_academic_periods: '.$e->getMessage());ayResponse(['status'=>0,'msg'=>'No se pudieron guardar los periodos. Verifique que ejecutó la versión actual de sql/academic_year_lifecycle_upgrade.sql.']);}
+    ayAudit($conn,$school_id,$id,'periods_saved',['count'=>count($periods)]);ayResponse(['status'=>1,'msg'=>'Periodos guardados.']);
 }
+elseif($action==='copy_academic_year'){
+    $source=(int)($_POST['source_year_id']??0);$target=(int)($_POST['target_year_id']??0);$copyAreas=!empty($_POST['copy_areas_courses']);$copyAssignments=!empty($_POST['copy_assignments']);$copyCompetencies=!empty($_POST['copy_competencies']);$copyPeriods=!empty($_POST['copy_periods']);$sourceYear=ayGet($conn,$source,$school_id);$targetYear=ayGet($conn,$target,$school_id);if($source===$target||!$sourceYear||!$targetYear||in_array($targetYear['status'],['Cerrado','Archivado'],true))ayResponse(['status'=>0,'msg'=>'Seleccione años válidos.']);$counts=['areas'=>0,'courses'=>0,'assignments'=>0,'competencies'=>0,'periods'=>0];$areaMap=[];$courseMap=[];$conn->begin_transaction();try{
+        if($copyAreas&&ayHasTable($conn,'areas')&&ayHasTable($conn,'academic_courses')){$r=$conn->query("SELECT * FROM areas WHERE school_id=$school_id AND academic_year_id=$source");while($a=$r->fetch_assoc()){$name=$conn->real_escape_string($a['name']);$q=$conn->query("SELECT id FROM areas WHERE school_id=$school_id AND academic_year_id=$target AND name='$name' LIMIT 1");if($q&&$q->num_rows)$new=(int)$q->fetch_assoc()['id'];else{$desc=$conn->real_escape_string($a['description']??'');$color=$conn->real_escape_string($a['color']??'#4e73df');$active=(int)($a['is_active']??1);$conn->query("INSERT INTO areas(school_id,academic_year_id,name,description,color,is_active) VALUES($school_id,$target,'$name','$desc','$color',$active)");$new=$conn->insert_id;$counts['areas']++;}$areaMap[(int)$a['id']]=$new;}$r=$conn->query("SELECT * FROM academic_courses WHERE school_id=$school_id AND academic_year_id=$source");while($c=$r->fetch_assoc()){$name=$conn->real_escape_string($c['name']);$level=$conn->real_escape_string($c['level']);$q=$conn->query("SELECT id FROM academic_courses WHERE school_id=$school_id AND academic_year_id=$target AND name='$name' AND level='$level' LIMIT 1");if($q&&$q->num_rows)$new=(int)$q->fetch_assoc()['id'];else{$area=(int)($areaMap[(int)$c['area_id']]??0);$code=$conn->real_escape_string($c['course_code']??'');$desc=$conn->real_escape_string($c['description']??'');$grades=$conn->real_escape_string($c['grades']??'');$hours=(float)($c['weekly_hours']??0);$type=$conn->real_escape_string($c['course_type']??'Curso');$order=(int)($c['display_order']??0);$active=(int)($c['is_active']??1);$status=$conn->real_escape_string($c['course_status']??($active?'Activo':'Inactivo'));$conn->query("INSERT INTO academic_courses(school_id,academic_year_id,area_id,name,course_code,description,level,grades,weekly_hours,course_type,display_order,is_active,course_status) VALUES($school_id,$target,NULLIF($area,0),'$name','$code','$desc','$level','$grades',$hours,'$type',$order,$active,'$status')");$new=$conn->insert_id;$counts['courses']++;}$courseMap[(int)$c['id']]=$new;}}
+        if(($copyAssignments||$copyCompetencies)&&!$courseMap){$r=$conn->query("SELECT s.id source_id,t.id target_id FROM academic_courses s INNER JOIN academic_courses t ON t.school_id=s.school_id AND t.academic_year_id=$target AND t.name=s.name AND t.level=s.level WHERE s.school_id=$school_id AND s.academic_year_id=$source");while($x=$r->fetch_assoc())$courseMap[(int)$x['source_id']]=(int)$x['target_id'];}
+        if($copyAssignments&&ayHasTable($conn,'teacher_courses')){$r=$conn->query("SELECT * FROM teacher_courses WHERE school_id=$school_id AND academic_year_id=$source");while($x=$r->fetch_assoc()){if(empty($courseMap[(int)$x['course_id']]))continue;$course=$courseMap[(int)$x['course_id']];$teacher=(int)$x['teacher_id'];$g=$conn->real_escape_string($x['grado']);$sec=$conn->real_escape_string($x['seccion']);$level=$conn->real_escape_string($x['level']);$q=$conn->query("SELECT id FROM teacher_courses WHERE school_id=$school_id AND academic_year_id=$target AND teacher_id=$teacher AND course_id=$course AND grado='$g' AND seccion='$sec' LIMIT 1");if(!$q||!$q->num_rows){$conn->query("INSERT INTO teacher_courses(teacher_id,course_id,grado,seccion,school_id,level,academic_year_id) VALUES($teacher,$course,'$g','$sec',$school_id,'$level',$target)");$counts['assignments']++;}}}
+        if($copyCompetencies&&ayHasTable($conn,'general_course_competencies')){$r=$conn->query("SELECT * FROM general_course_competencies WHERE academic_year_id=$source");while($x=$r->fetch_assoc()){if(empty($courseMap[(int)$x['course_id']]))continue;$course=$courseMap[(int)$x['course_id']];$teacher=(int)$x['teacher_id'];$name=$conn->real_escape_string($x['name']);$pct=(float)$x['percentage'];$active=(int)$x['is_active'];$q=$conn->query("SELECT id FROM general_course_competencies WHERE academic_year_id=$target AND course_id=$course AND teacher_id=$teacher AND name='$name' LIMIT 1");if(!$q||!$q->num_rows){$conn->query("INSERT INTO general_course_competencies(course_id,teacher_id,name,percentage,academic_year_id,is_active) VALUES($course,$teacher,'$name',$pct,$target,$active)");$counts['competencies']++;}}}
+        if($copyPeriods){$conn->query("DELETE FROM academic_periods WHERE school_id=$school_id AND academic_year_id=$target");$r=$conn->query("SELECT * FROM academic_periods WHERE school_id=$school_id AND academic_year_id=$source ORDER BY period_number");while($x=$r->fetch_assoc()){$start='';$end='';if(!empty($x['start_date'])&&!empty($x['end_date'])){$offset=(new DateTime($sourceYear['start_date']))->diff(new DateTime($x['start_date']))->days;$duration=(new DateTime($x['start_date']))->diff(new DateTime($x['end_date']))->days;$sd=(new DateTime($targetYear['start_date']))->modify("+$offset days");$ed=(clone $sd)->modify("+$duration days");if($ed->format('Y-m-d')>$targetYear['end_date'])$ed=new DateTime($targetYear['end_date']);$start=$sd->format('Y-m-d');$end=$ed->format('Y-m-d');}$num=(int)$x['period_number'];$name=$conn->real_escape_string($x['name']);$stmtPeriod=$conn->prepare("INSERT INTO academic_periods(school_id,academic_year_id,period_number,name,start_date,end_date,is_locked) VALUES(?,?,?,?,NULLIF(?,''),NULLIF(?,''),0)");$stmtPeriod->bind_param('iiisss',$school_id,$target,$num,$name,$start,$end);if(!$stmtPeriod->execute())throw new Exception($stmtPeriod->error);$stmtPeriod->close();$counts['periods']++;}}
+        $conn->commit();}catch(Throwable $e){$conn->rollback();ayResponse(['status'=>0,'msg'=>'No se pudo copiar la configuración: '.$e->getMessage()]);}ayAudit($conn,$school_id,$target,'year_configuration_copied',['source'=>$source,'counts'=>$counts]);ayResponse(['status'=>1,'msg'=>'Configuración copiada.','counts'=>$counts]);
+}
+elseif($action==='compare_academic_years'){$a=(int)($_GET['year_a']??0);$b=(int)($_GET['year_b']??0);$ya=ayGet($conn,$a,$school_id);$yb=ayGet($conn,$b,$school_id);if(!$ya||!$yb)ayResponse(['status'=>0,'msg'=>'Años inválidos.']);ayResponse(['status'=>1,'a'=>['year'=>$ya,'summary'=>aySummary($conn,$a)],'b'=>['year'=>$yb,'summary'=>aySummary($conn,$b)]]);}
+elseif($action==='get_academic_year_audit'){$id=(int)($_GET['academic_year_id']??0);$s=$conn->prepare("SELECT a.*,COALESCE(u.name,'Sistema') user_name FROM academic_year_audit a LEFT JOIN users u ON u.id=a.user_id WHERE a.school_id=? AND(a.academic_year_id=? OR ?=0) ORDER BY a.created_at DESC LIMIT 100");$s->bind_param('iii',$school_id,$id,$id);$s->execute();$items=[];$r=$s->get_result();while($x=$r->fetch_assoc())$items[]=$x;$s->close();ayResponse(['status'=>1,'audit'=>$items]);}
+elseif($action==='get_bimester_locks'){$id=(int)($_GET['academic_year_id']??$_POST['academic_year_id']??0);$locks=[1=>0,2=>0,3=>0,4=>0];$s=$conn->prepare('SELECT bimester,is_locked FROM bimester_locks WHERE academic_year_id=? AND school_id=?');$s->bind_param('ii',$id,$school_id);$s->execute();$r=$s->get_result();while($x=$r->fetch_assoc())$locks[(int)$x['bimester']]=(int)$x['is_locked'];$s->close();ayResponse(['status'=>1,'locks'=>$locks]);}
+elseif($action==='save_bimester_locks'){$id=(int)($_POST['academic_year_id']??0);for($i=1;$i<=4;$i++){$locked=(int)($_POST['lock_'.$i]??0);$conn->query("INSERT INTO bimester_locks(academic_year_id,school_id,bimester,is_locked) VALUES($id,$school_id,$i,$locked) ON DUPLICATE KEY UPDATE is_locked=$locked");$conn->query("UPDATE academic_periods SET is_locked=$locked WHERE academic_year_id=$id AND school_id=$school_id AND period_number=$i");}ayAudit($conn,$school_id,$id,'period_locks_updated');ayResponse(['status'=>1]);}
+ayResponse(['status'=>0,'msg'=>'Acción no reconocida.']);

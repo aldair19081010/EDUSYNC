@@ -7,6 +7,7 @@ error_reporting(E_ALL);
 
 include 'db_connect.php';
 include 'session_config.php';
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $is_teacher = (isset($_SESSION['login_type']) && $_SESSION['login_type'] == 2);
 $is_admin = (isset($_SESSION['login_type']) && $_SESSION['login_type'] == 1);
 $from_notification = $is_admin && isset($_GET['id']) && (isset($_GET['from']) && $_GET['from'] == 'notifications');
@@ -17,7 +18,7 @@ $selected_course_id = '';
 $selected_grado = '';
 $selected_seccion = '';
 $selected_teacher_course_id = '';
-$bimestre = '';
+$bimestre = (!$id && isset($_GET['bimestre']) && in_array((string)$_GET['bimestre'], ['1','2','3','4'], true)) ? (string)$_GET['bimestre'] : '';
 
 // Depuración removida (ya solucionado)
 // Obtener el año académico activo para asignar a la evaluación
@@ -34,8 +35,28 @@ if($academic_year_query && $academic_year_query->num_rows > 0) {
     $academic_year_name = 'Sin año académico activo';
 }
 
+if (!$id && $is_teacher && $teacher_id && !empty($_GET['teacher_course_id'])) {
+	$requested_teacher_course_id = intval($_GET['teacher_course_id']);
+	$tc_stmt = $conn->prepare("SELECT tc.id,tc.course_id,tc.grado,tc.seccion,tc.academic_year_id,ac.name course_name,ac.level FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? AND ay.is_active=1 AND ac.is_active=1 AND COALESCE(ac.course_status,'Activo')='Activo' LIMIT 1");
+	if ($tc_stmt) {
+		$tc_stmt->bind_param('iii', $requested_teacher_course_id, $teacher_id, $school_id);
+		$tc_stmt->execute();
+		$tc_row = $tc_stmt->get_result()->fetch_assoc();
+		$tc_stmt->close();
+		if ($tc_row) {
+			$selected_teacher_course_id = (int)$tc_row['id'];
+			$selected_course_id = (int)$tc_row['course_id'];
+			$selected_course_name = $tc_row['course_name'];
+			$selected_level = $tc_row['level'];
+			$selected_grado = $tc_row['grado'];
+			$selected_seccion = $tc_row['seccion'];
+			$academic_year_id = (int)$tc_row['academic_year_id'];
+		}
+	}
+}
+
 if ($id) {
-	$q = $conn->query("SELECT * FROM evaluations WHERE id = $id");
+	$q = $conn->query("SELECT e.* FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$id AND e.teacher_id=".intval($teacher_id)." AND tc.teacher_id=".intval($teacher_id)." AND tc.school_id=".intval($school_id)." LIMIT 1");
 	if ($q && $q->num_rows) {
 		$row = $q->fetch_assoc();
 		$title = $row['title'];
@@ -70,6 +91,9 @@ if ($id) {
 				$selected_seccion = $tc_row['seccion'];
 			}
 		}
+	} else {
+		echo "<div class='alert alert-danger mb-0'>La evaluación no existe o no te pertenece.</div>";
+		exit;
 	}
 }
 // Cargar cursos, grados y secciones asignados al docente
@@ -137,6 +161,15 @@ if ($is_teacher && $teacher_id) {
 // Si se está editando, cargar competencias ya asociadas
 $selected_competencias = [];
 $has_existing_grades = false;
+if (!$id && isset($_GET['competencia_id']) && intval($_GET['competencia_id']) > 0) {
+	$requested_competencia_id = intval($_GET['competencia_id']);
+	foreach ($competencias as $comp) {
+		if ((int)$comp['id'] === $requested_competencia_id && (int)$comp['course_id'] === (int)$selected_course_id) {
+			$selected_competencias[] = $requested_competencia_id;
+			break;
+		}
+	}
+}
 if ($id) {
 	$q_sel = $conn->query("SELECT competencia_id FROM evaluation_competencias WHERE evaluation_id = $id");
 	while ($row = $q_sel->fetch_assoc()) {
@@ -150,6 +183,7 @@ if ($id) {
 ?>
 <div class="container-fluid">
 	<form id="manage-evaluation" method="post" action="#" onsubmit="return false;">
+		<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
 		<div class="card shadow mb-3">
 			<div class="card-header py-3">
 				<h6 class="m-0 font-weight-bold text-primary">

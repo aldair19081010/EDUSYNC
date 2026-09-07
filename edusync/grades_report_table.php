@@ -395,8 +395,7 @@ if ($show_avg && !empty($student_id_filter)) {
         $types_avg .= "i"; 
     }
 
-    $is_director = $_SESSION['login_is_director'] ?? 0;
-    if ($login_type == 2 && $teacher_id && !$is_director) {
+    if ($login_type == 2 && $teacher_id) {
         $sql_grades .= " AND EXISTS (SELECT 1 FROM teacher_courses tc2 
                                   WHERE tc2.id = e.teacher_course_id 
                                   AND tc2.teacher_id = ?)";
@@ -431,244 +430,59 @@ if ($show_avg && !empty($student_id_filter)) {
     }
     ?>
 
-    <div style="padding: 25px; border-radius: 10px; margin-top:20px; background-color: #ffffff; box-shadow: 0 5px 20px rgba(0,0,0,0.1); animation: fadeIn 0.5s ease-out;">
-        <h3 style="text-align:center; margin-bottom:25px; color:#4e73df; text-shadow: 0 1px 1px rgba(0,0,0,0.05);">
-            Promedio Final para: <span style="font-weight: 600;"><?php echo $student_name_avg; ?></span>
-            <?php if (!empty($bimestre_filter)): ?>
-                <span style="display:inline-block; margin-left:12px; font-size:0.8em; padding:5px 12px; background: linear-gradient(135deg, #4e73df, #3257b3); color:white; border-radius:20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                    <?php echo $bimestre_filter; ?>° Bimestre
-                </span>
-            <?php endif; ?>
-        </h3>
-        
-        <div style="margin-bottom:25px; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.07);">
-            <table class="table" style="background-color: #fff; margin-bottom: 0;">
-                <tr style="background-color: #f8f9fc;">
-                    <td style="width:30%; padding: 12px 15px; border-left: 4px solid #4e73df;"><strong>Curso:</strong></td>
-                    <td style="padding: 12px 15px;"><?php echo $course_name_for_avg_display; ?></td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px 15px; border-left: 4px solid #4e73df;"><strong>Nivel:</strong></td>
-                    <td style="padding: 12px 15px;"><?php echo !empty($level_filter) ? htmlspecialchars($level_filter) : 'Todos'; ?></td>
-                </tr>
-                <tr style="background-color: #f8f9fc;">
-                    <td style="padding: 12px 15px; border-left: 4px solid #4e73df;"><strong>Grado:</strong></td>
-                    <td style="padding: 12px 15px;"><?php echo !empty($grado_filter) ? htmlspecialchars($grado_filter) : 'Todos'; ?></td>
-                </tr>
-                <tr>
-                    <td style="padding: 12px 15px; border-left: 4px solid #4e73df;"><strong>Sección:</strong></td>
-                    <td style="padding: 12px 15px;"><?php echo !empty($seccion_filter) ? htmlspecialchars($seccion_filter) : 'Todas'; ?></td>
-                </tr>
-                <tr style="background-color: #f8f9fc;">
-                    <td style="padding: 12px 15px; border-left: 4px solid #4e73df;"><strong>Bimestre:</strong></td>
-                    <td style="padding: 12px 15px;"><?php echo !empty($bimestre_filter) ? htmlspecialchars($bimestre_filter) . '° Bimestre' : 'Todos'; ?></td>
-                </tr>
-            </table>
+    <style>
+    .individual-report{color:#344767;text-align:left}
+    .individual-report .ir-heading{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid #e3e6f0;padding-bottom:16px;margin-bottom:16px}
+    .individual-report h3{font-size:1.15rem;font-weight:700;margin:4px 0}
+    .individual-report .ir-meta{color:#7b8499;font-size:.85rem}
+    .individual-report .ir-result{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:8px;padding:10px 18px}
+    .individual-report .ir-result strong{display:block;font-size:1.6rem;color:#4e73df}
+    .individual-report .ir-card{border:1px solid #e3e6f0;border-radius:8px;margin-bottom:16px;overflow:hidden}
+    .individual-report .ir-card-header{background:#f8f9fc;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+    .individual-report h4{font-size:.95rem;font-weight:700;margin:0}
+    .individual-report .table{margin:0;color:#344767}
+    .individual-report th,.individual-report td{padding:.65rem .85rem;vertical-align:middle}
+    .individual-report thead{background:#f8f9fc}
+    .individual-report .ir-number{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+    </style>
+    <section class="individual-report">
+      <div class="ir-heading">
+        <div><div class="ir-meta">Ficha individual · <?php echo htmlspecialchars((string)$bimestre_filter); ?>° bimestre</div>
+          <h3><?php echo $student_name_avg; ?></h3>
+          <div><?php echo $course_name_for_avg_display; ?></div>
+          <div class="ir-meta"><?php echo htmlspecialchars(trim(($level_filter ?? '').' · '.($grado_filter ?? '').' '.($seccion_filter ?? ''))); ?></div>
         </div>
-        <style>
-            @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-            }
-        </style>
-        
-        <?php if ($has_competencias): ?>
-            <div class="competencias-container" style="margin-top:30px;">
-                <?php foreach ($competencias_data as $comp_id => $comp_data): ?>
-                    <?php 
-                    $nota = (float)$comp_data['avg_grade'];
-                    $color_class = '';
-                    $color_bar = '';
-                    
-                    if ($nota >= 16) {
-                        $color_class = 'success';
-                        $color_bar = '#28a745';
-                    } elseif ($nota >= 11) {
-                        $color_class = 'primary';  
-                        $color_bar = '#4e73df';
-                    } elseif ($nota >= 6) {
-                        $color_class = 'warning';
-                        $color_bar = '#ffc107';
-                    } else {
-                        $color_class = 'danger';
-                        $color_bar = '#dc3545';
-                    }
-                    ?>
-                    <div class="competencia-block" style="margin-bottom:25px; border-radius:8px; padding:15px; background-color:#fff; box-shadow: 0 3px 10px rgba(0,0,0,0.08); border-top: 3px solid <?php echo $color_bar; ?>;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom:15px;">
-                            <h4 style="color:#333; margin:0; font-weight: 600;">
-                                <?php echo htmlspecialchars($comp_data['name']); ?> 
-                            </h4>
-                            <div style="display: flex; align-items: center;">
-                                <span style="font-size:0.9em; color:#555; margin-right: 10px; background-color: #f8f9fc; padding: 4px 10px; border-radius: 4px;"><?php echo $comp_data['percentage']; ?>% del total</span>
-                                <span class="badge badge-<?php echo $color_class; ?>" style="font-size: 14px; padding: 5px 10px;"><?php echo number_format((float)$comp_data['avg_grade'], 2); ?></span>
-                            </div>
-                        </div>
-                        
-                        <div style="overflow: hidden; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                            <table class="table table-hover" style="margin-bottom: 0; font-size:0.9em;">                            
-                                <thead style="background: linear-gradient(90deg, <?php echo $color_bar; ?>20, <?php echo $color_bar; ?>10); border-bottom: 2px solid <?php echo $color_bar; ?>;">                                
-                                    <tr>
-                                        <th style="width:60%; padding: 12px 15px;">Evaluación</th>
-                                        <th style="width:40%; padding: 12px 15px;">Nota</th>
-                                    </tr>
-                                </thead>
-                                <tbody>                                
-                                    <?php foreach ($comp_data['evaluations'] as $eval): ?>
-                                    <tr>
-                                        <td style="padding: 10px 15px;"><?php echo htmlspecialchars($eval['title']); ?></td>
-                                        <td style="padding: 10px 15px;">
-                                            <span style="display: inline-block; min-width: 40px; text-align: center; 
-                                                  padding: 3px 8px; border-radius: 4px; 
-                                                  background-color: <?php echo $color_bar; ?>15; 
-                                                  color: <?php echo $color_bar; ?>;">
-                                                <?php echo format_grade($eval['grade']); ?>
-                                            </span>
-                                        </td>
-                                    </tr>
-                                    <?php endforeach; ?>
-                                    <tr style="background-color: <?php echo $color_bar; ?>10;">
-                                        <td style="padding: 12px 15px;"><strong>Promedio de Competencia</strong></td>
-                                        <td style="padding: 12px 15px;">
-                                            <strong style="display: inline-block; min-width: 40px; text-align: center; 
-                                                  padding: 5px 10px; border-radius: 4px; 
-                                                  background-color: <?php echo $color_bar; ?>; 
-                                                  color: #fff;">
-                                                <?php echo format_grade($comp_data['avg_grade']); ?>
-                                            </strong>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-                
-                <!-- Desglose del Cálculo del Promedio -->
-                <div class="calculation-breakdown" style="margin-top:30px; padding:20px; border-radius:8px; background-color:#f8f9fc; border-left: 4px solid #4e73df;">
-                    <h5 style="color:#4e73df; margin-bottom:15px; font-weight: 600;">
-                        <i class="fa fa-calculator mr-2"></i>Desglose del Cálculo del Promedio
-                    </h5>
-                    <p style="font-size:0.9em; color:#666; margin-bottom:15px; font-style: italic;">
-                        El promedio final se calcula multiplicando el promedio de cada competencia por su porcentaje de peso:
-                    </p>
-                    
-                    <div style="background-color: white; padding: 15px; border-radius: 6px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);">
-                        <?php 
-                        $total_contribution = 0;
-                        foreach ($competencias_data as $comp_id => $comp_data): 
-                            if (!empty($comp_data['evaluations'])):
-                                $contribution = ($comp_data['avg_grade'] * $comp_data['percentage'] / 100);
-                                $total_contribution += $contribution;
-                        ?>
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e3e6f0;">
-                            <div style="flex: 1;">
-                                <span style="font-weight: 500; color:#333;"><?php echo htmlspecialchars($comp_data['name']); ?></span>
-                            </div>
-                            <div style="flex: 0 0 auto; text-align: right; font-family: 'Courier New', monospace; font-size: 0.9em;">
-                                <span style="color:#5a5c69;"><?php echo number_format($comp_data['avg_grade'], 2); ?></span>
-                                <span style="color:#858796; margin: 0 5px;">×</span>
-                                <span style="color:#5a5c69;"><?php echo $comp_data['percentage']; ?>%</span>
-                                <span style="color:#858796; margin: 0 5px;">=</span>
-                                <span style="color:#4e73df; font-weight: 600;"><?php echo number_format($contribution, 2); ?></span>
-                            </div>
-                        </div>
-                        <?php 
-                            endif;
-                        endforeach; 
-                        ?>
-                        
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 0 5px 0; margin-top: 10px; border-top: 2px solid #4e73df;">
-                            <div style="flex: 1;">
-                                <span style="font-weight: 600; color:#4e73df; font-size: 1.05em;">PROMEDIO FINAL:</span>
-                            </div>
-                            <div style="flex: 0 0 auto; text-align: right;">
-                                <span style="font-size: 1.3em; font-weight: 700; color:#4e73df;"><?php echo number_format($final_average, 2); ?></span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <?php if ($total_percentage < 100): ?>
-                    <div style="margin-top: 10px; padding: 8px 12px; background-color: #fff3cd; border-left: 3px solid #ffc107; border-radius: 4px;">
-                        <small style="color: #856404;">
-                            <i class="fa fa-info-circle mr-1"></i>
-                            Nota: La suma de porcentajes es <?php echo $total_percentage; ?>% (las competencias configuradas no suman 100%)
-                        </small>
-                    </div>
-                    <?php endif; ?>
-                </div>
-                
-                <?php 
-                $final_note = (float)$final_average;
-                $final_color = '';
-                $final_bg = '';
-                $final_text = '';
-                $final_icon = '';
-                
-                if ($final_note >= 18) {
-                    $final_color = '#1e7e34';
-                    $final_bg = '#d4edda';
-                    $final_text = 'Excelente';
-                    $final_icon = 'trophy';
-                } elseif ($final_note >= 14) {
-                    $final_color = '#117a8b';
-                    $final_bg = '#d1ecf1';
-                    $final_text = 'Muy Bueno';
-                    $final_icon = 'thumbs-up';
-                } elseif ($final_note >= 11) {
-                    $final_color = '#856404';
-                    $final_bg = '#fff3cd';
-                    $final_text = 'Aprobado';
-                    $final_icon = 'check-circle';
-                } else {
-                    $final_color = '#721c24';
-                    $final_bg = '#f8d7da';
-                    $final_text = 'Necesita Mejorar';
-                    $final_icon = 'exclamation-circle';
-                }
-                ?>
-                <div class="final-average" style="margin-top:35px; background: linear-gradient(135deg, <?php echo $final_bg; ?>, white); padding:20px; border-radius:10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid <?php echo $final_color; ?>40;">
-                    <div style="display: flex; justify-content: center; align-items: center; margin-bottom: 15px;">
-                        <div style="background-color: <?php echo $final_color; ?>; width: 50px; height: 50px; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin-right: 15px; box-shadow: 0 4px 10px <?php echo $final_color; ?>50;">
-                            <i class="fa fa-<?php echo $final_icon; ?>" style="color: white; font-size: 24px;"></i>
-                        </div>
-                        <h3 style="text-align:center; color:<?php echo $final_color; ?>; margin: 0; font-weight: 600;">
-                            Promedio <?php echo $bimestre_filter; ?>° Bimestre: 
-                            <strong style="font-size: 1.1em;"><?php echo number_format((float)$final_average, 2); ?></strong>
-                            <span style="font-size: 0.8em; display: block; margin-top: 5px; text-transform: uppercase;"><?php echo $final_text; ?></span>
-                        </h3>
-                    </div>
-                    
-                    <div style="width: 100%; height: 8px; background-color: #eee; border-radius: 4px; margin: 15px 0; overflow: hidden;">
-                        <div style="width: <?php echo min($final_note * 5, 100); ?>%; height: 100%; background: linear-gradient(90deg, <?php echo $final_color; ?>80, <?php echo $final_color; ?>);"></div>
-                    </div>
-                    
-                    <p style="text-align:center; font-size:0.9em; color:#555; margin-top:10px; font-style: italic;">
-                        Calculado según el porcentaje de cada competencia del bimestre
-                    </p>
-                </div>
-            </div>
-        
-        <?php elseif ($promedio_final !== null): ?>
-            <table class="table table-bordered table-hover" style="margin-top: 15px; font-size: 0.95em;">
-                <thead style="background-color: #f0f0f0;">
-                    <tr>
-                        <th style="width:40%;">Concepto</th>
-                        <th>Valor</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td>Promedio General (según filtros)</td>
-                        <td><strong><?php echo number_format((float)$promedio_final, 2); ?></strong></td>
-                    </tr>
-                    <tr><td colspan="2" class="text-center" style="color:#666;">No se encontraron competencias configuradas. Se muestra el promedio simple de todas las evaluaciones.</td></tr>
-                </tbody>
-            </table>
-        <?php else: ?>
-            <p class="text-center" style="margin-top:15px; color: #d9534f;">No se pudo calcular el promedio con los filtros seleccionados o no hay notas registradas para este alumno bajo esos criterios.</p>
-        <?php endif; ?>
-    </div>
+        <div class="ir-result"><small><?php echo $has_competencias ? 'Promedio ponderado' : 'Promedio'; ?></small><strong><?php echo $has_competencias ? number_format($final_average,2) : ($promedio_final !== null ? number_format($promedio_final,2) : '—'); ?></strong></div>
+      </div>
+      <?php if ($has_competencias): ?>
+        <?php foreach ($competencias_data as $comp_data): ?>
+          <div class="ir-card">
+            <div class="ir-card-header"><h4><?php echo htmlspecialchars($comp_data['name']); ?></h4><span class="badge badge-light border"><?php echo number_format((float)$comp_data['percentage'],2); ?>% del promedio</span></div>
+            <div class="table-responsive"><table class="table table-sm table-hover">
+              <thead><tr><th>Evaluación</th><th class="ir-number">Nota</th></tr></thead><tbody>
+                <?php foreach ($comp_data['evaluations'] as $eval): ?><tr><td><?php echo htmlspecialchars($eval['title']); ?></td><td class="ir-number"><?php echo format_grade($eval['grade']); ?></td></tr><?php endforeach; ?>
+                <?php if (empty($comp_data['evaluations'])): ?><tr><td colspan="2" class="text-muted">Sin notas registradas en este bimestre.</td></tr><?php else: ?>
+                <tr class="bg-light"><td><strong>Promedio de la competencia</strong></td><td class="ir-number"><strong><?php echo number_format($comp_data['avg_grade'],2); ?></strong></td></tr><?php endif; ?>
+              </tbody>
+            </table></div>
+          </div>
+        <?php endforeach; ?>
+        <div class="ir-card">
+          <div class="ir-card-header"><h4><i class="fas fa-calculator text-primary mr-2"></i>Cálculo del promedio</h4></div>
+          <div class="table-responsive"><table class="table table-sm">
+            <thead><tr><th>Competencia</th><th class="ir-number">Promedio</th><th class="ir-number">Peso</th><th class="ir-number">Aporte</th></tr></thead><tbody>
+            <?php foreach ($competencias_data as $comp_data): if (empty($comp_data['evaluations'])) continue; ?>
+              <tr><td><?php echo htmlspecialchars($comp_data['name']); ?></td><td class="ir-number"><?php echo number_format($comp_data['avg_grade'],2); ?></td><td class="ir-number"><?php echo number_format((float)$comp_data['percentage'],2); ?>%</td><td class="ir-number"><?php echo number_format($comp_data['avg_grade']*$comp_data['percentage']/100,2); ?></td></tr>
+            <?php endforeach; ?>
+            </tbody><tfoot><tr class="bg-light"><th colspan="3">Promedio final del bimestre</th><th class="ir-number text-primary"><?php echo number_format($final_average,2); ?></th></tr></tfoot>
+          </table></div>
+        </div>
+        <p class="small text-muted">Cada aporte corresponde al promedio de la competencia multiplicado por su porcentaje. Las competencias con 0% no aportan al promedio.</p>
+        <?php if ($total_percentage < 100): ?><div class="alert alert-warning small">Los porcentajes considerados suman <?php echo htmlspecialchars((string)$total_percentage); ?>%. Revise la configuración de competencias.</div><?php endif; ?>
+      <?php else: ?>
+        <div class="alert alert-light border">No se encontraron competencias con notas para los filtros seleccionados.<?php if ($promedio_final !== null): ?> Se muestra el promedio simple disponible, como en el reporte anterior.<?php endif; ?></div>
+      <?php endif; ?>
+    </section>
 
     <?php
 } else {
@@ -693,8 +507,7 @@ if ($show_avg && !empty($student_id_filter)) {
         $types .= "i";
     }
 
-    $is_director = $_SESSION['login_is_director'] ?? 0;
-    if ($login_type == 2 && $teacher_id && !$is_director) {
+    if ($login_type == 2 && $teacher_id) {
         $where_clauses[] = "tc.teacher_id = ?";
         $params[] = $teacher_id;
         $types .= "i";

@@ -1,4 +1,4 @@
-<?php
+    <?php
 // Mantener la lógica de conexión y funciones auxiliares del usuario
 include_once 'db_connect.php';
 
@@ -36,50 +36,21 @@ if (!function_exists('time_elapsed_string')) {
     }
 }
 
-// --- MIGRACIÓN DE ESQUEMA (solo se ejecuta 1 vez por sesión) ---
-if (!isset($_SESSION['_schema_checked'])) {
-    // Asegurar tablas necesarias
-    $conn->query("CREATE TABLE IF NOT EXISTS `low_grade_notifications` (`id` int(30) NOT NULL AUTO_INCREMENT PRIMARY KEY, `student_id` int(11) NOT NULL, `bimestre` varchar(2) NOT NULL, `count_low_grades` int(11) NOT NULL, `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP, `is_read` tinyint(1) NOT NULL DEFAULT 0, `teacher_id` int(11) NULL, `failed_courses` TEXT NULL, KEY `student_id` (`student_id`), KEY `bimestre` (`bimestre`), KEY `teacher_id` (`teacher_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    $conn->query("CREATE TABLE IF NOT EXISTS `low_grade_notification_read` (`id` int(11) NOT NULL AUTO_INCREMENT, `user_id` int(11) NOT NULL, `notification_id` int(11) NOT NULL, `read_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`), KEY `user_id` (`user_id`), KEY `notification_id` (`notification_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    $conn->query("CREATE TABLE IF NOT EXISTS `notification_read` (`id` int(11) NOT NULL AUTO_INCREMENT, `user_id` int(11) NOT NULL, `evaluation_id` int(11) NOT NULL, `read_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (`id`), KEY `user_id` (`user_id`), KEY `evaluation_id` (`evaluation_id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
-
-    // Asegurar claves únicas
-    $check_lgn_index = $conn->query("SHOW INDEX FROM `low_grade_notification_read` WHERE Key_name IN ('user_notification', 'user_notification_unique')");
-    if (!$check_lgn_index || $check_lgn_index->num_rows == 0) {
-        $conn->query("ALTER TABLE `low_grade_notification_read` ADD UNIQUE KEY `user_notification_unique` (`user_id`, `notification_id`)");
-    }
-
-    $check_nr_index = $conn->query("SHOW INDEX FROM `notification_read` WHERE Key_name = 'user_evaluation'");
-    if (!$check_nr_index || $check_nr_index->num_rows == 0) {
-        $conn->query("ALTER TABLE `notification_read` ADD UNIQUE KEY `user_evaluation` (`evaluation_id`, `user_id`)");
-    }
-
-    // Verificar columnas y correcciones de esquema
-    $result = $conn->query("SHOW COLUMNS FROM `low_grade_notification_read` LIKE 'low_grade_notification_id'");
-    if ($result && $result->num_rows > 0) $conn->query("ALTER TABLE `low_grade_notification_read` CHANGE `low_grade_notification_id` `notification_id` INT(11) NOT NULL");
-    if ($conn->query("SHOW COLUMNS FROM `low_grade_notifications` LIKE 'teacher_id'")->num_rows == 0) $conn->query("ALTER TABLE `low_grade_notifications` ADD COLUMN `teacher_id` int(11) NULL AFTER `is_read`");
-    if ($conn->query("SHOW COLUMNS FROM `low_grade_notifications` LIKE 'failed_courses'")->num_rows == 0) $conn->query("ALTER TABLE `low_grade_notifications` ADD COLUMN `failed_courses` TEXT NULL");
-
-    $_SESSION['_schema_checked'] = true;
-}
-
-
 // Consultas de Notificaciones
 $user_id = isset($_SESSION['login_id']) ? $_SESSION['login_id'] : 0;
 $user_type = isset($_SESSION['login_type']) ? $_SESSION['login_type'] : 0;
 $teacher_id = isset($_SESSION['login_teacher_id']) ? $_SESSION['login_teacher_id'] : 0;
 $is_director = isset($_SESSION['login_is_director']) ? $_SESSION['login_is_director'] : 0;
+$school_id_topbar = (int)($_SESSION['login_school_id'] ?? 0);
+$unified_notifications_ready = false;
+$unified_check = $conn->query("SHOW TABLES LIKE 'notification_user_state'");
+if ($unified_check && $unified_check->num_rows) $unified_notifications_ready = true;
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+$topbar_csrf = $_SESSION['csrf_token'];
 
-// Si es director, lo tratamos como Admin (1) solo para efectos de las notificaciones
-if ($is_director == 1 && $user_type == 2) {
-    $user_type = 1;
-}
+$eval_query = "SELECT 'evaluation' as type, e.id as notification_id, e.title, e.created_at, ac.name as course_name, tc.level, tc.grado, tc.seccion, t.name as teacher_name, NULL as student_name, NULL as student_id, NULL as bimestre, NULL as count_low_grades, NULL as failed_courses, NULL as teacher_id FROM evaluations e JOIN teacher_courses tc ON e.teacher_course_id = tc.id JOIN academic_courses ac ON tc.course_id = ac.id JOIN teacher t ON tc.teacher_id = t.id LEFT JOIN notification_read nr ON nr.evaluation_id = e.id AND nr.user_id = $user_id WHERE nr.id IS NULL AND tc.school_id = $school_id_topbar";
 
-$eval_query = "SELECT 'evaluation' as type, e.id as notification_id, e.title, e.created_at, ac.name as course_name, tc.level, tc.grado, tc.seccion, t.name as teacher_name, NULL as student_name, NULL as student_id, NULL as bimestre, NULL as count_low_grades, NULL as failed_courses, NULL as teacher_id FROM evaluations e JOIN teacher_courses tc ON e.teacher_course_id = tc.id JOIN academic_courses ac ON tc.course_id = ac.id JOIN teacher t ON tc.teacher_id = t.id LEFT JOIN notification_read nr ON nr.evaluation_id = e.id AND nr.user_id = $user_id WHERE nr.id IS NULL";
-
-$low_grades_query = "SELECT 'low_grade' as type, lgn.id as notification_id, CONCAT('Notas Bajas - Bimestre ', lgn.bimestre) as title, lgn.created_at, NULL as course_name, s.nivel as level, s.grado, s.seccion, NULL as teacher_name, s.name as student_name, lgn.student_id, lgn.bimestre, lgn.count_low_grades, lgn.failed_courses, lgn.teacher_id FROM low_grade_notifications lgn JOIN student s ON lgn.student_id = s.id LEFT JOIN low_grade_notification_read lgnr ON lgn.id = lgnr.notification_id AND lgnr.user_id = {$user_id} WHERE lgnr.id IS NULL";
+$low_grades_query = "SELECT 'low_grade' as type, lgn.id as notification_id, CONCAT('Notas Bajas - Bimestre ', lgn.bimestre) as title, lgn.created_at, NULL as course_name, s.nivel as level, s.grado, s.seccion, NULL as teacher_name, s.name as student_name, lgn.student_id, lgn.bimestre, lgn.count_low_grades, lgn.failed_courses, lgn.teacher_id FROM low_grade_notifications lgn JOIN student s ON lgn.student_id = s.id LEFT JOIN low_grade_notification_read lgnr ON lgn.id = lgnr.notification_id AND lgnr.user_id = {$user_id} WHERE lgnr.id IS NULL AND s.school_id = $school_id_topbar";
 
 if ($user_type == 2 && $teacher_id > 0) $low_grades_query .= " AND lgn.teacher_id = $teacher_id";
 elseif ($user_type == 1) $low_grades_query .= " AND lgn.teacher_id IS NULL";
@@ -91,12 +62,38 @@ if ($user_type == 2 && $teacher_id > 0) {
     $notification_query = "SELECT * FROM ($eval_query UNION ALL $low_grades_query) as notifications ORDER BY created_at DESC LIMIT 50";
 }
 
-$notification_result = $conn->query($notification_query);
+$notification_result = $unified_notifications_ready ? false : $conn->query($notification_query);
 $notifications_count = ($notification_result) ? $notification_result->num_rows : 0;
 $notifications = [];
 if ($notification_result && $notification_result->num_rows > 0) {
     while ($row = $notification_result->fetch_assoc()) $notifications[] = $row;
 }
+
+// Las solicitudes pendientes de asistencia son exclusivas de administración.
+$can_review_attendance = ($user_type == 1);
+if ($user_id > 0 && !$can_review_attendance) {
+    $role_stmt = $conn->prepare('SELECT type, is_director FROM users WHERE id = ? LIMIT 1');
+    if ($role_stmt) {
+        $role_stmt->bind_param('i', $user_id);
+        $role_stmt->execute();
+        $role_data = $role_stmt->get_result()->fetch_assoc();
+        $role_stmt->close();
+        $can_review_attendance = $role_data && (int)$role_data['type'] === 1;
+    }
+}
+if ($can_review_attendance) {
+    $request_table = $conn->query("SHOW TABLES LIKE 'attendance_change_requests'");
+    if ($request_table && $request_table->num_rows > 0) {
+        $request_stmt = $conn->prepare("SELECT r.id,r.request_type,r.created_at,u.name requester FROM attendance_change_requests r INNER JOIN users u ON u.id=r.requested_by WHERE r.school_id=? AND r.status='Pendiente' ORDER BY r.created_at DESC LIMIT 50");
+        if ($request_stmt) {
+            $request_stmt->bind_param('i', $school_id_topbar);$request_stmt->execute();$request_result=$request_stmt->get_result();
+            while ($request=$request_result->fetch_assoc()) $notifications[]=['type'=>'attendance_request','notification_id'=>$request['id'],'title'=>$request['request_type'],'created_at'=>$request['created_at'],'course_name'=>null,'level'=>null,'grado'=>null,'seccion'=>null,'teacher_name'=>$request['requester'],'student_name'=>null,'student_id'=>null,'bimestre'=>null,'count_low_grades'=>null,'failed_courses'=>null,'teacher_id'=>null];
+            $request_stmt->close();
+        }
+    }
+}
+usort($notifications,static function($a,$b){return strcmp($b['created_at']??'',$a['created_at']??'');});
+$notifications=array_slice($notifications,0,50);$notifications_count=count($notifications);
 ?>
 
 <!-- Navbar Oficial de SB Admin 2 -->
@@ -110,7 +107,7 @@ if ($notification_result && $notification_result->num_rows > 0) {
     <!-- Topbar Navbar -->
     <ul class="navbar-nav ml-auto">
 
-        <?php if ($user_type == 1 || $user_type == 2): ?>
+        <?php if (in_array((int)$user_type, [1,2,3], true)): ?>
         <!-- Nav Item - Alerts -->
         <li class="nav-item dropdown no-arrow mx-1">
             <a class="nav-link dropdown-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -122,29 +119,38 @@ if ($notification_result && $notification_result->num_rows > 0) {
             </a>
             <!-- Dropdown - Alerts -->
             <div class="dropdown-list dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="alertsDropdown">
-                <h6 class="dropdown-header">
-                    Notificaciones
+                <h6 class="dropdown-header d-flex align-items-center justify-content-between mb-0">
+                    <span>Notificaciones</span>
+                    <?php if($unified_notifications_ready || $notifications_count > 0): ?>
+                    <button type="button" class="btn btn-light btn-sm py-1 px-2 font-weight-bold mark-all-read-topbar<?php echo $notifications_count > 0 ? '' : ' d-none'; ?>" title="Marcar todas las notificaciones como leídas">
+                        <i class="fas fa-check-double mr-1"></i>Marcar leídas
+                    </button>
+                    <?php endif; ?>
                 </h6>
                 
-                <div style="max-height: 300px; overflow-y: auto;">
+                <div id="topbar-notification-list" style="max-height: 300px; overflow-y: auto;">
                 <?php if($notifications_count > 0): 
                       foreach($notifications as $notification):
                         $time_ago = time_elapsed_string($notification['created_at']);
                         // Determinar icono y color basado en tipo
-                        $icon_bg = ($notification['type'] == 'evaluation') ? 'bg-primary' : 'bg-danger';
-                        $icon_class = ($notification['type'] == 'evaluation') ? 'fa-file-alt' : 'fa-exclamation-triangle';
+                        $icon_bg = $notification['type'] == 'evaluation' ? 'bg-primary' : ($notification['type'] == 'attendance_request' ? 'bg-warning' : 'bg-danger');
+                        $icon_class = $notification['type'] == 'evaluation' ? 'fa-file-alt' : ($notification['type'] == 'attendance_request' ? 'fa-user-check' : 'fa-exclamation-triangle');
                         
                         $link = "#";
                         $onclick = '';
                         if ($notification['type'] == 'evaluation') {
                             $onclick = "onclick=\"uni_modal('Ver Evaluación', 'manage_evaluation_grades.php?evaluation_id=".$notification['notification_id']."&from=notifications', 'large'); return false;\"";
                         } else {
-                            $courses = json_decode($notification['failed_courses'], true);
-                            $course_name_url = (is_array($courses) && isset($courses[0]['name'])) ? urlencode($courses[0]['name']) : '';
-                            $link = "index.php?page=student_low_grades&student_id=".$notification['student_id']."&bimestre=".$notification['bimestre']."&course_name=".$course_name_url."&notification_id=".$notification['notification_id']."&from=notifications";
+                            if ($notification['type'] == 'attendance_request') {
+                                $onclick = "onclick=\"uni_modal('Autorizar cambio de asistencia', 'review_attendance_request.php?id=".$notification['notification_id']."', 'modal-lg'); return false;\"";
+                            } else {
+                                $courses = json_decode($notification['failed_courses'], true);
+                                $course_name_url = (is_array($courses) && isset($courses[0]['name'])) ? urlencode($courses[0]['name']) : '';
+                                $link = "index.php?page=student_low_grades&student_id=".$notification['student_id']."&bimestre=".$notification['bimestre']."&course_name=".$course_name_url."&notification_id=".$notification['notification_id']."&from=notifications";
+                            }
                         }
                 ?>
-                <a class="dropdown-item d-flex align-items-center" href="<?php echo $link; ?>" <?php echo $onclick; ?>>
+                <a class="dropdown-item d-flex align-items-center system-notification-item<?php echo $notification['type']==='attendance_request'?' attendance-request-notification':''; ?>" href="<?php echo $link; ?>" <?php if($notification['type']==='attendance_request'):?>data-request-id="<?php echo (int)$notification['notification_id']; ?>"<?php endif;?> <?php echo $onclick; ?>>
                     <div class="mr-3">
                         <div class="icon-circle <?php echo $icon_bg; ?>">
                             <i class="fas <?php echo $icon_class; ?> text-white"></i>
@@ -155,17 +161,19 @@ if ($notification_result && $notification_result->num_rows > 0) {
                         <span class="font-weight-bold">
                             <?php if ($notification['type'] == 'evaluation'): ?>
                                 <?php echo htmlspecialchars($notification['teacher_name']); ?>: Nueva evaluación en <?php echo htmlspecialchars($notification['course_name']); ?>
+                            <?php elseif ($notification['type'] == 'attendance_request'): ?>
+                                <?php echo htmlspecialchars($notification['teacher_name']); ?> solicita: <?php echo htmlspecialchars($notification['title']); ?>
                             <?php else: ?>
                                 <?php echo htmlspecialchars($notification['student_name']); ?>: Notas bajas detectadas
                             <?php endif; ?>
                         </span>
                         <div class="small text-gray-600">
-                             <?php echo htmlspecialchars($notification['level']); ?> - <?php echo htmlspecialchars($notification['grado']); ?> <?php echo isset($notification['seccion']) ? $notification['seccion'] : ''; ?>
+                             <?php if($notification['type']==='attendance_request'): ?>Requiere autorización<?php else: ?><?php echo htmlspecialchars($notification['level']); ?> - <?php echo htmlspecialchars($notification['grado']); ?> <?php echo isset($notification['seccion']) ? $notification['seccion'] : ''; ?><?php endif; ?>
                         </div>
                     </div>
                 </a>
                 <?php endforeach; else: ?>
-                    <a class="dropdown-item d-flex align-items-center" href="#">
+                    <a class="dropdown-item d-flex align-items-center topbar-empty-notifications" href="#">
                         <div class="mr-3">
                             <div class="icon-circle bg-gray-200">
                                 <i class="fas fa-info text-gray-400"></i>
@@ -179,9 +187,6 @@ if ($notification_result && $notification_result->num_rows > 0) {
                 </div>
 
                 <a class="dropdown-item text-center small text-gray-500" href="index.php?page=notifications">Ver todas las alertas</a>
-                <?php if($notifications_count > 0): ?>
-                    <a class="dropdown-item text-center small text-gray-500 mark-all-read-topbar" href="#">Marcar todo como leído</a>
-                <?php endif; ?>
             </div>
         </li>
         <?php endif; ?>
@@ -246,6 +251,17 @@ if ($notification_result && $notification_result->num_rows > 0) {
         $(document).off('click.markAllRead').on('click.markAllRead', '.mark-all-read-topbar', function(e) {
             e.preventDefault();
             e.stopPropagation();
+            <?php if($unified_notifications_ready): ?>
+            var button=$(this);button.addClass('disabled').attr('aria-disabled','true');
+            $.post('notifications_api.php?action=mark_all',{csrf_token:<?=json_encode($topbar_csrf)?>,tab:'pending'},null,'json').done(function(resp){
+                if(!resp||Number(resp.status)!==1){if(typeof alert_toast==='function')alert_toast((resp&&resp.message)||'No se pudieron actualizar las notificaciones.','error');return;}
+                $('#alertsDropdown .badge-counter').remove();button.addClass('d-none');
+                if(typeof alert_toast==='function')alert_toast(resp.message||'Notificaciones marcadas como leídas.','success');
+                if(typeof refreshUnifiedNotifications==='function')refreshUnifiedNotifications();
+                $(document).trigger('notifications:all-read');
+            }).fail(function(xhr){var msg=(xhr.responseJSON||{}).message||'No se pudieron actualizar las notificaciones.';if(typeof alert_toast==='function')alert_toast(msg,'error');}).always(function(){button.removeClass('disabled').removeAttr('aria-disabled')});
+            return false;
+            <?php endif; ?>
             
             console.log('Marcando todas como leídas...');
             
@@ -403,6 +419,61 @@ if ($notification_result && $notification_result->num_rows > 0) {
         $('.topbar a[href="#"][data-toggle="dropdown"]').on('click.topbarDropdown', function(e) {
             // NO HACER e.preventDefault() - dejar que Bootstrap maneje el click
         });
+
+        <?php if($can_review_attendance && !$unified_notifications_ready): ?>
+        var attendanceNotificationsLoading = false;
+        var baseNotificationCount = $('#topbar-notification-list .system-notification-item').not('.attendance-request-notification').length;
+        function updateTopbarNotificationCount(attendanceCount) {
+            var total = baseNotificationCount + attendanceCount;
+            var badge = $('#alertsDropdown .badge-counter');
+            if (total > 0) {
+                if (!badge.length) badge = $('<span class="badge badge-danger badge-counter"></span>').appendTo('#alertsDropdown');
+                badge.text(total + '+');
+            } else badge.remove();
+        }
+        function buildAttendanceNotification(row) {
+            var link = $('<a class="dropdown-item d-flex align-items-center system-notification-item attendance-request-notification" href="#"></a>').attr('data-request-id', row.id);
+            link.on('click', function(e){e.preventDefault();uni_modal('Autorizar cambio de asistencia','review_attendance_request.php?id='+row.id,'modal-lg')});
+            var icon = $('<div class="mr-3"><div class="icon-circle bg-warning"><i class="fas fa-user-check text-white"></i></div></div>');
+            var content = $('<div></div>');
+            $('<div class="small text-gray-500"></div>').text(row.created_at || 'Ahora').appendTo(content);
+            $('<span class="font-weight-bold"></span>').text((row.requester || 'Auxiliar') + ' solicita: ' + (row.request_type || 'cambio de asistencia')).appendTo(content);
+            $('<div class="small text-gray-600">Requiere autorización</div>').appendTo(content);
+            return link.append(icon,content);
+        }
+        function refreshAttendanceNotifications() {
+            if (attendanceNotificationsLoading) return;
+            attendanceNotificationsLoading = true;
+            $.getJSON('attendance_api.php',{action:'requests'}).done(function(resp){
+                if (!resp || Number(resp.status)!==1) return;
+                var list = $('#topbar-notification-list');
+                list.find('.attendance-request-notification').remove();
+                if ((resp.rows || []).length) list.find('.topbar-empty-notifications').remove();
+                (resp.rows || []).forEach(function(row){list.prepend(buildAttendanceNotification(row))});
+                if (!list.find('.system-notification-item').length && !list.find('.topbar-empty-notifications').length) list.append('<a class="dropdown-item d-flex align-items-center topbar-empty-notifications" href="#"><div><span class="font-weight-bold">No hay notificaciones nuevas</span></div></a>');
+                updateTopbarNotificationCount((resp.rows || []).length);
+            }).always(function(){attendanceNotificationsLoading=false});
+        }
+        refreshAttendanceNotifications();
+        window.setInterval(refreshAttendanceNotifications,5000);
+        <?php endif; ?>
+
+        $(document).off('attendance:request-reviewed.topbar').on('attendance:request-reviewed.topbar', function(e, requestId) {
+            $('.attendance-request-notification[data-request-id="' + requestId + '"]').remove();
+            <?php if($can_review_attendance && !$unified_notifications_ready): ?>refreshAttendanceNotifications();<?php endif; ?>
+        });
+        <?php if($unified_notifications_ready): ?>
+        var unifiedNotificationsLoading=false;
+        function refreshUnifiedNotifications(){
+            if(unifiedNotificationsLoading)return;unifiedNotificationsLoading=true;
+            $.getJSON('notifications_api.php',{action:'list',tab:'pending',start:0,length:10,draw:1}).done(function(resp){
+                if(!resp||!Array.isArray(resp.data))return;var list=$('#topbar-notification-list');list.empty();
+                resp.data.forEach(function(row){var item=$('<a class="dropdown-item d-flex align-items-center system-notification-item" href="#"></a>');var color=row.priority==='Alta'?'bg-danger':row.category==='Asistencia'?'bg-warning':'bg-primary';var icon=row.category==='Asistencia'?'fa-user-check':row.category==='Alerta estudiantil'?'fa-exclamation-triangle':'fa-bell';item.append('<div class="mr-3"><div class="icon-circle '+color+'"><i class="fas '+icon+' text-white"></i></div></div>');var content=$('<div></div>');$('<div class="small text-gray-500"></div>').text(row.created_at||'Ahora').appendTo(content);$('<span class="font-weight-bold"></span>').text(row.title||'Notificación').appendTo(content);$('<div class="small text-gray-600"></div>').text(row.message||row.category||'').appendTo(content);item.append(content).on('click',function(e){e.preventDefault();if(row.open_mode==='modal')uni_modal('Detalle de notificación',row.open_url,'modal-lg');else window.location.href=row.open_url||'index.php?page=notifications'});list.append(item)});
+                if(!resp.data.length)list.append('<a class="dropdown-item d-flex align-items-center topbar-empty-notifications" href="#"><div><span class="font-weight-bold">No hay notificaciones pendientes</span></div></a>');var unread=Number((resp.summary||{}).unread||0),badge=$('#alertsDropdown .badge-counter'),markAll=$('.mark-all-read-topbar');if(unread>0){if(!badge.length)badge=$('<span class="badge badge-danger badge-counter"></span>').appendTo('#alertsDropdown');badge.text(unread>99?'99+':unread);markAll.removeClass('d-none')}else{badge.remove();markAll.addClass('d-none')}
+            }).always(function(){unifiedNotificationsLoading=false});
+        }
+        refreshUnifiedNotifications();window.setInterval(refreshUnifiedNotifications,7000);$(document).on('attendance:request-reviewed.unified',refreshUnifiedNotifications);
+        <?php endif; ?>
         
         // ✅ Bootstrap ya se inicializa automáticamente desde index.php
         

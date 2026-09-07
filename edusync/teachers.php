@@ -1,5 +1,5 @@
 <?php
-include('db_connect.php');
+include __DIR__ . '/db_connect.php';
 // Asegurar sesión activa para acceder a $_SESSION tanto en vista completa como en carga parcial
 if (session_status() === PHP_SESSION_NONE) {
 	ini_set('session.save_path', __DIR__ . '/tmp');
@@ -17,11 +17,8 @@ $session_school_id = intval($_SESSION['login_school_id'] ?? 0);
 $active_year_id = 0;
 $active_year_name = 'Sin año activo';
 if ($session_school_id > 0) {
-	$year_stmt = $conn->prepare('SELECT id, year FROM academic_year WHERE school_id = ? AND is_active = 1 LIMIT 1');
-	$year_stmt->bind_param('i', $session_school_id);
-	$year_stmt->execute();
-	$active_year = $year_stmt->get_result()->fetch_assoc();
-	$year_stmt->close();
+	$active_year_result = $conn->query("SELECT id, year FROM academic_year WHERE school_id = $session_school_id AND is_active = 1 LIMIT 1");
+	$active_year = $active_year_result ? $active_year_result->fetch_assoc() : null;
 	if ($active_year) {
 		$active_year_id = intval($active_year['id']);
 		$active_year_name = $active_year['year'];
@@ -29,30 +26,30 @@ if ($session_school_id > 0) {
 }
 
 function get_teachers_for_list($conn, $school_id, $status, $academic_year_id) {
+	$school_id = (int)$school_id;
+	$academic_year_id = (int)$academic_year_id;
+	$status = in_array($status, ['Activo', 'Inactivo', 'all'], true) ? $status : 'Activo';
+	$status_sql = $status === 'all' ? '' : " AND t.status = '" . $conn->real_escape_string($status) . "'";
 	$sql = "SELECT t.*,
 		(SELECT COUNT(*) FROM users u WHERE u.teacher_id = t.id AND u.school_id = t.school_id AND u.type = 2) AS user_count,
-		(SELECT COUNT(*) FROM teacher_courses tc WHERE tc.teacher_id = t.id AND tc.school_id = t.school_id AND tc.academic_year_id = ?) AS course_count
+		(SELECT COUNT(*) FROM teacher_courses tc WHERE tc.teacher_id = t.id AND tc.school_id = t.school_id AND tc.academic_year_id = $academic_year_id) AS course_count
 		FROM teacher t
-		WHERE t.school_id = ? AND (? = 'all' OR t.status = ?)
+		WHERE t.school_id = $school_id$status_sql
 		ORDER BY t.name ASC";
-	$stmt = $conn->prepare($sql);
-	$stmt->bind_param('iiss', $academic_year_id, $school_id, $status, $status);
-	$stmt->execute();
-	return $stmt->get_result();
+	return $conn->query($sql);
 }
 
 function get_teacher_summary($conn, $school_id, $academic_year_id) {
+	$school_id = (int)$school_id;
+	$academic_year_id = (int)$academic_year_id;
 	$sql = "SELECT COUNT(*) AS total,
 		COALESCE(SUM(t.status = 'Activo'), 0) AS active_count,
 		COALESCE(SUM(t.status = 'Inactivo'), 0) AS inactive_count,
 		COALESCE(SUM(t.status = 'Activo' AND NOT EXISTS (SELECT 1 FROM users u WHERE u.teacher_id = t.id AND u.school_id = t.school_id AND u.type = 2)), 0) AS without_user,
-		COALESCE(SUM(t.status = 'Activo' AND NOT EXISTS (SELECT 1 FROM teacher_courses tc WHERE tc.teacher_id = t.id AND tc.school_id = t.school_id AND tc.academic_year_id = ?)), 0) AS without_courses
-		FROM teacher t WHERE t.school_id = ?";
-	$stmt = $conn->prepare($sql);
-	$stmt->bind_param('ii', $academic_year_id, $school_id);
-	$stmt->execute();
-	$summary = $stmt->get_result()->fetch_assoc();
-	$stmt->close();
+		COALESCE(SUM(t.status = 'Activo' AND NOT EXISTS (SELECT 1 FROM teacher_courses tc WHERE tc.teacher_id = t.id AND tc.school_id = t.school_id AND tc.academic_year_id = $academic_year_id)), 0) AS without_courses
+		FROM teacher t WHERE t.school_id = $school_id";
+	$result = $conn->query($sql);
+	$summary = $result ? $result->fetch_assoc() : null;
 	return $summary ?: ['total' => 0, 'active_count' => 0, 'inactive_count' => 0, 'without_user' => 0, 'without_courses' => 0];
 }
 ?>
@@ -75,7 +72,7 @@ if (isset($_GET['partial']) && $_GET['partial'] === 'tbody') {
 	$status_filter = $selected_status;
 	if (!in_array($status_filter, ['Activo', 'Inactivo', 'all'], true)) $status_filter = 'Activo';
 	$teacher = get_teachers_for_list($conn, $school_id, $status_filter, $active_year_id);
-	include __DIR__ . '/partials/teacher_rows.php';
+	include __DIR__ . '/teacher_rows.php';
 	exit;
 }
 $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_id);
@@ -409,7 +406,7 @@ img { max-width: 100px; max-height: 150px; }
 								$initial_status = $selected_status;
 								if (!in_array($initial_status, ['Activo', 'Inactivo', 'all'], true)) $initial_status = 'Activo';
 								$teacher = get_teachers_for_list($conn, $school_id, $initial_status, $active_year_id);
-								include __DIR__ . '/partials/teacher_rows.php';
+								include __DIR__ . '/teacher_rows.php';
 								?>
 							</tbody>
 						</table>
@@ -601,10 +598,10 @@ img { max-width: 100px; max-height: 150px; }
 	});
 
 	// Dropdown actions unified
-	$('#action_new_teacher').click(function(e){ e.preventDefault(); uni_modal("Nuevo Docente", "manage_teacher.php", "mid-large"); });
-	$('#action_upload_teacher_excel').click(function(e){ e.preventDefault(); $('#uploadTeacherExcelModal').modal('show'); });
-	$('#action_export_teachers').click(function(e){ e.preventDefault(); window.location.href = 'export_teachers.php?status=' + encodeURIComponent($('#teacher-status-filter').val() || 'Activo'); });
-	$('#action_download_teacher_format, #download_teacher_format_link').click(function(e){
+	$(document).off('click.teachers', '#action_new_teacher').on('click.teachers', '#action_new_teacher', function(e){ e.preventDefault(); uni_modal("Nuevo Docente", "manage_teacher.php", "mid-large"); });
+	$(document).off('click.teachers', '#action_upload_teacher_excel').on('click.teachers', '#action_upload_teacher_excel', function(e){ e.preventDefault(); $('#uploadTeacherExcelModal').modal('show'); });
+	$(document).off('click.teachers', '#action_export_teachers').on('click.teachers', '#action_export_teachers', function(e){ e.preventDefault(); window.location.href = 'export_teachers.php?status=' + encodeURIComponent($('#teacher-status-filter').val() || 'Activo'); });
+	$(document).off('click.teachers', '#action_download_teacher_format, #download_teacher_format_link').on('click.teachers', '#action_download_teacher_format, #download_teacher_format_link', function(e){
 		e && e.preventDefault();
 		// Descargar formato sin recargar la página
 		start_load();
@@ -616,17 +613,17 @@ img { max-width: 100px; max-height: 150px; }
 	});
 
 	// Delegar eventos para que sigan funcionando tras refrescar el tbody
-	$('#teachers-table tbody').on('click', '.edit_teacher', function(e) {
+	$(document).off('click.teachers', '#teachers-table .edit_teacher').on('click.teachers', '#teachers-table .edit_teacher', function(e) {
 		e.preventDefault();
 		uni_modal("Gestionar Información de Docente", "manage_teacher.php?id=" + $(this).attr('data-id'), "mid-large");
 	});
 
-	$('#teachers-table tbody').on('click', '.view_teacher_history', function(e) {
+	$(document).off('click.teachers', '#teachers-table .view_teacher_history').on('click.teachers', '#teachers-table .view_teacher_history', function(e) {
 		e.preventDefault();
 		uni_modal("Ficha del Docente", "view_teacher_employment.php?id=" + $(this).attr('data-id'), "large");
 	});
 
-	$('#teachers-table tbody').on('click', '.delete_teacher', function(e) {
+	$(document).off('click.teachers', '#teachers-table .delete_teacher').on('click.teachers', '#teachers-table .delete_teacher', function(e) {
 		e.preventDefault();
 		var inactive = $(this).attr('data-status') === 'Inactivo';
 		openTeacherEmploymentAction($(this).attr('data-id'), inactive ? 'rehire' : 'deactivate');
@@ -783,7 +780,7 @@ img { max-width: 100px; max-height: 150px; }
 
 	// Restaurar la funcionalidad para crear usuarios a los docentes
 	// Delegar también el botón de crear usuario
-	$('#teachers-table tbody').on('click', '.create_user_teacher', function(e) {
+	$(document).off('click.teachers', '#teachers-table .create_user_teacher').on('click.teachers', '#teachers-table .create_user_teacher', function(e) {
 		e.preventDefault();
 		var id = $(this).attr('data-id');
 		var name = encodeURIComponent($(this).attr('data-name'));
@@ -792,7 +789,7 @@ img { max-width: 100px; max-height: 150px; }
 		uni_modal(modalTitle, "manage_teacher_user.php?id=" + id + "&name=" + name + "&email=" + email, "mid-large");
 	});
 
-	$('#teachers-table tbody').on('click', '.manage_teacher_courses', function(e) {
+	$(document).off('click.teachers', '#teachers-table .manage_teacher_courses').on('click.teachers', '#teachers-table .manage_teacher_courses', function(e) {
 		e.preventDefault();
 		uni_modal("Asignar cursos al docente", "manage_teacher_course.php?source=teachers&academic_year_id=<?php echo (int)$active_year_id; ?>&teacher_id=" + $(this).attr('data-id'), "mid-large");
 	});

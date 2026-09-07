@@ -11,7 +11,9 @@ function calcular_estado_asistencia($hora_hhmm, $fecha, $tipo, $conn, $school_id
     // Defaults
     $default_early = '07:00';
     $default_late  = '07:30';
-    $use_day_rules = '0';
+    // Las reglas por día son ahora el origen principal. El ajuste antiguo puede
+    // desactivarlas explícitamente para conservar compatibilidad.
+    $use_day_rules = '1';
 
     $school_id = is_null($school_id) ? intval($_SESSION['login_school_id'] ?? 0) : intval($school_id);
     $has_settings_school = false;

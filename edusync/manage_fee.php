@@ -5,6 +5,8 @@ require_login_modal();
 
 // Obtener school_id de la sesión
 $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+$csrf_token = $_SESSION['csrf_token'];
 // Fallback: intentar obtener school_id desde el usuario logueado
 if ($school_id === 0 && isset($_SESSION['login_id'])) {
     $u = intval($_SESSION['login_id']);
@@ -24,7 +26,9 @@ if ($school_id === 0) {
 }
 
 if (isset($_GET['id'])) {
-	$qry = $conn->query("SELECT * FROM student_ef_list where id = {$_GET['id']} ");
+	$edit_id = intval($_GET['id']);
+	$qry = $conn->query("SELECT ef.* FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id WHERE ef.id=$edit_id AND s.school_id=$school_id LIMIT 1");
+	if (!$qry || !$qry->num_rows) exit('<div class="alert alert-danger">La deuda no existe o pertenece a otra institución.</div>');
 	foreach ($qry->fetch_array() as $k => $v) {
 		$$k = $v;
 	}
@@ -102,6 +106,7 @@ if (isset($_GET['id'])) {
 <div class="container-fluid">
 	<form id="manage-fees">
 		<input type="hidden" name="id" value="<?php echo isset($id) ? $id : '' ?>">
+		<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
 		
 		<div id="msg" class="form-group"></div>
 		
@@ -124,6 +129,11 @@ if (isset($_GET['id'])) {
 				<input type="hidden" id="student_grado">
 				<small class="form-text text-muted">Seleccione el estudiante al que desea asignar la deuda</small>
 			</div>
+		</div>
+
+		<div class="form-section">
+			<div class="form-section-title"><i class="fa fa-calendar-alt"></i> Vencimiento</div>
+			<div class="form-group mb-0"><label for="due_date">Fecha de vencimiento</label><input type="date" id="due_date" name="due_date" class="form-control" value="<?php echo htmlspecialchars($due_date ?? ''); ?>"><small class="form-text text-muted">El año se obtiene automáticamente del concepto activo seleccionado.</small></div>
 		</div>
 		
 		<!-- Sección: Concepto de Pago -->
@@ -321,7 +331,7 @@ if (isset($_GET['id'])) {
 		
 		start_load();
 		$.ajax({
-			url: 'ajax.php?action=save_fees',
+			url: 'fees_api.php?action=save',
 			method: 'POST',
 			data: $(this).serialize(),
 			dataType: 'json',
@@ -332,6 +342,7 @@ if (isset($_GET['id'])) {
 			},
 			success: function(resp) {
 				if (resp.status == 1) {
+					end_load();
 					alert_toast(resp.message || resp.msg, 'success');
 					setTimeout(function() {
 						$('#uni_modal').modal('hide');

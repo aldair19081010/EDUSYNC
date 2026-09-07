@@ -1,182 +1,35 @@
-<?php include 'db_connect.php'; ?>
-
-<div class="container-fluid py-4">
-    <div class="col-lg-12">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">
-                    <i class="fa fa-percent mr-2"></i> Gestión de Descuentos/Becas
-                </h6>
-                <button class="btn btn-primary btn-sm" id="new_discount">
-                    <i class="fa fa-plus"></i> Nuevo Descuento
-                </button>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover" id="discounts_table">
-                        <thead>
-                            <tr>
-                                <th class="text-center" width="5%">#</th>
-                                <th width="10%">DNI</th>
-                                <th width="20%">Estudiante</th>
-                                <th width="20%">Concepto</th>
-                                <th width="12%">Monto Original</th>
-                                <th width="12%">Monto con Descuento</th>
-                                <th width="10%">% Descuento</th>
-                                <th class="text-center" width="11%">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php
-                            $i = 1;
-                            $school_id = intval($_SESSION['login_school_id'] ?? 0);
-                            $discounts = $conn->query("\n                                SELECT ef.id, ef.student_id, ef.course_id, ef.total_fee, ef.discounted_amount, \n                                       s.name as student_name, s.id_no, s.nivel, s.grado,\n                                       c.course as concept_name, c.level as course_level, c.grades, ay.year,\n                                       CONCAT(c.course, ' - ', c.level, ' (', s.grado, ') - ', COALESCE(ay.year, 'Sin año')) as concepto_concatenado\n                                FROM student_ef_list ef \n                                INNER JOIN student s ON s.id = ef.student_id \n                                INNER JOIN courses c ON c.id = ef.course_id \n                                LEFT JOIN academic_year ay ON c.academic_year_id = ay.id\n                                WHERE ef.discounted_amount IS NOT NULL \n                                  AND s.school_id = $school_id\n                                ORDER BY s.name ASC\n                            ");
-                            if ($discounts && $discounts->num_rows > 0) :
-                                while ($row = $discounts->fetch_assoc()) :
-                                    $discount_percentage = round((($row['total_fee'] - $row['discounted_amount']) / $row['total_fee']) * 100, 1);
-                            ?>
-                                <tr>
-                                    <td class="text-center font-weight-bold"><?php echo $i++ ?></td>
-                                    <td>
-                                        <span class="badge badge-info"><?php echo $row['id_no'] ?></span>
-                                    </td>
-                                    <td>
-                                        <strong><?php echo ucwords($row['student_name']) ?></strong>
-                                    </td>
-                                    <td>
-                                        <div class="font-weight-bold"><?php echo $row['concepto_concatenado'] ?></div>
-                                    </td>
-                                    <td class="text-right">
-                                        <span class="badge badge-success">S/ <?php echo number_format($row['total_fee'], 2) ?></span>
-                                    </td>
-                                    <td class="text-right">
-                                        <span class="badge badge-warning">S/ <?php echo number_format($row['discounted_amount'], 2) ?></span>
-                                    </td>
-                                    <td class="text-center">
-                                        <span class="badge badge-secondary"><?php echo $discount_percentage ?>%</span>
-                                    </td>
-                                    <td class="text-center">
-                                        <button class="btn btn-primary btn-sm edit_discount" type="button" data-id="<?php echo $row['id'] ?>" data-toggle="tooltip" title="Editar"><i class="fa fa-edit"></i></button>
-                                        <?php 
-                                        $student_id = isset($row['student_id']) && !empty($row['student_id']) ? $row['student_id'] : '';
-                                        $course_id = isset($row['course_id']) && !empty($row['course_id']) ? $row['course_id'] : '';
-                                        $combined_id = '';
-                                        if (!empty($student_id) && !empty($course_id)) {
-                                            $combined_id = $student_id . '_' . $course_id;
-                                        }
-                                        ?>
-                                        <button class="btn btn-danger btn-sm remove_discount" type="button" data-id="<?php echo $combined_id ?>" data-toggle="tooltip" title="Quitar Descuento" <?php echo empty($combined_id) ? 'disabled="disabled"' : ''; ?>><i class="fa fa-times"></i></button>
-                                    </td>
-                                </tr>
-                            <?php
-                                endwhile;
-                            endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
+<?php
+include_once __DIR__.'/includes/session_check.php';require_login_modal();include __DIR__.'/db_connect.php';
+$school=(int)($_SESSION['login_school_id']??0);$type=(int)($_SESSION['login_type']??0);
+if(!$school||$type!==1){echo '<div class="alert alert-danger">No tiene permisos.</div>';return;}
+if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));$csrf=$_SESSION['csrf_token'];
+$benefits=$conn->query("SHOW TABLES LIKE 'discount_benefits'");$audit=$conn->query("SHOW TABLES LIKE 'discount_audit_log'");$payments=$conn->query("SHOW TABLES LIKE 'debt_discounts'");$snapshots=$conn->query("SHOW TABLES LIKE 'payment_discount_snapshots'");$ready=$benefits&&$benefits->num_rows&&$audit&&$audit->num_rows&&$payments&&$payments->num_rows&&$snapshots&&$snapshots->num_rows;
+?>
+<style>.dc-head,.dc-filter,.dc-stat{background:#fff;border:1px solid #e3e6f0;border-radius:.65rem}.dc-head{padding:1rem 1.15rem}.dc-filter{padding:1rem}.dc-stat{padding:.85rem 1rem;height:100%}.dc-stat strong{font-size:1.35rem;color:#253858}.dc-icon{width:44px;height:44px;border-radius:12px;background:#eaf1ff;color:#2f6fed;display:grid;place-items:center;font-size:1.25rem}.dc-actions{display:none;background:#edf4ff;border:1px solid #bfd3ff;border-radius:.5rem;padding:.65rem}.dc-actions.show{display:flex}.table td{vertical-align:middle}</style>
+<div class="container-fluid py-3">
+ <div class="dc-head d-flex flex-wrap align-items-center justify-content-between mb-3"><div class="d-flex align-items-center"><div class="dc-icon mr-3"><i class="fas fa-percent"></i></div><div><h4 class="mb-0 text-gray-800">Descuentos y becas</h4><small class="text-muted">Beneficios administrativos y descuentos aplicados durante pagos.</small></div></div><div class="mt-2 mt-md-0"><button class="btn btn-outline-info" id="dc-audit"><i class="fas fa-history mr-1"></i> Auditoría</button> <button class="btn btn-outline-primary" id="dc-export"><i class="fas fa-file-excel mr-1"></i> Exportar</button> <button class="btn btn-primary" id="dc-new"><i class="fas fa-plus mr-1"></i> Nuevo beneficio</button></div></div>
+ <?php if(!$ready):?><div class="alert alert-warning"><strong>Falta actualizar el módulo de descuentos.</strong> Ejecute manualmente, en este orden: <code>sql/discounts_module_upgrade.sql</code>, <code>sql/payment_discounts_upgrade.sql</code> y <code>sql/unified_discount_corrections_upgrade.sql</code>.</div><?php endif;?>
+ <div class="row mb-3"><div class="col-md-3 mb-2"><div class="dc-stat"><small>Total registrados</small><br><strong id="st-total">0</strong></div></div><div class="col-md-3 mb-2"><div class="dc-stat"><small>Activos</small><br><strong id="st-active">0</strong></div></div><div class="col-md-3 mb-2"><div class="dc-stat"><small>Estudiantes</small><br><strong id="st-students">0</strong></div></div><div class="col-md-3 mb-2"><div class="dc-stat"><small>Total descontado</small><br><strong id="st-amount">S/ 0.00</strong></div></div></div>
+ <div class="dc-filter mb-3"><div class="form-row"><div class="col-md-3"><label>Año</label><select id="dc-year" class="form-control"><option value="">Todos</option></select></div><div class="col-md-3"><label>Origen</label><select id="dc-origin" class="form-control"><option value="">Todos</option><option>Administración</option><option>Durante el pago</option></select></div><div class="col-md-3"><label>Estado</label><select id="dc-status" class="form-control"><option value="">Todos</option><option>Aplicado</option><option>Revocado</option><option>Vencido</option><option>Revertido</option></select></div><div class="col-md-3 d-flex align-items-end"><button class="btn btn-light border btn-block" id="dc-clear"><i class="fas fa-undo mr-1"></i> Restablecer</button></div></div></div>
+ <div class="dc-actions align-items-center justify-content-between mb-3" id="dc-bulk"><span><b id="dc-count">0</b> beneficio(s) administrativos</span><div><button class="btn btn-sm btn-outline-danger" id="dc-revoke-bulk"><i class="fas fa-ban mr-1"></i> Revocar seleccionados</button> <button class="btn btn-sm btn-light" id="dc-unselect">Limpiar</button></div></div>
+ <div class="card shadow-sm"><div class="card-body"><div id="dc-error" class="alert alert-danger d-none"></div><div class="table-responsive"><table id="dc-table" class="table table-hover" width="100%"><thead><tr><th></th><th>Fecha</th><th>Estudiante</th><th>Concepto</th><th>Origen</th><th>Beneficio</th><th>Antes / Final</th><th>Descuento</th><th>Estado</th><th>Acciones</th></tr></thead></table></div></div></div>
 </div>
-
 <script>
-    $(document).ready(function() {
-        $('#new_discount').click(function() {
-            uni_modal("Nuevo Descuento/Beca", "manage_discount.php", "mid-large");
-        });
-
-        $(document).on('click', '.edit_discount', function() {
-            uni_modal("Editar Descuento/Beca", "manage_discount.php?id=" + $(this).attr('data-id'), "mid-large");
-        });
-
-        $(document).on('click', '.remove_discount', function() {
-            var dataId = $(this).attr('data-id');
-            if (!dataId || dataId === '') {
-                alert_toast('Error: No se pudo identificar el descuento a eliminar', 'danger');
-                return;
-            }
-            _conf("¿Deseas quitar este descuento? El estudiante volverá a pagar el monto completo.", "remove_discount", [dataId]);
-        });
-
-        try {
-            $('#discounts_table').DataTable({
-                language: {
-                    processing: "Procesando...",
-                    lengthMenu: "Mostrar _MENU_ registros",
-                    zeroRecords: "No se encontraron resultados",
-                    emptyTable: "Ningún descuento disponible en esta tabla",
-                    info: "Mostrando registros del _START_ al _END_ de un total de _TOTAL_",
-                    infoEmpty: "Mostrando registros del 0 al 0 de 0",
-                    infoFiltered: "(filtrado de un total de _MAX_ registros)",
-                    search: "Buscar:",
-                    loadingRecords: "Cargando...",
-                    paginate: {
-                        first: "Primero",
-                        last: "Último",
-                        next: "Siguiente",
-                        previous: "Anterior"
-                    }
-                },
-                pageLength: 10,
-                responsive: true,
-                order: [[2, 'asc']],
-                columnDefs: [
-                    { targets: [0, 7], orderable: false }
-                ]
-            });
-        } catch (e) {
-            console.error('Error inicializando DataTable en descuentos:', e);
-        }
-
-        $('[data-toggle="tooltip"]').tooltip();
-    });
-
-    function remove_discount(id) {
-        if(!id || id.indexOf('_') === -1) {
-            alert_toast('Error: Formato de ID inválido', 'danger');
-            return;
-        }
-        var student_id = id.split('_')[0];
-        var course_id = id.split('_')[1];
-
-        if(!student_id || !course_id) {
-            alert_toast('Error: Componente ID faltante', 'danger');
-            return;
-        }
-
-        start_load();
-        $.ajax({
-            url: 'ajax.php?action=delete_discount',
-            method: 'POST',
-            data: { 
-                student_id: student_id,
-                course_id: course_id
-            },
-            success: function(resp) {
-                $('#confirm_modal').modal('hide');
-                try {
-                    if (typeof resp === 'string') {
-                        resp = JSON.parse(resp);
-                    }
-                    if (resp.status == 1) {
-                        alert_toast("Descuento removido exitosamente.", 'success');
-                        setTimeout(function() {
-                            location.reload();
-                        }, 500);
-                    } else {
-                        alert_toast(resp.message || 'Error al eliminar el descuento', 'danger');
-                        end_load();
-                    }
-                } catch (err) {
-                    alert_toast("Error inesperado. Intente nuevamente más tarde.", 'danger');
-                    end_load();
-                }
-            },
-            error: function(err) {
-                $('#confirm_modal').modal('hide');
-                alert_toast("Error en el servidor. Intente nuevamente más tarde.", 'danger');
-                end_load();
-            }
-        });
-    }
+(function($){const api='discounts_api.php',csrf=<?php echo json_encode($csrf);?>,ready=<?php echo $ready?'true':'false';?>;let table,selected={};const e=v=>$('<div>').text(v==null?'':v).html(),money=v=>'S/ '+Number(v||0).toFixed(2);function filters(){return{year_id:$('#dc-year').val(),origin:$('#dc-origin').val(),status:$('#dc-status').val()}}function bulk(){const n=Object.keys(selected).length;$('#dc-count').text(n);$('#dc-bulk').toggleClass('show',n>0)}function post(a,d){return $.post(api+'?action='+a,$.extend({csrf_token:csrf},d||{}),null,'json')}function reload(){table&&table.ajax.reload(null,false);bootstrap()}window.reload_discounts=reload;
+function bootstrap(){$.getJSON(api+'?action=bootstrap').done(r=>{if(!r.status)return;$('#st-total').text(r.stats.total);$('#st-active').text(r.stats.active);$('#st-students').text(r.stats.students);$('#st-amount').text(money(r.stats.amount));if($('#dc-year option').length===1)r.years.forEach(y=>$('#dc-year').append(new Option(y.year+(Number(y.is_active)?' (Activo)':''),y.id)))})}
+if(ready&&$.fn.DataTable){$.fn.dataTable.ext.errMode='none';bootstrap();table=$('#dc-table').DataTable({serverSide:true,processing:true,pageLength:15,order:[],ajax:{url:api+'?action=list',data:d=>$.extend(d,filters()),dataSrc:function(r){if(r&&r.message&&r.status===0)$('#dc-error').removeClass('d-none').text(r.message);else $('#dc-error').addClass('d-none').text('');return r&&Array.isArray(r.data)?r.data:[]},error:function(xhr){let message='No se pudo cargar la tabla de descuentos.';try{const response=JSON.parse(xhr.responseText);if(response.message)message=response.message}catch(ignore){if(xhr.responseText)message+=' Respuesta del servidor: '+xhr.responseText.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().substring(0,180)}$('#dc-error').removeClass('d-none').text(message)}},columns:[
+{data:null,render:r=>r.origin==='Administración'&&r.status==='Aplicado'&&!r.payment_operation_id?'<input type="checkbox" class="dc-check" value="'+r.record_id+'">':''},
+{data:'created_at',render:v=>e((v||'').substring(0,10))},
+{data:null,render:r=>'<b>'+e(r.student_name)+'</b><br><small>'+e(r.id_no)+'</small>'},
+{data:null,render:r=>e(r.course||'Concepto no disponible')+'<br><small>'+e(r.year||'Sin año')+'</small>'},
+{data:'origin',render:v=>'<span class="badge badge-'+(v==='Durante el pago'?'info':'primary')+'">'+e(v)+'</span>'},
+{data:null,render:r=>'<b>'+e(r.benefit_type)+'</b><br><small>'+e(r.calculation_type)+' · '+e(r.value)+'</small>'},
+{data:null,render:r=>'<span class="text-muted">'+money(r.previous_effective_amount)+'</span> → <b>'+money(r.final_effective_amount)+'</b>'},
+{data:'discount_amount',render:v=>'<b class="text-success">− '+money(v)+'</b>'},
+{data:'status',render:v=>'<span class="badge badge-'+(v==='Aplicado'?'success':v==='Revertido'||v==='Revocado'?'secondary':'warning')+'">'+e(v)+'</span>'},
+{data:null,render:r=>{if(r.status==='Aplicado')return '<div class="btn-group"><button class="btn btn-sm btn-outline-primary dc-edit" data-id="'+r.record_id+'" data-source="'+(r.origin==='Durante el pago'?'payment':'admin')+'" title="Editar descuento'+(r.payment_operation_id?' y actualizar boleta':'')+'"><i class="fas fa-pen"></i></button>'+(r.origin==='Administración'?'<button class="btn btn-sm btn-outline-danger dc-revoke" data-id="'+r.record_id+'" title="Revocar"><i class="fas fa-ban"></i></button>':'')+'</div>';return '<button class="btn btn-sm btn-light dc-history" data-id="'+r.record_id+'"><i class="fas fa-history"></i></button>'}}
+],columnDefs:[{orderable:false,targets:[0,9]}],language:{search:'Buscar:',processing:'Cargando...',zeroRecords:'No hay descuentos',info:'Mostrando _START_ a _END_ de _TOTAL_',paginate:{previous:'Anterior',next:'Siguiente'}}})}else $('#dc-error').removeClass('d-none').text(ready?'La librería de tablas no está disponible.':'Faltan las migraciones del módulo.');
+$('#dc-year,#dc-origin,#dc-status').change(()=>table&&table.ajax.reload());$('#dc-clear').click(()=>{$('#dc-year,#dc-origin,#dc-status').val('');table&&table.ajax.reload()});$('#dc-new').click(()=>uni_modal('Aplicar descuento o beca','manage_discount.php','modal-lg'));$(document).on('click','.dc-edit',function(){uni_modal('Editar descuento o beca','manage_discount.php?id='+$(this).data('id')+'&source='+$(this).data('source'),'modal-lg')});$(document).on('change','.dc-check',function(){this.checked?selected[this.value]=1:delete selected[this.value];bulk()});$('#dc-unselect').click(()=>{selected={};bulk();table.ajax.reload(null,false)});$(document).on('click','.dc-revoke',function(){const reason=prompt('Motivo de revocación:');if(reason!==null)post('revoke',{id:$(this).data('id'),reason}).done(r=>{alert_toast(r.message,r.status?'success':'danger');if(r.status)reload()})});$('#dc-revoke-bulk').click(function(){const reason=prompt('Motivo común de revocación:');if(reason!==null)post('bulk_revoke',{ids:Object.keys(selected).join(','),reason}).done(r=>{alert_toast(r.message,r.status?'success':'warning');selected={};bulk();reload()})});
+$('#dc-export').click(function(){const ids=Object.keys(selected);let url='export_discounts.php?year_id='+encodeURIComponent($('#dc-year').val()||'')+'&origin='+encodeURIComponent($('#dc-origin').val()||'')+'&status='+encodeURIComponent($('#dc-status').val()||'');if(ids.length)url+='&admin_ids='+encodeURIComponent(ids.join(','));location.href=url});function audit(id){$.getJSON(api+'?action=audit&id='+(id||0)).done(r=>{let h='<div class="list-group">';(r.data||[]).forEach(x=>h+='<div class="list-group-item"><b>'+e(x.action)+'</b> · '+e(x.created_at)+'<br><small>'+e(x.user_name||'Sistema')+' · '+e(x.details||'')+'</small></div>');$('#uni_modal_body').html(h+'</div>');$('#uni_modal_label').text('Auditoría de descuentos');$('#uni_modal').modal('show')})}$('#dc-audit').click(()=>audit(0));$(document).on('click','.dc-history',function(){audit($(this).data('id'))})
+})(jQuery);
 </script>

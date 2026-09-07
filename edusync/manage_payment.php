@@ -1,410 +1,147 @@
-<?php include 'db_connect.php' ?>
 <?php
-include_once 'includes/session_check.php';
+include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
-$school_id = intval($_SESSION['login_school_id'] ?? 0);
-if (isset($_GET['id'])) {
-	$payment_id = intval($_GET['id']);
-	$qry = $conn->query("SELECT p.* FROM payments p JOIN student_ef_list ef ON ef.id = p.ef_id JOIN student s ON s.id = ef.student_id WHERE p.id = $payment_id" . ($school_id ? " AND s.school_id = $school_id" : " AND 1 = 0"));
-	foreach ($qry->fetch_array() as $k => $v) {
-		$$k = $v;
-	}
-} else {
-	// Obtener el último número de boleta y sumarle 1
-	$last_receipt = $conn->query("SELECT MAX(CAST(p.receipt_no AS UNSIGNED)) as last_no FROM payments p JOIN student_ef_list ef ON ef.id = p.ef_id JOIN student s ON s.id = ef.student_id WHERE 1=1" . ($school_id ? " AND s.school_id = $school_id" : " AND 1 = 0"));
-	$next_receipt = 1;
-	if ($last_receipt && $last_receipt->num_rows > 0) {
-		$row = $last_receipt->fetch_assoc();
-		if (!empty($row['last_no'])) {
-			$next_receipt = $row['last_no'] + 1;
-		}
-	}
-	$receipt_no = $next_receipt;
+include __DIR__ . '/db_connect.php';
+
+$schoolId = (int)($_SESSION['login_school_id'] ?? 0);
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+$csrf = $_SESSION['csrf_token'];
+$students = [];
+$stmt = $conn->prepare("SELECT id,name,id_no,status FROM student WHERE school_id=? AND status IN('Activo','Retirado','Egresado') ORDER BY name");
+$stmt->bind_param('i', $schoolId);
+$stmt->execute();
+$result = $stmt->get_result();
+while ($row = $result->fetch_assoc()) $students[] = $row;
+$stmt->close();
+$methods = [];
+$result = $conn->query('SELECT id,name FROM payment_methods ORDER BY name');
+while ($result && ($row = $result->fetch_assoc())) $methods[] = $row;
+$discountTable = $conn->query("SHOW TABLES LIKE 'debt_discounts'");
+$discountReady = $discountTable && $discountTable->num_rows > 0;
+$correctionOf = (int)($_GET['correction_of'] ?? 0);
+$adminDiscountId = (int)($_GET['admin_discount_id'] ?? 0);
+$correction = null;
+if ($correctionOf > 0) {
+    $column = $conn->query("SHOW COLUMNS FROM payment_operations LIKE 'corrected_from_id'");
+    if ($column && $column->num_rows) {
+        $stmt = $conn->prepare("SELECT po.id,po.student_id,po.payment_date,po.remarks,po.receipt_full,s.name student_name FROM payment_operations po INNER JOIN student s ON s.id=po.student_id WHERE po.id=? AND po.school_id=? AND po.status='Confirmado' LIMIT 1");
+        $stmt->bind_param('ii', $correctionOf, $schoolId); $stmt->execute(); $base = $stmt->get_result()->fetch_assoc(); $stmt->close();
+        if ($base) {
+            $base['concepts'] = []; $base['methods'] = [];
+            $discountJoin = $discountReady ? "LEFT JOIN debt_discounts dd ON dd.payment_operation_id=p.operation_id AND dd.debt_id=p.ef_id AND dd.status='Aplicado'" : '';
+            $discountFields = $discountReady ? ',dd.discount_type,dd.discount_value,dd.reason discount_reason' : ",NULL discount_type,NULL discount_value,NULL discount_reason";
+            $stmt = $conn->prepare("SELECT p.ef_id,p.amount,c.course,ay.year $discountFields FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id LEFT JOIN courses c ON c.id=ef.course_id LEFT JOIN academic_year ay ON ay.id=c.academic_year_id $discountJoin WHERE p.operation_id=? AND p.payment_status='Confirmado' ORDER BY COALESCE(ef.due_date,'9999-12-31'),COALESCE(ef.installment_number,9999),p.id");
+            $stmt->bind_param('i', $correctionOf); $stmt->execute(); $result=$stmt->get_result(); while($row=$result->fetch_assoc())$base['concepts'][]=$row; $stmt->close();
+            $stmt = $conn->prepare('SELECT payment_method_id method_id,amount,reference_number,bank_name,operation_date FROM payment_operation_methods WHERE operation_id=? ORDER BY id');
+            $stmt->bind_param('i', $correctionOf); $stmt->execute(); $result=$stmt->get_result(); while($row=$result->fetch_assoc())$base['methods'][]=$row; $stmt->close();
+            $correction = $base;
+        }
+    }
 }
 ?>
-
+<style>
+#uni_modal .modal-dialog{max-width:1180px;width:calc(100% - 32px)}#uni_modal .modal-body{padding:1.25rem 1.5rem}.pm-section{border-bottom:1px solid #e8edf4;padding-bottom:14px;margin-bottom:16px}.pm-section h6{font-weight:700;color:#2f6fed;margin-bottom:12px}.pm-row{border:1px solid #e1e7ef;border-radius:9px;padding:11px;margin-bottom:9px;background:#fff}.pm-total{background:#f3f7ff;border-radius:10px;padding:12px;font-weight:700}.pm-discount{background:#f8fafc;border-radius:8px;padding:9px;margin-top:9px}.pm-discount-total{color:#079455}.pm-balance{font-size:.77rem;color:#667085}.pm-overpay{display:none;margin-top:6px;padding:6px 9px;border-radius:6px;background:#fff4e5;color:#9a5b00;font-size:.78rem;font-weight:600}.pm-overpay.show{display:block}@media(max-width:767px){#uni_modal .modal-dialog{width:calc(100% - 16px);margin:8px}.pm-row .form-group{margin-bottom:10px!important}}
+</style>
 <div class="container-fluid">
-	<form id="manage-payment">
-		<input type="hidden" name="id" value="<?php echo isset($id) ? $id : '' ?>">
-		<input type="hidden" name="payment_splits" id="payment_splits" value="">
-		<input type="hidden" name="selected_concepts" id="selected_concepts" value="">
-		<input type="hidden" name="payment_method_id" id="payment_method_id" value="">
-		
-		<div id="msg" class="mb-3"></div>
-		
-		<div class="form-group">
-			<label class="font-weight-bold">Alumno <span class="text-danger">*</span></label>
-			<select name="student_id" id="student_id" class="form-control select2" required>
-				<option value="">Seleccione un alumno</option>
-				<?php
-				$students = $conn->query("SELECT id, name, id_no, status FROM student WHERE (status = 'Activo' OR status = 'Retirado' OR status = 'Egresado' OR status IS NULL)" . ($school_id ? " AND school_id = $school_id" : " AND 1 = 0") . " ORDER BY name ASC");
-				while ($stu = $students->fetch_assoc()): 
-					$status_label = '';
-					if($stu['status'] == 'Retirado') {
-						$status_label = ' [Retirado]';
-					} elseif($stu['status'] == 'Egresado') {
-						$status_label = ' [Egresado]';
-					}
-				?>
-					<option value="<?php echo $stu['id']; ?>" <?php echo (isset($student_id) && $student_id == $stu['id']) ? 'selected' : '' ?>>
-						<?php echo $stu['id_no'] . ' - ' . ucwords($stu['name']) . $status_label; ?>
-					</option>
-				<?php endwhile; ?>
-			</select>
-		</div>
-		
-		<div class="form-group">
-			<label class="font-weight-bold">Conceptos de Pago Pendientes <span class="text-danger">*</span></label>
-			<select name="ef_id[]" id="ef_id" class="form-control select2" multiple required>
-				<option value="">Seleccione uno o más conceptos</option>
-			</select>
-			<small class="form-text text-muted">Puedes seleccionar varios conceptos para realizar un multipago.</small>
-		</div>
-
-		<div class="form-group" id="concepts_breakdown_wrapper" style="display:none;">
-			<label class="font-weight-bold">Desglose por concepto</label>
-			<div id="concepts_breakdown" class="border rounded p-2"></div>
-		</div>
-		
-		<div class="form-group">
-			<label class="font-weight-bold">Saldo Total Seleccionado</label>
-			<input type="text" class="form-control text-right" id="balance" value="<?php echo isset($balance) ? $balance : '' ?>" readonly style="background-color: #f8f9fa;">
-		</div>
-		
-		<div class="form-group">
-			<label class="font-weight-bold">Monto a Pagar <span class="text-danger">*</span></label>
-			<input type="number" step="any" class="form-control text-right" name="amount" required value="<?php echo isset($amount) ? $amount : '' ?>">
-		</div>
-		
-		<div class="form-group">
-			<label class="font-weight-bold">Medios de Pago <span class="text-danger">*</span></label>
-			<div id="payment_methods_container"></div>
-			<button type="button" class="btn btn-sm btn-primary mt-2" id="add_payment_method">
-				<i class="fa fa-plus"></i> Agregar Medio de Pago
-			</button>
-		</div>
-		
-		<div class="form-group">
-			<label class="font-weight-bold">N° Boleta <span class="text-danger">*</span></label>
-			<input type="text" class="form-control" name="receipt_no" required value="<?php echo isset($receipt_no) ? $receipt_no : '' ?>">
-		</div>
-		
-		<div class="form-group">
-			<label class="font-weight-bold">Observaciones</label>
-			<textarea name="remarks" cols="30" rows="4" class="form-control"><?php echo isset($remarks) ? $remarks : '' ?></textarea>
-		</div>
-
-		<div class="text-right">
-			<button type="button" class="btn btn-secondary" data-dismiss="modal">
-				<i class="fa fa-times"></i> Cancelar
-			</button>
-			<button type="submit" class="btn btn-primary">
-				<i class="fa fa-save"></i> Guardar
-			</button>
-		</div>
-	</form>
+<form id="payment-form">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
+    <input type="hidden" name="selected_concepts" id="selected_concepts">
+    <input type="hidden" name="payment_splits" id="payment_splits">
+    <input type="hidden" name="correction_of" value="<?php echo $correction ? (int)$correction['id'] : 0; ?>">
+    <input type="hidden" name="admin_discount_id" value="<?php echo $correction ? $adminDiscountId : 0; ?>">
+    <?php if ($correction): ?><div class="alert alert-warning"><strong>Corrección del recibo <?php echo htmlspecialchars($correction['receipt_full']); ?>.</strong> Al guardar, el original se anulará y se generará un recibo nuevo.</div><div class="form-group"><label>Motivo de la corrección <span class="text-danger">*</span></label><input name="correction_reason" class="form-control" minlength="3" maxlength="255" required placeholder="Indique qué dato se está corrigiendo"></div><?php endif; ?>
+    <?php if (!$discountReady): ?><div class="alert alert-info py-2"><i class="fa fa-info-circle mr-1"></i>Para aplicar descuentos durante el cobro, ejecuta <code>sql/payment_discounts_upgrade.sql</code>. El registro normal de pagos continúa disponible.</div><?php endif; ?>
+    <div id="payment-msg"></div>
+    <div class="pm-section"><h6><i class="fa fa-user mr-2"></i>Estudiante y fecha</h6><div class="form-row">
+        <div class="form-group col-md-7"><label>Estudiante</label><select name="student_id" id="student_id" class="form-control select2" <?php echo $correction ? 'disabled' : ''; ?> required><option value="">Seleccione</option><?php foreach ($students as $student): ?><option value="<?php echo (int)$student['id']; ?>" <?php echo $correction && (int)$correction['student_id']===(int)$student['id']?'selected':''; ?>><?php echo htmlspecialchars($student['id_no'] . ' - ' . $student['name'] . ($student['status'] !== 'Activo' ? ' [' . $student['status'] . ']' : '')); ?></option><?php endforeach; ?></select><?php if($correction): ?><input type="hidden" name="student_id" value="<?php echo (int)$correction['student_id']; ?>"><?php endif; ?></div>
+        <div class="form-group col-md-5"><label>Fecha y hora del pago</label><input type="datetime-local" name="payment_date" class="form-control" value="<?php echo htmlspecialchars($correction ? date('Y-m-d\TH:i',strtotime($correction['payment_date'])) : date('Y-m-d\TH:i')); ?>" required></div>
+    </div></div>
+    <div class="pm-section"><h6><i class="fa fa-file-invoice mr-2"></i>Aplicación del pago</h6>
+        <div class="form-group"><label>Deudas pendientes</label><select id="debt-select" class="form-control select2" multiple disabled></select></div>
+        <div id="debt-breakdown"></div>
+        <div class="pm-total d-flex justify-content-between"><span>Total a recibir <small class="pm-discount-total ml-2" id="discount-total"></small></span><span id="payment-total">S/ 0.00</span></div>
+    </div>
+    <div class="pm-section"><h6><i class="fa fa-credit-card mr-2"></i>Medios de pago</h6><div id="method-rows"></div><button type="button" class="btn btn-sm btn-outline-primary" id="add-method"><i class="fa fa-plus mr-1"></i>Agregar medio</button></div>
+    <div class="form-group"><label>Observaciones</label><textarea name="remarks" class="form-control" rows="2" maxlength="1000"><?php echo htmlspecialchars($correction['remarks'] ?? ''); ?></textarea></div>
+    <div class="text-right"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button> <button class="btn btn-primary" id="save-payment"><i class="fa fa-save mr-1"></i>Registrar pago</button></div>
+</form>
 </div>
-
-<!-- Template para filas de método de pago -->
-<script type="text/html" id="payment_method_template">
-	<div class="payment-method-row mb-2">
-		<div class="row">
-			<div class="col-md-6">
-				<select class="form-control payment-method-select" required>
-					<option value="">Seleccione método</option>
-					<?php
-					$methods = $conn->query("SELECT id, name FROM payment_methods ORDER BY name ASC");
-					while($row = $methods->fetch_assoc()):
-					?>
-						<option value="<?php echo $row['id'] ?>"><?php echo $row['name'] ?></option>
-					<?php endwhile; ?>
-				</select>
-			</div>
-			<div class="col-md-4">
-				<input type="number" step="0.01" class="form-control payment-amount-input" placeholder="Monto" required>
-			</div>
-			<div class="col-md-2">
-				<button type="button" class="btn btn-sm btn-danger remove-payment-method btn-block">
-					<i class="fa fa-trash"></i>
-				</button>
-			</div>
-		</div>
-	</div>
-</script>
-
+<script type="text/template" id="method-template"><div class="pm-row method-row"><div class="form-row align-items-end"><div class="form-group col-md-3 mb-0"><label>Medio</label><select class="form-control method-id"><option value="">Seleccione</option><?php foreach ($methods as $method): ?><option value="<?php echo (int)$method['id']; ?>"><?php echo htmlspecialchars($method['name']); ?></option><?php endforeach; ?></select></div><div class="form-group col-md-3 mb-0"><label>Monto</label><input type="number" min="0.01" step="0.01" class="form-control method-amount"></div><div class="form-group col-md-2 mb-0"><label>N.º operación</label><input class="form-control method-reference" maxlength="100"></div><div class="form-group col-md-3 mb-0"><label>Banco o entidad</label><input class="form-control method-bank" maxlength="100"></div><div class="form-group col-md-1 mb-0"><button type="button" class="btn btn-outline-danger remove-method"><i class="fa fa-trash"></i></button></div></div></div></script>
 <script>
-	$('.select2').select2({
-		placeholder: 'Por favor selecciona aquí',
-		width: '100%',
-		dropdownParent: $('#uni_modal')
-	});
-
-	$(document).ready(function() {
-		// Función para agregar una fila de método de pago
-		function addPaymentMethodRow(methodId = null, amount = null) {
-			var template = $('#payment_method_template').html();
-			var $row = $(template);
-			
-			$('#payment_methods_container').append($row);
-			
-			if (methodId) $row.find('.payment-method-select').val(methodId);
-			if (amount) $row.find('.payment-amount-input').val(amount);
-		}
-
-		// Agregar fila inicial
-		if ($('#payment_methods_container').children().length === 0) {
-			addPaymentMethodRow();
-		}
-
-		// Botón Agregar
-		$('#add_payment_method').click(function() {
-			addPaymentMethodRow();
-		});
-
-		// Botón Eliminar
-		$(document).on('click', '.remove-payment-method', function() {
-			if ($('#payment_methods_container').children().length > 1) {
-				$(this).closest('.payment-method-row').remove();
-			} else {
-				alert_toast("Debe haber al menos un medio de pago.", 'warning');
-			}
-		});
-
-		// Validar y enviar
-		$('#manage-payment').submit(function(e) {
-			e.preventDefault();
-			
-			var totalSplits = 0;
-			var splits = [];
-			var firstMethodId = null;
-
-			$('.payment-method-row').each(function() {
-				var methodId = $(this).find('.payment-method-select').val();
-				var amount = parseFloat($(this).find('.payment-amount-input').val()) || 0;
-				
-				if (methodId && amount > 0) {
-					splits.push({ method_id: methodId, amount: amount });
-					totalSplits += amount;
-					if (!firstMethodId) firstMethodId = methodId;
-				}
-			});
-
-			var mainAmount = parseFloat($('[name="amount"]').val().replace(/,/g, '')) || 0;
-			
-			// Construir conceptos seleccionados y validar suma
-			var concepts = [];
-			var conceptsSum = 0;
-			$('#concepts_breakdown .row').each(function(){
-				var efId = $(this).attr('data-ef-id');
-				var amt = parseFloat($(this).find('.concept-amount').val()) || 0;
-				if (efId && amt > 0) {
-					concepts.push({ ef_id: parseInt(efId, 10), amount: amt });
-					conceptsSum += amt;
-				}
-			});
-			if (concepts.length === 0) {
-				alert_toast('Selecciona al menos un concepto y asigna monto.', 'warning');
-				return;
-			}
-			if (Math.abs(conceptsSum - mainAmount) > 0.01) {
-				alert_toast('La suma de los conceptos (' + conceptsSum.toFixed(2) + ') debe ser igual al Monto Total (' + mainAmount.toFixed(2) + ').', 'warning');
-				return;
-			}
-
-			if (Math.abs(totalSplits - mainAmount) > 0.01) {
-				alert_toast("La suma de los medios de pago (" + totalSplits.toFixed(2) + ") debe ser igual al Monto Total (" + mainAmount.toFixed(2) + ").", 'warning');
-				return;
-			}
-
-			if (splits.length === 0) {
-				alert_toast("Debe agregar al menos un medio de pago válido.", 'warning');
-				return;
-			}
-
-			$('#payment_splits').val(JSON.stringify(splits));
-			$('#payment_method_id').val(firstMethodId);
-			$('#selected_concepts').val(JSON.stringify(concepts));
-
-			start_load();
-			$('#msg').html('');
-			$.ajax({
-				url: 'ajax.php?action=save_payment',
-				method: 'POST',
-				data: $(this).serialize(),
-				success: function(resp) {
-					try {
-						if (typeof resp === 'string') {
-							resp = JSON.parse(resp);
-						}
-						if (resp.status == 1) {
-							alert_toast("Datos guardados con éxito.", 'success');
-							setTimeout(function() {
-								var payments = resp.payments || (resp.pid ? [{ef_id: resp.ef_id, pid: resp.pid}] : []);
-								(payments || []).forEach(function(p){
-									var nw = window.open('receipt.php?ef_id=' + p.ef_id + '&pid=' + p.pid, "_blank", "width=900,height=600");
-									setTimeout(function() { try { nw.print(); } catch(_){} }, 500);
-								});
-								setTimeout(function(){ location.reload(); }, 1200);
-							}, 500);
-						} else {
-							alert_toast(resp.message, 'danger');
-							end_load();
-						}
-					} catch (err) {
-						console.error("Error al procesar la respuesta del servidor:", err);
-						alert_toast("Error inesperado. Intente nuevamente más tarde.", 'danger');
-						end_load();
-					}
-				},
-				error: function(err) {
-					console.error("Error en la solicitud AJAX:", err);
-					alert_toast("Error en el servidor. Intente nuevamente más tarde.", 'danger');
-					end_load();
-				}
-			});
-		});
-	});
-
-	$('#student_id').change(function() {
-		var student_id = $(this).val();
-		$('#ef_id').prop('disabled', true).html('<option value="">Cargando...</option>');
-		
-		if(student_id) {
-			$.ajax({
-				url: 'ajax.php?action=get_pending_concepts',
-				method: 'POST',
-				data: {student_id: student_id},
-				success: function(resp) {
-					try {
-						if(typeof resp === 'string') resp = JSON.parse(resp);
-						var options = '';
-						(resp.data || []).forEach(function(item) {
-							var balanceFormatted = 'S/ ' + parseFloat(item.balance).toLocaleString('en-US', {
-								style: 'decimal',
-								minimumFractionDigits: 2,
-								maximumFractionDigits: 2
-							});
-							options += `<option value="${item.ef_id}" data-balance="${item.balance}" data-total="${item.total_fee}" title="Saldo: ${balanceFormatted}">${item.concepto_concatenado}</option>`;
-						});
-						$('#ef_id').html(options).prop('disabled', false);
-						
-						// Reinicializar Select2 en el campo de conceptos (múltiple)
-						$('#ef_id').select2('destroy').select2({
-							placeholder: 'Seleccione uno o más conceptos',
-							width: '100%',
-							dropdownParent: $('#uni_modal')
-						});
-					} catch(e) {
-						$('#ef_id').html('<option value="">Error al cargar conceptos</option>');
-					}
-				},
-				error: function() {
-					$('#ef_id').html('<option value="">Error al cargar conceptos</option>');
-				}
-			});
-		} else {
-			$('#ef_id').html('<option value="">Seleccione uno o más conceptos</option>').prop('disabled', true);
-		}
-	});
-
-	function rebuildConceptsBreakdown() {
-		var selected = $('#ef_id').val() || [];
-		var totalBalance = 0;
-		var html = '';
-		selected.forEach(function(efId){
-			var opt = $('#ef_id option[value="'+efId+'"]').get(0);
-			var balance = parseFloat($(opt).attr('data-balance')) || 0;
-			var total = parseFloat($(opt).attr('data-total')) || 0;
-			var concepto = $(opt).text();
-			totalBalance += balance;
-			html += `<div class="row align-items-center py-1" data-ef-id="${efId}">
-						<div class="col-md-5">
-							<div class="small text-muted">${concepto}</div>
-						</div>
-						<div class="col-md-4 text-right">
-							<button type="button" class="btn btn-xs btn-outline-warning btn-apply-discount mr-2" data-id="${efId}" title="Aplicar Beca/Descuento"><i class="fa fa-percent"></i> Desc.</button>
-							<span class="badge badge-info" title="Total original/final: S/ ${total.toFixed(2)}">Saldo: S/ ${balance.toFixed(2)}</span>
-						</div>
-						<div class="col-md-3">
-							<input type="number" step="0.01" class="form-control form-control-sm concept-amount" placeholder="Monto" value="${balance.toFixed(2)}">
-						</div>
-					</div>`;
-		});
-		if (selected.length > 0) {
-			$('#concepts_breakdown').html(html);
-			$('#concepts_breakdown_wrapper').show();
-		} else {
-			$('#concepts_breakdown').html('');
-			$('#concepts_breakdown_wrapper').hide();
-		}
-		$('#balance').val(totalBalance ? totalBalance.toLocaleString('en-US', {style: 'decimal', maximumFractionDigits: 2, minimumFractionDigits: 2}) : '');
-		// Set main amount to total by default
-		$('[name="amount"]').val(totalBalance ? totalBalance.toFixed(2) : '');
-		if ($('.payment-method-row').length === 1) {
-			$('.payment-amount-input').val($('[name="amount"]').val());
-		}
-	}
-
-	$('#ef_id').on('change', rebuildConceptsBreakdown);
-
-	$(document).on('click', '.btn-apply-discount', function() {
-		var efId = $(this).attr('data-id');
-		var opt = $('#ef_id option[value="'+efId+'"]').get(0);
-		var total = parseFloat($(opt).attr('data-total')) || 0;
-		
-		var descAmount = prompt("Ingrese el monto FINAL a pagar para este concepto (con descuento):\nTotal original: S/ " + total.toFixed(2));
-		if (descAmount !== null) {
-			var num = parseFloat(descAmount);
-			if (isNaN(num) || num < 0) {
-				alert_toast("Monto inválido", "warning");
-				return;
-			}
-			
-			start_load();
-			$.ajax({
-				url: 'ajax.php?action=save_discount',
-				method: 'POST',
-				data: { ef_id: efId, discount_amount: num },
-				success: function(resp){
-					if(resp == 1){
-						alert_toast('Descuento aplicado correctamente', 'success');
-						var currentSelection = $('#ef_id').val();
-						$.ajax({
-							url: 'ajax.php?action=get_pending_concepts',
-							method: 'POST',
-							data: {student_id: $('#student_id').val()},
-							success: function(resp2) {
-								try {
-									if(typeof resp2 === 'string') resp2 = JSON.parse(resp2);
-									var options = '';
-									(resp2.data || []).forEach(function(item) {
-										var balanceFormatted = 'S/ ' + parseFloat(item.balance).toLocaleString('en-US', {
-											style: 'decimal',
-											minimumFractionDigits: 2,
-											maximumFractionDigits: 2
-										});
-										options += `<option value="${item.ef_id}" data-balance="${item.balance}" data-total="${item.total_fee}" title="Saldo: ${balanceFormatted}">${item.concepto_concatenado}</option>`;
-									});
-									$('#ef_id').html(options);
-									$('#ef_id').val(currentSelection);
-									$('#ef_id').trigger('change');
-								} catch(e) {}
-								end_load();
-							},
-							error: function() {
-								end_load();
-							}
-						});
-					} else {
-						alert_toast('Error al aplicar descuento', 'error');
-						end_load();
-					}
-				},
-				error: function(){
-					alert_toast('Error en el servidor', 'error');
-					end_load();
-				}
-			});
-		}
-	});
+(function($){
+    const discountReady = <?php echo $discountReady ? 'true' : 'false'; ?>;
+    const correction = <?php echo json_encode($correction, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+    let debts = [];
+    $('.select2').select2({width:'100%',dropdownParent:$('#uni_modal')});
+    function money(value){return 'S/ ' + Number(value || 0).toFixed(2)}
+    function paymentTotal(){let total=0;$('.debt-amount').each(function(){total+=Number(this.value||0)});return total}
+    function discountFor(row){
+        let balance=Number(row.data('balance')||0),type=row.find('.discount-type').val(),value=Number(row.find('.discount-value').val()||0);
+        if(type==='final_amount') return value>0&&value<balance?Math.round((balance-value)*100)/100:0;
+        if(type==='percentage') return Math.min(balance,Math.round(balance*Math.min(value,100))/100);
+        if(type==='fixed') return Math.min(balance,value);
+        return 0;
+    }
+    function syncTotals(){
+        let total=paymentTotal(),discount=0;$('.debt-row').each(function(){discount+=discountFor($(this))});
+        $('#payment-total').text(money(total));$('#discount-total').text(discount>0?'Descuentos: − '+money(discount):'');
+        $('.debt-row').each(function(){let row=$(this),allowed=Math.max(0,Number(row.data('balance')||0)-discountFor(row)),amount=Number(row.find('.debt-amount').val()||0),excess=Math.max(0,amount-allowed);row.find('.pm-overpay').toggleClass('show',excess>.009).text(excess>.009?'Pago mayor al saldo: excede por '+money(excess)+'. Se registrará como caso especial.':'')});
+        if($('.method-row').length===1)$('.method-amount').val(total.toFixed(2));
+    }
+    function recalculateDiscount(row){
+        let balance=Number(row.data('balance')||0),discount=discountFor(row),type=row.find('.discount-type').val();
+        row.find('.discount-fields').toggleClass('d-none',!type);
+        row.find('.discount-preview').text(type?'Descuento: '+money(discount)+' · Saldo después del descuento: '+money(balance-discount):'');
+        if(type)row.find('.debt-amount').val(Math.max(0,balance-discount).toFixed(2)).removeAttr('max');
+        else row.find('.debt-amount').val(balance.toFixed(2)).removeAttr('max');
+        syncTotals();
+    }
+    function addMethod(){let row=$($('#method-template').html());$('#method-rows').append(row);if($('.method-row').length===1)row.find('.method-amount').val(paymentTotal().toFixed(2))}
+    if(!correction)addMethod();
+    $('#add-method').click(addMethod);
+    $(document).on('click','.remove-method',function(){if($('.method-row').length>1)$(this).closest('.method-row').remove();else alert_toast('Debe conservar al menos un medio.','warning')});
+    $('#student_id').change(function(){
+        let id=this.value;debts=[];$('#debt-breakdown').empty();$('#debt-select').prop('disabled',true).empty();syncTotals();if(!id)return;
+        $.post('ajax.php?action=get_pending_concepts',{student_id:id},null,'json').done(function(response){
+            debts=response.data||[];let html='';debts.forEach(debt=>html+='<option value="'+debt.ef_id+'">'+$('<div>').text(debt.concepto_concatenado+' · Saldo '+money(debt.balance)).html()+'</option>');
+            if(correction){correction.concepts.forEach(item=>{let debt=debts.find(x=>String(x.ef_id)===String(item.ef_id));if(debt)debt.balance=Number(debt.balance)+Number(item.amount);else{debt={ef_id:item.ef_id,balance:Number(item.amount),concepto_concatenado:(item.course||'Concepto')+(item.year?' · '+item.year:'')};debts.push(debt);html+='<option value="'+debt.ef_id+'">'+$('<div>').text(debt.concepto_concatenado+' · Disponible para corregir '+money(debt.balance)).html()+'</option>'}})}
+            $('#debt-select').html(html).prop('disabled',false).trigger('change.select2');
+            if(correction){$('#debt-select').val(correction.concepts.map(x=>String(x.ef_id))).trigger('change');correction.concepts.forEach(item=>{let row=$('.debt-row[data-id="'+item.ef_id+'"]');if(item.discount_type){row.find('.discount-type').val(item.discount_type);row.find('.discount-value').val(item.discount_value);row.find('.discount-reason').val(item.discount_reason);row.find('.discount-fields').removeClass('d-none');row.find('.discount-value-label').text(item.discount_type==='final_amount'?'Monto final a cobrar':item.discount_type==='fixed'?'Monto de descuento':'Porcentaje');row.find('.discount-preview').text('Descuento original conservado en esta corrección.')}row.find('.debt-amount').val(Number(item.amount).toFixed(2))});syncTotals();}
+        }).fail(()=>alert_toast('No se pudieron cargar las deudas activas.','danger'));
+    });
+    $('#debt-select').change(function(){
+        let html='',selectedIds=$(this).val()||[];debts.filter(item=>selectedIds.some(id=>String(id)===String(item.ef_id))).forEach(debt=>{
+            html+='<div class="pm-row debt-row" data-id="'+debt.ef_id+'" data-balance="'+debt.balance+'"><div class="row align-items-center"><div class="col-md-8"><strong>'+ $('<div>').text(debt.concepto_concatenado).html()+'</strong><div class="pm-balance">Saldo actual: '+money(debt.balance)+'</div></div><div class="col-md-4"><label>Monto a pagar</label><input type="number" min="0.01" step="0.01" value="'+Number(debt.balance).toFixed(2)+'" class="form-control debt-amount"><div class="pm-overpay"></div></div></div>';
+            if(discountReady)html+='<div class="pm-discount"><div class="form-row align-items-end"><div class="form-group col-md-4 mb-0"><label>Descuento en este pago</label><select class="form-control discount-type"><option value="">Sin descuento</option><option value="final_amount">Monto final a cobrar (recomendado)</option><option value="fixed">Monto de descuento</option><option value="percentage">Porcentaje</option></select></div><div class="form-group col-md-3 mb-0 discount-fields d-none"><label class="discount-value-label">Monto final a cobrar</label><input type="number" min="0.01" step="0.01" class="form-control discount-value" placeholder="Ingrese cuánto cobrará"></div><div class="form-group col-md-5 mb-0 discount-fields d-none"><label>Motivo <small class="text-muted">(opcional)</small></label><input class="form-control discount-reason" maxlength="255" placeholder="Ej.: beneficio autorizado"></div></div><div class="small text-success mt-2 discount-preview"></div></div>';
+            html+='</div>';
+        });
+        $('#debt-breakdown').html(html);syncTotals();
+    });
+    $(document).on('change','.discount-type',function(){let row=$(this).closest('.debt-row'),type=$(this).val();row.find('.discount-value-label').text(type==='final_amount'?'Monto final a cobrar':type==='fixed'?'Monto de descuento':'Porcentaje');row.find('.discount-value').attr('max',type==='percentage'?100:Number(row.data('balance')||0));recalculateDiscount(row)});
+    $(document).on('input','.discount-value',function(){recalculateDiscount($(this).closest('.debt-row'))});
+    $(document).on('input','.debt-amount',syncTotals);
+    if(correction){
+        correction.methods.forEach(function(item){addMethod();let row=$('.method-row').last();row.find('.method-id').val(item.method_id);row.find('.method-amount').val(Number(item.amount).toFixed(2));row.find('.method-reference').val(item.reference_number||'');row.find('.method-bank').val(item.bank_name||'')});
+        $('#student_id').trigger('change');
+        $('#save-payment').html('<i class="fa fa-check mr-1"></i>Guardar corrección');
+    }
+    $('#payment-form').submit(function(event){
+        event.preventDefault();let concepts=[],splits=[],conceptSum=0,methodSum=0,invalid=false,message='';
+        $('.debt-row').each(function(){
+            let row=$(this),amount=Number(row.find('.debt-amount').val()||0),type=row.find('.discount-type').val()||'',value=Number(row.find('.discount-value').val()||0),reason=(row.find('.discount-reason').val()||'').trim();
+            if(amount<=0)invalid=true;
+            if(type&&!value){invalid=true;message='Ingrese el monto final, el descuento o el porcentaje.'}
+            if(!correction&&type==='final_amount'&&value>=Number(row.data('balance')||0)){invalid=true;message='El monto final debe ser menor que el saldo actual para generar un descuento.'}
+            concepts.push({ef_id:Number(row.data('id')),amount:amount,discount_type:type,discount_value:value,discount_reason:reason});conceptSum+=amount;
+        });
+        $('.method-row').each(function(){let method=Number($(this).find('.method-id').val()||0),amount=Number($(this).find('.method-amount').val()||0);if(!method||amount<=0)invalid=true;splits.push({method_id:method,amount:amount,reference_number:$(this).find('.method-reference').val(),bank_name:$(this).find('.method-bank').val(),operation_date:$('[name="payment_date"]').val().substring(0,10)});methodSum+=amount});
+        if(!concepts.length||invalid)return alert_toast(message||'Revise conceptos, saldos y medios de pago.','warning');
+        if(Math.abs(conceptSum-methodSum)>.009)return alert_toast('Los medios de pago deben sumar '+money(conceptSum)+'.','warning');
+        $('#selected_concepts').val(JSON.stringify(concepts));$('#payment_splits').val(JSON.stringify(splits));start_load();$('#save-payment').prop('disabled',true);
+        $.ajax({url:'payments_api.php?action=save',method:'POST',data:$(this).serialize(),dataType:'json'}).done(function(response){
+            if(response.status!=1){$('#save-payment').prop('disabled',false);return alert_toast(response.message||'No se pudo registrar.','danger')}
+            alert_toast(response.message,'success');if(window.reload_payments)window.reload_payments();if(response.operation_id){uni_modal('Vista previa del recibo','view_payment.php?operation_id='+response.operation_id,'modal-xl')}else{$('#uni_modal').modal('hide')}
+        }).fail(function(xhr){$('#save-payment').prop('disabled',false);alert_toast((xhr.responseJSON||{}).message||'Error del servidor.','danger')}).always(end_load);
+    });
+})(jQuery);
 </script>

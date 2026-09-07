@@ -13,7 +13,7 @@ if (!empty($_SESSION['login_id'])) {
 		$role_query->bind_param('i', $login_id);
 		$role_query->execute();
 		$role = $role_query->get_result()->fetch_assoc();
-		$can_manage_students = $role && ((int)$role['type'] === 1 || (int)$role['is_director'] === 1);
+		$can_manage_students = $role && (int)$role['type'] === 1;
 		$role_query->close();
 	}
 }

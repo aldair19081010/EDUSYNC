@@ -1,193 +1,27 @@
 <?php
-include 'db_connect.php';
-
-$school_id = $_SESSION['login_school_id'] ?? 0;
-
-// Valores por defecto de horario (pueden venir de configuraciones)
-$default_early = "07:30";
-$default_late = "08:10";
-$early_time = $_POST['early_time'] ?? $default_early;
-$late_time = $_POST['late_time'] ?? $default_late;
-
-// Filtros iniciales
-$student_id = $_POST['student_id'] ?? '';
-$date_from = $_POST['date_from'] ?? date('Y-m-01');
-$date_to = $_POST['date_to'] ?? date('Y-m-d');
-$nivel = $_POST['nivel'] ?? '';
-$grado = $_POST['grado'] ?? '';
-$seccion = $_POST['seccion'] ?? '';
-$tipo = $_POST['tipo'] ?? '';
-$estado = $_POST['estado'] ?? '';
-
-// Consultas para selectores
-$students = $conn->query("SELECT id, name, id_no, grado, nivel, seccion FROM student WHERE school_id = $school_id AND status = 'Activo' ORDER BY grado ASC, name ASC");
-$niveles = $conn->query("SELECT DISTINCT nivel FROM student WHERE school_id = $school_id AND nivel IS NOT NULL AND nivel != '' AND status = 'Activo' ORDER BY nivel ASC");
-$grados = $conn->query("SELECT DISTINCT grado FROM student WHERE school_id = $school_id AND grado IS NOT NULL AND grado != '' AND status = 'Activo' ORDER BY grado ASC");
-$secciones = $conn->query("SELECT DISTINCT seccion FROM student WHERE school_id = $school_id AND seccion IS NOT NULL AND seccion != '' AND status = 'Activo' ORDER BY seccion ASC");
+include_once __DIR__.'/../db_connect.php';
+$school=(int)($_SESSION['login_school_id']??0);$ready=false;$q=$conn->query("SHOW COLUMNS FROM asistencia LIKE 'school_id'");if($q&&$q->num_rows)$ready=true;
 ?>
 <style>
-.select2-container { z-index: 10 !important; }
-.select2-dropdown { z-index: 9999 !important; }
-.select2.select2-container { width: 100% !important; }
-.select2-selection__rendered { line-height: 32px !important; }
-.select2-selection--single { height: 36px !important; }
-.select2-container--default .select2-selection--single .select2-selection__arrow { height: 34px; }
-.select2-container--default .select2-selection--single .select2-selection__clear { right: 24px; }
-@media print {
-  body * { visibility: hidden !important; }
-  #attendance-report-table, #attendance-report-table * { visibility: visible !important; }
-  #attendance-report-table { position: absolute; left: 0; top: 0; width: 100vw; background: #fff; color: #000; box-shadow: none; }
-  .btn, form, .card, .select2-container { display: none !important; }
-}
+.ar-header{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.55rem;padding:1.15rem 1.35rem}.ar-kpi{border:1px solid #e3e6f0;border-radius:.55rem;background:#fff;padding:1rem;height:100%}.ar-kpi small{color:#6e7891;font-weight:700;text-transform:uppercase}.ar-kpi strong{display:block;color:#263754;font-size:1.4rem;margin-top:.2rem}.ar-table td{vertical-align:middle}.select2-container{width:100%!important}
 </style>
-
-<div class="container-fluid py-4">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fa fa-calendar-check mr-2"></i>Reporte de Asistencia</h1>
-        <div class="d-flex align-items-center">
-            <button type="button" id="btn-excel-report" class="btn btn-success btn-sm mr-2"><i class="fa fa-file-excel mr-1"></i>Exportar Excel</button>
-        </div>
-    </div>
-
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary"><i class="fa fa-filter mr-2"></i>Filtros de búsqueda</h6>
-        </div>
-        <div class="card-body">
-            <form id="attendance-filter">
-                <div class="form-row mb-3">
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="date_from">Fecha de inicio</label>
-                        <input type="date" name="date_from" id="date_from" value="<?php echo $date_from ?>" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="date_to">Fecha de fin</label>
-                        <input type="date" name="date_to" id="date_to" value="<?php echo $date_to ?>" class="form-control form-control-sm" required>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="filtro_tipo">Tipo de registro</label>
-                        <select name="tipo" id="filtro_tipo" class="form-control form-control-sm" data-placeholder="Seleccione un tipo">
-                            <option value=""></option>
-                            <option value="Entrada" <?php echo $tipo == 'Entrada' ? 'selected' : '' ?>>Entrada</option>
-                            <option value="Salida" <?php echo $tipo == 'Salida' ? 'selected' : '' ?>>Salida</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="filtro_estado">Estado</label>
-                        <select name="estado" id="filtro_estado" class="form-control form-control-sm" data-placeholder="Seleccione un estado">
-                            <option value=""></option>
-                            <option value="Temprano" <?php echo $estado == 'Temprano' ? 'selected' : '' ?>>Temprano</option>
-                            <option value="Normal" <?php echo $estado == 'Normal' ? 'selected' : '' ?>>Normal</option>
-                            <option value="Tarde" <?php echo $estado == 'Tarde' ? 'selected' : '' ?>>Tarde</option>
-                            <option value="Ausente" <?php echo $estado == 'Ausente' ? 'selected' : '' ?>>Ausente</option>
-                            <option value="Ausente Justificada" <?php echo $estado == 'Ausente Justificada' ? 'selected' : '' ?>>Ausente Justificada</option>
-                            <option value="Presente" <?php echo $estado == 'Presente' ? 'selected' : '' ?>>Presente</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="form-row mb-3">
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="filtro_nivel">Nivel</label>
-                        <select name="nivel" id="filtro_nivel" class="form-control form-control-sm" data-placeholder="Seleccione un nivel">
-                            <option value=""></option>
-                            <?php while($n = $niveles->fetch_assoc()): ?>
-                                <option value="<?php echo htmlspecialchars($n['nivel']) ?>" <?php echo $nivel == $n['nivel'] ? 'selected' : '' ?>><?php echo htmlspecialchars($n['nivel']) ?></option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="filtro_grado">Grado</label>
-                        <select name="grado" id="filtro_grado" class="form-control form-control-sm" data-placeholder="Seleccione un grado">
-                            <option value=""></option>
-                            <?php while($g = $grados->fetch_assoc()): ?>
-                                <option value="<?php echo htmlspecialchars($g['grado']) ?>" <?php echo $grado == $g['grado'] ? 'selected' : '' ?>><?php echo htmlspecialchars($g['grado']) ?></option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="filtro_seccion">Sección</label>
-                        <select name="seccion" id="filtro_seccion" class="form-control form-control-sm" data-placeholder="Seleccione una sección">
-                            <option value=""></option>
-                            <?php while($s = $secciones->fetch_assoc()): ?>
-                                <option value="<?php echo htmlspecialchars($s['seccion']) ?>" <?php echo $seccion == $s['seccion'] ? 'selected' : '' ?>><?php echo htmlspecialchars($s['seccion']) ?></option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <label class="small font-weight-bold" for="filtro_alumno">Estudiante</label>
-                        <select name="student_id" id="filtro_alumno" class="form-control form-control-sm" data-placeholder="Seleccione un alumno">
-                            <option value=""></option>
-                            <?php mysqli_data_seek($students, 0); while($stu = $students->fetch_assoc()): ?>
-                                <option value="<?php echo $stu['id'] ?>" <?php echo $student_id == $stu['id'] ? 'selected' : '' ?>>
-                                    <?php echo ucwords($stu['name']) . " ({$stu['id_no']}) - " . $stu['grado'] ?>
-                                </option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-2 mb-3 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary btn-sm btn-block"><i class="fas fa-search mr-2"></i>Buscar</button>
-                    </div>
-                </div>
-            </form>
-            <form id="export-form" action="export_attendance_excel.php" method="GET" target="_blank" style="display:none;"></form>
-        </div>
-    </div>
-
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary"><i class="fa fa-list mr-2"></i>Resultados</h6>
-        </div>
-        <div class="card-body">
-            <div id="attendance-report-table" class="table-responsive"></div>
-        </div>
-    </div>
+<div class="container-fluid py-3">
+ <div class="ar-header d-flex flex-wrap align-items-center justify-content-between mb-3"><div><h1 class="h4 mb-1 text-gray-800"><i class="fas fa-chart-bar text-primary mr-2"></i>Reporte de asistencia</h1><div class="text-muted small">Seguimiento de marcaciones, incidencias y cierres por periodo.</div></div><div class="mt-2 mt-md-0"><button id="ar-print" class="btn btn-outline-primary btn-sm mr-1"><i class="fas fa-print mr-1"></i>Vista previa</button><button id="ar-export" class="btn btn-primary btn-sm"><i class="fas fa-file-excel mr-1"></i>Exportar Excel</button></div></div>
+ <?php if(!$ready):?><div class="alert alert-warning">Ejecute manualmente <strong>sql/attendance_module_upgrade.sql</strong>.</div><?php endif;?><div id="ar-error" class="alert alert-danger d-none"></div>
+ <div class="card shadow-sm mb-3"><div class="card-body pb-2"><div class="form-row">
+  <div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Año académico</label><select id="ar-year" class="form-control form-control-sm"></select></div><div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Desde</label><input id="ar-from" type="date" class="form-control form-control-sm"></div><div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Hasta</label><input id="ar-to" type="date" class="form-control form-control-sm"></div>
+  <div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Nivel</label><select id="ar-level" class="form-control form-control-sm"><option value="">Todos</option></select></div><div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Grado</label><select id="ar-grade" class="form-control form-control-sm"><option value="">Todos</option></select></div><div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Sección</label><select id="ar-section" class="form-control form-control-sm"><option value="">Todas</option></select></div>
+  <div class="col-lg-4 col-md-6 mb-2"><label class="small font-weight-bold">Estudiante</label><select id="ar-student" class="form-control form-control-sm"><option value="">Todos</option></select></div><div class="col-lg-2 col-md-3 mb-2"><label class="small font-weight-bold">Tipo</label><select id="ar-type" class="form-control form-control-sm"><option value="">Todos</option><option>Entrada</option><option>Salida</option></select></div><div class="col-lg-2 col-md-3 mb-2"><label class="small font-weight-bold">Estado</label><select id="ar-status" class="form-control form-control-sm"><option value="">Todos</option><option>Presente</option><option>Tarde</option><option>Ausente</option><option>Ausente Justificada</option><option>Permiso</option></select></div><div class="col-lg-2 col-md-3 mb-2"><label class="small font-weight-bold">Origen</label><select id="ar-source" class="form-control form-control-sm"><option value="">Todos</option><option value="Aula">Aula</option><option value="Escáner">Escáner</option><option value="Manual">Manual</option></select></div><div class="col-lg-2 col-md-3 mb-2 d-flex align-items-end"><button id="ar-clear" class="btn btn-light btn-sm btn-block border"><i class="fas fa-eraser mr-1"></i>Limpiar</button></div>
+ </div></div></div>
+ <div class="row mb-3"><div class="col-md-2 col-6 mb-2"><div class="ar-kpi"><small>Marcaciones</small><strong id="ar-total">0</strong></div></div><div class="col-md-2 col-6 mb-2"><div class="ar-kpi"><small>Presentes</small><strong id="ar-present">0</strong></div></div><div class="col-md-2 col-6 mb-2"><div class="ar-kpi"><small>Tardanzas</small><strong id="ar-late">0</strong></div></div><div class="col-md-2 col-6 mb-2"><div class="ar-kpi"><small>Ausencias</small><strong id="ar-absent">0</strong></div></div><div class="col-md-2 col-6 mb-2"><div class="ar-kpi"><small>Justificadas</small><strong id="ar-justified">0</strong></div></div><div class="col-md-2 col-6 mb-2"><div class="ar-kpi"><small>Asistencia</small><strong id="ar-rate">0%</strong></div></div></div>
+ <div class="card shadow-sm"><div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center"><div class="btn-group btn-group-sm ar-view"><button data-view="detail" class="btn btn-primary">Detalle</button><button data-view="student" class="btn btn-outline-primary">Por estudiante</button><button data-view="class" class="btn btn-outline-primary">Por aula</button><button data-view="incidents" class="btn btn-outline-primary">Incidencias</button><button data-view="daily" class="btn btn-outline-primary">Control diario</button></div><small class="text-muted mt-2 mt-md-0">Los indicadores consideran solo entradas vigentes.</small></div><div class="card-body"><div class="table-responsive"><table id="ar-table" class="table table-bordered table-hover table-sm ar-table" width="100%"></table></div></div></div>
 </div>
-
 <script>
-function initializeSelectors() {
-    if (typeof $.fn.select2 === 'function') {
-        $('.form-control-sm').each(function() {
-            if ($(this).data('select2')) { $(this).select2('destroy'); }
-        });
-        $('#filtro_nivel, #filtro_grado, #filtro_seccion, #filtro_tipo, #filtro_estado').select2({
-            placeholder: 'Seleccione una opción', allowClear: true, width: '100%', dropdownParent: $('body'), minimumResultsForSearch: 10
-        });
-        $('#filtro_alumno').select2({
-            placeholder: 'Seleccione un alumno', allowClear: true, width: '100%', dropdownParent: $('body'),
-            language: { noResults: () => 'No se encontraron resultados', searching: () => 'Buscando...' }
-        });
-    }
-}
-
-$(document).ready(function() {
-    initializeSelectors();
-
-    $('#attendance-filter').submit(function(e) {
-        e.preventDefault();
-        if (typeof start_load === 'function') { start_load(); }
-        $.ajax({
-            url: 'attendance_report_table.php',
-            method: 'POST',
-            data: $(this).serialize(),
-            success: function(resp) {
-                $('#attendance-report-table').html(resp);
-                if (typeof end_load === 'function') { end_load(); }
-            },
-            error: function() {
-                if (typeof alert_toast === 'function') { alert_toast('Error al cargar el reporte.', 'danger'); }
-                if (typeof end_load === 'function') { end_load(); }
-            }
-        });
-    });
-
-    $('#btn-excel-report').on('click', function() {
-        var params = $('#attendance-filter').serializeArray();
-        var $form = $('#export-form');
-        $form.empty();
-        params.forEach(function(p){ $('<input>', { type: 'hidden', name: p.name, value: p.value }).appendTo($form); });
-        try { if (typeof alert_toast === 'function') { alert_toast('Generando Excel…', 'info'); } } catch(e) {}
-        $form.trigger('submit');
-    });
-});
+(function($){const ready=<?php echo $ready?'true':'false';?>,api='attendance_report_data.php';let table=null,view='detail',years=[];function esc(v){return $('<div>').text(v==null?'':v).html()}function fmtDate(v){if(!v)return'—';let p=String(v).split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:v}function badge(v){let c=v==='Presente'?'success':v==='Tarde'?'warning':v==='Ausente'?'danger':v==='Ausente Justificada'?'info':v==='Permiso'?'primary':'secondary';return'<span class="badge badge-'+c+'">'+esc(v)+'</span>'}function rate(r){let n=Number(r.marks||0);return n?(((Number(r.present||0)+Number(r.late||0))*100/n).toFixed(1)+'%'):'0%'}function metricCols(){return[{data:'marks'},{data:'present'},{data:'late'},{data:'absent'},{data:'justified'},{data:'permission'},{data:null,render:rate}]}function summaryStudent(){return[{data:null,render:r=>'<strong>'+esc(r.student_name)+'</strong><div class="small text-muted">'+esc(r.id_no)+'</div>'},{data:null,render:r=>esc(r.nivel+' · '+r.grado+' '+r.seccion)},...metricCols()]}
+const configs={detail:{heads:['Fecha','Estudiante','Aula','Hora','Tipo','Estado','Origen','Detalle'],cols:[{data:'fecha',render:fmtDate},{data:null,render:r=>'<strong>'+esc(r.student_name)+'</strong><div class="small text-muted">'+esc(r.id_no)+'</div>'},{data:null,render:r=>esc(r.nivel+' · '+r.grado+' '+r.seccion)},{data:'hora',render:v=>v?String(v).substring(0,5):'—'},{data:'tipo'},{data:'estado',render:badge},{data:'source',defaultContent:'Manual'},{data:'id',orderable:false,render:id=>'<button class="btn btn-sm btn-outline-primary ar-detail" data-id="'+id+'"><i class="fas fa-eye"></i></button>'}]},student:{heads:['Estudiante','Aula','Marcaciones','Presentes','Tardanzas','Ausencias','Justificadas','Permisos','% asistencia'],cols:summaryStudent()},incidents:{heads:['Estudiante','Aula','Marcaciones','Presentes','Tardanzas','Ausencias','Justificadas','Permisos','% asistencia'],cols:summaryStudent()},class:{heads:['Aula','Estudiantes','Marcaciones','Presentes','Tardanzas','Ausencias','Justificadas','Permisos','% asistencia'],cols:[{data:null,render:r=>'<strong>'+esc(r.nivel+' · '+r.grado+' '+r.seccion)+'</strong>'},{data:'students'},...metricCols()]},daily:{heads:['Fecha','Aula','Marcados','Presentes','Tardanzas','Ausencias','Control'],cols:[{data:'fecha',render:fmtDate},{data:null,render:r=>esc(r.nivel+' · '+r.grado+' '+r.seccion)},{data:'marked'},{data:'present'},{data:'late'},{data:'absent'},{data:'closure_status',render:v=>'<span class="badge badge-'+(v==='Cerrada'?'success':v==='Reabierta'?'warning':'secondary')+'">'+esc(v)+'</span>'}]}};
+function filters(){return{academic_year_id:$('#ar-year').val(),date_from:$('#ar-from').val(),date_to:$('#ar-to').val(),nivel:$('#ar-level').val(),grado:$('#ar-grade').val(),seccion:$('#ar-section').val(),student_id:$('#ar-student').val(),tipo:$('#ar-type').val(),estado:$('#ar-status').val(),source:$('#ar-source').val(),view:view}}function showSummary(s){s=s||{};$('#ar-total').text(s.total||0);$('#ar-present').text(s.present||0);$('#ar-late').text(s.late||0);$('#ar-absent').text(s.absent||0);$('#ar-justified').text(s.justified||0);$('#ar-rate').text((s.attendance_rate||0)+'%')}
+function init(){if(!ready||!$.fn.DataTable)return;let c=configs[view];if(table){table.destroy();$('#ar-table').empty()}$('#ar-table').append('<thead><tr>'+c.heads.map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody></tbody>');table=$('#ar-table').DataTable({serverSide:true,processing:true,pageLength:25,lengthMenu:[[25,50,100],[25,50,100]],order:[],ajax:{url:api,data:d=>$.extend(d,filters()),dataSrc:r=>{showSummary(r.summary);$('#ar-error').addClass('d-none');return r.data||[]},error:x=>{let m='No se pudo cargar el reporte.';try{m=JSON.parse(x.responseText).message||m}catch(e){}$('#ar-error').removeClass('d-none').text(m)}},columns:c.cols,language:{search:'Buscar:',lengthMenu:'Mostrar _MENU_',processing:'Consultando asistencia...',zeroRecords:'No se encontraron registros',info:'Mostrando _START_ a _END_ de _TOTAL_',infoEmpty:'Sin registros',paginate:{previous:'Anterior',next:'Siguiente'}}})}
+function fill(sel,items,label){let v=$(sel).val();$(sel).html('<option value="">'+label+'</option>'+items.map(x=>'<option value="'+esc(x.value||x.id||x)+'">'+esc(x.label||x.name||x)+'</option>').join('')).val(v||'')}function options(){return $.getJSON(api+'?action=options',$.extend({},filters())).done(r=>{fill('#ar-grade',r.grades||[],'Todos');fill('#ar-section',r.sections||[],'Todas');fill('#ar-student',(r.students||[]).map(s=>({id:s.id,name:s.name+' ('+s.id_no+') · '+s.nivel+' '+s.grado+' '+s.seccion})),'Todos')})}
+if(ready)$.getJSON(api+'?action=meta').done(r=>{years=r.years||[];$('#ar-year').html(years.map(y=>'<option value="'+y.id+'" data-from="'+y.start_date+'" data-to="'+y.end_date+'" '+(Number(y.is_active)===1?'selected':'')+'>'+esc(y.year)+(Number(y.is_active)===1?' · Activo':'')+'</option>').join(''));fill('#ar-level',r.levels||[],'Todos');let y=years.find(x=>Number(x.is_active)===1)||years[0];if(y){let today=new Date().toISOString().slice(0,10);$('#ar-from').val(y.start_date);$('#ar-to').val(y.end_date<today?y.end_date:today)}options().always(init)});
+$('#ar-year').change(function(){let o=$(this).find(':selected');$('#ar-from').val(o.data('from')||'');$('#ar-to').val(o.data('to')||'');init()});$('#ar-level').change(()=>{$('#ar-grade,#ar-section,#ar-student').val('');options().always(init)});$('#ar-grade').change(()=>{$('#ar-section,#ar-student').val('');options().always(init)});$('#ar-section').change(()=>{$('#ar-student').val('');options().always(init)});$('#ar-student,#ar-from,#ar-to,#ar-type,#ar-status,#ar-source').change(init);$('.ar-view button').click(function(){view=$(this).data('view');$('.ar-view button').removeClass('btn-primary').addClass('btn-outline-primary');$(this).addClass('btn-primary').removeClass('btn-outline-primary');init()});$('#ar-clear').click(function(){$('#ar-level,#ar-grade,#ar-section,#ar-student,#ar-type,#ar-status,#ar-source').val('');options().always(init)});$(document).on('click','.ar-detail',function(){uni_modal('Trazabilidad de asistencia','view_attendance_record.php?id='+$(this).data('id'),'modal-lg')});function query(){return $.param(filters())}$('#ar-export').click(()=>location.href='export_attendance_excel.php?'+query());$('#ar-print').click(()=>uni_modal('Vista previa del reporte','print_attendance_report.php?'+query(),'modal-xl'))})(jQuery);
 </script>

@@ -4,6 +4,11 @@ include_once 'includes/session_check.php';
 require_login_modal();
 
 $session_school_id = intval($_SESSION['login_school_id'] ?? 0);
+$session_user_id = intval($_SESSION['login_id'] ?? 0);
+if ($session_school_id <= 0 || $session_user_id <= 0) die('No autorizado');
+$permission = $conn->prepare('SELECT type,is_director FROM users WHERE id=? AND school_id=? LIMIT 1');
+$permission->bind_param('ii',$session_user_id,$session_school_id);$permission->execute();$role=$permission->get_result()->fetch_assoc();$permission->close();
+if (!$role || (int)$role['type'] !== 1) die('No tiene permiso para generar fichas institucionales.');
 
 if (!isset($_GET['type'])) {
     die('Tipo de ficha no especificado');
@@ -11,6 +16,31 @@ if (!isset($_GET['type'])) {
 
 $type = $_GET['type'];
 $format = $_GET['format'] ?? 'pdf';
+$allowed_types = ['student','teacher','student_list','teacher_list','year_stats','enrollment_by_level','financial_report','data_quality','unassigned_courses'];
+if (!in_array($type,$allowed_types,true)) die('Tipo de ficha no válido');
+
+function auditInstitutionalReport(string $reportType): void {
+    global $conn,$session_school_id;
+    $exists=$conn->query("SHOW TABLES LIKE 'institutional_report_audit'");
+    if(!$exists||!$exists->num_rows)return;
+    $user=(int)($_SESSION['login_id']??0);$year=(int)($_GET['year_id']??0);$entity=null;
+    if(in_array($reportType,['student','teacher'],true))$entity=(int)($_GET['id']??0);
+    $details=json_encode(array_intersect_key($_GET,array_flip(['nivel','grado','seccion','format'])),JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    $ip=$_SERVER['REMOTE_ADDR']??null;
+    $stmt=$conn->prepare('INSERT INTO institutional_report_audit (school_id,academic_year_id,user_id,report_type,entity_id,details,ip_address) VALUES (?,NULLIF(?,0),?,?,?,?,?)');
+    if($stmt){$stmt->bind_param('iiisiss',$session_school_id,$year,$user,$reportType,$entity,$details,$ip);$stmt->execute();$stmt->close();}
+}
+
+auditInstitutionalReport($type);
+
+function annualEnrollmentSql(int $schoolId,int $yearId):string{
+    return "SELECT s.id,s.id_no,s.name,
+      COALESCE((SELECT sah.nivel FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$schoolId AND sah.academic_year_id=$yearId ORDER BY sah.id DESC LIMIT 1),s.nivel) nivel,
+      COALESCE((SELECT sah.grado FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$schoolId AND sah.academic_year_id=$yearId ORDER BY sah.id DESC LIMIT 1),s.grado) grado,
+      COALESCE((SELECT sah.seccion FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$schoolId AND sah.academic_year_id=$yearId ORDER BY sah.id DESC LIMIT 1),s.seccion) seccion,
+      COALESCE((SELECT sah.status FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$schoolId AND sah.academic_year_id=$yearId ORDER BY sah.id DESC LIMIT 1),s.status) status
+      FROM student s WHERE s.school_id=$schoolId AND (s.academic_year_id=$yearId OR EXISTS(SELECT 1 FROM student_academic_history hx WHERE hx.student_id=s.id AND hx.school_id=$schoolId AND hx.academic_year_id=$yearId))";
+}
 
 // Si el formato es Excel, redirigir al generador de Excel
 if ($format === 'excel') {
@@ -21,6 +51,12 @@ if ($format === 'excel') {
 
 // Función para generar HTML base
 function generateHTMLBase($title, $content) {
+    global $conn,$session_school_id;
+    $school=['name'=>'Institución educativa','address'=>'','contact_number'=>'','logo_path'=>''];
+    $schoolStmt=$conn->prepare('SELECT name,address,contact_number,logo_path FROM schools WHERE id=? LIMIT 1');
+    if($schoolStmt){$schoolStmt->bind_param('i',$session_school_id);$schoolStmt->execute();$school=array_merge($school,$schoolStmt->get_result()->fetch_assoc()?:[]);$schoolStmt->close();}
+    $logo='';if(!empty($school['logo_path'])){$logoPath=(string)$school['logo_path'];if(file_exists(__DIR__.'/'.$logoPath)||file_exists($logoPath))$logo='<img src="'.htmlspecialchars($logoPath,ENT_QUOTES,'UTF-8').'" alt="Logo">';}
+    $institution='<div class="institution">'.$logo.'<div><strong>'.htmlspecialchars($school['name'],ENT_QUOTES,'UTF-8').'</strong><span>'.htmlspecialchars(trim(($school['address']??'').(($school['contact_number']??'')?' · Tel. '.$school['contact_number']:'')),ENT_QUOTES,'UTF-8').'</span></div></div>';
     return '
     <!DOCTYPE html>
     <html>
@@ -48,6 +84,7 @@ function generateHTMLBase($title, $content) {
                 border-bottom: 3px solid #4e73df;
                 padding-bottom: 20px;
             }
+            .institution{display:flex;align-items:center;gap:12px;padding-bottom:14px;margin-bottom:18px;border-bottom:2px solid #4e73df}.institution img{width:58px;height:58px;object-fit:contain}.institution strong{display:block;font-size:18px;color:#253858}.institution span{display:block;margin-top:3px;color:#667085;font-size:12px}
             .header h1 {
                 color: #4e73df;
                 margin: 0;
@@ -157,6 +194,7 @@ function generateHTMLBase($title, $content) {
             <div class="no-print">
                 <button class="btn-print" onclick="window.print()">🖨️ Imprimir Ficha</button>
             </div>
+            ' . $institution . '
             ' . $content . '
             <div class="footer">
                 <p>Generado el ' . date('d/m/Y H:i') . ' | Sistema de Gestión Educativa</p>
@@ -188,6 +226,12 @@ switch ($type) {
     case 'financial_report':
         generateFinancialReport();
         break;
+    case 'data_quality':
+        generateDataQualityReport();
+        break;
+    case 'unassigned_courses':
+        generateUnassignedCoursesReport();
+        break;
     default:
         die('Tipo de ficha no válido');
 }
@@ -196,6 +240,7 @@ function generateStudentFicha() {
     global $conn, $session_school_id;
     
     $id = intval($_GET['id']);
+    $year_id = intval($_GET['year_id'] ?? 0);
     
     // Obtener información del estudiante
     $sql = "SELECT * FROM student WHERE id = $id" . ($session_school_id ? " AND school_id = $session_school_id" : "");
@@ -206,22 +251,69 @@ function generateStudentFicha() {
     }
     
     $student = $result->fetch_assoc();
+    $year_label = 'Todos los años';
+    $enrollment_found=true;$enrollment_source='Registro actual';
+    if ($year_id > 0) {
+        $year_result = $conn->query("SELECT year FROM academic_year WHERE id=$year_id AND school_id=$session_school_id LIMIT 1");
+        if (!$year_result || !$year_result->num_rows) die('Año académico no válido');
+        $year_label = $year_result->fetch_assoc()['year'];
+        $history_check = $conn->query("SHOW TABLES LIKE 'student_academic_history'");
+        if ($history_check && $history_check->num_rows) {
+            $history = $conn->query("SELECT nivel,grado,seccion,status FROM student_academic_history WHERE student_id=$id AND school_id=$session_school_id AND academic_year_id=$year_id ORDER BY id DESC LIMIT 1");
+            if ($history && $history->num_rows){$student = array_merge($student, $history->fetch_assoc());$enrollment_source='Historial académico';}
+            elseif((int)($student['academic_year_id']??0)!==$year_id)$enrollment_found=false;
+        }
+    }
     
     // Obtener cursos asignados
     $courses_sql = "SELECT c.course, c.level, c.total_amount, 
                            COALESCE(ef.discounted_amount, ef.total_fee) as final_amount,
-                           (SELECT COALESCE(SUM(amount), 0) FROM payments p WHERE p.ef_id = ef.id) as paid_amount
+                           (SELECT COALESCE(SUM(amount), 0) FROM payments p WHERE p.ef_id = ef.id AND COALESCE(p.payment_status,'Confirmado')='Confirmado') as paid_amount
                     FROM student_ef_list ef
                     INNER JOIN student s ON s.id = ef.student_id
                     INNER JOIN courses c ON c.id = ef.course_id
-                    WHERE ef.student_id = $id" . ($session_school_id ? " AND s.school_id = $session_school_id" : "");
+                    WHERE ef.student_id = $id" . ($session_school_id ? " AND s.school_id = $session_school_id" : "") . ($year_id ? " AND c.academic_year_id=$year_id" : "");
     $courses_result = $conn->query($courses_sql);
+
+    $academic_history = [];
+    $history_table = $conn->query("SHOW TABLES LIKE 'student_academic_history'");
+    if ($history_table && $history_table->num_rows) {
+        $history_sql = "SELECT sah.nivel,sah.grado,sah.seccion,sah.status,sah.change_type,sah.notes,ay.year
+                        FROM student_academic_history sah
+                        LEFT JOIN academic_year ay ON ay.id=sah.academic_year_id
+                        WHERE sah.student_id=$id AND sah.school_id=$session_school_id" . ($year_id ? " AND sah.academic_year_id=$year_id" : '') . "
+                        ORDER BY ay.year DESC,sah.id DESC";
+        $history_result = $conn->query($history_sql);
+        while ($history_result && ($history_row=$history_result->fetch_assoc())) $academic_history[]=$history_row;
+    }
+
+    $attendance_summary = ['total'=>0,'present'=>0,'late'=>0,'absent'=>0,'justified'=>0];
+    $attendance_where = $year_id ? " AND a.fecha BETWEEN (SELECT start_date FROM academic_year WHERE id=$year_id) AND (SELECT end_date FROM academic_year WHERE id=$year_id)" : '';
+    $attendance_result = $conn->query("SELECT COUNT(*) total,
+        SUM(CASE WHEN LOWER(a.estado) IN ('temprano','normal','presente') THEN 1 ELSE 0 END) present,
+        SUM(CASE WHEN LOWER(a.estado)='tarde' THEN 1 ELSE 0 END) late,
+        SUM(CASE WHEN LOWER(a.estado)='ausente' THEN 1 ELSE 0 END) absent,
+        SUM(CASE WHEN LOWER(a.estado) LIKE '%justific%' THEN 1 ELSE 0 END) justified
+        FROM asistencia a INNER JOIN student s ON s.id=a.student_id
+        WHERE a.student_id=$id AND s.school_id=$session_school_id$attendance_where");
+    if ($attendance_result) $attendance_summary=array_merge($attendance_summary,$attendance_result->fetch_assoc()?:[]);
+
+    $grade_summary = ['evaluations'=>0,'numeric_average'=>null,'letter_grades'=>0];
+    $grade_year = $year_id ? " AND e.academic_year_id=$year_id" : '';
+    $grade_result = $conn->query("SELECT COUNT(DISTINCT eg.evaluation_id) evaluations,
+        AVG(CASE WHEN eg.grade REGEXP '^[0-9]+([.][0-9]+)?$' THEN CAST(eg.grade AS DECIMAL(6,2)) END) numeric_average,
+        SUM(CASE WHEN eg.grade IN ('C','B','A','AD') THEN 1 ELSE 0 END) letter_grades
+        FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id
+        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+        WHERE eg.student_id=$id AND tc.school_id=$session_school_id$grade_year");
+    if ($grade_result) $grade_summary=array_merge($grade_summary,$grade_result->fetch_assoc()?:[]);
     
     $content = '
     <div class="header">
         <h1>FICHA INDIVIDUAL DE ESTUDIANTE</h1>
-        <p>Información Personal y Académica</p>
+        <p>Información Personal y Académica · Año: ' . htmlspecialchars($year_label) . '</p>
     </div>
+    '.(!$enrollment_found?'<div style="padding:12px 14px;margin-bottom:18px;border:1px solid #f5c2c7;background:#fff5f5;color:#842029;border-radius:6px"><strong>Sin matrícula registrada:</strong> el estudiante pertenece al padrón institucional, pero no registra matrícula en el año seleccionado.</div>':'<div style="text-align:right;color:#667085;font-size:11px;margin:-18px 0 14px">Fuente académica: '.htmlspecialchars($enrollment_source).'</div>').'
     
     <div class="section">
         <h3>📋 Información Personal</h3>
@@ -274,6 +366,21 @@ function generateStudentFicha() {
             </div>
         </div>
     </div>';
+
+    $content .= '<div class="section"><h3>Resumen académico y asistencia</h3><div class="info-grid">
+        <div class="info-item"><span class="info-label">Evaluaciones:</span><span class="info-value">'.(int)$grade_summary['evaluations'].'</span></div>
+        <div class="info-item"><span class="info-label">Promedio numérico:</span><span class="info-value">'.($grade_summary['numeric_average']!==null?number_format((float)$grade_summary['numeric_average'],2):'Sin notas numéricas').'</span></div>
+        <div class="info-item"><span class="info-label">Registros de asistencia:</span><span class="info-value">'.(int)$attendance_summary['total'].'</span></div>
+        <div class="info-item"><span class="info-label">Presentes / tardanzas:</span><span class="info-value">'.(int)$attendance_summary['present'].' / '.(int)$attendance_summary['late'].'</span></div>
+        <div class="info-item"><span class="info-label">Ausencias:</span><span class="info-value">'.(int)$attendance_summary['absent'].'</span></div>
+        <div class="info-item"><span class="info-label">Justificadas:</span><span class="info-value">'.(int)$attendance_summary['justified'].'</span></div>
+    </div></div>';
+
+    if ($academic_history) {
+        $content .= '<div class="section"><h3>Historial académico</h3><table class="table"><thead><tr><th>Año</th><th>Nivel</th><th>Grado</th><th>Sección</th><th>Estado</th><th>Cambio</th></tr></thead><tbody>';
+        foreach ($academic_history as $item) $content .= '<tr><td>'.htmlspecialchars($item['year']?:'Sin año').'</td><td>'.htmlspecialchars($item['nivel']).'</td><td>'.htmlspecialchars($item['grado']).'</td><td>'.htmlspecialchars($item['seccion']).'</td><td>'.htmlspecialchars($item['status']).'</td><td>'.htmlspecialchars($item['change_type']).'</td></tr>';
+        $content .= '</tbody></table></div>';
+    }
     
     // Sección de información del apoderado/tutor
     $content .= '
@@ -371,7 +478,7 @@ function generateStudentFicha() {
         $total_paid = 0;
         
         while ($course = $courses_result->fetch_assoc()) {
-            $balance = $course['final_amount'] - $course['paid_amount'];
+            $balance = max(0, (float)$course['final_amount'] - (float)$course['paid_amount']);
             $total_amount += $course['final_amount'];
             $total_paid += $course['paid_amount'];
             
@@ -385,7 +492,7 @@ function generateStudentFicha() {
                     </tr>';
         }
         
-        $total_balance = $total_amount - $total_paid;
+        $total_balance = max(0, $total_amount - $total_paid);
         $content .= '
                 </tbody>
                 <tfoot>
@@ -407,6 +514,7 @@ function generateTeacherFicha() {
     global $conn, $session_school_id;
     
     $id = intval($_GET['id']);
+    $year_id = intval($_GET['year_id'] ?? 0);
     
     // Obtener información del docente
     $sql = "SELECT * FROM teacher WHERE id = $id" . ($session_school_id ? " AND school_id = $session_school_id" : "");
@@ -423,7 +531,7 @@ function generateTeacherFicha() {
                     FROM teacher_courses tc
                     INNER JOIN academic_courses ac ON ac.id = tc.course_id
                     LEFT JOIN academic_year ay ON tc.academic_year_id = ay.id
-                    WHERE tc.teacher_id = $id" . ($session_school_id ? " AND tc.school_id = $session_school_id" : "") . "
+                    WHERE tc.teacher_id = $id" . ($session_school_id ? " AND tc.school_id = $session_school_id" : "") . ($year_id ? " AND tc.academic_year_id=$year_id" : "") . "
                     ORDER BY ay.year DESC, tc.level, ac.name, tc.grado, tc.seccion";
     $courses_result = $conn->query($courses_sql);
     
@@ -431,6 +539,14 @@ function generateTeacherFicha() {
     $user_sql = "SELECT username, type FROM users WHERE teacher_id = $id" . ($session_school_id ? " AND school_id = $session_school_id" : "");
     $user_result = $conn->query($user_sql);
     $user = $user_result->num_rows > 0 ? $user_result->fetch_assoc() : null;
+    $employment_history=[];$employment_table=$conn->query("SHOW TABLES LIKE 'teacher_employment_history'");
+    if($employment_table&&$employment_table->num_rows){
+        $employment_sql="SELECT teh.start_date,teh.end_date,teh.status,teh.departure_reason,teh.notes,ay.year
+                         FROM teacher_employment_history teh LEFT JOIN academic_year ay ON ay.id=teh.academic_year_id
+                         WHERE teh.teacher_id=$id AND teh.school_id=$session_school_id".($year_id?" AND teh.academic_year_id=$year_id":'')."
+                         ORDER BY teh.start_date DESC,teh.id DESC";
+        $employment_result=$conn->query($employment_sql);while($employment_result&&($employment=$employment_result->fetch_assoc()))$employment_history[]=$employment;
+    }
     
     $content = '
     <div class="header">
@@ -467,6 +583,12 @@ function generateTeacherFicha() {
             </div>
         </div>
     </div>';
+
+    if($employment_history){
+        $content.='<div class="section"><h3>Historial laboral</h3><table class="table"><thead><tr><th>Año</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Motivo</th></tr></thead><tbody>';
+        foreach($employment_history as $employment)$content.='<tr><td>'.htmlspecialchars($employment['year']?:'Sin año').'</td><td>'.htmlspecialchars($employment['start_date']?:'—').'</td><td>'.htmlspecialchars($employment['end_date']?:'Vigente').'</td><td>'.htmlspecialchars($employment['status']).'</td><td>'.htmlspecialchars($employment['departure_reason']?:'—').'</td></tr>';
+        $content.='</tbody></table></div>';
+    }
     
     if ($user) {
         $content .= '
@@ -527,13 +649,10 @@ function generateStudentList() {
     $nivel = $_GET['nivel'] ?? '';
     $grado = $_GET['grado'] ?? '';
     $seccion = $_GET['seccion'] ?? '';
-    
-    $where = "WHERE (status = 'Activo' OR status IS NULL)" . ($session_school_id ? " AND school_id = $session_school_id" : "");
-    if ($nivel) $where .= " AND nivel = '" . $conn->real_escape_string($nivel) . "'";
-    if ($grado) $where .= " AND grado = '" . $conn->real_escape_string($grado) . "'";
-    if ($seccion) $where .= " AND seccion = '" . $conn->real_escape_string($seccion) . "'";
-    
-    $sql = "SELECT * FROM student $where ORDER BY name";
+    $enrollment_status=trim($_GET['enrollment_status']??'Activo');
+    $source="SELECT s.id,s.id_no,s.name,s.email,s.contact,s.nivel,s.grado,s.seccion,s.status FROM student s WHERE s.school_id=$session_school_id";
+    $where=' WHERE 1=1';if($nivel)$where.=" AND enrolled.nivel='".$conn->real_escape_string($nivel)."'";if($grado)$where.=" AND enrolled.grado='".$conn->real_escape_string($grado)."'";if($seccion)$where.=" AND enrolled.seccion='".$conn->real_escape_string($seccion)."'";if(in_array($enrollment_status,['Activo','Retirado','Egresado'],true))$where.=" AND enrolled.status='".$conn->real_escape_string($enrollment_status)."'";
+    $sql = "SELECT * FROM ($source) enrolled$where ORDER BY name";
     $result = $conn->query($sql);
     
     $title = "RELACIÓN DE ESTUDIANTES";
@@ -544,7 +663,7 @@ function generateStudentList() {
     $content = '
     <div class="header">
         <h1>' . $title . '</h1>
-        <p>Lista de estudiantes activos</p>
+        <p>' . ($enrollment_status === 'Activo' ? 'Matriculados actuales (estado Activo)' : ($enrollment_status === '' ? 'Padrón institucional completo' : 'Estudiantes con estado ' . htmlspecialchars($enrollment_status))) . '</p>
     </div>
     
     <div class="section">
@@ -557,6 +676,7 @@ function generateStudentList() {
                     <th>Nivel</th>
                     <th>Grado</th>
                     <th>Sección</th>
+                    <th>Estado</th>
                     <th>Teléfono</th>
                 </tr>
             </thead>
@@ -572,6 +692,7 @@ function generateStudentList() {
                     <td>' . htmlspecialchars($student['nivel']) . '</td>
                     <td>' . htmlspecialchars($student['grado']) . '</td>
                     <td>' . htmlspecialchars($student['seccion'] ?? '-') . '</td>
+                    <td>' . htmlspecialchars($student['status'] ?? 'Sin estado') . '</td>
                     <td>' . htmlspecialchars($student['contact']) . '</td>
                 </tr>';
     }
@@ -588,12 +709,13 @@ function generateStudentList() {
 function generateTeacherList() {
     global $conn, $session_school_id;
     
+    $year_id = intval($_GET['year_id'] ?? 0);
         $sql = "SELECT t.*, 
-                 (SELECT COUNT(*) FROM teacher_courses tc WHERE tc.teacher_id = t.id" . ($session_school_id ? " AND tc.school_id = $session_school_id" : "") . ") as course_count,
+                 (SELECT COUNT(*) FROM teacher_courses tc WHERE tc.teacher_id = t.id" . ($session_school_id ? " AND tc.school_id = $session_school_id" : "") . ($year_id ? " AND tc.academic_year_id=$year_id" : "") . ") as course_count,
                    u.username
             FROM teacher t
              LEFT JOIN users u ON u.teacher_id = t.id" . ($session_school_id ? " AND u.school_id = $session_school_id" : "") . "
-             " . ($session_school_id ? "WHERE t.school_id = $session_school_id" : "") . "
+             " . ($session_school_id ? "WHERE t.school_id = $session_school_id" : "") . ($year_id ? " AND EXISTS(SELECT 1 FROM teacher_courses ty WHERE ty.teacher_id=t.id AND ty.school_id=$session_school_id AND ty.academic_year_id=$year_id)" : "") . "
             ORDER BY t.name";
     $result = $conn->query($sql);
     
@@ -658,8 +780,8 @@ function generateYearStats() {
     
     // Estadísticas generales
     $stats_sql = "SELECT 
-                      (SELECT COUNT(*) FROM student WHERE (status = 'Activo' OR status IS NULL)" . ($session_school_id ? " AND school_id = $session_school_id" : "") . ") as total_students,
-                      (SELECT COUNT(*) FROM teacher" . ($session_school_id ? " WHERE school_id = $session_school_id" : "") . ") as total_teachers,
+                      (SELECT COUNT(*) FROM (".annualEnrollmentSql($session_school_id,$year_id).") annual_students) as total_students,
+                      (SELECT COUNT(DISTINCT teacher_id) FROM teacher_courses WHERE school_id=$session_school_id AND academic_year_id=$year_id) as total_teachers,
                       (SELECT COUNT(*) FROM courses WHERE academic_year_id = $year_id) as total_courses,
                       (SELECT COUNT(*) FROM student_ef_list ef 
                        INNER JOIN courses c ON c.id = ef.course_id
@@ -669,7 +791,7 @@ function generateYearStats() {
                        INNER JOIN student_ef_list ef ON ef.id = p.ef_id
                        INNER JOIN courses c ON c.id = ef.course_id
                        INNER JOIN student s ON s.id = ef.student_id
-                       WHERE c.academic_year_id = $year_id" . ($session_school_id ? " AND s.school_id = $session_school_id" : "") . ") as total_collected";
+                       WHERE c.academic_year_id = $year_id AND COALESCE(p.payment_status,'Confirmado')='Confirmado'" . ($session_school_id ? " AND s.school_id = $session_school_id" : "") . ") as total_collected";
     $stats_result = $conn->query($stats_sql);
     $stats = $stats_result->fetch_assoc();
     
@@ -710,34 +832,15 @@ function generateYearStats() {
 
 function generateEnrollmentByLevel() {
     global $conn, $session_school_id;
-    
-    $year_id = intval($_GET['year_id']);
-    
-    // Obtener información del año académico
-    $year_sql = "SELECT * FROM academic_year WHERE id = $year_id" . ($session_school_id ? " AND school_id = $session_school_id" : "");
-    $year_result = $conn->query($year_sql);
-    
-    if ($year_result->num_rows == 0) {
-        die('Año académico no encontrado');
-    }
-    
-    $year = $year_result->fetch_assoc();
-    
-    // Matrícula por nivel
-    $enrollment_sql = "SELECT 
-                           nivel,
-                           grado,
-                           COUNT(*) as total_students
-                       FROM student 
-                       WHERE (status = 'Activo' OR status IS NULL)" . ($session_school_id ? " AND school_id = $session_school_id" : "") . "
-                       GROUP BY nivel, grado
-                       ORDER BY nivel, grado";
+
+    // En este sistema, un estudiante activo es un estudiante matriculado.
+    $enrollment_sql = "SELECT nivel,grado,seccion,COUNT(*) total_students FROM student WHERE school_id=$session_school_id AND status='Activo' GROUP BY nivel,grado,seccion ORDER BY nivel,grado,seccion";
     $enrollment_result = $conn->query($enrollment_sql);
     
     $content = '
     <div class="header">
-        <h1>MATRÍCULA POR NIVEL</h1>
-        <p>Año Académico: ' . htmlspecialchars($year['year']) . '</p>
+        <h1>MATRÍCULA ACTUAL POR NIVEL</h1>
+        <p>Estudiantes con estado Activo</p>
     </div>
     
     <div class="section">
@@ -747,7 +850,7 @@ function generateEnrollmentByLevel() {
                 <tr>
                     <th>Nivel</th>
                     <th>Grado</th>
-                    <th>Total Estudiantes</th>
+                    <th>Sección</th><th>Total Estudiantes</th>
                 </tr>
             </thead>
             <tbody>';
@@ -759,7 +862,7 @@ function generateEnrollmentByLevel() {
                 <tr>
                     <td>' . htmlspecialchars($row['nivel']) . '</td>
                     <td>' . htmlspecialchars($row['grado']) . '</td>
-                    <td>' . $row['total_students'] . '</td>
+                    <td>' . htmlspecialchars($row['seccion']?:'-') . '</td><td>' . $row['total_students'] . '</td>
                 </tr>';
     }
     
@@ -767,14 +870,14 @@ function generateEnrollmentByLevel() {
             </tbody>
             <tfoot>
                 <tr style="font-weight: bold; background: #e9ecef;">
-                    <td colspan="2">TOTAL GENERAL</td>
+                    <td colspan="3">TOTAL GENERAL</td>
                     <td>' . $total_general . '</td>
                 </tr>
             </tfoot>
         </table>
     </div>';
     
-    echo generateHTMLBase('Matrícula por Nivel ' . $year['year'], $content);
+    echo generateHTMLBase('Matrícula actual por nivel', $content);
 }
 
 function generateFinancialReport() {
@@ -799,11 +902,10 @@ function generateFinancialReport() {
                           c.grades,
                           COUNT(ef.id) as total_assignments,
                           SUM(COALESCE(ef.discounted_amount, ef.total_fee)) as total_amount,
-                          COALESCE(SUM(p.amount), 0) as total_paid
+                          COALESCE(SUM((SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.ef_id=ef.id AND COALESCE(p.payment_status,'Confirmado')='Confirmado')), 0) as total_paid
                       FROM courses c
                       LEFT JOIN student_ef_list ef ON ef.course_id = c.id
                       LEFT JOIN student s ON s.id = ef.student_id
-                      LEFT JOIN payments p ON p.ef_id = ef.id
                       WHERE c.academic_year_id = $year_id
                       " . ($session_school_id ? " AND (s.school_id = $session_school_id OR s.school_id IS NULL)" : "") . "
                       GROUP BY c.id, c.course, c.level, c.grades
@@ -835,7 +937,7 @@ function generateFinancialReport() {
     $total_amount = 0;
     $total_paid = 0;
     while ($row = $financial_result->fetch_assoc()) {
-        $pending = $row['total_amount'] - $row['total_paid'];
+        $pending = max(0, (float)$row['total_amount'] - (float)$row['total_paid']);
         $total_amount += $row['total_amount'];
         $total_paid += $row['total_paid'];
         
@@ -851,7 +953,7 @@ function generateFinancialReport() {
                 </tr>';
     }
     
-    $total_pending = $total_amount - $total_paid;
+    $total_pending = max(0, $total_amount - $total_paid);
     $content .= '
             </tbody>
             <tfoot>
@@ -866,5 +968,22 @@ function generateFinancialReport() {
     </div>';
     
     echo generateHTMLBase('Reporte Financiero ' . $year['year'], $content);
+}
+
+function generateDataQualityReport(){
+    global $conn,$session_school_id;$year_id=intval($_GET['year_id']??0);
+    $where="s.school_id=$session_school_id".($year_id?" AND (s.academic_year_id=$year_id OR EXISTS(SELECT 1 FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$session_school_id AND sah.academic_year_id=$year_id))":'');
+    $result=$conn->query("SELECT s.id_no,s.name,s.nivel,s.grado,s.seccion,s.contact,s.email,s.tutor1_nombre,s.tutor1_telefono FROM student s WHERE $where AND (COALESCE(s.contact,'')='' OR COALESCE(s.email,'')='' OR COALESCE(s.seccion,'')='' OR COALESCE(s.tutor1_nombre,'')='' OR COALESCE(s.tutor1_telefono,'')='') ORDER BY s.name");
+    $content='<div class="header"><h1>CONTROL DE DATOS INCOMPLETOS</h1><p>Registros que requieren revisión administrativa</p></div><div class="section"><table class="table"><thead><tr><th>DNI</th><th>Estudiante</th><th>Aula</th><th>Datos pendientes</th></tr></thead><tbody>';$count=0;
+    while($result&&($row=$result->fetch_assoc())){$missing=[];if(!$row['contact'])$missing[]='Teléfono';if(!$row['email'])$missing[]='Correo';if(!$row['seccion'])$missing[]='Sección';if(!$row['tutor1_nombre'])$missing[]='Apoderado';if(!$row['tutor1_telefono'])$missing[]='Teléfono del apoderado';$content.='<tr><td>'.htmlspecialchars($row['id_no']).'</td><td>'.htmlspecialchars($row['name']).'</td><td>'.htmlspecialchars($row['nivel'].' · '.$row['grado'].' '.($row['seccion']?:'Sin sección')).'</td><td>'.htmlspecialchars(implode(', ',$missing)).'</td></tr>';$count++;}
+    if(!$count)$content.='<tr><td colspan="4" style="text-align:center">No se encontraron datos incompletos.</td></tr>';$content.='</tbody></table><p><strong>Registros por revisar: '.$count.'</strong></p></div>';echo generateHTMLBase('Control de datos incompletos',$content);
+}
+
+function generateUnassignedCoursesReport(){
+    global $conn,$session_school_id;$year_id=intval($_GET['year_id']??0);if(!$year_id)die('Seleccione un año académico.');
+    $year=$conn->query("SELECT year FROM academic_year WHERE id=$year_id AND school_id=$session_school_id LIMIT 1");if(!$year||!$year->num_rows)die('Año académico no válido.');$year_label=$year->fetch_assoc()['year'];
+    $result=$conn->query("SELECT ac.course_code,ac.name,ac.level,ac.grades,ac.weekly_hours,ac.course_status FROM academic_courses ac WHERE ac.school_id=$session_school_id AND ac.academic_year_id=$year_id AND COALESCE(ac.course_status,'Activo')='Activo' AND NOT EXISTS(SELECT 1 FROM teacher_courses tc WHERE tc.course_id=ac.id AND tc.school_id=$session_school_id AND tc.academic_year_id=$year_id) ORDER BY ac.level,ac.display_order,ac.name");
+    $content='<div class="header"><h1>CURSOS SIN DOCENTE ASIGNADO</h1><p>Año académico: '.htmlspecialchars($year_label).'</p></div><div class="section"><table class="table"><thead><tr><th>Código</th><th>Curso</th><th>Nivel</th><th>Grados</th><th>Horas semanales</th></tr></thead><tbody>';$count=0;
+    while($result&&($row=$result->fetch_assoc())){$content.='<tr><td>'.htmlspecialchars($row['course_code']?:'—').'</td><td>'.htmlspecialchars($row['name']).'</td><td>'.htmlspecialchars($row['level']).'</td><td>'.htmlspecialchars($row['grades']?:'Todos').'</td><td>'.number_format((float)$row['weekly_hours'],1).'</td></tr>';$count++;}if(!$count)$content.='<tr><td colspan="5" style="text-align:center">Todos los cursos activos tienen asignación.</td></tr>';$content.='</tbody></table><p><strong>Cursos pendientes: '.$count.'</strong></p></div>';echo generateHTMLBase('Cursos sin docente '.$year_label,$content);
 }
 ?>

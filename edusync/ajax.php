@@ -19,8 +19,18 @@ $action = $_GET['action'] ?? null;
 include 'admin_class.php';
 $crud = new Action();
 
+$evaluation_write_actions = ['save_evaluation', 'delete_evaluation', 'save_evaluation_grades'];
+if (in_array($action, $evaluation_write_actions, true)) {
+    $csrf_token = (string)($_POST['csrf_token'] ?? '');
+    $session_token = (string)($_SESSION['csrf_token'] ?? '');
+    if ($csrf_token === '' || $session_token === '' || !hash_equals($session_token, $csrf_token)) {
+        header('Content-Type: application/json'); http_response_code(403);
+        echo json_encode(['status'=>0,'message'=>'La sesión de seguridad venció. Recargue la página.']); exit;
+    }
+}
+
 // Proteger las operaciones que modifican datos del módulo de estudiantes.
-$student_write_actions = ['save_student', 'delete_student', 'upload_excel', 'bulk_update_students'];
+$student_write_actions = ['save_student', 'delete_student', 'upload_excel', 'bulk_update_students', 'save_fees', 'delete_fees', 'bulk_delete_fees', 'bulk_assign_fees', 'save_payment', 'delete_payment', 'bulk_delete_payment', 'process_payment_excel'];
 if (in_array($action, $student_write_actions, true)) {
     $can_manage_students = false;
     if (!empty($_SESSION['login_id'])) {
@@ -30,7 +40,7 @@ if (in_array($action, $student_write_actions, true)) {
             $role_query->bind_param('i', $login_id);
             $role_query->execute();
             $role = $role_query->get_result()->fetch_assoc();
-            $can_manage_students = $role && ((int)$role['type'] === 1 || (int)$role['is_director'] === 1);
+            $can_manage_students = $role && (int)$role['type'] === 1;
             $role_query->close();
         }
     }
@@ -50,7 +60,7 @@ if (in_array($action, $student_write_actions, true)) {
     }
 }
 
-$teacher_write_actions = ['save_teacher', 'delete_teacher', 'bulk_teacher_status', 'assign_teacher_course', 'delete_teacher_course', 'save_teacher_user', 'upload_teacher_excel'];
+$teacher_write_actions = ['save_teacher', 'delete_teacher', 'bulk_teacher_status', 'assign_teacher_course', 'delete_teacher_course', 'bulk_delete_teacher_courses', 'bulk_update_teacher_courses', 'replace_teacher_courses', 'clean_all_teacher_courses', 'copy_teacher_courses_from_previous_year', 'save_teacher_user', 'upload_teacher_excel'];
 if (in_array($action, $teacher_write_actions, true)) {
     $can_manage_teachers = false;
     if (!empty($_SESSION['login_id'])) {
@@ -58,8 +68,10 @@ if (in_array($action, $teacher_write_actions, true)) {
         if ($role_query) {
             $login_id = (int)$_SESSION['login_id'];
             $role_query->bind_param('i', $login_id); $role_query->execute();
-            $role = $role_query->get_result()->fetch_assoc(); $role_query->close();
-            $can_manage_teachers = $role && ((int)$role['type'] === 1 || (int)$role['is_director'] === 1);
+			$role_type = 0; $role_is_director = 0;
+			$role_query->bind_result($role_type, $role_is_director);
+			if ($role_query->fetch()) $can_manage_teachers = ((int)$role_type === 1);
+			$role_query->close();
         }
     }
     if (!$can_manage_teachers) {
@@ -281,12 +293,34 @@ try {
             INNER JOIN student s ON s.id = ef.student_id
             INNER JOIN courses c ON c.id = ef.course_id
             LEFT JOIN academic_year ay ON c.academic_year_id = ay.id
-            LEFT JOIN payments p ON p.ef_id = ef.id
+            LEFT JOIN payments p ON p.ef_id = ef.id AND p.payment_status = 'Confirmado'
             LEFT JOIN student_ef_list eff ON eff.id = ef.id
             WHERE ef.student_id = $student_id" . ($school_id ? " AND s.school_id = $school_id" : "") . "
             GROUP BY ef.id
             HAVING balance > 0.0001
-            ORDER BY c.course ASC, ay.year DESC";
+            ORDER BY
+                CAST(COALESCE(ay.year, '9999') AS UNSIGNED) ASC,
+                CASE WHEN ef.due_date IS NULL THEN 1 ELSE 0 END ASC,
+                ef.due_date ASC,
+                CASE WHEN ef.installment_number IS NULL THEN 1 ELSE 0 END ASC,
+                ef.installment_number ASC,
+                CASE
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%enero%' THEN 1
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%febrero%' THEN 2
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%marzo%' THEN 3
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%abril%' THEN 4
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%mayo%' THEN 5
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%junio%' THEN 6
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%julio%' THEN 7
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%agosto%' THEN 8
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%septiembre%' THEN 9
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%octubre%' THEN 10
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%noviembre%' THEN 11
+                    WHEN LOWER(CONCAT(c.course, ' ', COALESCE(ef.billing_period, ''))) LIKE '%diciembre%' THEN 12
+                    ELSE 99
+                END ASC,
+                c.course ASC,
+                ef.id ASC";
 
         $res = $conn->query($sql);
         $data = [];
@@ -348,19 +382,15 @@ try {
 			echo $save;
 	}
 	if ($action == "save_course") {
-		header('Content-Type: application/json');
-		$save = $crud->save_course();
-		echo $save;
+		// Compatibilidad: usar la API segura del módulo de conceptos.
+		$action = 'save';
+		include 'concepts_api.php';
 		exit;
 	}
 	if ($action == "delete_course") {
-		header('Content-Type: application/json'); // Asegurar el encabezado JSON
-		$delete = $crud->delete_course();
-		if ($delete == 1) {
-			echo json_encode(['status' => 1, 'message' => 'Curso eliminado exitosamente.']);
-		} else {
-			echo json_encode(['status' => 0, 'message' => 'Error al eliminar el curso.']);
-		}
+		// Compatibilidad: elimina solo conceptos vacíos; con historial los archiva.
+		$action = 'delete';
+		include 'concepts_api.php';
 		exit;
 	}
 	if ($action == "save_student") {
@@ -424,6 +454,11 @@ try {
 	}
 	if ($action == "save_payment") {
 		header('Content-Type: application/json'); // Asegurar el encabezado JSON
+		$operation_column = $conn->query("SHOW COLUMNS FROM payments LIKE 'operation_id'");
+		if ($operation_column && $operation_column->num_rows > 0) {
+			echo json_encode(['status' => 0, 'message' => 'Utilice el nuevo flujo transaccional de pagos. Los pagos confirmados ya no se editan directamente.']);
+			exit;
+		}
 		$save = $crud->save_payment();
 		if ($save) {
 			echo $save; // La función `save_payment` ya devuelve un JSON válido
@@ -485,6 +520,14 @@ try {
 		exit;
 	}
 
+	// Las rutas antiguas no validaban colegio, cierre diario ni CSRF. El módulo
+	// actualizado usa attendance_api.php y se bloquean aquí para evitar bypasses.
+	if (in_array($action, ['save_asistencia', 'get_asistencia', 'save_asistencia_barcode', 'get_students_for_asistencia'], true)) {
+		header('Content-Type: application/json; charset=utf-8');
+		http_response_code(410);
+		echo json_encode(['status' => 0, 'message' => 'Esta ruta de asistencia fue reemplazada. Recargue el módulo.'], JSON_UNESCAPED_UNICODE);
+		exit;
+	}
 	if ($action == 'save_asistencia') {
 		header('Content-Type: application/json');
 		$student_id = $_POST['student_id'];
@@ -811,6 +854,21 @@ try {
 		echo $crud->delete_teacher_course();
 		exit;
 	}
+	if ($action == "bulk_delete_teacher_courses") {
+		header('Content-Type: application/json');
+		echo $crud->bulk_delete_teacher_courses();
+		exit;
+	}
+	if ($action == "replace_teacher_courses") {
+		header('Content-Type: application/json');
+		echo $crud->replace_teacher_courses();
+		exit;
+	}
+	if ($action == "bulk_update_teacher_courses") {
+		header('Content-Type: application/json');
+		echo $crud->bulk_update_teacher_courses();
+		exit;
+	}
 	if ($action == "save_teacher_user") {
 		header('Content-Type: application/json');
 		echo $crud->save_teacher_user();
@@ -1029,8 +1087,7 @@ try {
 		
 		$grados = [];
 		if ($level) {
-            $is_director = $_SESSION['login_is_director'] ?? 0;
-			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id']) && !$is_director) {
+			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
 				// Para profesores, solo mostrar sus grados asignados
 				$teacher_id = $_SESSION['login_teacher_id'];
 				$sql = "SELECT DISTINCT tc.grado 
@@ -1100,8 +1157,7 @@ try {
 		
 		$secciones = [];
 		if ($level && $grado) {
-            $is_director = $_SESSION['login_is_director'] ?? 0;
-			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id']) && !$is_director) {
+			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
 				// Para profesores, solo mostrar sus secciones asignadas
 				$teacher_id = $_SESSION['login_teacher_id'];
 				$sql = "SELECT DISTINCT tc.seccion 
@@ -1174,8 +1230,7 @@ try {
 		
 		$courses = [];
 		if ($level && $grado && $seccion) {
-            $is_director = $_SESSION['login_is_director'] ?? 0;
-			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id']) && !$is_director) {
+			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
 				// Para profesores, solo mostrar sus cursos asignados
 				$teacher_id = $_SESSION['login_teacher_id'];
 				$sql = "SELECT DISTINCT ac.id, ac.name 
@@ -1247,10 +1302,9 @@ try {
 		$login_type = $_SESSION['login_type'] ?? null;
 		
 		$levels = [];
-		$is_director = $_SESSION['login_is_director'] ?? 0;
 		if ($academic_year_id && $school_id) {
-			if ($login_type == 1 || $is_director == 1) {
-				// Para administradores o directores, obtener todos los niveles del año académico
+			if ($login_type == 1) {
+				// Para administradores, obtener todos los niveles del año académico
 				$q = $conn->prepare("SELECT DISTINCT ac.level FROM academic_courses ac 
 									 INNER JOIN teacher_courses tc ON ac.id = tc.course_id 
 									 WHERE ac.school_id = ? AND tc.academic_year_id = ? AND ac.level != '' 
@@ -1710,7 +1764,7 @@ try {
     $role_query->execute();
     $bulk_role = $role_query->get_result()->fetch_assoc();
     $role_query->close();
-    if (!$bulk_role || ((int)$bulk_role['type'] !== 1 && (int)$bulk_role['is_director'] !== 1)) {
+    if (!$bulk_role || (int)$bulk_role['type'] !== 1) {
         echo json_encode(['status' => 0, 'msg' => 'No tiene permisos para realizar esta acción.']);
         exit;
     }
@@ -1828,7 +1882,7 @@ try {
     $role_query->execute();
     $bulk_role = $role_query->get_result()->fetch_assoc();
     $role_query->close();
-    if (!$bulk_role || ((int)$bulk_role['type'] !== 1 && (int)$bulk_role['is_director'] !== 1)) {
+    if (!$bulk_role || (int)$bulk_role['type'] !== 1) {
         echo json_encode(['status' => 0, 'msg' => 'No tiene permisos para realizar esta acción.']);
         exit;
     }
@@ -1934,6 +1988,16 @@ try {
 
 // === ENDPOINTS DE AÑO ACADÉMICO ===
 // Guardar o actualizar año académico
+$academic_year_lifecycle_actions = [
+    'archive_academic_year', 'close_academic_year', 'reopen_academic_year',
+    'get_year_summary', 'get_close_checklist', 'get_academic_periods',
+    'save_academic_periods', 'copy_academic_year', 'compare_academic_years',
+    'get_academic_year_audit'
+];
+if (in_array($action, $academic_year_lifecycle_actions, true)) {
+    include('academic_year_api.php');
+    exit;
+}
 if ($action == 'save_academic_year') {
     include('academic_year_api.php');
     exit;
@@ -2038,8 +2102,9 @@ elseif ($action == 'clean_all_teacher_courses') {
     header('Content-Type: application/json');
     $academic_year_id = isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0;
     $school_id = $_SESSION['login_school_id'] ?? 0;
+	$clean_year = ($academic_year_id > 0 && $school_id > 0) ? $conn->query("SELECT id FROM academic_year WHERE id=$academic_year_id AND school_id=$school_id AND is_active=1 LIMIT 1") : false;
     
-    if ($academic_year_id > 0 && $school_id > 0) {
+    if ($academic_year_id > 0 && $school_id > 0 && $clean_year && $clean_year->num_rows > 0) {
         // Solo eliminar las asignaciones de docentes que pertenecen al colegio del administrador
         $delete = $conn->query("DELETE tc FROM teacher_courses tc 
                                INNER JOIN teacher t ON tc.teacher_id = t.id 
@@ -2058,32 +2123,47 @@ elseif ($action == 'clean_all_teacher_courses') {
 elseif ($action == 'copy_teacher_courses_from_previous_year') {
     header('Content-Type: application/json');
     $current_year_id = isset($_POST['current_year_id']) ? intval($_POST['current_year_id']) : 0;
+	$source_year_id = isset($_POST['source_year_id']) ? intval($_POST['source_year_id']) : 0;
     $school_id = $_SESSION['login_school_id'] ?? 0;
+	$target_year_query = ($current_year_id > 0 && $school_id > 0)
+		? $conn->query("SELECT id FROM academic_year WHERE id = $current_year_id AND school_id = $school_id AND is_active = 1 LIMIT 1")
+		: false;
     
-    if ($current_year_id > 0 && $school_id > 0) {
-        // Obtener el año anterior
-        $previous_year_query = $conn->query("SELECT id FROM academic_year 
-                                           WHERE school_id = $school_id 
-                                           AND id != $current_year_id 
-                                           ORDER BY start_date DESC LIMIT 1");
+    if ($current_year_id > 0 && $source_year_id > 0 && $source_year_id !== $current_year_id && $school_id > 0 && $target_year_query && $target_year_query->num_rows > 0) {
+        // Validar el año de origen seleccionado
+        $previous_year_query = $conn->query("SELECT id FROM academic_year
+                                           WHERE school_id = $school_id
+                                           AND id = $source_year_id
+                                           LIMIT 1");
         
         if ($previous_year_query && $previous_year_query->num_rows > 0) {
             $previous_year = $previous_year_query->fetch_assoc();
             $previous_year_id = $previous_year['id'];
             
-            // Obtener las asignaciones del año anterior
-            $previous_assignments = $conn->query("SELECT tc.teacher_id, tc.course_id, tc.grado, tc.seccion, tc.level
+            // Obtener las asignaciones del año seleccionado
+            $course_year_column = $conn->query("SHOW COLUMNS FROM academic_courses LIKE 'academic_year_id'");
+            $has_versioned_courses = $course_year_column && $course_year_column->num_rows > 0;
+            $previous_assignments = $conn->query("SELECT tc.teacher_id, tc.course_id, tc.grado, tc.seccion, tc.level, ac.name AS course_name, ac.level AS course_level
                                                 FROM teacher_courses tc
                                                 INNER JOIN teacher t ON tc.teacher_id = t.id
+                                                INNER JOIN academic_courses ac ON ac.id = tc.course_id
                                                 WHERE t.school_id = $school_id AND tc.academic_year_id = $previous_year_id");
             
             $copied = 0;
             if ($previous_assignments && $previous_assignments->num_rows > 0) {
                 while ($assignment = $previous_assignments->fetch_assoc()) {
+                    $target_course_id = (int)$assignment['course_id'];
+                    if ($has_versioned_courses) {
+                        $course_name_safe = $conn->real_escape_string($assignment['course_name']);
+                        $course_level_safe = $conn->real_escape_string($assignment['course_level']);
+                        $target_course_query = $conn->query("SELECT id FROM academic_courses WHERE school_id=$school_id AND academic_year_id=$current_year_id AND name='$course_name_safe' AND level='$course_level_safe' LIMIT 1");
+                        if (!$target_course_query || $target_course_query->num_rows === 0) continue;
+                        $target_course_id = (int)$target_course_query->fetch_assoc()['id'];
+                    }
                     // Verificar si ya existe esta asignación en el año actual
                     $check = $conn->query("SELECT id FROM teacher_courses 
                                          WHERE teacher_id = {$assignment['teacher_id']} 
-                                         AND course_id = {$assignment['course_id']} 
+                                         AND course_id = $target_course_id
                                          AND grado = '{$assignment['grado']}' 
                                          AND seccion = '{$assignment['seccion']}' 
                                          AND level = '{$assignment['level']}'
@@ -2092,7 +2172,7 @@ elseif ($action == 'copy_teacher_courses_from_previous_year') {
                     if ($check->num_rows == 0) {
                         // No existe, crear la nueva asignación
                         $insert = $conn->query("INSERT INTO teacher_courses (teacher_id, course_id, grado, seccion, school_id, level, academic_year_id) 
-                                              VALUES ({$assignment['teacher_id']}, {$assignment['course_id']}, '{$assignment['grado']}', '{$assignment['seccion']}', $school_id, '{$assignment['level']}', $current_year_id)");
+                                              VALUES ({$assignment['teacher_id']}, $target_course_id, '{$assignment['grado']}', '{$assignment['seccion']}', $school_id, '{$assignment['level']}', $current_year_id)");
                         if ($insert) {
                             $copied++;
                         }
@@ -2102,10 +2182,10 @@ elseif ($action == 'copy_teacher_courses_from_previous_year') {
             
             echo json_encode(['status' => 1, 'copied' => $copied]);
         } else {
-            echo json_encode(['status' => 0, 'message' => 'No se encontró un año anterior para copiar las asignaciones.']);
+            echo json_encode(['status' => 0, 'message' => 'El año de origen no existe o no pertenece a la institución.']);
         }
     } else {
-        echo json_encode(['status' => 0, 'message' => 'Faltan parámetros requeridos.']);
+        echo json_encode(['status' => 0, 'message' => 'Selecciona años de origen y destino diferentes y válidos.']);
     }
     exit;
 }
@@ -2149,7 +2229,9 @@ if ($action == 'get_all_concepts') {
         SELECT c.id, c.course, c.level, c.grades, c.total_amount, ay.year 
         FROM courses c 
         LEFT JOIN academic_year ay ON c.academic_year_id = ay.id 
-        WHERE ay.school_id = $school_id 
+        WHERE ay.school_id = $school_id
+        AND c.concept_status = 'Activo'
+        AND ay.status IN ('Borrador','Activo')
         ORDER BY ay.year DESC, c.course ASC
     ");
     
@@ -2209,7 +2291,7 @@ if ($action == 'bulk_assign_fees') {
                 }
                 
                 // Obtener información del concepto/curso
-                $concept_qry = $conn->query("SELECT level, grades, total_amount FROM courses WHERE id = $concept_id");
+                $concept_qry = $conn->query("SELECT c.level, c.grades, c.total_amount FROM courses c INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE c.id = $concept_id AND ay.school_id=$school_id AND c.concept_status='Activo' AND ay.status IN ('Borrador','Activo')");
                 if (!$concept_qry || $concept_qry->num_rows == 0) {
                     $error_count++;
                     error_log("Concepto no encontrado: $concept_id");
@@ -2327,7 +2409,9 @@ if ($action == 'get_available_concepts_for_bulk') {
             SELECT c.id, c.course, c.level, c.grades, c.total_amount, ay.year 
             FROM courses c 
             LEFT JOIN academic_year ay ON c.academic_year_id = ay.id 
-            WHERE ay.school_id = $school_id 
+            WHERE ay.school_id = $school_id
+            AND c.concept_status = 'Activo'
+            AND ay.status IN ('Borrador','Activo')
             ORDER BY ay.year DESC, c.level ASC, c.course ASC
         ");
         
@@ -2384,7 +2468,9 @@ if ($action == 'get_available_concepts_for_bulk') {
         LEFT JOIN academic_year ay ON c.academic_year_id = ay.id 
         LEFT JOIN student s ON s.id IN ($student_ids_str)
         LEFT JOIN student_ef_list sel ON sel.course_id = c.id AND sel.student_id IN ($student_ids_str)
-        WHERE ay.school_id = $school_id 
+        WHERE ay.school_id = $school_id
+        AND c.concept_status = 'Activo'
+        AND ay.status IN ('Borrador','Activo')
         AND $level_condition
         GROUP BY c.id, c.course, c.level, c.grades, c.total_amount, ay.year
         HAVING already_assigned_count < student_count OR already_assigned_count IS NULL
@@ -2421,11 +2507,22 @@ if ($action == 'get_available_concepts_for_bulk') {
     exit;
 }
 
+// Proteger todos los catálogos usados por fichas institucionales.
+$ficha_catalog_actions = ['get_students_for_ficha','get_teachers_for_ficha','get_niveles_for_ficha','get_grados_by_nivel_for_ficha','get_secciones_by_nivel_grado_for_ficha','get_academic_years'];
+if (in_array($action,$ficha_catalog_actions,true)) {
+    $school_id = intval($_SESSION['login_school_id'] ?? 0);$user_id=intval($_SESSION['login_id']??0);$allowed=false;
+    if($school_id>0&&$user_id>0){$permission=$conn->prepare('SELECT type,is_director FROM users WHERE id=? AND school_id=? LIMIT 1');if($permission){$permission->bind_param('ii',$user_id,$school_id);$permission->execute();$role=$permission->get_result()->fetch_assoc();$permission->close();$allowed=$role&&(int)$role['type']===1;}}
+    if(!$allowed){header('Content-Type: application/json; charset=utf-8');http_response_code(403);echo json_encode(['status'=>0,'message'=>'No tiene permiso para consultar fichas institucionales.']);exit;}
+}
+
 // Obtener estudiantes para fichas
 if ($action == "get_students_for_ficha") {
     $school_id = intval($_SESSION['login_school_id'] ?? 0);
     $students = array();
-    $query = $conn->query("SELECT id, id_no, name, nivel, grado FROM student WHERE (status = 'Activo' OR status IS NULL)" . ($school_id ? " AND school_id = $school_id" : "") . " ORDER BY name");
+    if ($school_id <= 0) { echo json_encode(['status'=>0,'message'=>'No hay una institución activa.']); exit; }
+    // El padrón institucional no depende del año activo: incluye activos,
+    // retirados y egresados. El año solo cambia el contexto mostrado en la ficha.
+    $query = $conn->query("SELECT id, id_no, name, nivel, grado, status FROM student WHERE school_id = $school_id ORDER BY name");
     
     if ($query) {
         while ($row = $query->fetch_assoc()) {
@@ -2442,7 +2539,8 @@ if ($action == "get_students_for_ficha") {
 if ($action == "get_teachers_for_ficha") {
     $school_id = intval($_SESSION['login_school_id'] ?? 0);
     $teachers = array();
-    $query = $conn->query("SELECT id, id_no, name FROM teacher" . ($school_id ? " WHERE school_id = $school_id AND status = 'Activo'" : " WHERE status = 'Activo'") . " ORDER BY name");
+    if ($school_id <= 0) { echo json_encode(['status'=>0,'message'=>'No hay una institución activa.']); exit; }
+    $query = $conn->query("SELECT id, id_no, name, status FROM teacher WHERE school_id = $school_id ORDER BY name");
     
     if ($query) {
         while ($row = $query->fetch_assoc()) {
@@ -2458,8 +2556,10 @@ if ($action == "get_teachers_for_ficha") {
 // Obtener niveles para fichas
 if ($action == "get_niveles_for_ficha") {
     $school_id = intval($_SESSION['login_school_id'] ?? 0);
+    $year_id = intval($_GET['year_id'] ?? 0);
     $niveles = array();
-    $query = $conn->query("SELECT DISTINCT nivel FROM student WHERE (status = 'Activo' OR status IS NULL)" . ($school_id ? " AND school_id = $school_id" : "") . " ORDER BY nivel");
+    $level_expr=$year_id?"COALESCE((SELECT sah.nivel FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$school_id AND sah.academic_year_id=$year_id ORDER BY sah.id DESC LIMIT 1),s.nivel)":"s.nivel";
+    $query = $conn->query("SELECT DISTINCT $level_expr nivel FROM student s WHERE s.school_id = $school_id" . ($year_id ? " AND (s.academic_year_id=$year_id OR EXISTS(SELECT 1 FROM student_academic_history hx WHERE hx.student_id=s.id AND hx.school_id=$school_id AND hx.academic_year_id=$year_id))" : '') . " ORDER BY nivel");
     
     if ($query) {
         while ($row = $query->fetch_assoc()) {
@@ -2475,11 +2575,13 @@ if ($action == "get_niveles_for_ficha") {
 // Obtener grados por nivel para fichas
 if ($action == "get_grados_by_nivel_for_ficha") {
     $school_id = intval($_SESSION['login_school_id'] ?? 0);
+    $year_id = intval($_GET['year_id'] ?? 0);
     $nivel = $_GET['nivel'] ?? '';
     $grados = array();
     
     if ($nivel) {
-        $query = $conn->query("SELECT DISTINCT grado FROM student WHERE (status = 'Activo' OR status IS NULL)" . ($school_id ? " AND school_id = $school_id" : "") . " AND nivel = '" . $conn->real_escape_string($nivel) . "' ORDER BY grado");
+        $safe_nivel=$conn->real_escape_string($nivel);$level_expr=$year_id?"COALESCE((SELECT sah.nivel FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$school_id AND sah.academic_year_id=$year_id ORDER BY sah.id DESC LIMIT 1),s.nivel)":"s.nivel";$grade_expr=$year_id?"COALESCE((SELECT sah.grado FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$school_id AND sah.academic_year_id=$year_id ORDER BY sah.id DESC LIMIT 1),s.grado)":"s.grado";
+        $query = $conn->query("SELECT DISTINCT $grade_expr grado FROM student s WHERE s.school_id=$school_id AND $level_expr='$safe_nivel'" . ($year_id ? " AND (s.academic_year_id=$year_id OR EXISTS(SELECT 1 FROM student_academic_history hx WHERE hx.student_id=s.id AND hx.school_id=$school_id AND hx.academic_year_id=$year_id))" : '') . " ORDER BY grado");
         
         if ($query) {
             while ($row = $query->fetch_assoc()) {
@@ -2495,12 +2597,14 @@ if ($action == "get_grados_by_nivel_for_ficha") {
 // Obtener secciones por nivel y grado para fichas
 if ($action == "get_secciones_by_nivel_grado_for_ficha") {
     $school_id = intval($_SESSION['login_school_id'] ?? 0);
+    $year_id = intval($_GET['year_id'] ?? 0);
     $nivel = $_GET['nivel'] ?? '';
     $grado = $_GET['grado'] ?? '';
     $secciones = array();
     
     if ($nivel && $grado) {
-        $query = $conn->query("SELECT DISTINCT seccion FROM student WHERE (status = 'Activo' OR status IS NULL)" . ($school_id ? " AND school_id = $school_id" : "") . " AND nivel = '" . $conn->real_escape_string($nivel) . "' AND grado = '" . $conn->real_escape_string($grado) . "' AND seccion IS NOT NULL AND seccion != '' ORDER BY seccion");
+        $safe_nivel=$conn->real_escape_string($nivel);$safe_grado=$conn->real_escape_string($grado);$level_expr=$year_id?"COALESCE((SELECT sah.nivel FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$school_id AND sah.academic_year_id=$year_id ORDER BY sah.id DESC LIMIT 1),s.nivel)":"s.nivel";$grade_expr=$year_id?"COALESCE((SELECT sah.grado FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$school_id AND sah.academic_year_id=$year_id ORDER BY sah.id DESC LIMIT 1),s.grado)":"s.grado";$section_expr=$year_id?"COALESCE((SELECT sah.seccion FROM student_academic_history sah WHERE sah.student_id=s.id AND sah.school_id=$school_id AND sah.academic_year_id=$year_id ORDER BY sah.id DESC LIMIT 1),s.seccion)":"s.seccion";
+        $query = $conn->query("SELECT DISTINCT $section_expr seccion FROM student s WHERE s.school_id=$school_id AND $level_expr='$safe_nivel' AND $grade_expr='$safe_grado'" . ($year_id ? " AND (s.academic_year_id=$year_id OR EXISTS(SELECT 1 FROM student_academic_history hx WHERE hx.student_id=s.id AND hx.school_id=$school_id AND hx.academic_year_id=$year_id))" : '') . " HAVING seccion IS NOT NULL AND seccion<>'' ORDER BY seccion");
         
         if ($query) {
             while ($row = $query->fetch_assoc()) {
@@ -2517,7 +2621,8 @@ if ($action == "get_secciones_by_nivel_grado_for_ficha") {
 if ($action == "get_academic_years") {
     $school_id = intval($_SESSION['login_school_id'] ?? 0);
     $years = array();
-    $query = $conn->query("SELECT id, year FROM academic_year" . ($school_id ? " WHERE school_id = $school_id" : "") . " ORDER BY year DESC");
+    if ($school_id <= 0) { echo json_encode(['status'=>0,'message'=>'No hay una institución activa.']); exit; }
+    $query = $conn->query("SELECT id, year, is_active FROM academic_year WHERE school_id = $school_id ORDER BY year DESC");
     
     if ($query) {
         while ($row = $query->fetch_assoc()) {

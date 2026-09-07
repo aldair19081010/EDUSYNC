@@ -1,138 +1,31 @@
 <?php
-// Endpoints para gestionar evaluaciones con año académico
-// Para incluir en ajax.php
-
-// Obtener evaluaciones con filtro por año académico
-if ($action == 'get_teacher_evaluations') {
-    header('Content-Type: application/json');
-    
-    $teacher_id = isset($_POST['teacher_id']) ? intval($_POST['teacher_id']) : 0;
-    $academic_year_id = isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0;
-    
-    // Nuevos filtros
-    $level = isset($_POST['level']) ? $_POST['level'] : '';
-    $grado = isset($_POST['grado']) ? $_POST['grado'] : '';
-    $seccion = isset($_POST['seccion']) ? $_POST['seccion'] : '';
-    $course = isset($_POST['course']) ? $_POST['course'] : '';
-    $bimestre = isset($_POST['bimestre']) ? $_POST['bimestre'] : '';
-    $type = isset($_POST['type']) ? $_POST['type'] : '';
-    $date = isset($_POST['date']) ? $_POST['date'] : '';
-    
-    // Validación de usuario
-    if (!isset($_SESSION['login_id'])) {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'Usuario no autenticado'
-        ]);
-        exit;
-    }
-    
-    // Construir la consulta según el filtro
-    $where_clause = " WHERE e.teacher_id = $teacher_id ";
-    
-    // Si no se especifica año académico, usar el año activo por defecto
-    if ($academic_year_id <= 0) {
-        $school_id = $_SESSION['login_school_id'] ?? 0;
-        $active_year_query = $conn->query("SELECT id FROM academic_year WHERE school_id = $school_id AND is_active = 1 LIMIT 1");
-        if ($active_year_query && $active_year_query->num_rows > 0) {
-            $academic_year_id = $active_year_query->fetch_assoc()['id'];
-        }
-    }
-    
-    if ($academic_year_id > 0) {
-        $where_clause .= " AND e.academic_year_id = $academic_year_id ";
-    }
-    
-    // Aplicar filtro de nivel si está presente
-    if (!empty($level)) {
-        $level = $conn->real_escape_string($level);
-        $where_clause .= " AND TRIM(LOWER(ac.level)) = TRIM(LOWER('$level')) ";
-    }
-    
-    // Aplicar filtro de grado si está presente
-    if (!empty($grado)) {
-        // Limpiar el valor de grado: quitar espacios y símbolos, luego escapar
-        $cleaned_grado = preg_replace('/[°º\s]+/', '', $grado);
-        $cleaned_grado = $conn->real_escape_string($cleaned_grado);
-        
-        if (!empty($cleaned_grado)) {
-            // Comparar en la BD de forma normalizada
-            $where_clause .= " AND REPLACE(REPLACE(REPLACE(LOWER(tc.grado), '°', ''), 'º', ''), ' ', '') = LOWER('$cleaned_grado') ";
-        }
-    }
-    
-    // Aplicar filtro de sección si está presente
-    if (!empty($seccion)) {
-        $seccion = $conn->real_escape_string($seccion);
-        $where_clause .= " AND TRIM(LOWER(tc.seccion)) = TRIM(LOWER('$seccion')) ";
-    }
-    
-    // Aplicar filtro de curso si está presente
-    if (!empty($course)) {
-        $course = $conn->real_escape_string($course);
-        $where_clause .= " AND TRIM(ac.name) = TRIM('$course') ";
-    }
-    
-    // Aplicar filtro de bimestre si está presente
-    if (!empty($bimestre)) {
-        $bimestre = $conn->real_escape_string($bimestre);
-        $where_clause .= " AND e.bimestre = '$bimestre' ";
-    }
-    
-    // Aplicar filtro de tipo si está presente
-    if (!empty($type)) {
-        $type = $conn->real_escape_string($type);
-        $where_clause .= " AND e.type = '$type' ";
-    }
-    
-    // Aplicar filtro de fecha si está presente
-    if (!empty($date)) {
-        $date = $conn->real_escape_string($date);
-        $where_clause .= " AND DATE(e.created_at) = '$date' ";
-    }
-    
-    $query = "SELECT e.*, ac.name as course_name, ac.level, tc.grado, tc.seccion,
-              ay.year as academic_year, ay.is_active,
-              (SELECT COUNT(*) FROM evaluation_grades WHERE evaluation_id = e.id) as grades_count
-              FROM evaluations e
-              INNER JOIN teacher_courses tc ON tc.id = e.teacher_course_id
-              INNER JOIN academic_courses ac ON ac.id = tc.course_id
-              INNER JOIN academic_year ay ON ay.id = e.academic_year_id
-              $where_clause
-              AND ay.school_id = {$_SESSION['login_school_id']}
-              ORDER BY e.created_at DESC";
-    
-    $result = $conn->query($query);
-    if ($result) {
-        $evaluations = array();
-        while ($row = $result->fetch_assoc()) {
-            // Sanitizar datos para la salida JSON
-            $evaluations[] = [
-                'id' => $row['id'],
-                'title' => $row['title'],
-                'description' => $row['description'] ?: '',
-                'type' => $row['type'],
-                'bimestre' => $row['bimestre'],
-                'course_name' => $row['course_name'],
-                'level' => $row['level'],
-                'grado' => $row['grado'],
-                'seccion' => $row['seccion'],
-                'academic_year' => $row['academic_year'],
-                'is_active' => (bool)$row['is_active'],
-                'grades_count' => (int)$row['grades_count'],
-                'created_at' => $row['created_at']
-            ];
-        }
-        
-        echo json_encode([
-            'status' => 1,
-            'data' => $evaluations
-        ]);
-    } else {
-        echo json_encode([
-            'status' => 0,
-            'msg' => 'Error al consultar evaluaciones: ' . $conn->error
-        ]);
-    }
-    exit;
+// Incluido desde ajax.php para devolver únicamente evaluaciones del docente autenticado.
+if($action==='get_teacher_evaluations'){
+ header('Content-Type: application/json; charset=utf-8');
+ $userId=(int)($_SESSION['login_id']??0);$teacherId=(int)($_SESSION['login_teacher_id']??0);$schoolId=(int)($_SESSION['login_school_id']??0);$loginType=(int)($_SESSION['login_type']??0);
+ if(!$userId||$loginType!==2||!$teacherId||!$schoolId){http_response_code(403);echo json_encode(['status'=>0,'msg'=>'No tiene permisos para consultar evaluaciones.']);exit;}
+ $yearId=(int)($_POST['academic_year_id']??0);if($yearId<=0){$q=$conn->prepare('SELECT id FROM academic_year WHERE school_id=? AND is_active=1 LIMIT 1');$q->bind_param('i',$schoolId);$q->execute();$yearId=(int)($q->get_result()->fetch_assoc()['id']??0);$q->close();}
+ $filters=['level'=>trim($_POST['level']??''),'grado'=>trim($_POST['grado']??''),'seccion'=>trim($_POST['seccion']??''),'course'=>trim($_POST['course']??''),'bimestre'=>trim($_POST['bimestre']??''),'type'=>trim($_POST['type']??''),'date'=>trim($_POST['date']??''),'state'=>trim($_POST['state']??''),'search'=>trim($_POST['search']??'')];
+ $hasStatus=false;$col=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");if($col&&$col->num_rows)$hasStatus=true;$hasLocks=false;$table=$conn->query("SHOW TABLES LIKE 'bimester_locks'");if($table&&$table->num_rows)$hasLocks=true;
+ $statusSelect=$hasStatus?"e.status,e.annulled_at,e.annulment_reason,":"'Activa' status,NULL annulled_at,NULL annulment_reason,";
+ $lockSelect=$hasLocks?"EXISTS(SELECT 1 FROM bimester_locks bl WHERE bl.school_id=tc.school_id AND bl.academic_year_id=e.academic_year_id AND bl.bimester=CAST(e.bimestre AS UNSIGNED) AND bl.is_locked=1) is_locked":"0 is_locked";
+ $where="e.teacher_id=$teacherId AND tc.teacher_id=$teacherId AND tc.school_id=$schoolId AND ay.school_id=$schoolId";if($yearId>0)$where.=" AND e.academic_year_id=$yearId";
+ if($filters['level']!==''){$v=$conn->real_escape_string($filters['level']);$where.=" AND TRIM(LOWER(ac.level))=TRIM(LOWER('$v'))";}
+ if($filters['grado']!==''){$v=$conn->real_escape_string(preg_replace('/[°º\s]+/u','',$filters['grado']));$where.=" AND REPLACE(REPLACE(REPLACE(LOWER(tc.grado),'°',''),'º',''),' ','')=LOWER('$v')";}
+ if($filters['seccion']!==''){$v=$conn->real_escape_string($filters['seccion']);$where.=" AND TRIM(LOWER(COALESCE(NULLIF(tc.seccion,''),'U')))=TRIM(LOWER('$v'))";}
+ if($filters['course']!==''){$v=$conn->real_escape_string($filters['course']);$where.=" AND TRIM(ac.name)=TRIM('$v')";}
+ if($filters['bimestre']!==''){$v=$conn->real_escape_string($filters['bimestre']);$where.=" AND e.bimestre='$v'";}
+ if($filters['type']!==''){$v=$conn->real_escape_string($filters['type']);$where.=" AND e.type='$v'";}
+ if($filters['date']!==''&&preg_match('/^\d{4}-\d{2}-\d{2}$/',$filters['date'])){$v=$conn->real_escape_string($filters['date']);$where.=" AND DATE(e.created_at)='$v'";}
+ if($filters['search']!==''){$v=$conn->real_escape_string($filters['search']);$where.=" AND (e.title LIKE '%$v%' OR e.description LIKE '%$v%')";}
+ if($hasStatus&&$filters['state']==='annulled')$where.=" AND e.status='Anulada'";elseif($hasStatus)$where.=" AND e.status<>'Anulada'";
+ $sql="SELECT e.id,e.title,e.description,e.type,e.bimestre,e.teacher_course_id,e.academic_year_id,e.created_at,$statusSelect ac.name course_name,ac.level,tc.grado,COALESCE(NULLIF(tc.seccion,''),'U') seccion,ay.year academic_year,ay.is_active,
+ (SELECT gcc.name FROM evaluation_competencias ec INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id WHERE ec.evaluation_id=e.id LIMIT 1) competency_name,
+ (SELECT COUNT(*) FROM student st WHERE st.school_id=tc.school_id AND st.status='Activo' AND st.nivel=ac.level AND st.grado=tc.grado AND COALESCE(NULLIF(st.seccion,''),'U')=COALESCE(NULLIF(tc.seccion,''),'U')) expected_students,
+ (SELECT COUNT(DISTINCT eg.student_id) FROM evaluation_grades eg WHERE eg.evaluation_id=e.id AND eg.grade<>'') graded_students,
+ (SELECT COUNT(*) FROM evaluation_grades eg WHERE eg.evaluation_id=e.id AND eg.grade<>'') grades_count,$lockSelect
+ FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=e.academic_year_id WHERE $where ORDER BY e.created_at DESC,e.id DESC";
+ $result=$conn->query($sql);if(!$result){http_response_code(500);echo json_encode(['status'=>0,'msg'=>'No se pudieron consultar las evaluaciones.','detail'=>$conn->error]);exit;}
+ $data=[];$summary=['total'=>0,'pending'=>0,'partial'=>0,'complete'=>0,'locked'=>0,'annulled'=>0];while($row=$result->fetch_assoc()){$expected=(int)$row['expected_students'];$graded=(int)$row['graded_students'];$progress=$expected>0?min(100,round($graded/$expected*100)):0;if($row['status']==='Anulada')$state='annulled';elseif((int)$row['is_locked']===1)$state='locked';elseif($graded===0)$state='pending';elseif($expected>0&&$graded>=$expected)$state='complete';else$state='partial';if($filters['state']!==''&&$filters['state']!=='all'&&$filters['state']!==$state)continue;$row['expected_students']=$expected;$row['graded_students']=$graded;$row['grades_count']=(int)$row['grades_count'];$row['progress']=$progress;$row['state']=$state;$row['is_locked']=(bool)$row['is_locked'];$row['is_active']=(bool)$row['is_active'];$data[]=$row;$summary['total']++;if(isset($summary[$state]))$summary[$state]++;}
+ echo json_encode(['status'=>1,'data'=>$data,'summary'=>$summary,'migration_ready'=>$hasStatus],JSON_UNESCAPED_UNICODE);exit;
 }

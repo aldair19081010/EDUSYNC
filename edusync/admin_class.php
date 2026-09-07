@@ -61,6 +61,19 @@ Class Action {
 		$stmt->close();
 		return $result;
 	}
+	private function audit_evaluation($evaluation_id, $school_id, $academic_year_id, $teacher_id, $action, $details = []) {
+		$table = $this->db->query("SHOW TABLES LIKE 'evaluation_audit_log'");
+		if (!$table || $table->num_rows === 0) return false;
+		$user_id = intval($_SESSION['login_id'] ?? 0) ?: null;
+		$ip_address = $_SERVER['REMOTE_ADDR'] ?? null;
+		$details_json = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+		$stmt = $this->db->prepare('INSERT INTO evaluation_audit_log (school_id, academic_year_id, evaluation_id, teacher_id, user_id, action, details, ip_address) VALUES (?, NULLIF(?,0), NULLIF(?,0), NULLIF(?,0), NULLIF(?,0), ?, ?, ?)');
+		if (!$stmt) return false;
+		$stmt->bind_param('iiiiisss', $school_id, $academic_year_id, $evaluation_id, $teacher_id, $user_id, $action, $details_json, $ip_address);
+		$result = $stmt->execute();
+		$stmt->close();
+		return $result;
+	}
 	private function teacher_employment_history_table_exists() {
 		$result = $this->db->query("SHOW TABLES LIKE 'teacher_employment_history'");
 		return $result && $result->num_rows > 0;
@@ -497,6 +510,18 @@ Class Action {
 	}
 	function save_fees(){
 		extract($_POST);
+		// Solo un concepto activo de la misma institución y de un año editable
+		// puede originar una deuda nueva. El historial existente sigue siendo editable.
+		if (empty($id)) {
+			$school_id = intval($_SESSION['login_school_id'] ?? 0);
+			$student_id_int = intval($student_id ?? 0);
+			$course_id_int = intval($course_id ?? 0);
+			$valid = $this->db->prepare("SELECT c.id FROM courses c INNER JOIN academic_year ay ON ay.id=c.academic_year_id INNER JOIN student s ON s.id=? AND s.school_id=ay.school_id WHERE c.id=? AND ay.school_id=? AND c.concept_status='Activo' AND ay.status IN ('Borrador','Activo') LIMIT 1");
+			if (!$valid) return 0;
+			$valid->bind_param('iii', $student_id_int, $course_id_int, $school_id);
+			$valid->execute(); $allowed = $valid->get_result()->num_rows > 0; $valid->close();
+			if (!$allowed) return 0;
+		}
 		$data = "";
 		foreach($_POST as $k => $v){
 			if(!in_array($k, array('id')) && !is_numeric($k)){
@@ -583,6 +608,8 @@ Class Action {
 			FROM courses c
 			LEFT JOIN academic_year ay ON c.academic_year_id = ay.id
 			WHERE c.level = '$nivel'
+			AND c.concept_status = 'Activo'
+			AND ay.status = 'Activo'
 			AND (c.grades IS NULL OR c.grades = '' OR FIND_IN_SET('$grado', c.grades) > 0)
 			AND c.id NOT IN (
 				SELECT course_id 
@@ -713,7 +740,9 @@ function get_available_concepts_for_bulk(){
 				   CONCAT(c.course, ' - ', c.level, ' (', COALESCE(c.grades, 'Todos los grados'), ') - ', COALESCE(ay.year, 'Sin año')) as display_text
 			FROM courses c
 			LEFT JOIN academic_year ay ON c.academic_year_id = ay.id
-			WHERE EXISTS (
+			WHERE c.concept_status = 'Activo'
+			AND ay.status = 'Activo'
+			AND EXISTS (
 				SELECT 1 FROM student s 
 				WHERE s.id IN ($student_ids_str)
 				AND s.nivel = c.level
@@ -739,9 +768,8 @@ function get_available_concepts_for_bulk(){
 		";
 		
 		// Filtrar por school_id si está disponible
-		if ($school_id > 0) {
-			$query .= " WHERE ay.school_id = '$school_id'";
-		}
+		$query .= " WHERE c.concept_status = 'Activo' AND ay.status = 'Activo'";
+		if ($school_id > 0) $query .= " AND ay.school_id = '$school_id'";
 		
 		$query .= " ORDER BY ay.year DESC, c.course ASC";
 	}
@@ -805,8 +833,12 @@ function bulk_assign_fees(){
 			// Verificar si el concepto es compatible con el nivel y grado del estudiante
 			$concept_query = "
 				SELECT c.id, c.total_amount, c.level, c.grades 
-				FROM courses c 
-				WHERE c.id = '$course_id' 
+				FROM courses c
+				INNER JOIN academic_year ay ON ay.id = c.academic_year_id
+				WHERE c.id = '$course_id'
+				AND ay.school_id = '" . intval($school_id) . "'
+				AND c.concept_status = 'Activo'
+				AND ay.status IN ('Borrador','Activo')
 				AND c.level = '$nivel'
 				AND (c.grades IS NULL OR c.grades = '' OR FIND_IN_SET('$grado', c.grades) > 0)
 			";
@@ -871,6 +903,25 @@ function bulk_assign_fees(){
 
 function save_payment(){
 	extract($_POST);
+	// Las deudas suspendidas o anuladas conservan su historial, pero no admiten cobros nuevos.
+	$debt_status_column = $this->db->query("SHOW COLUMNS FROM student_ef_list LIKE 'debt_status'");
+	if ($debt_status_column && $debt_status_column->num_rows > 0) {
+		$fee_ids = [];
+		if (!empty($_POST['selected_concepts'])) {
+			$decoded = json_decode($_POST['selected_concepts'], true);
+			if (is_array($decoded)) foreach ($decoded as $concept) $fee_ids[] = intval($concept['ef_id'] ?? 0);
+		}
+		if (isset($_POST['ef_id'])) $fee_ids[] = intval(is_array($_POST['ef_id']) ? ($_POST['ef_id'][0] ?? 0) : $_POST['ef_id']);
+		$fee_ids = array_values(array_unique(array_filter($fee_ids)));
+		if ($fee_ids) {
+			$list = implode(',', $fee_ids);
+			$blocked = $this->db->query("SELECT id, debt_status FROM student_ef_list WHERE id IN ($list) AND debt_status <> 'Activa' LIMIT 1");
+			if ($blocked && $blocked->num_rows > 0) {
+				$row = $blocked->fetch_assoc();
+				return json_encode(['status'=>0,'message'=>'La deuda '.$row['id'].' está '.$row['debt_status'].' y no admite pagos.']);
+			}
+		}
+	}
 
 	// Parseo y validaciones básicas
 	$main_amount = isset($_POST['amount']) ? floatval(str_replace(',', '', $_POST['amount'])) : 0;
@@ -994,21 +1045,11 @@ function save_payment(){
 }
 
 	function delete_payment(){
-		extract($_POST);
-		$delete = $this->db->query("DELETE FROM payments where id = ".$id);
-		if($delete){
-			return 1;
-		}
+		return 0; // Los pagos financieros se anulan desde payments_api.php; nunca se eliminan.
 	}
 
 	function bulk_delete_payment(){
-		extract($_POST);
-		if(empty($ids) || !is_array($ids)) return 2;
-		$ids_list = implode(',', array_map('intval', $ids));
-		$delete = $this->db->query("DELETE FROM payments where id IN ($ids_list)");
-		if($delete){
-			return 1;
-		}
+		return 0; // Use anulación masiva con trazabilidad.
 	}
 
 	function save_teacher(){
@@ -1255,11 +1296,68 @@ function save_payment(){
 		if (empty($teacher_id) || empty($course_id) || empty($grado) || empty($seccion) || empty($academic_year_id)) {
 			return json_encode(['status' => 0, 'message' => 'Todos los campos son obligatorios']);
 		}
+
+		$session_school_id = intval($_SESSION['login_school_id'] ?? 0);
+		$teacher_id_int = intval($teacher_id);
+		$academic_year_id_int = intval($academic_year_id);
+		$year_check = $this->db->query("SELECT id FROM academic_year WHERE id = $academic_year_id_int AND school_id = $session_school_id AND is_active = 1 LIMIT 1");
+		if (!$year_check || $year_check->num_rows === 0) {
+			return json_encode(['status' => 0, 'locked_year' => true, 'message' => 'El año académico seleccionado está cerrado. Solo se pueden modificar asignaciones del año activo.']);
+		}
+		$teacher_check = $this->db->query("SELECT id FROM teacher WHERE id = $teacher_id_int AND school_id = $session_school_id AND status = 'Activo' LIMIT 1");
+		if (!$teacher_check || $teacher_check->num_rows === 0) {
+			return json_encode(['status' => 0, 'message' => 'El docente no está activo o no pertenece a la institución.']);
+		}
 		
 		// Convert input to arrays if they aren't already
 		$courses = is_array($course_id) ? $course_id : [$course_id];
 		$grades = is_array($grado) ? $grado : [$grado];
 		$sections = is_array($seccion) ? $seccion : [$seccion];
+		// Validar en servidor que cada grado pertenezca a los grados configurados del curso.
+		$grades_column = $this->db->query("SHOW COLUMNS FROM academic_courses LIKE 'grades'");
+		$has_course_grades = $grades_column && $grades_column->num_rows > 0;
+		if ($has_course_grades) {
+			$course_grade_stmt = $this->db->prepare("SELECT name, grades, level FROM academic_courses WHERE id=? AND school_id=? AND academic_year_id=? LIMIT 1");
+			if (!$course_grade_stmt) return json_encode(['status'=>0,'message'=>'No se pudo validar los grados del curso.']);
+			for ($gi=0; $gi<count($courses); $gi++) {
+				$course_grade_id = intval($courses[$gi] ?? 0);
+				$requested_grade = trim((string)($grades[$gi] ?? ''));
+				$course_grade_stmt->bind_param('iii',$course_grade_id,$session_school_id,$academic_year_id_int);
+				$course_grade_stmt->execute();
+				$course_grade_row = $course_grade_stmt->get_result()->fetch_assoc();
+				if (!$course_grade_row) { $course_grade_stmt->close(); return json_encode(['status'=>0,'message'=>'El curso no pertenece al año académico seleccionado.']); }
+				$configured_grades = array_values(array_filter(array_map('trim',explode(',',(string)$course_grade_row['grades']))));
+				if (!$configured_grades) {
+					$default_grades_by_level = [
+						'Inicial'=>['3 años','4 años','5 años'],
+						'Primaria'=>['1°','2°','3°','4°','5°','6°'],
+						'Secundaria'=>['1°','2°','3°','4°','5°']
+					];
+					$configured_grades = $default_grades_by_level[$course_grade_row['level']] ?? [];
+				}
+				if (!$configured_grades || !in_array($requested_grade,$configured_grades,true)) {
+					$course_grade_stmt->close();
+					return json_encode(['status'=>0,'message'=>'El curso '.$course_grade_row['name'].' solo está configurado para: '.implode(', ',$configured_grades).'. No puede asignarse a '.$requested_grade.'.']);
+				}
+			}
+			$course_grade_stmt->close();
+		}
+		$allow_conflict = !empty($_POST['allow_conflict']);
+		if (!$allow_conflict) {
+			$conflicts = [];
+			for ($ci = 0; $ci < count($courses); $ci++) {
+				$c_id_check = intval($courses[$ci] ?? 0);
+				$g_check = $this->db->real_escape_string($grades[$ci] ?? '');
+				$s_check = $this->db->real_escape_string($sections[$ci] ?? '');
+				$edit_exclusion = !empty($id) ? ' AND tc.id != ' . intval($id) : '';
+				$conflict_query = $this->db->query("SELECT t.name, ac.name course_name FROM teacher_courses tc INNER JOIN teacher t ON t.id=tc.teacher_id INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.school_id=$session_school_id AND tc.academic_year_id=$academic_year_id_int AND tc.course_id=$c_id_check AND tc.grado='$g_check' AND tc.seccion='$s_check' AND tc.teacher_id != $teacher_id_int$edit_exclusion LIMIT 1");
+				if ($conflict_query && $conflict_query->num_rows) $conflicts[] = $conflict_query->fetch_assoc();
+			}
+			if ($conflicts) {
+				$first = $conflicts[0];
+				return json_encode(['status' => 3, 'conflict' => true, 'message' => 'El curso ' . $first['course_name'] . ' ya está asignado a ' . $first['name'] . ' para el mismo grado y sección. ¿Deseas permitir una asignación compartida?']);
+			}
+		}
 		
 		$teacher_id = $this->db->real_escape_string($teacher_id);
 		$academic_year_id = $this->db->real_escape_string($academic_year_id);
@@ -1278,7 +1376,10 @@ function save_payment(){
 				$s = $this->db->real_escape_string($sections[$i]);
 				
 				// Obtener el level real del curso desde la tabla academic_courses
-				$level_query = $this->db->query("SELECT level FROM academic_courses WHERE id = '$c_id'");
+				$status_column = $this->db->query("SHOW COLUMNS FROM academic_courses LIKE 'course_status'");
+				$status_filter = ($status_column && $status_column->num_rows > 0) ? " AND course_status = 'Activo'" : '';
+				$level_query = $this->db->query("SELECT level FROM academic_courses WHERE id = '$c_id' AND school_id = '$school_id'$status_filter");
+				if (!$level_query || $level_query->num_rows === 0) { $errors++; $last_error = 'El curso no está activo o no pertenece a la institución.'; continue; }
 				$c_level = ($level_query && $level_query->num_rows > 0) ? $level_query->fetch_assoc()['level'] : 'Primaria';
 				$c_level = $this->db->real_escape_string($c_level);
 
@@ -1319,7 +1420,10 @@ function save_payment(){
 			$g = $this->db->real_escape_string($grades[0]);
 			$s = $this->db->real_escape_string($sections[0]);
 			
-			$level_query = $this->db->query("SELECT level FROM academic_courses WHERE id = '$c_id'");
+			$status_column = $this->db->query("SHOW COLUMNS FROM academic_courses LIKE 'course_status'");
+			$status_filter = ($status_column && $status_column->num_rows > 0) ? " AND course_status = 'Activo'" : '';
+			$level_query = $this->db->query("SELECT level FROM academic_courses WHERE id = '$c_id' AND school_id = '$school_id'$status_filter");
+			if (!$level_query || $level_query->num_rows === 0) return json_encode(['status' => 0, 'message' => 'El curso no pertenece a la institución.']);
 			$c_level = ($level_query && $level_query->num_rows > 0) ? $level_query->fetch_assoc()['level'] : 'Primaria';
 			$c_level = $this->db->real_escape_string($c_level);
 			
@@ -1363,6 +1467,10 @@ function save_payment(){
 		$assignment_stmt->execute();
 		$assignment = $assignment_stmt->get_result()->fetch_assoc();
 		$assignment_stmt->close();
+		if (!$assignment) return json_encode(['status' => 0, 'message' => 'La asignación no existe o pertenece a otra institución.']);
+		$year_id = intval($assignment['academic_year_id']);
+		$year_check = $this->db->query("SELECT id FROM academic_year WHERE id=$year_id AND school_id=$school_id AND is_active=1 LIMIT 1");
+		if (!$year_check || !$year_check->num_rows) return json_encode(['status' => 0, 'message' => 'El año académico está cerrado y no admite modificaciones.']);
 		$stmt = $this->db->prepare('DELETE FROM teacher_courses WHERE id = ? AND school_id = ?');
 		$stmt->bind_param('ii', $id, $school_id);
 		$delete = $stmt->execute();
@@ -1373,6 +1481,130 @@ function save_payment(){
 			return json_encode(['status' => 1]);
 		}
 		return json_encode(['status' => 0, 'message' => 'La asignación no existe o pertenece a otra institución.']);
+	}
+
+	function bulk_delete_teacher_courses() {
+		$school_id = intval($_SESSION['login_school_id'] ?? 0);
+		$academic_year_id = intval($_POST['academic_year_id'] ?? 0);
+		$raw_ids = is_array($_POST['ids'] ?? null) ? $_POST['ids'] : explode(',', (string)($_POST['ids'] ?? ''));
+		$ids = array_values(array_unique(array_filter(array_map('intval', $raw_ids), function($id) { return $id > 0; })));
+		if ($school_id <= 0 || $academic_year_id <= 0 || !$ids) {
+			return json_encode(['status' => 0, 'message' => 'La selección o el año académico no son válidos.']);
+		}
+		if (count($ids) > 200) {
+			return json_encode(['status' => 0, 'message' => 'Solo puedes procesar hasta 200 asignaciones a la vez.']);
+		}
+		$year_check = $this->db->query("SELECT id FROM academic_year WHERE id=$academic_year_id AND school_id=$school_id AND is_active=1 LIMIT 1");
+		if (!$year_check || !$year_check->num_rows) return json_encode(['status' => 0, 'message' => 'El año académico está cerrado y no admite modificaciones.']);
+
+		$id_list = implode(',', $ids);
+		$assignments = [];
+		$result = $this->db->query("SELECT id, teacher_id, course_id, academic_year_id, grado, seccion FROM teacher_courses WHERE id IN ($id_list) AND school_id = $school_id AND academic_year_id = $academic_year_id");
+		if (!$result) return json_encode(['status' => 0, 'message' => 'No se pudieron validar las asignaciones.']);
+		while ($row = $result->fetch_assoc()) $assignments[] = $row;
+		if (!$assignments) return json_encode(['status' => 0, 'message' => 'Las asignaciones seleccionadas no existen o no pertenecen al año indicado.']);
+
+		$allowed_ids = implode(',', array_map(function($row) { return (int)$row['id']; }, $assignments));
+		$this->db->begin_transaction();
+		$deleted = $this->db->query("DELETE FROM teacher_courses WHERE id IN ($allowed_ids) AND school_id = $school_id AND academic_year_id = $academic_year_id");
+		if (!$deleted) {
+			$this->db->rollback();
+			return json_encode(['status' => 0, 'message' => 'No se pudieron eliminar las asignaciones seleccionadas.']);
+		}
+		$count = $this->db->affected_rows;
+		$this->db->commit();
+		foreach ($assignments as $assignment) {
+			$this->audit_teacher((int)$assignment['teacher_id'], $school_id, 'course_unassigned', array_merge($assignment, ['bulk' => true]));
+		}
+		return json_encode(['status' => 1, 'deleted' => $count, 'message' => "Se desasignaron $count asignaciones correctamente."]);
+	}
+
+	function replace_teacher_courses() {
+		$school_id = intval($_SESSION['login_school_id'] ?? 0);
+		$academic_year_id = intval($_POST['academic_year_id'] ?? 0);
+		$from_teacher_id = intval($_POST['from_teacher_id'] ?? 0);
+		$to_teacher_id = intval($_POST['to_teacher_id'] ?? 0);
+		if ($school_id <= 0 || $academic_year_id <= 0 || $from_teacher_id <= 0 || $to_teacher_id <= 0 || $from_teacher_id === $to_teacher_id) {
+			return json_encode(['status' => 0, 'message' => 'Selecciona dos docentes diferentes.']);
+		}
+		$year = $this->db->query("SELECT id FROM academic_year WHERE id=$academic_year_id AND school_id=$school_id AND is_active=1 LIMIT 1");
+		if (!$year || !$year->num_rows) return json_encode(['status' => 0, 'message' => 'Solo se pueden transferir asignaciones en el año académico activo.']);
+		$source_teacher = $this->db->query("SELECT id FROM teacher WHERE id=$from_teacher_id AND school_id=$school_id LIMIT 1");
+		$target_teacher = $this->db->query("SELECT id FROM teacher WHERE id=$to_teacher_id AND school_id=$school_id AND status='Activo' LIMIT 1");
+		if (!$source_teacher || !$source_teacher->num_rows || !$target_teacher || !$target_teacher->num_rows) return json_encode(['status' => 0, 'message' => 'El docente de destino debe estar activo y ambos deben pertenecer a la institución.']);
+		$source = $this->db->query("SELECT id, course_id, grado, seccion, level FROM teacher_courses WHERE teacher_id=$from_teacher_id AND school_id=$school_id AND academic_year_id=$academic_year_id");
+		if (!$source || !$source->num_rows) return json_encode(['status' => 0, 'message' => 'El docente de origen no tiene asignaciones en este año.']);
+
+		$moved = 0; $duplicates = 0;
+		$this->db->begin_transaction();
+		try {
+			while ($assignment = $source->fetch_assoc()) {
+				$id = (int)$assignment['id']; $course_id = (int)$assignment['course_id'];
+				$grado = $this->db->real_escape_string($assignment['grado']); $seccion = $this->db->real_escape_string($assignment['seccion']);
+				$duplicate = $this->db->query("SELECT id FROM teacher_courses WHERE teacher_id=$to_teacher_id AND course_id=$course_id AND grado='$grado' AND seccion='$seccion' AND academic_year_id=$academic_year_id AND school_id=$school_id LIMIT 1");
+				if ($duplicate && $duplicate->num_rows) {
+					if (!$this->db->query("DELETE FROM teacher_courses WHERE id=$id AND school_id=$school_id")) throw new Exception($this->db->error);
+					$duplicates++;
+				} else {
+					if (!$this->db->query("UPDATE teacher_courses SET teacher_id=$to_teacher_id WHERE id=$id AND school_id=$school_id")) throw new Exception($this->db->error);
+					$moved++;
+				}
+			}
+			$this->db->commit();
+		} catch (Throwable $e) {
+			$this->db->rollback();
+			return json_encode(['status' => 0, 'message' => 'No se pudo completar el reemplazo.']);
+		}
+		$details = ['academic_year_id' => $academic_year_id, 'from_teacher_id' => $from_teacher_id, 'to_teacher_id' => $to_teacher_id, 'moved' => $moved, 'duplicates_removed' => $duplicates];
+		$this->audit_teacher($from_teacher_id, $school_id, 'courses_transferred_out', $details);
+		$this->audit_teacher($to_teacher_id, $school_id, 'courses_transferred_in', $details);
+		return json_encode(['status' => 1, 'moved' => $moved, 'duplicates' => $duplicates, 'message' => "Se transfirieron $moved asignaciones." . ($duplicates ? " $duplicates duplicadas fueron consolidadas." : '')]);
+	}
+
+	function bulk_update_teacher_courses() {
+		$school_id = intval($_SESSION['login_school_id'] ?? 0);
+		$academic_year_id = intval($_POST['academic_year_id'] ?? 0);
+		$action = trim($_POST['bulk_action'] ?? '');
+		$ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string)($_POST['ids'] ?? ''))), function($id){ return $id > 0; })));
+		if (!$school_id || !$academic_year_id || !$ids || !in_array($action, ['unassign','transfer','classroom'], true)) return json_encode(['status'=>0,'message'=>'La acción masiva no es válida.']);
+		if (count($ids) > 200) return json_encode(['status'=>0,'message'=>'Solo puedes procesar hasta 200 asignaciones a la vez.']);
+		$year = $this->db->query("SELECT id FROM academic_year WHERE id=$academic_year_id AND school_id=$school_id AND is_active=1 LIMIT 1");
+		if (!$year || !$year->num_rows) return json_encode(['status'=>0,'message'=>'El año académico está cerrado.']);
+		$id_list = implode(',', $ids);
+		$rows = $this->db->query("SELECT id,teacher_id,course_id,grado,seccion FROM teacher_courses WHERE id IN ($id_list) AND school_id=$school_id AND academic_year_id=$academic_year_id");
+		$assignments=[]; while($rows && ($row=$rows->fetch_assoc())) $assignments[]=$row;
+		if (!$assignments) return json_encode(['status'=>0,'message'=>'No se encontraron asignaciones válidas.']);
+		$target_teacher_id = intval($_POST['target_teacher_id'] ?? 0);
+		$new_grade = trim($_POST['new_grade'] ?? ''); $new_section = trim($_POST['new_section'] ?? '');
+		if ($action==='transfer') {
+			$target=$this->db->query("SELECT id FROM teacher WHERE id=$target_teacher_id AND school_id=$school_id AND status='Activo' LIMIT 1");
+			if (!$target || !$target->num_rows) return json_encode(['status'=>0,'message'=>'Selecciona un docente reemplazante activo.']);
+		}
+		if ($action==='classroom' && ($new_grade==='' || !in_array($new_section,['U','A','B','C','D','E','F'],true))) return json_encode(['status'=>0,'message'=>'Selecciona grado y sección válidos.']);
+		$processed=0; $duplicates=0; $this->db->begin_transaction();
+		try {
+			foreach($assignments as $assignment) {
+				$id=(int)$assignment['id']; $old_teacher=(int)$assignment['teacher_id']; $course=(int)$assignment['course_id'];
+				if($action==='transfer' && $old_teacher===$target_teacher_id) continue;
+				if($action==='unassign') $ok=$this->db->query("DELETE FROM teacher_courses WHERE id=$id AND school_id=$school_id");
+				elseif($action==='transfer') {
+					$g=$this->db->real_escape_string($assignment['grado']); $s=$this->db->real_escape_string($assignment['seccion']);
+					$dup=$this->db->query("SELECT id FROM teacher_courses WHERE teacher_id=$target_teacher_id AND course_id=$course AND grado='$g' AND seccion='$s' AND school_id=$school_id AND academic_year_id=$academic_year_id LIMIT 1");
+					if($dup && $dup->num_rows){ $ok=$this->db->query("DELETE FROM teacher_courses WHERE id=$id AND school_id=$school_id"); $duplicates++; }
+					else $ok=$this->db->query("UPDATE teacher_courses SET teacher_id=$target_teacher_id WHERE id=$id AND school_id=$school_id");
+				} else {
+					$g=$this->db->real_escape_string($new_grade); $s=$this->db->real_escape_string($new_section);
+					$dup=$this->db->query("SELECT id FROM teacher_courses WHERE id!=$id AND teacher_id=$old_teacher AND course_id=$course AND grado='$g' AND seccion='$s' AND school_id=$school_id AND academic_year_id=$academic_year_id LIMIT 1");
+					if($dup && $dup->num_rows){ $ok=$this->db->query("DELETE FROM teacher_courses WHERE id=$id AND school_id=$school_id"); $duplicates++; }
+					else $ok=$this->db->query("UPDATE teacher_courses SET grado='$g',seccion='$s' WHERE id=$id AND school_id=$school_id");
+				}
+				if(!$ok) throw new Exception($this->db->error); $processed++;
+				$this->audit_teacher($old_teacher,$school_id,'course_assignment_bulk_updated',['assignment_id'=>$id,'action'=>$action,'target_teacher_id'=>$target_teacher_id,'new_grade'=>$new_grade,'new_section'=>$new_section]);
+			}
+			$this->db->commit();
+		} catch(Throwable $e){ $this->db->rollback(); return json_encode(['status'=>0,'message'=>'No se pudo completar la acción masiva.']); }
+		if($action==='transfer' && $processed>0) $this->audit_teacher($target_teacher_id,$school_id,'courses_transferred_in',['academic_year_id'=>$academic_year_id,'count'=>$processed,'bulk'=>true]);
+		return json_encode(['status'=>1,'processed'=>$processed,'duplicates'=>$duplicates,'message'=>"Se procesaron $processed asignaciones.".($duplicates?" $duplicates duplicadas fueron consolidadas.":'')]);
 	}
 
 	function save_teacher_user() {
@@ -1443,7 +1675,29 @@ function save_payment(){
     
     // Obtener el año académico activo (primero del formulario, si no del sistema)
     $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
+	$login_type = intval($_SESSION['login_type'] ?? 0);
+	$session_teacher_id = intval($_SESSION['login_teacher_id'] ?? 0);
+	if ($login_type !== 2 || $school_id <= 0 || $session_teacher_id <= 0) {
+		return json_encode(['status'=>0,'message'=>'No tiene permisos para guardar evaluaciones.']);
+	}
+	$teacher_id = $session_teacher_id;
+	$teacher_course_id = intval($_POST['teacher_course_id'] ?? 0);
+	$assignment = $this->db->prepare('SELECT tc.academic_year_id FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');
+	$assignment->bind_param('iii', $teacher_course_id, $teacher_id, $school_id);
+	$assignment->execute();
+	$assignment_row = $assignment->get_result()->fetch_assoc();
+	$assignment->close();
+	if (!$assignment_row) return json_encode(['status'=>0,'message'=>'La asignación académica no existe o no le pertenece.']);
     $academic_year_id = isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0;
+	if ($academic_year_id <= 0) $academic_year_id = (int)$assignment_row['academic_year_id'];
+	if ($academic_year_id !== (int)$assignment_row['academic_year_id']) return json_encode(['status'=>0,'message'=>'El año académico no coincide con la asignación seleccionada.']);
+	$id = intval($_POST['id'] ?? 0);
+	if ($id > 0) {
+		$ownership = $this->db->prepare('SELECT id FROM evaluations WHERE id=? AND teacher_id=? AND teacher_course_id=? AND academic_year_id=? LIMIT 1');
+		$ownership->bind_param('iiii', $id, $teacher_id, $teacher_course_id, $academic_year_id);
+		$ownership->execute();$owns = (bool)$ownership->get_result()->fetch_assoc();$ownership->close();
+		if (!$owns) return json_encode(['status'=>0,'message'=>'La evaluación no existe o no le pertenece.']);
+	}
     $competency_change_mode = isset($_POST['competency_change_mode']) ? trim($_POST['competency_change_mode']) : 'preserve';
     if ($academic_year_id <= 0 && $school_id > 0) {
         $ay_query = $this->db->query("SELECT id FROM academic_year WHERE school_id = $school_id AND is_active = 1 LIMIT 1");
@@ -1451,6 +1705,27 @@ function save_payment(){
             $academic_year_id = $ay_query->fetch_assoc()['id'];
         }
     }
+	// Un año cerrado o archivado queda en modo de consulta.
+	if ($academic_year_id > 0 && $school_id > 0) {
+		$status_col = $this->db->query("SHOW COLUMNS FROM academic_year LIKE 'status'");
+		if ($status_col && $status_col->num_rows > 0) {
+			$year_status = $this->db->query("SELECT status FROM academic_year WHERE id=" . intval($academic_year_id) . " AND school_id=$school_id LIMIT 1");
+			if (!$year_status || $year_status->num_rows === 0 || in_array($year_status->fetch_assoc()['status'], ['Cerrado','Archivado'], true)) {
+				return json_encode(['status'=>0,'message'=>'El año académico está cerrado y no permite modificar evaluaciones.']);
+			}
+		}
+	}
+	// Un curso suspendido o inactivo conserva su historial, pero no admite evaluaciones nuevas.
+	if (empty($id) && !empty($teacher_course_id)) {
+		$status_column = $this->db->query("SHOW COLUMNS FROM academic_courses LIKE 'course_status'");
+		if ($status_column && $status_column->num_rows > 0) {
+			$tcid_status = intval($teacher_course_id);
+			$course_status_query = $this->db->query("SELECT ac.course_status FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.id=$tcid_status AND tc.school_id=$school_id LIMIT 1");
+			if (!$course_status_query || $course_status_query->num_rows === 0) return json_encode(['status'=>0,'message'=>'La asignación académica no es válida.']);
+			$course_status_value = $course_status_query->fetch_assoc()['course_status'];
+			if ($course_status_value !== 'Activo') return json_encode(['status'=>0,'message'=>'El curso está '.$course_status_value.' y no permite crear nuevas evaluaciones. El historial existente se conserva.']);
+		}
+	}
     
     $data = [
         "title" => $this->db->real_escape_string($title),
@@ -1500,15 +1775,8 @@ function save_payment(){
 	$school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
 	$bimestre_int = isset($bimestre) ? intval($bimestre) : 0;
 	if ($academic_year_id > 0 && $school_id > 0 && $bimestre_int >= 1 && $bimestre_int <= 4) {
-		$this->db->query("CREATE TABLE IF NOT EXISTS bimester_locks (
-			id INT AUTO_INCREMENT PRIMARY KEY,
-			academic_year_id INT NOT NULL,
-			school_id INT NOT NULL,
-			bimester TINYINT NOT NULL,
-			is_locked TINYINT NOT NULL DEFAULT 0,
-			UNIQUE KEY uniq_year_school_bim (academic_year_id, school_id, bimester)
-		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-		$lockRes = $this->db->query("SELECT is_locked FROM bimester_locks WHERE academic_year_id = $academic_year_id AND school_id = $school_id AND bimester = $bimestre_int");
+		$lockTable = $this->db->query("SHOW TABLES LIKE 'bimester_locks'");
+		$lockRes = ($lockTable && $lockTable->num_rows > 0) ? $this->db->query("SELECT is_locked FROM bimester_locks WHERE academic_year_id = $academic_year_id AND school_id = $school_id AND bimester = $bimestre_int") : false;
 		if ($lockRes && $lockRes->num_rows > 0) {
 			$locked = intval($lockRes->fetch_assoc()['is_locked']);
 			if ($locked == 1 && isset($_SESSION['login_type']) && $_SESSION['login_type'] == 2) {
@@ -1590,22 +1858,31 @@ function save_payment(){
 				}
 			}
 		}
-        return json_encode(['status' => 1, 'message' => 'Evaluación guardada exitosamente.']);
+		$this->audit_evaluation($eval_id, $school_id, $academic_year_id, $teacher_id, $id > 0 ? 'updated' : 'created', ['title'=>$title,'teacher_course_id'=>$teacher_course_id,'bimestre'=>$bimestre]);
+		return json_encode(['status' => 1, 'message' => 'Evaluación guardada exitosamente.']);
     } else {
         return json_encode(['status' => 0, 'message' => 'Error al guardar la evaluación: ' . $this->db->error]);
     }
 }
 	function delete_evaluation() {
-		extract($_POST);
-		$this->db->query("DELETE FROM evaluation_grades WHERE evaluation_id = $id");
-		$delete = $this->db->query("DELETE FROM evaluations WHERE id = $id");
-		if ($delete) {
-			return json_encode(['status' => 1]);
+		$id = intval($_POST['id'] ?? 0);$school_id=intval($_SESSION['login_school_id']??0);$teacher_id=intval($_SESSION['login_teacher_id']??0);$login_type=intval($_SESSION['login_type']??0);
+		if($id<=0||$school_id<=0||$teacher_id<=0||$login_type!==2)return json_encode(['status'=>0,'message'=>'No tiene permisos para modificar esta evaluación.']);
+		$stmt=$this->db->prepare('SELECT e.academic_year_id,e.title,(SELECT COUNT(*) FROM evaluation_grades eg WHERE eg.evaluation_id=e.id) grade_count FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=? AND e.teacher_id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');$stmt->bind_param('iiii',$id,$teacher_id,$teacher_id,$school_id);$stmt->execute();$evaluation=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$evaluation)return json_encode(['status'=>0,'message'=>'La evaluación no existe o no le pertenece.']);
+		$grade_count=(int)$evaluation['grade_count'];
+		if($grade_count>0){
+			$reason=trim($_POST['reason']??'');if($reason==='')return json_encode(['status'=>0,'requires_reason'=>true,'message'=>'Indique el motivo para anular una evaluación que ya tiene notas.']);
+			$col=$this->db->query("SHOW COLUMNS FROM evaluations LIKE 'status'");if(!$col||$col->num_rows===0)return json_encode(['status'=>0,'migration_required'=>true,'message'=>'Ejecute sql/grades_module_upgrade.sql para poder anular evaluaciones conservando sus notas.']);
+			$user_id=intval($_SESSION['login_id']??0);$reason_safe=$this->db->real_escape_string($reason);$ok=$this->db->query("UPDATE evaluations SET status='Anulada',annulled_at=NOW(),annulled_by=$user_id,annulment_reason='$reason_safe' WHERE id=$id AND teacher_id=$teacher_id");if(!$ok)return json_encode(['status'=>0,'message'=>'No se pudo anular la evaluación.']);
+			$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'annulled',['reason'=>$reason,'grades_preserved'=>$grade_count]);return json_encode(['status'=>1,'action'=>'annulled','message'=>'La evaluación fue anulada y sus notas se conservaron.']);
 		}
-		return json_encode(['status' => 0, 'message' => 'Error al eliminar la evaluación.']);
+		$delete=$this->db->query("DELETE FROM evaluation_competencias WHERE evaluation_id=$id")&&$this->db->query("DELETE FROM evaluations WHERE id=$id AND teacher_id=$teacher_id");if($delete){$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'deleted',['title'=>$evaluation['title'],'without_grades'=>true]);return json_encode(['status'=>1,'action'=>'deleted','message'=>'La evaluación sin notas fue eliminada.']);}
+		return json_encode(['status'=>0,'message'=>'Error al eliminar la evaluación.']);
 	}
 	function save_evaluation_grades() {
 		extract($_POST);
+		$evaluation_id=intval($_POST['evaluation_id']??0);$school_id=intval($_SESSION['login_school_id']??0);$teacher_id=intval($_SESSION['login_teacher_id']??0);$login_type=intval($_SESSION['login_type']??0);
+		if($evaluation_id<=0||$school_id<=0||$teacher_id<=0||$login_type!==2)return json_encode(['status'=>0,'message'=>'No tiene permisos para guardar estas notas.']);
+		$has_status=$this->db->query("SHOW COLUMNS FROM evaluations LIKE 'status'");$status_select=($has_status&&$has_status->num_rows)?',e.status':'';$owner=$this->db->query("SELECT e.id$status_select FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$evaluation_id AND e.teacher_id=$teacher_id AND tc.teacher_id=$teacher_id AND tc.school_id=$school_id LIMIT 1");$owner_row=$owner?$owner->fetch_assoc():null;if(!$owner_row)return json_encode(['status'=>0,'message'=>'La evaluación no existe o no le pertenece.']);if(isset($owner_row['status'])&&$owner_row['status']==='Anulada')return json_encode(['status'=>0,'message'=>'La evaluación está anulada y sus notas son de solo lectura.']);
 		
 		if (!isset($grades) || !is_array($grades)) {
 			return json_encode(['status' => 0, 'message' => 'No hay notas para guardar.']);
@@ -1613,21 +1890,19 @@ function save_payment(){
 		
 		// Verificar bloqueo de bimestre antes de guardar notas
 		$school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
-		$eval_q = $this->db->query("SELECT bimestre, academic_year_id FROM evaluations WHERE id = " . intval($evaluation_id) . " LIMIT 1");
+		$year_status_col = $this->db->query("SHOW COLUMNS FROM academic_year LIKE 'status'");
+		$eval_status_select = ($year_status_col && $year_status_col->num_rows > 0) ? ', ay.status AS year_status' : '';
+		$eval_q = $this->db->query("SELECT e.bimestre, e.academic_year_id$eval_status_select FROM evaluations e LEFT JOIN academic_year ay ON ay.id=e.academic_year_id WHERE e.id = " . intval($evaluation_id) . " LIMIT 1");
 		if ($eval_q && $eval_q->num_rows > 0) {
 			$eval_row = $eval_q->fetch_assoc();
+			if (isset($eval_row['year_status']) && in_array($eval_row['year_status'], ['Cerrado','Archivado'], true)) {
+				return json_encode(['status'=>0,'message'=>'El año académico está cerrado y no permite registrar ni editar notas.']);
+			}
 			$bim = intval($eval_row['bimestre']);
 			$ay = intval($eval_row['academic_year_id']);
 			if ($bim >= 1 && $bim <= 4 && $ay > 0 && $school_id > 0) {
-				$this->db->query("CREATE TABLE IF NOT EXISTS bimester_locks (
-					id INT AUTO_INCREMENT PRIMARY KEY,
-					academic_year_id INT NOT NULL,
-					school_id INT NOT NULL,
-					bimester TINYINT NOT NULL,
-					is_locked TINYINT NOT NULL DEFAULT 0,
-					UNIQUE KEY uniq_year_school_bim (academic_year_id, school_id, bimester)
-				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-				$lr = $this->db->query("SELECT is_locked FROM bimester_locks WHERE academic_year_id = $ay AND school_id = $school_id AND bimester = $bim");
+				$lockTable = $this->db->query("SHOW TABLES LIKE 'bimester_locks'");
+				$lr = ($lockTable && $lockTable->num_rows > 0) ? $this->db->query("SELECT is_locked FROM bimester_locks WHERE academic_year_id = $ay AND school_id = $school_id AND bimester = $bim") : false;
 				if ($lr && $lr->num_rows > 0) {
 					$locked = intval($lr->fetch_assoc()['is_locked']);
 					if ($locked == 1 && isset($_SESSION['login_type']) && $_SESSION['login_type'] == 2) {
@@ -1639,6 +1914,11 @@ function save_payment(){
 
 		// Determinar si se está usando sistema de letras o numérico
 		$grading_system = $_POST['grading_system_used'] ?? 'numeric';
+		$history_table = $this->db->query("SHOW TABLES LIKE 'evaluation_grade_history'");
+		$history_stmt = null;
+		if ($history_table && $history_table->num_rows > 0) {
+			$history_stmt = $this->db->prepare("INSERT INTO evaluation_grade_history (school_id,academic_year_id,evaluation_id,student_id,competency_id,previous_grade,new_grade,changed_by,source) VALUES (?,?,?,?,?,?,?,?, 'Formulario de evaluación')");
+		}
 		
 		// Nuevo formato: grades[competencia_id][student_id] = grade
 		foreach ($grades as $comp_id => $stu_grades) {
@@ -1668,24 +1948,36 @@ function save_payment(){
                 }
                 
                 // Verificar si ya existe
-                $q = $this->db->query("SELECT id FROM evaluation_grades WHERE evaluation_id = '$evaluation_id' AND student_id = '$student_id' AND competencia_id = '$comp_id'");
-                if ($q && $q->num_rows > 0) {
+				$q = $this->db->query("SELECT id,grade FROM evaluation_grades WHERE evaluation_id = '$evaluation_id' AND student_id = '$student_id' AND competencia_id = '$comp_id'");
+				$previous_grade = '';
+				if ($q && $q->num_rows > 0) {
+					$existing_grade_row = $q->fetch_assoc();
+					$previous_grade = (string)($existing_grade_row['grade'] ?? '');
                     if ($grade_value === '') {
                         // Si la calificación está vacía, eliminar el registro
                         $this->db->query("DELETE FROM evaluation_grades WHERE evaluation_id = '$evaluation_id' AND student_id = '$student_id' AND competencia_id = '$comp_id'");
                     } else {
                         $this->db->query("UPDATE evaluation_grades SET grade = '$grade_value' WHERE evaluation_id = '$evaluation_id' AND student_id = '$student_id' AND competencia_id = '$comp_id'");
                     }
-                } else {
-                    if ($grade_value !== '') {
-                        $this->db->query("INSERT INTO evaluation_grades (evaluation_id, student_id, competencia_id, grade) VALUES ('$evaluation_id', '$student_id', '$comp_id', '$grade_value')");
-                    }
-                }
-            }
-        }
+				} else {
+					if ($grade_value !== '') {
+						$this->db->query("INSERT INTO evaluation_grades (evaluation_id, student_id, competencia_id, grade) VALUES ('$evaluation_id', '$student_id', '$comp_id', '$grade_value')");
+					}
+				}
+				$new_grade_history = (string)$grade_value;
+				if ($history_stmt && $previous_grade !== $new_grade_history) {
+					$history_year_id = (int)($eval_row['academic_year_id'] ?? 0);
+					$history_user_id = (int)($_SESSION['login_id'] ?? 0);
+					$history_stmt->bind_param('iiiiissi', $school_id, $history_year_id, $evaluation_id, $student_id, $comp_id, $previous_grade, $new_grade_history, $history_user_id);
+					$history_stmt->execute();
+				}
+			}
+		}
+		if ($history_stmt) $history_stmt->close();
         
         // Generar notificaciones de notas bajas después de guardar las notas
         $this->generate_low_grade_notifications($evaluation_id);
+		$this->audit_evaluation($evaluation_id,$school_id,(int)($eval_row['academic_year_id']??0),$teacher_id,'grades_saved',['grading_system'=>$grading_system]);
         return json_encode(['status' => 1, 'message' => 'Notas guardadas exitosamente.']);
 	}
     // --- REGLAS DE ASISTENCIA ---

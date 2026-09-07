@@ -1,22 +1,34 @@
 <?php
 include 'db_connect.php';
 include_once 'includes/session_check.php'; require_login_modal();
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
 // Detectar si es un administrador y si viene de las notificaciones (modo solo lectura)
 $is_admin = (isset($_SESSION['login_type']) && $_SESSION['login_type'] == 1);
 $is_teacher = (isset($_SESSION['login_type']) && $_SESSION['login_type'] == 2);
 $from_notification = isset($_GET['from']) && $_GET['from'] == 'notifications';
-$readonly_mode = $from_notification && $is_admin;
+$view_only = isset($_GET['view_only']) && $_GET['view_only'] == '1';
+$readonly_mode = ($from_notification && $is_admin) || $view_only;
 $evaluation_id = intval($_GET['evaluation_id'] ?? 0);
 if (!$evaluation_id) {
 	echo "<div class='alert alert-danger'>Evaluación no encontrada.</div>";
 	exit;
 }
-$eval = $conn->query("SELECT * FROM evaluations WHERE id = $evaluation_id")->fetch_assoc();
-if (!$eval) {
-	echo "<div class='alert alert-danger'>Evaluación no encontrada.</div>";
-	exit;
+$session_teacher_id=(int)($_SESSION['login_teacher_id']??0);$session_school_id=(int)($_SESSION['login_school_id']??0);$session_type=(int)($_SESSION['login_type']??0);
+$can_access_notification = $from_notification && $is_admin;
+if(!$can_access_notification && ($session_type!==2||$session_teacher_id<=0||$session_school_id<=0)){
+    echo '<div class="alert alert-danger">No tiene permisos para registrar notas.</div>';
+    exit;
 }
+
+if ($can_access_notification) {
+    $eval_query=$conn->query("SELECT e.* FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$evaluation_id LIMIT 1");
+} else {
+    $eval_query=$conn->query("SELECT e.* FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$evaluation_id AND e.teacher_id=$session_teacher_id AND tc.teacher_id=$session_teacher_id AND tc.school_id=$session_school_id LIMIT 1");
+}
+$eval=$eval_query?$eval_query->fetch_assoc():null;
+if(!$eval){echo '<div class="alert alert-danger">La evaluación no existe o no te pertenece.</div>';exit;}
+$readonly_mode=$readonly_mode||(isset($eval['status'])&&$eval['status']==='Anulada');
 
 // Obtener información del teacher_course primero
 $teacher_course_id = $eval['teacher_course_id'] ?? 0;
@@ -102,6 +114,7 @@ $parts[] = "SELECT DISTINCT s2.*
 $students_query = implode(" UNION ", $parts) . " ORDER BY name ASC";
 
 $students = $conn->query($students_query);
+$student_count=$students?$students->num_rows:0;$graded_students=0;$graded_query=$conn->query("SELECT COUNT(DISTINCT student_id) total FROM evaluation_grades WHERE evaluation_id=$evaluation_id AND grade<>''");if($graded_query)$graded_students=(int)($graded_query->fetch_assoc()['total']??0);$initial_progress=$student_count>0?min(100,round($graded_students/$student_count*100)):0;
 
 if ($students->num_rows === 0) {
     echo "<div class='alert alert-warning'>No hay estudiantes registrados para el grado $grado, sección $seccion.</div>";
@@ -122,12 +135,22 @@ while ($row = $q_comp->fetch_assoc()) {
 	$competencias[] = $row;
 }
 ?>
+<style>.meg-progress{height:7px}.meg-table thead th{position:sticky;top:0;z-index:2;background:#f8f9fc}.meg-table tbody td:nth-child(2){min-width:230px}.meg-counter{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.4rem;padding:.65rem .8rem}</style>
 <div class="container-fluid">
 	<?php if ($readonly_mode): ?>
 	<div class="alert alert-warning mb-3">
-		<i class="fa fa-lock"></i> <strong>Modo de Visualización:</strong> Estás viendo las calificaciones en modo de solo lectura.
+		<i class="fa fa-lock"></i> <strong>Modo de visualización:</strong> <?php 
+		if($view_only) {
+			echo 'Esta es una evaluación de un año académico anterior. Puedes consultar las notas registradas pero no puedes hacer cambios.';
+		} elseif(isset($eval['status'])&&$eval['status']==='Anulada') {
+			echo 'La evaluación está anulada; sus notas se conservan sin permitir cambios.';
+		} else {
+			echo 'Estás viendo las calificaciones en modo de solo lectura.';
+		}
+		?>
 	</div>
 	<?php endif; ?>
+	<div class="meg-counter mb-3"><div class="d-flex justify-content-between align-items-center small mb-1"><strong>Avance de calificación</strong><span><strong id="meg-graded"><?php echo $graded_students; ?></strong> de <strong id="meg-total"><?php echo $student_count; ?></strong> · <strong id="meg-percent"><?php echo $initial_progress; ?>%</strong></span></div><div class="progress meg-progress"><div class="progress-bar" id="meg-progress-bar" style="width:<?php echo $initial_progress; ?>%"></div></div><small class="text-muted">Los campos vacíos se consideran pendientes.</small></div>
 	
 	<div class="card shadow mb-3">
 		<div class="card-header py-3">
@@ -188,6 +211,7 @@ while ($row = $q_comp->fetch_assoc()) {
 	<?php endif; ?>
 	
 	<form id="manage-evaluation-grades" method="post" action="#" onsubmit="return false;">
+		<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
 		<input type="hidden" name="evaluation_id" value="<?php echo $evaluation_id ?>">
 		<input type="hidden" name="grading_system_used" id="grading_system_used" value="numeric">
 		
@@ -209,7 +233,7 @@ while ($row = $q_comp->fetch_assoc()) {
 					</div>
 					<div class="card-body p-0">
 						<div class="table-responsive">
-							<table class="table table-bordered table-hover mb-0">
+							<table class="table table-bordered table-hover mb-0 meg-table">
 								<thead class="thead-light">
 									<tr>
 										<th width="5%">#</th>
@@ -514,6 +538,30 @@ function disableGradeInputScrollAndArrow() {
 }
 
 disableGradeInputScrollAndArrow();
+
+function updateGradeProgress() {
+	var total = $('.grade-input').length;
+	var graded = $('.grade-input').filter(function(){ return String($(this).val() || '').trim() !== ''; }).length;
+	var percent = total > 0 ? Math.round((graded / total) * 100) : 0;
+	$('#meg-total').text(total); $('#meg-graded').text(graded); $('#meg-percent').text(percent + '%'); $('#meg-progress-bar').css('width', percent + '%');
+}
+$(document).on('input change', '.grade-input', updateGradeProgress);
+$(document).on('keydown', '.grade-input', function(e) {
+	if (e.key !== 'Enter') return;
+	e.preventDefault();
+	var fields = $('.grade-input:visible');
+	var next = fields.eq(fields.index(this) + 1);
+	if (next.length) next.focus().select();
+});
+$(document).on('paste', '.grade-input', function(e) {
+	var text = (e.originalEvent.clipboardData || window.clipboardData).getData('text');
+	if (!/[\t\r\n]/.test(text)) return;
+	e.preventDefault();
+	var values = text.split(/[\t\r\n]+/).map(function(v){ return v.trim(); }).filter(function(v){ return v !== ''; });
+	var fields = $('.grade-input:visible'), start = fields.index(this);
+	values.forEach(function(value, index){ var field = fields.eq(start + index); if(field.length) field.val(value).trigger('input'); });
+});
+updateGradeProgress();
 
 $(document).ready(function() {
 	let hasLetterGrades = false;

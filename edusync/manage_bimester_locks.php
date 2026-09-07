@@ -43,6 +43,7 @@ $academic_year_id = isset($_GET['academic_year_id']) ? intval($_GET['academic_ye
             
             <form id="form-bimester-locks">
                 <input type="hidden" name="academic_year_id" value="<?php echo $academic_year_id; ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                 
                 <div class="form-group">
                     <div class="custom-control custom-switch mb-3">

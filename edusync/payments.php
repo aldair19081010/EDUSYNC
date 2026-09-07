@@ -1,378 +1,46 @@
-<?php 
-// Configuración de sesión consistente y arranque seguro
-if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.save_path', __DIR__ . '/tmp');
-    if (!is_dir(__DIR__ . '/tmp')) @mkdir(__DIR__ . '/tmp');
-    session_name('EDUSYNCSESSID');
-    session_set_cookie_params(['path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-    session_start();
-}
-include 'db_connect.php';
-
-// Comprobar si el usuario está logueado y tiene los permisos adecuados
-if(!isset($_SESSION['login_id']) || (isset($_SESSION['login_type']) && $_SESSION['login_type'] != 1)){
-    header('location: login.php');
-    exit;
-}
-
-$school_id = $_SESSION['login_school_id'] ?? 0;
-
-// Estadísticas de pagos
-$stats_q = $conn->query("
-    SELECT 
-        COUNT(*) as total_pagos,
-        COALESCE(SUM(p.amount), 0) as total_recaudado,
-        COALESCE(SUM(CASE WHEN DATE(p.date_created) = CURDATE() THEN p.amount ELSE 0 END), 0) as recaudado_hoy,
-        COALESCE(SUM(CASE WHEN MONTH(p.date_created) = MONTH(CURDATE()) AND YEAR(p.date_created) = YEAR(CURDATE()) THEN p.amount ELSE 0 END), 0) as recaudado_mes
-    FROM payments p 
-    INNER JOIN student_ef_list ef ON ef.id = p.ef_id
-    INNER JOIN student s ON s.id = ef.student_id
-    WHERE s.school_id = $school_id
-");
-$stats = $stats_q ? $stats_q->fetch_assoc() : ['total_pagos' => 0, 'total_recaudado' => 0, 'recaudado_hoy' => 0, 'recaudado_mes' => 0];
-
-// Obtener años académicos para el filtro
-$years = $conn->query("SELECT id, year, description, is_active FROM academic_year WHERE school_id = $school_id ORDER BY year DESC");
-$years_list = [];
-if ($years) {
-    while ($y = $years->fetch_assoc()) {
-        $years_list[] = $y;
-    }
-}
+<?php
+include_once __DIR__.'/includes/session_check.php';require_login_modal();include __DIR__.'/db_connect.php';$school=(int)($_SESSION['login_school_id']??0);$type=(int)($_SESSION['login_type']??0);if(!$school||$type!==1){echo '<div class="alert alert-danger">No tiene permisos.</div>';return;}if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));$csrf=$_SESSION['csrf_token'];$ready=false;$q=$conn->query("SHOW TABLES LIKE 'payment_operations'");if($q&&$q->num_rows)$ready=true;$years=[];$active=0;$s=$conn->prepare('SELECT id,year,is_active FROM academic_year WHERE school_id=? ORDER BY year DESC');$s->bind_param('i',$school);$s->execute();$r=$s->get_result();while($x=$r->fetch_assoc()){$years[]=$x;if($x['is_active'])$active=(int)$x['id'];}$s->close();$methods=[];$r=$conn->query('SELECT id,name FROM payment_methods ORDER BY name');while($r&&($x=$r->fetch_assoc()))$methods[]=$x;$stats=['operations'=>0,'total'=>0,'today'=>0,'cancelled'=>0];if($ready){$s=$conn->prepare("SELECT COUNT(*) operations,COALESCE(SUM(CASE WHEN status='Confirmado' THEN total_amount ELSE 0 END),0) total,COALESCE(SUM(CASE WHEN status='Confirmado' AND DATE(payment_date)=CURDATE() THEN total_amount ELSE 0 END),0) today,COALESCE(SUM(status='Anulado'),0) cancelled FROM payment_operations WHERE school_id=?");$s->bind_param('i',$school);$s->execute();$stats=$s->get_result()->fetch_assoc();$s->close();}
 ?>
-
-<style>
-.stat-card-pay {
-    border-radius: 10px;
-    padding: 16px 18px;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.12);
-    transition: transform 0.2s;
-}
-.stat-card-pay:hover { transform: translateY(-2px); }
-.stat-card-pay .stat-icon { font-size: 1.8rem; opacity: 0.85; }
-.stat-card-pay .stat-info h3 { margin: 0; font-size: 1.35rem; font-weight: 700; }
-.stat-card-pay .stat-info small { opacity: 0.85; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px;}
-.bg-pay-blue { background: linear-gradient(135deg, #4e73df, #224abe); }
-.bg-pay-green { background: linear-gradient(135deg, #1cc88a, #13855c); }
-.bg-pay-teal { background: linear-gradient(135deg, #20c9a6, #128e75); }
-.bg-pay-purple { background: linear-gradient(135deg, #6f42c1, #4e298c); }
-
-.filter-bar-pay {
-    background: #f8f9fc;
-    border-radius: 8px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-    display: flex;
-    gap: 15px;
-    align-items: end;
-    flex-wrap: wrap;
-    border: 1px solid #e3e6f0;
-}
-.filter-bar-pay .filter-group { display: flex; flex-direction: column; gap: 4px; }
-.filter-bar-pay .filter-group label { font-size: 0.75rem; font-weight: 600; color: #5a5c69; margin: 0; }
-.filter-bar-pay .filter-group select, .filter-bar-pay .filter-group input { min-width: 160px; }
-
-@media (max-width: 768px) {
-    .filter-bar-pay { flex-direction: column; align-items: stretch;}
-    .filter-bar-pay .filter-group select, .filter-bar-pay .filter-group input { min-width: 100%; }
-}
-</style>
-
-<div class="container-fluid">
-    <div class="col-lg-12">
-        <!-- Resumen de Pagos -->
-        <div class="row mb-3">
-            <div class="col-lg-3 col-md-6 mb-2">
-                <div class="stat-card-pay bg-pay-blue">
-                    <div class="stat-icon"><i class="fa fa-receipt"></i></div>
-                    <div class="stat-info">
-                        <h3><?php echo number_format($stats['total_pagos']); ?></h3>
-                        <small>Total Transacciones</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6 mb-2">
-                <div class="stat-card-pay bg-pay-purple">
-                    <div class="stat-icon"><i class="fa fa-chart-line"></i></div>
-                    <div class="stat-info">
-                        <h3>S/. <?php echo number_format($stats['total_recaudado'], 2); ?></h3>
-                        <small>Histórico Total</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6 mb-2">
-                <div class="stat-card-pay bg-pay-teal">
-                    <div class="stat-icon"><i class="fa fa-calendar-alt"></i></div>
-                    <div class="stat-info">
-                        <h3>S/. <?php echo number_format($stats['recaudado_mes'], 2); ?></h3>
-                        <small>Recaudado este mes</small>
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-3 col-md-6 mb-2">
-                <div class="stat-card-pay bg-pay-green">
-                    <div class="stat-icon"><i class="fa fa-money-bill-wave"></i></div>
-                    <div class="stat-info">
-                        <h3>S/. <?php echo number_format($stats['recaudado_hoy'], 2); ?></h3>
-                        <small>Recaudado hoy</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="m-0 font-weight-bold text-primary">
-                        <i class="fa fa-credit-card mr-2"></i> Gestión de Pagos Realizados
-                    </h5>
-                    <div>
-                        <button class="btn btn-danger btn-sm mr-2" id="bulk_delete_payment_btn">
-                            <i class="fa fa-trash"></i> Eliminar Selección
-                        </button>
-                        <button class="btn btn-primary btn-sm" id="new_payment">
-                            <i class="fa fa-plus"></i> Registrar Pago
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body">
-                <!-- Filtros -->
-                <div class="filter-bar-pay">
-                    <div class="filter-group">
-                        <label><i class="fa fa-calendar-check mr-1"></i>Año Académico</label>
-                        <select id="filter_year_pagos" class="form-control form-control-sm">
-                            <option value="">Todos</option>
-                            <?php foreach ($years_list as $y): ?>
-                                <option value="<?php echo htmlspecialchars($y['year']); ?>" <?php echo $y['is_active'] == 1 ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($y['year']); ?><?php echo $y['is_active'] == 1 ? ' (Activo)' : ''; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label><i class="fa fa-calendar mr-1"></i>Mes del Pago</label>
-                        <input type="month" id="filter_mes" class="form-control form-control-sm">
-                    </div>
-                    <div class="filter-group">
-                        <label><i class="fa fa-graduation-cap mr-1"></i>Nivel</label>
-                        <select id="filter_nivel_pagos" class="form-control form-control-sm">
-                            <option value="">Cualquier nivel</option>
-                            <option value="Inicial">Inicial</option>
-                            <option value="Primaria">Primaria</option>
-                            <option value="Secundaria">Secundaria</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label><i class="fa fa-user mr-1"></i>Estudiante</label>
-                        <select id="filter_student_status" class="form-control form-control-sm">
-                            <option value="">Todos</option>
-                            <option value="Activo" selected>Activo</option>
-                            <option value="Retirado">Retirado</option>
-                            <option value="Egresado">Egresado</option>
-                        </select>
-                    </div>
-                    <div class="filter-group justify-content-end">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="clear_pay_filters" title="Limpiar filtros">
-                            <i class="fa fa-times mr-1"></i> Limpiar
-                        </button>
-                    </div>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover w-100" id="payments_table">
-                        <thead class="bg-light">
-                            <tr>
-                                <th class="text-center" width="5%">
-                                    <div class="custom-control custom-checkbox text-center" style="display:inline-block;">
-                                        <input type="checkbox" class="custom-control-input" id="check_all_payments">
-                                        <label class="custom-control-label" for="check_all_payments"></label>
-                                    </div>
-                                </th>
-                                <th>Fecha</th>
-                                <th>DNI</th>
-                                <th>N° Boleta</th>
-                                <th>Nombre Completo</th>
-                                <th>Monto Pagado</th>
-                                <th>Concepto Detallado</th>
-                                <th class="text-center">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- El contenido de la tabla será llenado por DataTables usando AJAX server-side -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
+<style>.py{padding:8px 4px}.py-head,.py-title,.py-panel-head,.py-bulk{display:flex;align-items:center}.py-head{background:#fff;border:1px solid #e3e8f0;border-radius:14px;padding:18px 20px;justify-content:space-between;gap:18px}.py-panel-head{justify-content:space-between;gap:12px}.py-title{gap:13px}.py-icon{width:46px;height:46px;border-radius:12px;background:#eaf2ff;color:#2f6fed;display:flex;align-items:center;justify-content:center;font-size:20px;flex:0 0 46px}.py-title h5{margin:0 0 3px;font-weight:700;color:#344767}.py-title small{color:#6c757d}.py-actions{display:flex;align-items:center;gap:10px}.py-cash-actions{display:flex;align-items:center;background:#f7f9fc;border:1px solid #e3e8f0;border-radius:10px;padding:4px}.py-cash-actions .btn{border:0;background:transparent;color:#53657a;box-shadow:none;padding:8px 12px}.py-cash-actions .btn+ .btn{border-left:1px solid #dde3ec;border-radius:0}.py-primary-action{border-radius:9px;padding:10px 16px;font-weight:600;box-shadow:0 4px 10px rgba(47,111,237,.2)}.py-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}.py-stat,.py-panel{background:#fff;border:1px solid #e3e8f0;border-radius:12px}.py-stat{padding:14px}.py-stat strong{display:block;font-size:1.1rem}.py-stat span{font-size:.75rem;color:#6c757d}.py-panel{overflow:hidden}.py-panel-head{padding:12px 14px;border-bottom:1px solid #e9edf4}.py-filters{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px;border-bottom:1px solid #e9edf4}.py-field label{font-size:.73rem;font-weight:700;display:block}.py-body{padding:14px}.py-bulk{display:none;background:#f3f7ff;padding:10px;border-radius:8px;gap:8px;margin-bottom:10px}.py-bulk.show{display:flex}@media(max-width:1000px){.py-head{align-items:flex-start}.py-actions{align-items:stretch;flex-direction:column-reverse}.py-filters{grid-template-columns:repeat(3,1fr)}}@media(max-width:650px){.py-head{flex-direction:column}.py-actions,.py-cash-actions,.py-primary-action{width:100%}.py-cash-actions .btn{flex:1}.py-stats,.py-filters{grid-template-columns:1fr 1fr}}</style>
+<div class="container-fluid py"><div class="py-head"><div class="py-title"><div class="py-icon"><i class="fa fa-credit-card"></i></div><div><h5>Pagos y caja</h5><small>Registra cobros y controla los cierres diarios</small></div></div><div class="py-actions"><div class="py-cash-actions"><button id="cash-control" class="btn" title="Abrir o cerrar la caja"><i class="fa fa-cash-register mr-1"></i>Control de caja</button><button id="cash-report" class="btn" title="Consultar cierres anteriores"><i class="fa fa-chart-bar mr-1"></i>Historial de cajas</button></div><button id="new-payment" class="btn btn-primary py-primary-action"><i class="fa fa-plus mr-1"></i>Nuevo pago</button></div></div><?php if(!$ready): ?><div class="alert alert-warning mt-3">Ejecuta <code>sql/payments_module_upgrade.sql</code> antes de utilizar el módulo.</div><?php endif; ?>
+<div class="py-stats"><div class="py-stat"><strong><?php echo number_format($stats['operations']); ?></strong><span>Operaciones</span></div><div class="py-stat"><strong>S/ <?php echo number_format($stats['total'],2); ?></strong><span>Recaudación confirmada</span></div><div class="py-stat"><strong>S/ <?php echo number_format($stats['today'],2); ?></strong><span>Recaudado hoy</span></div><div class="py-stat"><strong><?php echo number_format($stats['cancelled']); ?></strong><span>Operaciones anuladas</span></div></div>
+<div class="py-panel"><div class="py-panel-head"><strong><i class="fa fa-table text-primary mr-2"></i>Historial de operaciones</strong><div><button id="export-payments" class="btn btn-sm btn-outline-success"><i class="fa fa-file-excel mr-1"></i>Exportar</button> <button id="payment-audit" class="btn btn-sm btn-outline-secondary"><i class="fa fa-history mr-1"></i>Auditoría</button></div></div><div class="py-filters"><div class="py-field"><label>Año</label><select id="py-year" class="form-control form-control-sm"><option value="" selected>Todos</option><?php foreach($years as $y): ?><option value="<?php echo (int)$y['id']; ?>"><?php echo htmlspecialchars($y['year']); ?></option><?php endforeach; ?></select></div><div class="py-field"><label>Desde</label><input type="date" id="py-from" class="form-control form-control-sm"></div><div class="py-field"><label>Hasta</label><input type="date" id="py-to" class="form-control form-control-sm"></div><div class="py-field"><label>Estado</label><select id="py-status" class="form-control form-control-sm"><option value="">Todos</option><option>Confirmado</option><option>Anulado</option><option>Revertido</option></select></div><div class="py-field"><label>Medio</label><select id="py-method" class="form-control form-control-sm"><option value="">Todos</option><?php foreach($methods as $m): ?><option value="<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars($m['name']); ?></option><?php endforeach; ?></select></div><div class="py-field"><label>&nbsp;</label><button id="py-clear" class="btn btn-sm btn-outline-secondary btn-block">Limpiar</button></div></div><div class="py-body"><div id="py-error" class="alert alert-danger d-none"></div><div class="py-bulk" id="py-bulk"><strong><span id="py-count">0</span> seleccionadas</strong><button id="cancel-selected" class="btn btn-sm btn-outline-danger">Anular seleccionadas</button><button id="clear-selected" class="btn btn-sm btn-link">Cancelar</button></div><div class="table-responsive"><table id="payments-table" class="table table-hover"><thead><tr><th><input type="checkbox" id="py-all"></th><th>Fecha</th><th>DNI</th><th>Recibo</th><th>Estudiante</th><th>Total y medios</th><th>Estado</th><th>Acciones</th></tr></thead><tbody></tbody></table></div></div></div></div>
+<div class="modal fade" id="cashModal"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5>Control de caja</h5><button class="close" data-dismiss="modal">&times;</button></div><div class="modal-body" id="cash-body"></div></div></div></div><div class="modal fade" id="payAudit"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5>Auditoría de pagos</h5><button class="close" data-dismiss="modal">&times;</button></div><div class="modal-body table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Usuario</th><th>Recibo</th><th>Acción</th><th>Detalle</th></tr></thead><tbody id="pay-audit-body"></tbody></table></div></div></div></div>
+<div class="modal fade" id="cashReportModal"><div class="modal-dialog modal-xl"><div class="modal-content"><div class="modal-header"><h5>Reporte de cierres de caja</h5><button class="close" data-dismiss="modal">&times;</button></div><div class="modal-body"><div class="form-row mb-3"><div class="col-md-3"><label>Desde</label><input type="date" id="cash-report-from" class="form-control"></div><div class="col-md-3"><label>Hasta</label><input type="date" id="cash-report-to" class="form-control"></div><div class="col-md-6 d-flex align-items-end" style="gap:6px"><button id="load-cash-report" class="btn btn-primary">Consultar</button><button id="export-cash-report" class="btn btn-outline-success"><i class="fa fa-file-excel mr-1"></i>Exportar Excel</button></div></div><div id="cash-report-message"></div><div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Responsable</th><th>Apertura / cierre</th><th>Estado</th><th>Operaciones</th><th>Medios</th><th>Esperado</th><th>Contado</th><th>Diferencia</th></tr></thead><tbody id="cash-report-body"></tbody></table></div></div></div></div></div>
+<script>(function($){const api='payments_api.php',csrf=<?php echo json_encode($csrf); ?>,ready=<?php echo $ready?'true':'false'; ?>;let table,selected={};function e(v){return $('<div>').text(v==null?'':v).html()}function f(){return{academic_year_id:$('#py-year').val(),date_from:$('#py-from').val(),date_to:$('#py-to').val(),status:$('#py-status').val(),method_id:$('#py-method').val()}}function bulk(){let n=Object.keys(selected).length;$('#py-count').text(n);$('#py-bulk').toggleClass('show',n>0)}function post(a,d){d=d||{};d.csrf_token=csrf;return $.post(api+'?action='+a,d,null,'json')}function tableError(message){$('#py-error').removeClass('d-none').text(message||'No se pudo cargar el historial de pagos.')}if(ready&&$.fn.DataTable){try{if($.fn.dataTable.isDataTable('#payments-table'))$('#payments-table').DataTable().destroy();table=$('#payments-table').DataTable({serverSide:true,processing:true,pageLength:15,order:[[1,'desc']],columnDefs:[{orderable:false,targets:[0,7]}],ajax:{url:'payments_table_data.php',data:d=>$.extend(d,f()),dataSrc:function(resp){if(resp&&resp.error)tableError(resp.error);else $('#py-error').addClass('d-none').text('');return resp&&Array.isArray(resp.data)?resp.data:[]},error:function(xhr){let message='No se pudo cargar el historial de pagos.';try{let response=JSON.parse(xhr.responseText);if(response.error)message=response.error}catch(ignore){if(xhr.responseText)message+=' '+xhr.responseText.substring(0,180)}tableError(message)}},language:{search:'Buscar:',lengthMenu:'Mostrar _MENU_',processing:'Cargando pagos...',zeroRecords:'No se encontraron pagos',info:'Mostrando _START_ a _END_ de _TOTAL_',paginate:{previous:'Anterior',next:'Siguiente'}}});table.on('draw',function(){$('.payment-check').each(function(){this.checked=!!selected[this.value]});$('#py-all').prop('checked',false)})}catch(error){tableError('No se pudo iniciar la tabla: '+error.message)}}else{tableError(ready?'La librería de tablas no está disponible.':'Ejecuta sql/payments_module_upgrade.sql.');$('#new-payment,#export-payments').prop('disabled',true)}$('#py-year,#py-from,#py-to,#py-status,#py-method').change(()=>table&&table.ajax.reload());$('#py-clear').click(function(){$('#py-from,#py-to,#py-status,#py-method,#py-year').val('');if(table)table.ajax.reload()});$('#new-payment').click(()=>uni_modal('Registrar pago','manage_payment.php','large'));window.reload_payments=()=>table&&table.ajax.reload(null,false);$(document).on('change','.payment-check',function(){this.checked?selected[this.value]=1:delete selected[this.value];bulk()});$('#py-all').change(function(){$('.payment-check').each((_,x)=>{x.checked=this.checked;this.checked?selected[x.value]=1:delete selected[x.value]});bulk()});$('#clear-selected').click(function(){selected={};bulk();table.ajax.reload(null,false)});function cancel(id){let reason=prompt('Motivo de anulación:');if(reason===null)return $.Deferred().reject().promise();return post('cancel',{operation_id:id,reason:reason})}$(document).on('click','.cancel-payment',function(){let id=$(this).data('id');if(confirm('¿Anular este pago y restituir el saldo?'))cancel(id).done(r=>{alert_toast(r.message,r.status==1?'success':'danger');if(r.status==1)table.ajax.reload(null,false)})});$('#cancel-selected').click(async function(){let ids=Object.keys(selected);if(!confirm('¿Anular '+ids.length+' operaciones?'))return;let reason=prompt('Motivo común de anulación:');if(reason===null)return;start_load();for(let id of ids){try{await post('cancel',{operation_id:id,reason:reason})}catch(e){}}end_load();selected={};bulk();table.ajax.reload(null,false)});
+$(document).on('click','.view-payment',function(){uni_modal('Detalle del pago','view_payment.php?ef_id='+$(this).data('ef')+'&pid='+$(this).data('payment'),'mid-large')});$(document).on('click','.print-payment',function(){window.open('receipt.php?ef_id='+$(this).data('ef')+'&pid='+$(this).data('payment'),'_blank')});$('#export-payments').click(function(){let p=f();p.ids=Object.keys(selected).join(',');location='export_payments.php?'+$.param(p)});$('#payment-audit').click(function(){$('#payAudit').modal('show');$.getJSON(api,{action:'audit'}).done(r=>{let h='';(r.audit||[]).forEach(x=>h+='<tr><td>'+e(x.created_at)+'</td><td>'+e(x.user_name)+'</td><td>'+e(x.receipt_full||'')+'</td><td>'+e(x.action)+'</td><td><small>'+e(x.details||'')+'</small></td></tr>');$('#pay-audit-body').html(h||'<tr><td colspan="5">Sin movimientos.</td></tr>')})});
+$(document).on('click','.correct-payment',function(){uni_modal('Corregir pago','manage_payment.php?correction_of='+$(this).data('id'),'modal-xl')});
+})(jQuery);</script>
 <script>
-$(document).ready(function() {
-    var table = $('#payments_table').DataTable({
-        language: {
-            "search": "Buscar:",
-            "lengthMenu": "Mostrar _MENU_ registros por página",
-            "zeroRecords": "No se encontraron resultados",
-            "info": "Mostrando _START_ a _END_ de _TOTAL_ registros",
-            "infoEmpty": "Mostrando 0 a 0 de 0 registros",
-            "infoFiltered": "(filtrados de _MAX_ registros totales)",
-            "paginate": {
-                "first": "Primero",
-                "last": "Último",
-                "next": "Siguiente",
-                "previous": "Anterior"
-            }
-        },
-        responsive: true,
-        autoWidth: false,
-        pageLength: 15,
-        order: [[0, 'desc']], // Ordenar por la columna ID (oculta) típicamente, o fecha. Pero aquí 0 es `#`. Vamos a interceptarlo en el backend.
-        columnDefs: [
-            { targets: [0, 7], orderable: false },
-            { targets: 0, responsivePriority: 1 },
-            { targets: 4, responsivePriority: 2 },
-            { targets: 5, responsivePriority: 1 },
-            { targets: 6, responsivePriority: 3 },
-            { targets: 7, responsivePriority: 1 }
-        ],
-        serverSide: true,
-        processing: true,
-        ajax: {
-            url: 'payments_table_data.php',
-            type: 'GET',
-            data: function(d) {
-                d.year = $('#filter_year_pagos').val();
-                d.mes = $('#filter_mes').val();
-                d.nivel = $('#filter_nivel_pagos').val();
-                d.student_status = $('#filter_student_status').val();
-            },
-            error: function(xhr, error, thrown) {
-                console.error('Error loading payments_table_data:', xhr.responseText || error || thrown);
-                alert_toast('Error al cargar datos. Revise la consola.', 'danger');
-            }
-        }
-    });
+(function($){
+const api='payments_api.php', csrf=<?php echo json_encode($csrf); ?>;
+const esc=v=>$('<div>').text(v==null?'':v).html();
+const money=v=>'S/ '+Number(v||0).toFixed(2);
+const post=(action,data)=>$.post(api+'?action='+action,$.extend({csrf_token:csrf},data||{}),null,'json');
 
-    // Filtros
-    $('#filter_year_pagos, #filter_mes, #filter_nivel_pagos, #filter_student_status').on('change', function() {
-        table.ajax.reload();
-    });
-
-    $('#clear_pay_filters').on('click', function() {
-        $('#filter_year_pagos').val(''); // Limpia también el año, pero si quieres puedes dejarlo en el activo
-        $('#filter_mes').val('');
-        $('#filter_nivel_pagos').val('');
-        $('#filter_student_status').val('Activo');
-        table.ajax.reload();
-    });
-
-    // Carga inicial (para que tome en cuenta el año activo si hay uno seleccionado por defecto)
-    if ($('#filter_year_pagos').val()) {
-        // DataTables lo hará automáticamente con el data() en el primer request
-    }
-
-    // Eventos para botones
-    $('#new_payment').click(function() {
-        uni_modal("Registrar Nuevo Pago", "manage_payment.php", "mid-large");
-    });
-
-    // Delegación de eventos para botones dinámicos
-    $(document).on('click', '.view_payment', function() {
-        uni_modal("Información de Pago", "view_payment.php?ef_id=" + $(this).data('ef_id') + "&pid=" + $(this).data('id'), "mid-large");
-    });
-
-    $(document).on('click', '.edit_payment', function() {
-        uni_modal("Editar Registro de Pago", "edit_payment.php?id=" + $(this).data('id'), "mid-large");
-    });
-
-    $(document).on('click', '.delete_payment', function() {
-        _conf("¿Estás seguro de que deseas eliminar este pago permanentemente?", "delete_payment", [$(this).data('id')]);
-    });
-
-    // Eventos para selección múltiple
-    $('#check_all_payments').change(function() {
-        if($(this).is(':checked')) {
-            $('.payment-checkbox').prop('checked', true);
-        } else {
-            $('.payment-checkbox').prop('checked', false);
-        }
-    });
-
-    // Sincronizar checkbox maestro al cambiar página
-    table.on('draw.dt', function() {
-        $('#check_all_payments').prop('checked', false);
-    });
-
-    // Acción de eliminar selección
-    $('#bulk_delete_payment_btn').click(function() {
-        var ids = [];
-        $('.payment-checkbox:checked').each(function() {
-            ids.push($(this).val());
-        });
-
-        if (ids.length <= 0) {
-            alert_toast("Por favor seleccione al menos un pago para eliminar.", "warning");
-            return;
-        }
-
-        _conf("¿Está seguro de eliminar los " + ids.length + " pagos seleccionados de forma permanente?", "execute_bulk_delete_payments", [ids]);
-    });
+$('#cash-control').off('click').on('click',function(){
+  $('#cashModal').modal('show'); $('#cash-body').html('<div class="text-center py-4"><i class="fa fa-spinner fa-spin"></i> Cargando caja...</div>');
+  $.getJSON(api,{action:'bootstrap'}).done(function(r){
+    if(r.status!=1){$('#cash-body').html('<div class="alert alert-danger">'+esc(r.message)+'</div>');return;}
+    const c=r.cash_session,s=r.cash_summary;
+    if(!c){$('#cash-body').html('<div class="alert alert-info">No tienes una caja abierta.</div><div class="form-group"><label>Saldo inicial en efectivo</label><input type="number" step="0.01" min="0" id="cash-opening" class="form-control" value="0.00"></div><button id="open-cash" class="btn btn-primary"><i class="fa fa-lock-open mr-1"></i>Abrir caja</button>');return;}
+    let methods=(s.methods||[]).map(x=>'<tr><td>'+esc(x.name)+'</td><td class="text-right">'+money(x.total)+'</td></tr>').join('');
+    $('#cash-body').html('<div class="alert alert-success">Caja abierta desde <strong>'+esc(c.opened_at)+'</strong></div><div class="row"><div class="col-md-7"><table class="table table-sm"><tr><td>Saldo inicial</td><th class="text-right">'+money(s.opening_balance)+'</th></tr><tr><td>Operaciones confirmadas</td><th class="text-right">'+esc(s.operation_count)+'</th></tr><tr><td>Recaudación confirmada</td><th class="text-right">'+money(s.confirmed_total)+'</th></tr><tr><td>Efectivo cobrado</td><th class="text-right">'+money(s.cash_collected)+'</th></tr><tr><td>Pagos digitales</td><th class="text-right">'+money(s.digital_collected)+'</th></tr><tr class="table-primary"><td><strong>Efectivo esperado en caja</strong></td><th class="text-right">'+money(s.expected_cash)+'</th></tr></table><h6>Desglose por medio</h6><table class="table table-sm">'+(methods||'<tr><td>Sin operaciones</td></tr>')+'</table></div><div class="col-md-5"><div class="form-group"><label>Efectivo contado al cierre</label><input type="number" step="0.01" id="cash-closing" class="form-control" value="'+Number(s.expected_cash).toFixed(2)+'"></div><div class="alert alert-light border">Diferencia: <strong id="cash-difference">S/ 0.00</strong></div><div class="form-group"><label>Observaciones</label><textarea id="cash-notes" class="form-control" rows="3"></textarea></div><button id="close-cash" data-id="'+c.id+'" class="btn btn-danger btn-block"><i class="fa fa-lock mr-1"></i>Cerrar caja</button></div></div>');
+    $('#cash-closing').on('input',()=>$('#cash-difference').text(money(Number($('#cash-closing').val()||0)-Number(s.expected_cash))));
+  }).fail(xhr=>$('#cash-body').html('<div class="alert alert-danger">'+esc(xhr.responseJSON?.message||'No se pudo consultar la caja.')+'</div>'));
 });
+$(document).off('click','#open-cash').on('click','#open-cash',function(){post('open_cash',{opening_balance:$('#cash-opening').val()}).done(r=>{alert_toast(r.message,r.status==1?'success':'danger');if(r.status==1)$('#cash-control').trigger('click')});});
+$(document).off('click','#close-cash').on('click','#close-cash',function(){if(!confirm('¿Confirmas el cierre con el efectivo contado indicado?'))return;post('close_cash',{cash_session_id:$(this).data('id'),closing_balance:$('#cash-closing').val(),notes:$('#cash-notes').val()}).done(r=>{alert_toast(r.message+(r.difference!=null?' Diferencia: '+money(r.difference):''),r.status==1?'success':'danger');if(r.status==1)$('#cashModal').modal('hide')});});
 
-function execute_bulk_delete_payments(ids) {
-    start_load();
-    $.ajax({
-        url: 'ajax.php?action=bulk_delete_payment',
-        method: 'POST',
-        data: { ids: ids },
-        dataType: 'json',
-        success: function(resp) {
-            end_load();
-            if (resp && resp.status == 1) {
-                alert_toast(resp.message || "Pagos eliminados exitosamente", 'success');
-                $('#payments_table').DataTable().ajax.reload();
-                $('#check_all_payments').prop('checked', false);
-            } else {
-                alert_toast(resp.message || "Error al eliminar los pagos", 'danger');
-            }
-        },
-        error: function(err) {
-            end_load();
-            console.error("Error en la solicitud AJAX:", err);
-            alert_toast("Error en el servidor al intentar eliminar en masa", 'danger');
-        }
-    });
+function loadCashReport(){
+  $('#cash-report-message').html('<div class="text-muted">Cargando...</div>');
+  $.getJSON(api,{action:'cash_report',date_from:$('#cash-report-from').val(),date_to:$('#cash-report-to').val()}).done(r=>{
+    if(r.status!=1){$('#cash-report-message').html('<div class="alert alert-warning">'+esc(r.message)+'</div>');return;}
+    let h=(r.sessions||[]).map(x=>{let d=Number(x.difference_amount||0),badge=Math.abs(d)<.01?'success':(d<0?'danger':'warning');return '<tr><td><strong>'+esc(x.user_name)+'</strong><div class="small">Cerrado por: '+esc(x.closed_by_name||'-')+'</div></td><td>'+esc(x.opened_at)+'<br>'+esc(x.closed_at||'Abierta')+'</td><td><span class="badge badge-'+(x.status==='Cerrada'?'secondary':'success')+'">'+esc(x.status)+'</span></td><td>'+esc(x.operation_count)+'</td><td class="small">'+esc(x.method_summary||'Sin operaciones')+'</td><td>'+money(x.expected_balance)+'</td><td>'+money(x.closing_balance)+'</td><td><span class="badge badge-'+badge+'">'+money(d)+'</span></td></tr>'}).join('');
+    $('#cash-report-message').empty();$('#cash-report-body').html(h||'<tr><td colspan="8" class="text-center">No hay cajas para el periodo.</td></tr>');
+  }).fail(xhr=>$('#cash-report-message').html('<div class="alert alert-warning">'+esc(xhr.responseJSON?.message||'No se pudo cargar el reporte.')+'</div>'));
 }
+$('#cash-report').click(()=>{$('#cashReportModal').modal('show');loadCashReport()});$('#load-cash-report').click(loadCashReport);$('#export-cash-report').click(()=>location='export_cash_report.php?'+$.param({date_from:$('#cash-report-from').val(),date_to:$('#cash-report-to').val()}));
 
-function delete_payment($id) {
-    start_load();
-    $.ajax({
-        url: 'ajax.php?action=delete_payment',
-        method: 'POST',
-        data: { id: $id },
-        dataType: 'json',
-        success: function(resp) {
-            end_load();
-            if (resp && resp.status == 1) {
-                alert_toast("Pago eliminado exitosamente", 'success');
-                setTimeout(function() {
-                    location.reload();
-                }, 1000);
-            } else {
-                alert_toast(resp.message || "Error al eliminar el pago", 'danger');
-            }
-        },
-        error: function(err) {
-            end_load();
-            console.error("Error en AJAX:", err);
-            alert_toast("Error crítico en el servidor.", 'danger');
-        }
-    });
-}
+})(jQuery);
 </script>

@@ -1,334 +1,56 @@
-<?php include('db_connect.php'); ?>
-
+<?php
+date_default_timezone_set('America/Lima');
+include_once __DIR__.'/includes/session_check.php';
+require_login_modal();
+include __DIR__.'/db_connect.php';
+if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
+$csrf=$_SESSION['csrf_token'];
+$ready=false;$q=$conn->query("SHOW COLUMNS FROM asistencia LIKE 'school_id'");if($q&&$q->num_rows){$t=$conn->query("SHOW TABLES LIKE 'attendance_day_closures'");$r=$conn->query("SHOW TABLES LIKE 'attendance_change_requests'");$ready=$t&&$t->num_rows>0&&$r&&$r->num_rows>0;}
+?>
+<style>
+.at-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.at-head h1{font-size:1.35rem;font-weight:700;color:#344054;margin:0}.at-sub{font-size:.84rem;color:#667085}.at-kpi{border:1px solid #e4e7ec;border-radius:9px;background:#fff;padding:12px 14px;height:100%}.at-kpi small{color:#667085;display:block}.at-kpi strong{font-size:1.35rem;color:#344054}.at-toolbar{background:#f8fafc;border:1px solid #e4e7ec;border-radius:9px;padding:13px}.at-student{min-width:240px}.at-status{min-width:155px}.at-time{min-width:112px}.at-closed{background:#fffaeb;border-left:4px solid #f79009;padding:10px 12px}.at-row-unmarked{background:#fff9f0}.at-scanner{border:1px solid #b2ccff;background:#f5f8ff;border-radius:9px;padding:13px}@media(max-width:768px){.at-head{display:block}.at-head .btn{margin-top:10px}.at-toolbar .form-group{margin-bottom:10px}}
+</style>
 <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 text-gray-800 mb-0"><i class="fa fa-calendar-check mr-2"></i> Gestión de Asistencia</h1>
-        <button class="btn btn-primary btn-sm" id="nueva_asistencia">
-            <i class="fa fa-plus"></i> Nueva Asistencia Manual
-        </button>
-    </div>
-
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Filtros y marcaje rápido</h6>
-        </div>
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-3 col-sm-6 mb-2">
-                    <label class="small mb-1">Filtrar por fecha</label>
-                    <input type="date" id="filtro_fecha" class="form-control" value="<?php echo date('Y-m-d'); ?>">
-                </div>
-                <div class="col-md-3 col-sm-6 mb-2">
-                    <label class="small mb-1">Filtrar por tipo</label>
-                    <select id="filtro_tipo" class="form-control">
-                        <option value="">Todos</option>
-                        <option value="Entrada">Entrada</option>
-                        <option value="Salida">Salida</option>
-                    </select>
-                </div>
-                <div class="col-md-3 col-sm-6 mb-2">
-                    <label class="small mb-1">Tipo de marcaje</label>
-                    <select id="barcode_tipo" class="form-control">
-                        <option value="Entrada">Entrada</option>
-                        <option value="Salida">Salida</option>
-                    </select>
-                </div>
-                <div class="col-md-3 col-sm-6 mb-2">
-                    <label class="small mb-1">Escanear Código de Barras (DNI)</label>
-                    <input type="text" id="barcode_input" class="form-control" placeholder="Escanee el código de barras del estudiante" autofocus autocomplete="off">
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Registro de Asistencia</h6>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover" id="tabla_asistencia">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Fecha</th>
-                            <th>DNI</th>
-                            <th>Nombre</th>
-                            <th>Tipo</th>
-                            <th>Hora</th>
-                            <th>Estado</th>
-                        </tr>
-                    </thead>
-                    <tbody id="asistencia_body"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+ <div class="at-head"><div><h1><i class="fas fa-calendar-check text-primary mr-2"></i>Asistencia diaria</h1><div class="at-sub">Registre la nómina por aula, controle excepciones y cierre el día con trazabilidad.</div></div><a class="btn btn-outline-primary btn-sm" href="index.php?page=attendance_rules_page"><i class="fas fa-clock mr-1"></i>Reglas y calendario</a></div>
+ <?php if(!$ready):?><div class="alert alert-warning"><strong>Actualización pendiente.</strong> Ejecute manualmente <code>sql/attendance_module_upgrade.sql</code>. Los datos anteriores se conservarán.</div><?php else:?>
+ <div id="at-message"></div>
+ <div class="at-toolbar mb-3"><div class="form-row align-items-end">
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Fecha</label><input id="at-date" type="date" class="form-control" value="<?=date('Y-m-d')?>"></div>
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Nivel</label><select id="at-level" class="form-control"><option value="">Seleccione</option></select></div>
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Grado</label><select id="at-grade" class="form-control" disabled><option value="">Seleccione</option></select></div>
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Sección</label><select id="at-section" class="form-control" disabled><option value="">Seleccione</option></select></div>
+  <div class="form-group col-lg-4 col-md-8 mb-0"><button id="at-load" class="btn btn-primary"><i class="fas fa-search mr-1"></i>Cargar nómina</button> <button id="at-refresh" class="btn btn-outline-secondary" title="Actualizar"><i class="fas fa-sync-alt"></i></button></div>
+ </div></div>
+ <div class="row mb-3">
+  <div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Esperados</small><strong id="k-expected">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Presentes</small><strong id="k-present">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Tardanzas</small><strong id="k-late">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Ausentes</small><strong id="k-absent">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Justificados</small><strong id="k-justified">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Sin marcar</small><strong id="k-unmarked">0</strong></div></div>
+ </div>
+ <div class="at-scanner mb-3"><div class="form-row align-items-end"><div class="form-group col-md-3 mb-md-0"><label class="small font-weight-bold">Marcación</label><select id="scan-type" class="form-control"><option>Entrada</option><option>Salida</option></select></div><div class="form-group col-md-6 mb-md-0"><label class="small font-weight-bold">Escanear DNI</label><input id="scan-dni" class="form-control" placeholder="Escanee o escriba el DNI y presione Enter" autocomplete="off"></div><div class="col-md-3"><small class="text-muted">La hora y el estado se calculan automáticamente.</small></div></div></div>
+ <div id="at-day-note" class="d-none mb-3"></div>
+ <div class="card shadow-sm"><div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center"><div><strong>Nómina del aula</strong><div class="small text-muted" id="at-class-label">Seleccione un aula</div></div><div class="mt-2 mt-md-0"><button id="mark-all" class="btn btn-sm btn-outline-primary" disabled><i class="fas fa-check-double mr-1"></i>Todos presentes</button> <button id="save-roster" class="btn btn-sm btn-primary" disabled><i class="fas fa-save mr-1"></i>Guardar</button> <button id="toggle-close" class="btn btn-sm btn-outline-secondary" disabled><i class="fas fa-lock mr-1"></i>Cerrar día</button></div></div>
+  <div class="table-responsive"><table class="table table-hover mb-0"><thead class="thead-light"><tr><th>#</th><th>Estudiante</th><th>Estado</th><th>Hora</th><th>Observación</th><th>Registro</th><th></th></tr></thead><tbody id="at-body"><tr><td colspan="7" class="text-center text-muted py-4">Seleccione nivel, grado y sección.</td></tr></tbody></table></div>
+ </div>
+ <?php endif;?>
 </div>
-
-<div class="modal fade" id="modal_asistencia" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <form id="form_asistencia">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Registrar Asistencia Manual</h5>
-                    <button type="button" class="close" data-dismiss="modal">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Fecha</label>
-                        <input type="date" name="fecha" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Estudiante</label>
-                        <select name="student_id" class="form-control select2" id="student_id_asistencia" required>
-                            <option value="">Seleccione un estudiante</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Tipo</label>
-                        <select name="tipo" class="form-control" required>
-                            <option value="Entrada">Entrada</option>
-                            <option value="Salida">Salida</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Hora</label>
-                        <input type="time" id="hora_actual" name="hora" class="form-control" step="1" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Estado</label>
-                        <select name="estado" id="estado_asistencia" class="form-control" required>
-                            <option value="Presente" selected>Presente (auto)</option>
-                            <option value="Ausente">Ausente</option>
-                        </select>
-                        <small class="form-text text-muted">Si eliges "Presente (auto)", se calculará Temprano/Normal/Tarde según la hora y las reglas.</small>
-                    </div>
-                    <div class="form-group" id="justificacion_wrap" style="display:none;">
-                        <div class="form-check mb-2">
-                            <input class="form-check-input" type="checkbox" value="1" id="chk_justificada">
-                            <label class="form-check-label" for="chk_justificada">Inasistencia justificada</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancelar</button>
-                    <button class="btn btn-primary" type="submit">Guardar</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-
+<?php if($ready):?>
+<div class="modal fade" id="justifyModal"><div class="modal-dialog"><form id="justify-form" class="modal-content"><div class="modal-header"><h5 class="modal-title">Justificar inasistencia</h5><button class="close" type="button" data-dismiss="modal">&times;</button></div><div class="modal-body"><input type="hidden" id="justify-id"><div class="form-group"><label>Estado de la solicitud</label><select id="justify-status" class="form-control"><option>Pendiente</option><option>Aprobada</option><option>Rechazada</option></select></div><div class="form-group"><label>Motivo</label><textarea id="justify-reason" class="form-control" maxlength="255" required></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button class="btn btn-primary">Guardar</button></div></form></div></div>
 <script>
-// Controla si la hora debe autocompletarse con el reloj
-let autoHora = true;
-
-function cargarAsistencia(fecha, tipo) {
-    $.ajax({
-        url: 'ajax.php?action=get_asistencia',
-        method: 'POST',
-        data: { fecha: fecha, tipo: tipo },
-        dataType: 'json',
-        success: function(resp) {
-            var html = '';
-            if (resp.length > 0) {
-                let i = 1;
-                resp.forEach(function(row) {
-                    var esAusente = (typeof row.estado === 'string' && row.estado.indexOf('Ausente') === 0);
-                    var horaDisplay = (esAusente || row.hora === '00:00:00' || row.hora === null || row.hora === '') ? '-' : row.hora;
-                    html += '<tr>';
-                    html += '<td>' + (i++) + '</td>';
-                    html += '<td>' + row.fecha + '</td>';
-                    html += '<td>' + row.id_no + '</td>';
-                    html += '<td>' + row.name + '</td>';
-                    html += '<td>' + row.tipo + '</td>';
-                    html += '<td>' + horaDisplay + '</td>';
-                    var estadoTexto = row.estado;
-                    html += '<td><span class="badge ' + badgeClass(row.estado) + '">' + estadoTexto + '</span></td>';
-                    html += '</tr>';
-                });
-            } else {
-                html = '<tr><td colspan="7" class="text-center py-3">Sin registros para esta fecha.</td></tr>';
-            }
-            $('#asistencia_body').html(html);
-        },
-        error: function() {
-            $('#asistencia_body').html('<tr><td colspan="7" class="text-center py-3">Error al cargar la asistencia.</td></tr>');
-        }
-    });
-}
-
-function cargarAlumnosAsistencia() {
-    $.ajax({
-        url: 'ajax.php?action=get_students_for_asistencia',
-        method: 'GET',
-        dataType: 'json',
-        success: function(resp) {
-            var html = '<option value="">Seleccione un estudiante</option>';
-            resp.forEach(function(row) {
-                html += '<option value="' + row.id + '">' + row.name + ' (' + row.id_no + ')</option>';
-            });
-            $('#student_id_asistencia').html(html).trigger('change');
-        },
-        error: function() {
-            $('#student_id_asistencia').html('<option value="">Error al cargar estudiantes</option>');
-        }
-    });
-}
-
-function actualizarHora() {
-    var now = new Date();
-    var hours = String(now.getHours()).padStart(2, '0');
-    var minutes = String(now.getMinutes()).padStart(2, '0');
-    var seconds = String(now.getSeconds()).padStart(2, '0');
-    var horaActual = hours + ':' + minutes + ':' + seconds;
-    if (autoHora && !$('#hora_actual').prop('disabled')) {
-        $('#hora_actual').val(horaActual);
-    }
-}
-
-function toggleHoraByEstado() {
-    var estado = $('#estado_asistencia').val();
-    if (estado === 'Ausente') {
-        $('#hora_actual').prop('disabled', true).prop('required', false).val('');
-        $('#justificacion_wrap').slideDown(100);
-    } else {
-        $('#hora_actual').prop('disabled', false).prop('required', true);
-        actualizarHora();
-        $('#justificacion_wrap').slideUp(100);
-    }
-}
-
-$(document).ready(function() {
-    $('.select2').select2({ width: '100%', dropdownParent: $('#modal_asistencia') });
-
-    // DataTable básico sin ordenar (datos por AJAX)
-    $('#tabla_asistencia').DataTable({
-        language: { url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/es-ES.json' },
-        responsive: true,
-        pageLength: 10,
-        ordering: false
-    });
-
-    let fecha = $('#filtro_fecha').val();
-    let tipo = $('#filtro_tipo').val();
-    cargarAsistencia(fecha, tipo);
-
-    actualizarHora();
-    setInterval(actualizarHora, 1000);
-
-    $('#filtro_fecha, #filtro_tipo').change(function() {
-        cargarAsistencia($('#filtro_fecha').val(), $('#filtro_tipo').val());
-    });
-
-    $('#nueva_asistencia').click(function() {
-        cargarAlumnosAsistencia();
-        autoHora = true;
-        actualizarHora();
-        $('#modal_asistencia').modal('show');
-        $('#estado_asistencia').off('change', toggleHoraByEstado).on('change', toggleHoraByEstado);
-        toggleHoraByEstado();
-    });
-
-    $('#hora_actual').on('focus input change', function(){
-        autoHora = false;
-    });
-
-    $('#form_asistencia').submit(function(e) {
-        e.preventDefault();
-        start_load();
-        let formData = $(this).serializeArray();
-        let horaInput = formData.find(f => f.name === 'hora');
-        let estadoInput = formData.find(f => f.name === 'estado');
-        let estadoVal = estadoInput ? estadoInput.value : '';
-        if (horaInput && horaInput.value && horaInput.value.length === 5) {
-            horaInput.value = horaInput.value + ':00';
-        }
-        let dataObj = {};
-        formData.forEach(function(item) {
-            dataObj[item.name] = item.value;
-        });
-        if (estadoVal === 'Ausente') {
-            dataObj['hora'] = '00:00:00';
-        }
-        if (estadoVal === 'Ausente' && $('#chk_justificada').is(':checked')) {
-            dataObj['estado'] = 'Ausente Justificada';
-        }
-        $.ajax({
-            url: 'ajax.php?action=save_asistencia',
-            method: 'POST',
-            data: dataObj,
-            dataType: 'json',
-            success: function(resp) {
-                if(resp.status == 1) {
-                    alert_toast(resp.message, 'success');
-                    setTimeout(function(){ 
-                        $('#modal_asistencia').modal('hide');
-                        cargarAsistencia($('#filtro_fecha').val(), $('#filtro_tipo').val());
-                        end_load();
-                    }, 800);
-                } else {
-                    alert_toast(resp.message, 'danger');
-                    end_load();
-                }
-            },
-            error: function() {
-                alert_toast('Error al guardar asistencia.', 'danger');
-                end_load();
-            }
-        });
-    });
-
-    $('#barcode_input').on('keypress', function(e) {
-        if (e.which == 13) {
-            let dni = $(this).val().trim();
-            let fecha = $('#filtro_fecha').val();
-            let tipo = $('#barcode_tipo').val();
-            if (dni.length === 0) return;
-            start_load();
-            var now = new Date();
-            var horaActual = String(now.getHours()).padStart(2, '0') + ':' + 
-                            String(now.getMinutes()).padStart(2, '0') + ':' + 
-                            String(now.getSeconds()).padStart(2, '0');
-            $.ajax({
-                url: 'ajax.php?action=save_asistencia_barcode',
-                method: 'POST',
-                data: { 
-                    dni: dni, 
-                    fecha: fecha, 
-                    tipo: tipo,
-                    hora_actual: horaActual
-                },
-                dataType: 'json',
-                success: function(resp) {
-                    if(resp.status == 1) {
-                        alert_toast(resp.message, 'success');
-                        cargarAsistencia(fecha, $('#filtro_tipo').val());
-                    } else {
-                        alert_toast(resp.message, 'danger');
-                    }
-                    $('#barcode_input').val('').focus();
-                    end_load();
-                },
-                error: function() {
-                    alert_toast('Error al registrar asistencia.', 'danger');
-                    $('#barcode_input').val('').focus();
-                    end_load();
-                }
-            });
-        }
-    });
-});
-
-function badgeClass(estado) {
-    switch(estado) {
-        case 'Temprano': return 'badge badge-success';
-        case 'Normal': return 'badge badge-warning';
-        case 'Tarde': return 'badge badge-danger';
-        default:
-            if (typeof estado === 'string' && estado.indexOf('Ausente') === 0) return 'badge badge-secondary';
-            return 'badge badge-secondary';
-    }
-}
+(function($){const api='attendance_api.php',csrf=<?=json_encode($csrf)?>;let roster=[],closed=false,loaded=false;const esc=v=>$('<div>').text(v==null?'':v).html(),post=(a,d)=>$.post(api+'?action='+a,$.extend({csrf_token:csrf},d||{}),null,'json');
+function msg(text,type='info'){$('#at-message').html(text?'<div class="alert alert-'+type+'">'+esc(text)+'</div>':'')}
+function params(){return{date:$('#at-date').val(),nivel:$('#at-level').val(),grado:$('#at-grade').val(),seccion:$('#at-section').val()}}
+function statusOptions(value){return['','Presente','Tarde','Ausente','Ausente Justificada','Permiso'].map(x=>'<option value="'+x+'" '+(x===value?'selected':'')+'>'+(x||'Sin marcar')+'</option>').join('')}
+function render(data){roster=data.rows||[];closed=!!data.closed;loaded=true;let h='';roster.forEach((r,i)=>{let state=r.estado||'',absent=state.indexOf('Ausente')===0||state==='Permiso';h+='<tr class="'+(!state?'at-row-unmarked':'')+'" data-student="'+r.id+'" data-record="'+(r.attendance_id||0)+'"><td>'+(i+1)+'</td><td class="at-student"><strong>'+esc(r.name)+'</strong><div class="small text-muted">'+esc(r.id_no)+' · '+esc(r.nivel+' '+r.grado+' '+r.seccion)+'</div></td><td><select class="form-control form-control-sm at-status" '+(closed?'disabled':'')+'>'+statusOptions(state)+'</select></td><td><input type="time" step="1" class="form-control form-control-sm at-time" value="'+(!absent&&r.hora&&r.hora!=='00:00:00'?esc(r.hora):'')+'" '+(closed||absent?'disabled':'')+'></td><td><input class="form-control form-control-sm at-notes" maxlength="500" value="'+esc(r.notes||'')+'" '+(closed?'disabled':'')+'></td><td><span class="badge badge-light">'+esc(r.source||'Pendiente')+'</span></td><td>'+(r.attendance_id&&absent?'<button class="btn btn-sm btn-link justify" title="Justificar"><i class="fas fa-file-medical"></i></button>':'')+(r.attendance_id&&!closed?'<button class="btn btn-sm btn-link text-danger cancel-mark" title="Anular"><i class="fas fa-ban"></i></button>':'')+'</td></tr>'});$('#at-body').html(h||'<tr><td colspan="7" class="text-center py-4">No hay estudiantes activos en esta aula.</td></tr>');let s=data.summary||{};['expected','present','late','absent','justified','unmarked'].forEach(k=>$('#k-'+k).text(s[k]||0));$('#at-class-label').text([params().nivel,params().grado,params().seccion,params().date].join(' · '));$('#mark-all,#save-roster').prop('disabled',closed||!roster.length);$('#toggle-close').prop('disabled',!roster.length).html(closed?'<i class="fas fa-lock-open mr-1"></i>Reabrir día':'<i class="fas fa-lock mr-1"></i>Cerrar día').toggleClass('btn-outline-secondary',!closed).toggleClass('btn-outline-warning',closed);if(data.holiday)$('#at-day-note').removeClass('d-none').html('<div class="alert alert-warning mb-0"><strong>'+esc(data.holiday.name)+'</strong> · '+esc(data.holiday.day_type)+(closed?' · Día cerrado':'')+'</div>');else if(closed)$('#at-day-note').removeClass('d-none').html('<div class="at-closed"><strong>Día cerrado.</strong> Reabra la asistencia para modificarla.</div>');else $('#at-day-note').addClass('d-none').empty()}
+function load(){let p=params();if(!p.nivel||!p.grado||!p.seccion)return msg('Seleccione nivel, grado y sección.','warning');start_load();$.getJSON(api,$.extend({action:'roster'},p)).done(r=>r.status?render(r):msg(r.message,'danger')).fail(x=>msg((x.responseJSON||{}).message||'No se pudo cargar la nómina.','danger')).always(end_load)}
+function fill(select,items,label){select.html('<option value="">'+label+'</option>'+items.map(x=>'<option>'+esc(x)+'</option>').join('')).prop('disabled',false)}
+$.getJSON(api,{action:'meta'}).done(r=>{fill($('#at-level'),r.levels||[],'Seleccione')}).fail(x=>msg((x.responseJSON||{}).message||'No se pudo iniciar el módulo.','danger'));
+$('#at-level').change(function(){fill($('#at-grade'),[],'Cargando...');$('#at-section').html('<option value="">Seleccione</option>').prop('disabled',true);if(!this.value)return $('#at-grade').prop('disabled',true);$.getJSON(api,{action:'class_options',nivel:this.value}).done(r=>fill($('#at-grade'),r.data||[],'Seleccione'))});
+$('#at-grade').change(function(){let level=$('#at-level').val();if(!this.value)return $('#at-section').html('<option value="">Seleccione</option>').prop('disabled',true);$.getJSON(api,{action:'class_options',nivel:level,grado:this.value}).done(r=>fill($('#at-section'),r.data||[],'Seleccione'))});
+$('#at-load,#at-refresh').click(load);$('#mark-all').click(function(){$('.at-status').filter(function(){return !this.value}).val('Presente').trigger('change')});
+$(document).on('change','.at-status',function(){let v=this.value,row=$(this).closest('tr'),abs=['Ausente','Ausente Justificada','Permiso'].includes(v),time=row.find('.at-time');row.toggleClass('at-row-unmarked',!v);time.prop('disabled',closed||abs);if(abs)time.val('')});
+$('#save-roster').click(function(){let p=params(),rows=[];$('#at-body tr[data-student]').each(function(){rows.push({student_id:$(this).data('student'),status:$(this).find('.at-status').val(),time:$(this).find('.at-time').val(),notes:$(this).find('.at-notes').val()})});start_load();post('save_roster',$.extend(p,{rows:JSON.stringify(rows)})).done(r=>{alert_toast(r.message,r.status?'success':'danger');if(r.status)load()}).fail(x=>msg((x.responseJSON||{}).message||'No se pudo guardar.','danger')).always(end_load)});
+$('#toggle-close').click(function(){let p=params(),action=closed?'reopen_day':'close_day';if(!closed&&!confirm('¿Cerrar la asistencia de esta aula? No podrá modificarse hasta reabrirla.'))return;if(closed){let reason=prompt('Motivo de reapertura:');if(reason===null)return;p.reason=reason}start_load();post(action,p).done(r=>{alert_toast(r.message,r.status?'success':'warning');if(r.status)load()}).always(end_load)});
+$('#scan-dni').keypress(function(e){if(e.which!==13)return;e.preventDefault();let dni=this.value.trim();if(!dni)return;start_load();post('scan',{dni:dni,date:$('#at-date').val(),tipo:$('#scan-type').val()}).done(r=>{alert_toast(r.message,r.status?'success':'danger');if(r.status&&loaded)load();$('#scan-dni').val('').focus()}).always(end_load)});
+$(document).on('click','.justify',function(){$('#justify-id').val($(this).closest('tr').data('record'));$('#justify-reason').val('');$('#justifyModal').modal('show')});$('#justify-form').submit(function(e){e.preventDefault();post('justify',{id:$('#justify-id').val(),status:$('#justify-status').val(),reason:$('#justify-reason').val()}).done(r=>{alert_toast(r.message,r.status?'success':'danger');if(r.status){$('#justifyModal').modal('hide');load()}})});
+$(document).on('click','.cancel-mark',function(){let id=$(this).closest('tr').data('record'),reason=prompt('Motivo de anulación:');if(reason===null)return;post('cancel',{id:id,reason:reason}).done(r=>{alert_toast(r.message,r.status?'success':'danger');if(r.status)load()})});
+})(jQuery);
 </script>
+<?php endif;?>

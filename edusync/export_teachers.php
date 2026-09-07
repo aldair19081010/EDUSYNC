@@ -4,7 +4,7 @@ require_login_modal();
 include 'db_connect.php';
 
 $school_id = intval($_SESSION['login_school_id'] ?? 0);
-if ((int)($_SESSION['login_type'] ?? 0) !== 1 && (int)($_SESSION['login_is_director'] ?? 0) !== 1) {
+if ((int)($_SESSION['login_type'] ?? 0) !== 1) {
     http_response_code(403);
     exit('No tiene permiso para exportar docentes.');
 }

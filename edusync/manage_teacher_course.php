@@ -19,7 +19,8 @@ if ($academic_year_id == 0) {
 
 $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $teacher_id = isset($_GET['teacher_id']) ? intval($_GET['teacher_id']) : '';
-$course_id = $grado = $seccion = '';
+$course_id = isset($_GET['course_id']) ? intval($_GET['course_id']) : '';
+$grado = $seccion = '';
 $teacher_name = '';
 $existing_assignments = [];
 $opened_from_teachers = ($_GET['source'] ?? '') === 'teachers';
@@ -76,7 +77,7 @@ if (!empty($teacher_id)) {
 		box-shadow: 0 0 0 0.2rem rgba(66,133,244,0.25);
 	}
 
-	#msg {
+	#teacher-course-msg {
 		margin-bottom: 15px;
 	}
 
@@ -133,7 +134,7 @@ if (!empty($teacher_id)) {
 		<input type="hidden" name="school_id" value="<?php echo $school_id ?>">
 		<input type="hidden" name="academic_year_id" value="<?php echo $academic_year_id ?>">
 		
-		<div id="msg" class="form-group"></div>
+		<div id="teacher-course-msg" class="form-group"></div>
 		
 		<!-- Sección: Información General -->
 		<div class="form-section">
@@ -183,10 +184,14 @@ if (!empty($teacher_id)) {
 					<select <?php echo !empty($id) ? 'name="course_id"' : ''; ?> id="course_val" class="form-control select2" data-placeholder="Seleccione un curso" <?php echo !empty($id) ? 'required' : ''; ?>>
 						<option value="">Seleccione un curso</option>
 						<?php
-						$courses = $conn->query("SELECT id, name, level FROM academic_courses WHERE school_id = $school_id ORDER BY name ASC");
+						$course_year_column = $conn->query("SHOW COLUMNS FROM academic_courses LIKE 'academic_year_id'");
+						$course_year_filter = ($course_year_column && $course_year_column->num_rows > 0 && $academic_year_id > 0) ? " AND academic_year_id = $academic_year_id" : '';
+						$course_status_column = $conn->query("SHOW COLUMNS FROM academic_courses LIKE 'course_status'");
+						$course_status_filter = ($course_status_column && $course_status_column->num_rows > 0) ? " AND (course_status='Activo'" . (!empty($course_id) ? " OR id=" . intval($course_id) : '') . ")" : '';
+						$courses = $conn->query("SELECT id, name, level, COALESCE(grades,'') grades FROM academic_courses WHERE school_id = $school_id$course_year_filter$course_status_filter ORDER BY name ASC");
 						while ($row = $courses->fetch_assoc()):
 						?>
-						<option value="<?php echo $row['id'] ?>" <?php echo ($course_id == $row['id']) ? 'selected' : '' ?>><?php echo ucwords($row['name']) ?> (<?php echo $row['level'] ?>)</option>
+						<option value="<?php echo $row['id'] ?>" data-level="<?php echo htmlspecialchars($row['level'], ENT_QUOTES, 'UTF-8'); ?>" data-grades="<?php echo htmlspecialchars($row['grades'], ENT_QUOTES, 'UTF-8'); ?>" <?php echo ($course_id == $row['id']) ? 'selected' : '' ?>><?php echo ucwords($row['name']) ?> (<?php echo $row['level'] ?>)</option>
 						<?php endwhile; ?>
 					</select>
 				</div>
@@ -283,6 +288,29 @@ if (!empty($teacher_id)) {
 			});
 		});
 
+		function refreshCourseGrades(preserveCurrent) {
+			var option = $('#course_val option:selected');
+			var configured = String(option.attr('data-grades') || '').split(',').map(function(v){ return $.trim(v); }).filter(Boolean);
+			var level = option.attr('data-level') || '';
+			var levelGrades = {
+				'Inicial': ['3 años','4 años','5 años'],
+				'Primaria': ['1°','2°','3°','4°','5°','6°'],
+				'Secundaria': ['1°','2°','3°','4°','5°']
+			};
+			var allowed = configured.length ? configured : (levelGrades[level] || []);
+			var current = preserveCurrent ? $('#grado_val').val() : '';
+			var html = '<option value="">Seleccione un grado</option>';
+			allowed.forEach(function(grade){ html += '<option value="'+$('<div>').text(grade).html()+'">'+$('<div>').text(grade).html()+'</option>'; });
+			$('#grado_val').html(html);
+			if (current && allowed.indexOf(current) !== -1) $('#grado_val').val(current);
+			$('#grado_val').trigger('change.select2');
+			if (option.val() && configured.length) $('#teacher-course-msg').html('<div class="alert alert-info py-2"><i class="fa fa-info-circle"></i> Este curso está disponible para: <strong>'+configured.join(', ')+'</strong>.</div>');
+			else if (!option.val()) $('#teacher-course-msg').html('');
+		}
+
+		$('#course_val').on('change', function(){ refreshCourseGrades(false); });
+		refreshCourseGrades(true);
+
 		// Manejar cambios en docente para extraer el ID
 		$('#teacher_id').on('change', function() {
 			var selectedName = $(this).val();
@@ -299,7 +327,7 @@ if (!empty($teacher_id)) {
 			var seccionId = $('#seccion_val').val();
 
 			if (!courseId || !gradoId || !seccionId) {
-				$('#msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Por favor seleccione un curso, un grado y una sección válidos antes de añadir a la lista.</div>');
+				$('#teacher-course-msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Por favor seleccione un curso, un grado y una sección válidos antes de añadir a la lista.</div>');
 				return;
 			}
 			
@@ -314,7 +342,7 @@ if (!empty($teacher_id)) {
 				}
 			});
 			if (exist) {
-				$('#msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Esa combinación de curso, grado y sección ya está en la lista.</div>');
+				$('#teacher-course-msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Esa combinación de curso, grado y sección ya está en la lista.</div>');
 				return;
 			}
 
@@ -329,7 +357,7 @@ if (!empty($teacher_id)) {
 			// Limpiar selects si se desea un flujo rápido
 			$('#grado_val').val('').trigger('change');
 			$('#seccion_val').val('').trigger('change');
-			$('#msg').html('');
+			$('#teacher-course-msg').html('');
 		});
 
 		// Eliminar de la lista
@@ -354,12 +382,12 @@ if (!empty($teacher_id)) {
 						<?php if ($opened_from_teachers): ?>$(document).trigger('teacher:saved');<?php endif; ?>
 					} else {
 						button.prop('disabled', false).html('<i class="fa fa-unlink mr-1"></i>Desasignar');
-						$('#msg').html('<div class="alert alert-danger">' + (resp.message || 'No se pudo desasignar el curso.') + '</div>');
+						$('#teacher-course-msg').html('<div class="alert alert-danger">' + (resp.message || 'No se pudo desasignar el curso.') + '</div>');
 					}
 				},
 				error: function(){
 					button.prop('disabled', false).html('<i class="fa fa-unlink mr-1"></i>Desasignar');
-					$('#msg').html('<div class="alert alert-danger">Error del servidor al desasignar el curso.</div>');
+					$('#teacher-course-msg').html('<div class="alert alert-danger">Error del servidor al desasignar el curso.</div>');
 				}
 			});
 		});
@@ -374,11 +402,11 @@ if (!empty($teacher_id)) {
 	$('#manage-teacher-course').submit(function(e){
 		e.preventDefault();
 		start_load();
-		$('#msg').html('');
+		$('#teacher-course-msg').html('');
 
 		// Validaciones básicas
 		if (!$('#teacher_id_hidden').val()) {
-			$('#msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Por favor seleccione un docente</div>');
+			$('#teacher-course-msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Por favor seleccione un docente</div>');
 			end_load();
 			return;
 		}
@@ -386,14 +414,14 @@ if (!empty($teacher_id)) {
 		<?php if(empty($id)): ?>
 		// Validar que haya al menos 1 fila en la tabla cuando se está creando
 		if ($('#assignment_table tbody tr.new-assignment-row').length === 0) {
-			$('#msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Los cursos marcados como “Ya asignado” no necesitan guardarse nuevamente. Añada una asignación nueva o cierre el formulario.</div>');
+			$('#teacher-course-msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Los cursos marcados como “Ya asignado” no necesitan guardarse nuevamente. Añada una asignación nueva o cierre el formulario.</div>');
 			end_load();
 			return;
 		}
 		<?php else: ?>
 		// Validar cuando se edita
 		if (!$('#course_val').val() || !$('#grado_val').val() || !$('#seccion_val').val()) {
-			$('#msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Todos los campos son obligatorios.</div>');
+			$('#teacher-course-msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-circle"></i> Todos los campos son obligatorios.</div>');
 			end_load();
 			return;
 		}
@@ -412,20 +440,28 @@ if (!empty($teacher_id)) {
 						<?php if ($opened_from_teachers): ?>
 						$(document).trigger('teacher:saved');
 						<?php else: ?>
-						location.reload();
+						$(document).trigger('teacher:courses-changed');
 						<?php endif; ?>
 					}, 1500);
 				} else if(resp.status == 2){
-					$('#msg').html('<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> El docente ya está asignado a este curso en este grado y sección.</div>');
+					$('#teacher-course-msg').html('<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> El docente ya está asignado a este curso en este grado y sección.</div>');
 					end_load();
+				} else if(resp.status == 3 && resp.conflict){
+					end_load();
+					if (window.confirm(resp.message || 'Otro docente ya tiene esta asignación. ¿Deseas compartirla?')) {
+						if (!$('#manage-teacher-course input[name="allow_conflict"]').length) $('#manage-teacher-course').append('<input type="hidden" name="allow_conflict" value="1">');
+						$('#manage-teacher-course').trigger('submit');
+					} else {
+						$('#teacher-course-msg').html('<div class="alert alert-warning"><i class="fa fa-exclamation-triangle"></i> La asignación no fue guardada porque existe un conflicto.</div>');
+					}
 				} else {
-					$('#msg').html('<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> ' + (resp.message || "Ocurrió un error") + '</div>');
+					$('#teacher-course-msg').html('<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> ' + (resp.message || "Ocurrió un error") + '</div>');
 					end_load();
 				}
 			},
 			error: function(xhr, status, error){
 				console.error("Error en la solicitud AJAX:", error);
-				$('#msg').html('<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> Ocurrió un error en el servidor. Verifique la consola para más detalles.</div>');
+				$('#teacher-course-msg').html('<div class="alert alert-danger"><i class="fa fa-exclamation-circle"></i> Ocurrió un error en el servidor. Verifique la consola para más detalles.</div>');
 				end_load();
 			}
 		});

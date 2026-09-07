@@ -1,255 +1,37 @@
 <?php
-include('db_connect.php');
-
-$login_type = $_SESSION['login_type'] ?? null;
-$teacher_id = $_SESSION['login_teacher_id'] ?? null;
-$school_id = $_SESSION['login_school_id'] ?? 0;
-
-if ($login_type != 2 || empty($teacher_id)) {
-    echo "<div class='container-fluid py-5'><div class='alert alert-danger text-center'>Solo los docentes pueden ver sus cursos asignados.</div></div>";
-    exit;
-}
-
-$active_year = ['id' => 0, 'year' => '', 'description' => ''];
-$stmt_year = $conn->prepare("SELECT id, year, description FROM academic_year WHERE school_id = ? AND is_active = 1 LIMIT 1");
-if ($stmt_year) {
-    $stmt_year->bind_param('i', $school_id);
-    $stmt_year->execute();
-    $res_year = $stmt_year->get_result();
-    if ($res_year && $res_year->num_rows > 0) {
-        $row_year = $res_year->fetch_assoc();
-        $active_year = [
-            'id' => (int)$row_year['id'],
-            'year' => (string)$row_year['year'],
-            'description' => (string)($row_year['description'] ?? '')
-        ];
-    }
-    $stmt_year->close();
-}
-
-$areas = [];
-$total_courses = 0;
-$sql = "SELECT 
-            a.id AS area_id,
-            a.name AS area_name,
-            a.color AS area_color,
-            a.description AS area_description,
-            GROUP_CONCAT(DISTINCT CONCAT(
-                COALESCE(ac.name,''),'|',
-                COALESCE(tc.grado,''),'|',
-                COALESCE(tc.seccion,''),'|',
-                COALESCE(ac.level,''),'|',
-                COALESCE(ay_assignment.year,'')
-            ) ORDER BY ac.name SEPARATOR '||') AS teacher_courses
-        FROM areas a
-        INNER JOIN academic_courses ac ON ac.area_id = a.id
-        INNER JOIN teacher_courses tc ON tc.course_id = ac.id
-        INNER JOIN academic_year ay_assignment ON tc.academic_year_id = ay_assignment.id
-        WHERE tc.teacher_id = ?
-          AND tc.school_id = ?
-          AND a.school_id = ?
-          AND ay_assignment.is_active = 1
-        GROUP BY a.id, a.name, a.color, a.description
-        ORDER BY a.name";
-
-$stmt = $conn->prepare($sql);
-if ($stmt) {
-    $stmt->bind_param('iii', $teacher_id, $school_id, $school_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    while ($row = $result->fetch_assoc()) {
-        $courses_raw = $row['teacher_courses'] ? explode('||', $row['teacher_courses']) : [];
-        $courses = [];
-        foreach ($courses_raw as $item) {
-            if (empty($item)) continue;
-            $parts = explode('|', $item);
-            if (count($parts) >= 5) {
-                $courses[] = [
-                    'name' => $parts[0],
-                    'grado' => $parts[1],
-                    'seccion' => $parts[2] ?: 'U',
-                    'level' => $parts[3],
-                    'year' => $parts[4]
-                ];
-            }
-        }
-        $total_courses += count($courses);
-        $areas[] = [
-            'id' => $row['area_id'],
-            'name' => $row['area_name'],
-            'color' => $row['area_color'] ?: '#4e73df',
-            'description' => $row['area_description'],
-            'courses' => $courses
-        ];
-    }
-    $stmt->close();
-}
+include 'db_connect.php';
+$loginType=(int)($_SESSION['login_type']??0);$teacherId=(int)($_SESSION['login_teacher_id']??0);$schoolId=(int)($_SESSION['login_school_id']??0);
+if($loginType!==2||$teacherId<=0||$schoolId<=0){echo "<div class='py-5'><div class='alert alert-warning text-center'>Solo los docentes con una cuenta vinculada pueden consultar sus cursos.</div></div>";return;}
+function mc_h($v){return htmlspecialchars((string)$v,ENT_QUOTES,'UTF-8');}
+function mc_grade($v){return rtrim(trim((string)$v),"°º ").'°';}
+$years=[];$activeYearId=0;$ys=$conn->prepare('SELECT id,year,description,is_active,status FROM academic_year WHERE school_id=? ORDER BY is_active DESC,year DESC');$ys->bind_param('i',$schoolId);$ys->execute();$yr=$ys->get_result();while($y=$yr->fetch_assoc()){$years[]=$y;if((int)$y['is_active']===1)$activeYearId=(int)$y['id'];}$ys->close();
+$selectedYear=isset($_GET['course_year'])?(int)$_GET['course_year']:$activeYearId;$selectedLevel=trim($_GET['course_level']??'');$selectedGrade=trim($_GET['course_grade']??'');$selectedSection=trim($_GET['course_section']??'');$selectedArea=(int)($_GET['course_area']??0);$search=trim($_GET['course_search']??'');
+$sql="SELECT tc.id teacher_course_id,tc.course_id,tc.academic_year_id,tc.grado,COALESCE(NULLIF(tc.seccion,''),'U') seccion,ac.name course_name,ac.level,ac.course_code,ac.is_active course_is_active,COALESCE(ac.course_status,'Activo') course_status,a.id area_id,a.name area_name,a.color area_color,ay.year,ay.description year_description,ay.is_active year_is_active,COALESCE(ay.status,IF(ay.is_active=1,'Activo','Borrador')) year_status,
+(SELECT COUNT(*) FROM student st WHERE st.school_id=tc.school_id AND st.status='Activo' AND st.nivel=ac.level AND st.grado=tc.grado AND COALESCE(NULLIF(st.seccion,''),'U')=COALESCE(NULLIF(tc.seccion,''),'U')) student_count,
+(SELECT COUNT(*) FROM general_course_competencies gcc WHERE gcc.course_id=tc.course_id AND gcc.teacher_id=tc.teacher_id AND gcc.academic_year_id=tc.academic_year_id AND gcc.is_active=1) competency_count,
+(SELECT COUNT(*) FROM evaluations ev WHERE ev.teacher_course_id=tc.id AND ev.teacher_id=tc.teacher_id AND ev.academic_year_id=tc.academic_year_id) evaluation_count,
+(SELECT COUNT(DISTINCT CONCAT(eg.evaluation_id,'-',eg.student_id)) FROM evaluation_grades eg INNER JOIN evaluations evg ON evg.id=eg.evaluation_id WHERE evg.teacher_course_id=tc.id AND evg.teacher_id=tc.teacher_id AND evg.academic_year_id=tc.academic_year_id AND eg.grade<>'') grade_count
+FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id LEFT JOIN areas a ON a.id=ac.area_id AND a.school_id=tc.school_id WHERE tc.teacher_id=? AND tc.school_id=? ORDER BY ay.is_active DESC,ay.year DESC,COALESCE(a.name,'Sin área'),ac.name,tc.grado,tc.seccion";
+$stmt=$conn->prepare($sql);$stmt->bind_param('ii',$teacherId,$schoolId);$stmt->execute();$result=$stmt->get_result();$all=[];$areas=[];$levels=[];$grades=[];$sections=[];
+while($r=$result->fetch_assoc()){$r['teacher_course_id']=(int)$r['teacher_course_id'];$r['course_id']=(int)$r['course_id'];$r['academic_year_id']=(int)$r['academic_year_id'];foreach(['student_count','competency_count','evaluation_count','grade_count']as$k)$r[$k]=(int)$r[$k];$expected=$r['student_count']*$r['evaluation_count'];$r['grade_progress']=$expected>0?min(100,round($r['grade_count']/$expected*100)):0;$r['editable']=(int)$r['year_is_active']===1&&(int)$r['course_is_active']===1&&$r['course_status']==='Activo';$all[]=$r;$areas[(int)$r['area_id']]=$r['area_name']?:'Sin área';$levels[$r['level']]=$r['level'];$grades[$r['grado']]=$r['grado'];$sections[$r['seccion']]=$r['seccion'];}$stmt->close();
+$courses=array_values(array_filter($all,function($c)use($selectedYear,$selectedLevel,$selectedGrade,$selectedSection,$selectedArea,$search){if($selectedYear>0&&$c['academic_year_id']!==$selectedYear)return false;if($selectedLevel!==''&&$c['level']!==$selectedLevel)return false;if($selectedGrade!==''&&$c['grado']!==$selectedGrade)return false;if($selectedSection!==''&&$c['seccion']!==$selectedSection)return false;if($selectedArea>0&&(int)$c['area_id']!==$selectedArea)return false;if($search!==''){ $text=mb_strtolower($c['course_name'].' '.$c['area_name'].' '.$c['level'].' '.$c['grado'].' '.$c['seccion'],'UTF-8');if(mb_strpos($text,mb_strtolower($search,'UTF-8'))===false)return false;}return true;}));
+$summary=['courses'=>count($courses),'students'=>0,'competencies'=>0,'evaluations'=>0];$studentGroups=[];foreach($courses as$c){$groupKey=$c['academic_year_id'].'|'.$c['level'].'|'.$c['grado'].'|'.$c['seccion'];if(!isset($studentGroups[$groupKey])){$studentGroups[$groupKey]=true;$summary['students']+=$c['student_count'];}$summary['competencies']+=$c['competency_count'];$summary['evaluations']+=$c['evaluation_count'];}asort($areas);asort($levels);asort($grades);asort($sections);
 ?>
-
-<div class="container-fluid py-4">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fa fa-book mr-2"></i>Mis Cursos Asignados</h1>
-        <?php if ($active_year['id'] > 0): ?>
-            <span class="badge badge-success py-2 px-3">Año Académico: <?php echo htmlspecialchars($active_year['year']); ?><?php echo $active_year['description'] ? ' - ' . htmlspecialchars($active_year['description']) : ''; ?></span>
-        <?php else: ?>
-            <span class="badge badge-secondary py-2 px-3">Sin año académico activo</span>
-        <?php endif; ?>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col-md-4 mb-3">
-            <div class="card border-left-primary shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Áreas Académicas</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo count($areas); ?></div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-layer-group fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-3">
-            <div class="card border-left-info shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Cursos Asignados</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $total_courses; ?></div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-chalkboard-teacher fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-4 mb-3">
-            <div class="card border-left-warning shadow h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Año Activo</div>
-                            <div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $active_year['id'] ? htmlspecialchars($active_year['year']) : 'N/D'; ?></div>
-                        </div>
-                        <div class="col-auto">
-                            <i class="fas fa-calendar-check fa-2x text-gray-300"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <?php if (empty($areas)): ?>
-        <div class="card shadow-sm">
-            <div class="card-body text-center py-5">
-                <i class="fa fa-graduation-cap text-muted mb-3" style="font-size: 2.5rem;"></i>
-                <h5 class="text-muted">No tienes áreas académicas asignadas</h5>
-                <p class="text-muted mb-1">No hay cursos asignados en el año académico activo.</p>
-                <small class="text-muted">Consulte con la administración para la asignación de cursos.</small>
-            </div>
-        </div>
-    <?php else: ?>
-        <div class="areas-container">
-            <?php foreach ($areas as $area_index => $area): ?>
-                <div class="card shadow-sm mb-4">
-                    <div class="card-header d-flex align-items-center justify-content-between" style="background-color: #f8f9fc;">
-                        <div class="d-flex align-items-center">
-                            <span class="rounded-circle mr-3" style="background-color: <?php echo htmlspecialchars($area['color']); ?>; width: 16px; height: 16px; display: inline-block;"></span>
-                            <div>
-                                <h5 class="mb-1" style="color: <?php echo htmlspecialchars($area['color']); ?>; font-weight: 600;">
-                                    <?php echo htmlspecialchars($area['name']); ?>
-                                </h5>
-                                <?php if (!empty($area['description'])): ?>
-                                    <small class="text-muted"><?php echo htmlspecialchars($area['description']); ?></small>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                        <span class="badge badge-light" style="color: <?php echo htmlspecialchars($area['color']); ?>; border: 1px solid <?php echo htmlspecialchars($area['color']); ?>33;">
-                            <?php echo count($area['courses']); ?> curso<?php echo count($area['courses']) != 1 ? 's' : ''; ?>
-                        </span>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-0 area-courses-table" data-table-index="<?php echo $area_index; ?>">
-                                <thead class="thead-light">
-                                    <tr>
-                                        <th style="width:50px;">#</th>
-                                        <th>Curso/Capacidad</th>
-                                        <th>Grado</th>
-                                        <th>Sección</th>
-                                        <th>Nivel</th>
-                                        <th>Año Académico</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php $course_counter = 1; ?>
-                                    <?php foreach ($area['courses'] as $course): ?>
-                                        <tr>
-                                            <td><?php echo $course_counter++; ?></td>
-                                            <td class="font-weight-bold text-gray-800">
-                                                <i class="fa fa-book mr-2 text-primary"></i><?php echo htmlspecialchars($course['name']); ?>
-                                            </td>
-                                            <td><?php echo htmlspecialchars($course['grado']); ?></td>
-                                            <td><?php echo htmlspecialchars($course['seccion']); ?></td>
-                                            <td><span class="badge badge-info"><?php echo htmlspecialchars($course['level']); ?></span></td>
-                                            <td><span class="badge badge-success"><?php echo htmlspecialchars($course['year']); ?></span></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-    <?php endif; ?>
-</div>
-
 <style>
-    .areas-container .card-header { border-bottom: 1px solid #e3e6f0; }
-    .areas-container .area-courses-table thead th { font-size: 0.85rem; }
-    .areas-container .area-courses-table tbody td { vertical-align: middle; }
-    .areas-container .area-courses-table tbody tr:hover { background-color: rgba(78, 115, 223, 0.04); }
+.mc-header{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.45rem;padding:1rem 1.2rem}.mc-summary{border:1px solid #e3e6f0;border-radius:.45rem;background:#fff;height:100%;padding:.9rem 1rem}.mc-summary i{color:#4e73df}.mc-filter{background:#fff;border:1px solid #e3e6f0;border-radius:.45rem}.mc-card{border:1px solid #e3e6f0;border-radius:.5rem;background:#fff;height:100%;transition:.15s ease}.mc-card:hover{box-shadow:0 .35rem 1rem rgba(58,59,69,.1);transform:translateY(-1px)}.mc-card-head{border-bottom:1px solid #edf0f5;padding:1rem}.mc-area-dot{width:10px;height:10px;border-radius:50%;display:inline-block}.mc-meta{font-size:.78rem;color:#6e707e}.mc-stat{background:#f8f9fc;border-radius:.35rem;padding:.5rem;text-align:center}.mc-stat strong{display:block;color:#2e3a59}.mc-actions{border-top:1px solid #edf0f5;padding:.75rem}.mc-progress{height:6px}.mc-historical{background:#f8f9fc}.mc-empty{border:1px dashed #cdd2dc;border-radius:.5rem;background:#fff}.mc-action{margin:.15rem}.mc-label{font-size:.76rem;font-weight:700;color:#5a5c69;text-transform:uppercase}.mc-year-note{font-size:.8rem}
 </style>
-
-<script>
-$(function() {
-    $('.area-courses-table').each(function(index) {
-        $(this).DataTable({
-            language: {
-                emptyTable: 'No hay cursos en esta área.',
-                info: 'Mostrando _START_ a _END_ de _TOTAL_ cursos',
-                infoEmpty: 'Mostrando 0 a 0 de 0 cursos',
-                infoFiltered: '(filtrado de _MAX_ cursos en total)',
-                lengthMenu: 'Mostrar _MENU_ cursos',
-                loadingRecords: 'Cargando...',
-                processing: 'Procesando...',
-                search: 'Buscar:',
-                zeroRecords: 'No se encontraron cursos coincidentes',
-                paginate: {
-                    first: 'Primero',
-                    last: 'Último',
-                    next: 'Siguiente',
-                    previous: 'Anterior'
-                }
-            },
-            pageLength: 5,
-            lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'Todos']],
-            order: [[1, 'asc']],
-            columnDefs: [
-                { orderable: false, targets: 0 },
-                { type: 'string', targets: [1, 2, 3, 4, 5] }
-            ],
-            responsive: true,
-            dom: '<"row"<"col-sm-6"l><"col-sm-6"f>>' +
-                 '<"row"<"col-sm-12"tr>>' +
-                 '<"row"<"col-sm-5"i><"col-sm-7"p>>'
-        });
-    });
-});
-</script>
+<div class="container-fluid py-4">
+<div class="mc-header d-md-flex justify-content-between align-items-center mb-3"><div><h1 class="h4 mb-1 text-gray-800"><i class="fas fa-book-open text-primary mr-2"></i>Mis cursos</h1><p class="mb-0 text-muted">Cursos, aulas y avance académico bajo tu responsabilidad.</p></div><a href="index.php?page=grades" class="btn btn-primary btn-sm mt-3 mt-md-0"><i class="fas fa-clipboard-list mr-1"></i>Ver evaluaciones</a></div>
+<div class="row mb-3"><?php foreach([['Cursos',$summary['courses'],'fa-book'],['Estudiantes',$summary['students'],'fa-user-graduate'],['Competencias',$summary['competencies'],'fa-star-half-alt'],['Evaluaciones',$summary['evaluations'],'fa-clipboard-check']]as$i): ?><div class="col-6 col-xl-3 mb-2"><div class="mc-summary d-flex align-items-center"><i class="fas <?php echo $i[2]; ?> fa-lg mr-3"></i><div><small class="text-muted"><?php echo $i[0]; ?></small><div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo $i[1]; ?></div></div></div></div><?php endforeach; ?></div>
+<form class="mc-filter p-3 mb-3" method="get" action="index.php"><input type="hidden" name="page" value="my_courses"><div class="d-flex align-items-center mb-2"><i class="fas fa-filter text-primary mr-2"></i><strong>Filtrar asignaciones</strong></div><div class="row align-items-end">
+<div class="col-lg-2 col-sm-6 mb-2"><label class="mc-label">Año académico</label><select class="form-control form-control-sm" name="course_year"><option value="0">Todos</option><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo$selectedYear===(int)$y['id']?'selected':''; ?>><?php echo mc_h($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
+<div class="col-lg-2 col-sm-6 mb-2"><label class="mc-label">Nivel</label><select class="form-control form-control-sm" name="course_level"><option value="">Todos</option><?php foreach($levels as$v): ?><option <?php echo$selectedLevel===$v?'selected':''; ?>><?php echo mc_h($v); ?></option><?php endforeach; ?></select></div>
+<div class="col-lg-1 col-sm-4 mb-2"><label class="mc-label">Grado</label><select class="form-control form-control-sm" name="course_grade"><option value="">Todos</option><?php foreach($grades as$v): ?><option <?php echo$selectedGrade===$v?'selected':''; ?>><?php echo mc_h($v); ?></option><?php endforeach; ?></select></div>
+<div class="col-lg-1 col-sm-4 mb-2"><label class="mc-label">Sección</label><select class="form-control form-control-sm" name="course_section"><option value="">Todas</option><?php foreach($sections as$v): ?><option <?php echo$selectedSection===$v?'selected':''; ?>><?php echo mc_h($v); ?></option><?php endforeach; ?></select></div>
+<div class="col-lg-2 col-sm-4 mb-2"><label class="mc-label">Área</label><select class="form-control form-control-sm" name="course_area"><option value="0">Todas</option><?php foreach($areas as$id=>$v): ?><option value="<?php echo$id; ?>" <?php echo$selectedArea===$id?'selected':''; ?>><?php echo mc_h($v); ?></option><?php endforeach; ?></select></div>
+<div class="col-lg-2 col-sm-8 mb-2"><label class="mc-label">Buscar curso</label><input class="form-control form-control-sm" name="course_search" value="<?php echo mc_h($search); ?>" placeholder="Nombre o aula"></div><div class="col-lg-2 col-sm-4 mb-2"><button class="btn btn-primary btn-sm"><i class="fas fa-search mr-1"></i>Aplicar</button> <a href="index.php?page=my_courses" class="btn btn-light btn-sm">Limpiar</a></div></div></form>
+<?php if(!$courses): ?><div class="mc-empty text-center py-5"><i class="fas fa-book text-gray-300 fa-3x mb-3"></i><h5 class="text-gray-700">No hay cursos para estos filtros</h5><p class="text-muted mb-0">Prueba limpiando los filtros o consulta con administración si falta una asignación.</p></div><?php else: ?><div class="row">
+<?php foreach($courses as$c):$color=preg_match('/^#[0-9a-fA-F]{6}$/',(string)$c['area_color'])?$c['area_color']:'#4e73df'; ?><div class="col-xl-4 col-lg-6 mb-3"><article class="mc-card <?php echo$c['editable']?'':'mc-historical'; ?>"><div class="mc-card-head"><div class="d-flex justify-content-between align-items-start"><div><div class="mc-meta mb-1"><span class="mc-area-dot mr-1" style="background:<?php echo mc_h($color); ?>"></span><?php echo mc_h($c['area_name']?:'Sin área'); ?></div><h5 class="mb-1 text-gray-800"><?php echo mc_h($c['course_name']); ?></h5><div class="mc-meta"><?php echo mc_h($c['level'].' · '.mc_grade($c['grado']).' '.$c['seccion']); ?></div></div><span class="badge badge-<?php echo$c['editable']?'success':'secondary'; ?>"><?php echo$c['editable']?'Activo':'Solo lectura'; ?></span></div><div class="mc-year-note text-muted mt-2"><i class="far fa-calendar-alt mr-1"></i><?php echo mc_h($c['year']); ?><?php echo$c['year_description']?' · '.mc_h($c['year_description']):''; ?></div></div>
+<div class="p-3"><div class="row no-gutters mb-3"><div class="col-4 pr-1"><div class="mc-stat"><strong><?php echo$c['student_count']; ?></strong><small>Estudiantes</small></div></div><div class="col-4 px-1"><div class="mc-stat"><strong><?php echo$c['competency_count']; ?></strong><small>Competencias</small></div></div><div class="col-4 pl-1"><div class="mc-stat"><strong><?php echo$c['evaluation_count']; ?></strong><small>Evaluaciones</small></div></div></div><div class="d-flex justify-content-between mc-meta mb-1"><span>Notas registradas</span><strong><?php echo$c['grade_progress']; ?>%</strong></div><div class="progress mc-progress"><div class="progress-bar" style="width:<?php echo$c['grade_progress']; ?>%"></div></div></div>
+<div class="mc-actions"><button type="button" class="btn btn-outline-primary btn-sm mc-action mc-students" data-id="<?php echo$c['teacher_course_id']; ?>"><i class="fas fa-users mr-1"></i>Estudiantes</button><?php if($c['editable']): ?><a class="btn btn-outline-primary btn-sm mc-action" href="index.php?page=competencias&amp;level=<?php echo urlencode($c['level']); ?>&amp;course_id=<?php echo$c['course_id']; ?>"><i class="fas fa-star-half-alt mr-1"></i>Competencias</a><button type="button" class="btn btn-primary btn-sm mc-action mc-new-evaluation" data-id="<?php echo$c['teacher_course_id']; ?>"><i class="fas fa-plus mr-1"></i>Evaluación</button><?php endif; ?><a class="btn btn-outline-secondary btn-sm mc-action" href="index.php?page=grades_report&amp;academic_year_id=<?php echo$c['academic_year_id']; ?>&amp;level=<?php echo urlencode($c['level']); ?>&amp;grado=<?php echo urlencode($c['grado']); ?>&amp;seccion=<?php echo urlencode($c['seccion']); ?>&amp;course_id=<?php echo$c['course_id']; ?>"><i class="fas fa-chart-line mr-1"></i>Reporte</a></div></article></div><?php endforeach; ?></div><?php endif; ?></div>
+<script>(function($){$('.mc-students').on('click',function(){uni_modal('Estudiantes del curso','my_course_students.php?teacher_course_id='+encodeURIComponent($(this).data('id')),'modal-xl')});$('.mc-new-evaluation').on('click',function(){uni_modal('Nueva evaluación','manage_evaluation.php?teacher_course_id='+encodeURIComponent($(this).data('id')),'modal-xl')})})(jQuery);</script>

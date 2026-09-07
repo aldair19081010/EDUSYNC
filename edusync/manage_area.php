@@ -8,11 +8,18 @@ $school_id = $_SESSION['login_school_id'] ?? 0;
 
 if(isset($_GET['id'])){
     // Verificar que el área pertenezca al colegio del administrador
-    $qry = $conn->query("SELECT * FROM areas WHERE id = ".$_GET['id']." AND school_id = $school_id");
+    $area_edit_id = intval($_GET['id']);
+    $qry = $conn->query("SELECT * FROM areas WHERE id = $area_edit_id AND school_id = $school_id");
     foreach($qry->fetch_array() as $k => $val){
         $$k = $val;
     }
 }
+$academic_year_id = isset($academic_year_id) ? (int)$academic_year_id : (int)($_GET['academic_year_id'] ?? 0);
+if (!$academic_year_id) {
+    $year_q = $conn->query("SELECT id FROM academic_year WHERE school_id=$school_id AND is_active=1 LIMIT 1");
+    if ($year_q && $year_q->num_rows) $academic_year_id = (int)$year_q->fetch_assoc()['id'];
+}
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 ?>
 <style>
     .color-input-group {
@@ -77,6 +84,8 @@ if(isset($_GET['id'])){
     <form id="manage-area">
         <input type="hidden" name="id" value="<?php echo isset($id) ? $id : '' ?>">
         <input type="hidden" name="school_id" value="<?php echo $school_id ?>">
+        <input type="hidden" name="academic_year_id" value="<?php echo $academic_year_id ?>">
+        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token']) ?>">
         
         <div class="form-group">
             <label for="area_name">Nombre del Área <span class="text-danger">*</span></label>
@@ -167,7 +176,7 @@ $('#manage-area').submit(function(e){
     e.preventDefault();
     start_load();
     $.ajax({
-        url: 'ajax.php?action=save_area',
+        url: 'academic_management_api.php?action=save_area',
         method: 'POST',
         data: $(this).serialize(),
         dataType: 'json',
@@ -180,6 +189,7 @@ $('#manage-area').submit(function(e){
                     if (typeof window.updateMainTablesSafely === 'function') {
                         window.updateMainTablesSafely();
                     }
+                    $(document).trigger('academic:changed');
                     // Cerrar el modal
                     $('#uni_modal').modal('hide');
                 }, 1000);

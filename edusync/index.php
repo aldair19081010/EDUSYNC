@@ -65,7 +65,7 @@ if (!empty($_SESSION['login_id'])) {
         if ($role) {
             $current_user_type = (int)$role['type'];
             $is_director_user = (int)$role['is_director'] === 1;
-            $is_admin_user = $current_user_type === 1 || $is_director_user;
+            $is_admin_user = $current_user_type === 1;
             if ($current_user_type === 2 && ($role['teacher_status'] ?? 'Activo') === 'Inactivo') {
                 $_SESSION = [];
                 if (ini_get('session.use_cookies')) {
@@ -132,6 +132,13 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-theme@0.1.0-beta.10/dist/select2-bootstrap.min.css" rel="stylesheet" />
     <!-- Load jQuery early so inline page scripts can safely use it -->
     <script src="vendor/jquery/jquery.min.js"></script>
+    <!-- DataTables debe estar disponible antes de ejecutar scripts inline de cada módulo -->
+    <script src="vendor/datatables/jquery.dataTables.min.js"></script>
+    <script src="vendor/datatables/dataTables.bootstrap4.min.js"></script>
+    <?php if ($page === 'payments'): ?>
+    <!-- Generación local de la imagen del recibo para compartirla desde el dispositivo -->
+    <script src="js/vendor/html2canvas.min.js"></script>
+    <?php endif; ?>
     
     <!-- Logout Modal (movido al head para disponibilidad temprana) -->
     <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
@@ -300,10 +307,6 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     })(window.jQuery);
     </script>
 
-    <!-- Page level plugins -->
-    <script src="vendor/datatables/jquery.dataTables.min.js"></script>
-    <script src="vendor/datatables/dataTables.bootstrap4.min.js"></script>
-    
     <!-- Select2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 

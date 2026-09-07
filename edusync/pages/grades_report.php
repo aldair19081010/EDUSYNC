@@ -21,12 +21,6 @@ $school_id = $_SESSION['login_school_id'] ?? null;
 $login_type = $_SESSION['login_type'] ?? null;
 $is_admin = ($login_type == 1);
 $is_teacher = ($login_type == 2);
-$is_director = $_SESSION['login_is_director'] ?? 0;
-
-if ($is_director == 1) {
-    $is_admin = true;
-    $is_teacher = false;
-}
 $teacher_id = $_SESSION['login_teacher_id'] ?? null;
 
 if (!$school_id || !$login_type) {
@@ -57,12 +51,12 @@ while($row = $ray->fetch_assoc()) {
 $qay->close();
 
 // --- Obtener valores seleccionados ANTES de cargar los datos ---
-$selected_academic_year = $_POST['academic_year_id'] ?? '';
-$selected_course = $_POST['course_id'] ?? '';
-$selected_level = $_POST['level'] ?? '';
-$selected_grado = $_POST['grado'] ?? '';
-$selected_seccion = $_POST['seccion'] ?? '';
-$selected_bimestre = $_POST['bimestre'] ?? '';
+$selected_academic_year = $_POST['academic_year_id'] ?? ($_GET['academic_year_id'] ?? '');
+$selected_course = $_POST['course_id'] ?? ($_GET['course_id'] ?? '');
+$selected_level = $_POST['level'] ?? ($_GET['level'] ?? '');
+$selected_grado = $_POST['grado'] ?? ($_GET['grado'] ?? '');
+$selected_seccion = $_POST['seccion'] ?? ($_GET['seccion'] ?? '');
+$selected_bimestre = $_POST['bimestre'] ?? ($_GET['bimestre'] ?? '');
 $selected_evaluation = $_POST['evaluation_id'] ?? '';
 $selected_student = $_POST['student_id'] ?? '';
 
@@ -192,17 +186,28 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
 }
 ?>
 
-<div class="container-fluid py-4">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fa fa-chart-bar mr-2"></i> Reporte de Notas</h1>
+<style>
+.gr-report-shell{padding-top:1rem;width:100%;max-width:none}.gr-report-hero{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.55rem;padding:1.05rem 1.25rem;margin-bottom:14px;width:100%}.gr-report-hero h1{font-size:1.35rem;font-weight:700;color:#344767;margin:0}.gr-report-hero p{color:#7b8499;font-size:.84rem;margin:.15rem 0 0}.gr-filter-card,.gr-results-card{border:1px solid #e4e9f2;border-radius:9px;box-shadow:0 2px 8px rgba(31,45,61,.04);width:100%}.gr-filter-card .card-header{background:#fff;border-bottom:1px solid #eaecf4}.gr-filter-card .card-body{padding:12px 14px 4px}.gr-filter-card label{font-size:.73rem;color:#596579}.gr-tabs{display:flex;gap:.35rem;flex-wrap:wrap;border-bottom:1px solid #e3e6f0;padding-bottom:.65rem;margin-bottom:1rem}.gr-tabs .btn{border-radius:.35rem;font-size:.78rem}.gr-tabs .btn.active{background:#4e73df;color:#fff;border-color:#4e73df}.grades-view-meta{display:flex;gap:.65rem;flex-wrap:wrap}.grades-view-meta span{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.35rem;padding:.4rem .7rem;color:#5a5c69}.student-report-heading{display:grid;grid-template-columns:2fr 1fr 1fr;gap:.65rem;margin-bottom:1rem}.student-report-heading div{border:1px solid #e3e6f0;background:#f8f9fc;border-radius:.4rem;padding:.6rem}.student-report-heading small,.student-report-heading strong{display:block}.report-clean-table thead th{background:#f1f4f9;color:#344767;vertical-align:middle}.gr-results-card .card-body{padding:14px}.gr-empty{padding:2.5rem;text-align:center;color:#858796}.gr-print-frame{width:100%;height:72vh;border:0}#grades-report-table,#grades-report-table>.table-responsive,#grades-report-table .dataTables_wrapper,#grades-report-table table{width:100%!important;max-width:none!important}#grades-report-table table{margin-left:0!important;margin-right:0!important}#grades-report-table .dataTables_wrapper>.row{margin-left:0;margin-right:0}#grades-report-table .dataTables_wrapper>.row>[class*=col-]{padding-left:0;padding-right:0}.table-responsive{overflow-x:auto}@media(max-width:767px){.student-report-heading{grid-template-columns:1fr}.gr-report-shell{padding-left:0;padding-right:0}.gr-results-card .card-body{padding:10px}.gr-tabs .btn{flex:1 0 42%}}
+.gr-report-shell .gr-tabs .report-view.active,
+.gr-report-shell .gr-tabs .report-view.active:hover,
+.gr-report-shell .gr-tabs .report-view.active:focus,
+.gr-report-shell .gr-tabs .report-view.active:active{color:#fff!important;background:#4e73df!important;border-color:#4e73df!important}
+.gr-report-shell .gr-tabs .report-view.active i{color:inherit!important}
+.gr-report-shell .gr-tabs .report-view:focus-visible{outline:2px solid #344767;outline-offset:2px}
+</style>
+<div class="container-fluid gr-report-shell">
+    <div class="gr-report-hero d-sm-flex align-items-center justify-content-between">
+        <div><h1><i class="fa fa-chart-bar mr-2 text-primary"></i>Reporte de notas</h1><p>Consulta el detalle, avance del aula, seguimiento individual y evolución por bimestre.</p></div>
+        <a href="index.php?page=grades" class="btn btn-outline-primary btn-sm mt-2 mt-sm-0"><i class="fas fa-clipboard-list mr-1"></i>Evaluaciones y notas</a>
     </div>
 
-    <div class="card shadow mb-4">
+    <div class="card gr-filter-card mb-3">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary"><i class="fa fa-filter mr-2"></i> Filtros de búsqueda</h6>
         </div>
         <div class="card-body">
             <form id="filter-form">
+                <input type="hidden" name="report_view" id="report_view" value="detail">
                 <div class="row mb-3">
                     <div class="col-md-2 mb-2">
                         <label class="small font-weight-bold mb-1">Año Académico</label>
@@ -302,32 +307,42 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
                             </button>
                             <div class="dropdown-menu" aria-labelledby="export-dropdown">
                                 <a class="dropdown-item" href="#" id="print-report">
-                                    <i class="fa fa-print text-secondary"></i> Imprimir PDF
+                                    <i class="fa fa-print text-secondary"></i> Vista de impresión
                                 </a>
                                 <a class="dropdown-item" href="#" id="export-excel-report">
-                                    <i class="fa fa-file-excel text-success"></i> Exportar Excel
+                                    <i class="fa fa-file-excel text-success"></i> Excel del detalle oficial
+                                </a>
+                                <a class="dropdown-item" href="#" id="export-csv-report">
+                                    <i class="fa fa-file-csv text-primary"></i> Exportar vista CSV
                                 </a>
                             </div>
                         </div>
-                    </div>
-                    <div class="col-md-3 mb-2 d-flex align-items-end">
-                        <button type="button" class="btn btn-success btn-sm btn-block" id="show-avg-report">
-                            <i class="fa fa-chart-bar"></i> Ver Promedio
-                        </button>
                     </div>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="card shadow mb-4">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary"><i class="fa fa-table mr-2"></i> Resultados</h6>
-        </div>
+    <div class="card gr-results-card mb-4">
         <div class="card-body">
-            <div id="grades-report-table"></div>
+            <div class="gr-tabs" role="tablist">
+                <button type="button" class="btn btn-outline-primary btn-sm report-view active" data-view="detail"><i class="fas fa-list mr-1"></i>Detalle</button>
+                <button type="button" class="btn btn-outline-primary btn-sm report-view" data-view="consolidated"><i class="fas fa-users mr-1"></i>Consolidado del aula</button>
+                <button type="button" class="btn btn-outline-primary btn-sm report-view" data-view="student"><i class="fas fa-user-graduate mr-1"></i>Ficha individual</button>
+                <button type="button" class="btn btn-outline-primary btn-sm report-view" data-view="pending"><i class="fas fa-exclamation-circle mr-1"></i>Seguimiento</button>
+                <button type="button" class="btn btn-outline-primary btn-sm report-view" data-view="comparison"><i class="fas fa-chart-line mr-1"></i>Comparación bimestral</button>
+            </div>
+            <div id="grades-report-table" class="gr-empty"><i class="fas fa-filter fa-2x mb-2 d-block"></i>Seleccione los filtros y presione Buscar.</div>
         </div>
     </div>
+</div>
+
+<div class="modal fade" id="grades-print-modal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-xl" role="document"><div class="modal-content">
+    <div class="modal-header"><h5 class="modal-title"><i class="fas fa-print mr-2"></i>Vista de impresión</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+    <div class="modal-body p-0"><iframe id="grades-print-frame" class="gr-print-frame" title="Vista de impresión"></iframe></div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cerrar</button><button type="button" class="btn btn-primary btn-sm" id="confirm-print"><i class="fas fa-print mr-1"></i>Imprimir</button></div>
+  </div></div>
 </div>
 
 <!-- Modal de formato de exportación -->
@@ -587,8 +602,21 @@ $('#filter-form').submit(function(e) {
     e.preventDefault();
     
     var academic_year_id = $('#academic_year_id').val();
+    var currentView = $('#report_view').val();
     if (!academic_year_id) {
         alert_toast('Por favor, seleccione un Año Académico.', 'warning');
+        return;
+    }
+    if (currentView === 'student' && !$('#student_id').val()) {
+        alert_toast('Seleccione un alumno para generar la ficha individual.', 'warning');
+        return;
+    }
+    if (currentView === 'student' && !$('#course_id').val()) {
+        alert_toast('Seleccione un curso para calcular el promedio por competencias.', 'warning');
+        return;
+    }
+    if (currentView === 'student' && !$('#bimestre').val()) {
+        alert_toast('Seleccione un bimestre para calcular el promedio por competencias.', 'warning');
         return;
     }
     
@@ -598,62 +626,80 @@ $('#filter-form').submit(function(e) {
         $('#gradesReportData').DataTable().destroy();
     }
     
+    var requestData = $(this).serialize() + '&academic_year_id=' + $('#academic_year_id').val();
+    if (currentView === 'student') requestData += '&show_avg=1';
     $.ajax({
-        url: 'grades_report_table.php',
+        url: (currentView === 'detail' || currentView === 'student') ? 'grades_report_table.php' : 'grades_report_views.php',
         method: 'POST',
-        data: $(this).serialize() + '&academic_year_id=' + $('#academic_year_id').val(),
+        data: requestData,
+        timeout: 60000,
         success: function(resp) {
-            $('#grades-report-table').empty().html(resp);
-            end_load();
+            $('#grades-report-table').removeClass('gr-empty').empty().html(resp);
+            try { initializeReportTables(); } catch (error) { console.error('No se pudo paginar la vista:', error); }
         },
-        error: function() {
-            alert_toast("Error al cargar el reporte.", 'danger');
+        error: function(xhr, status) {
+            var message = status === 'timeout' ? 'La consulta tardó demasiado. Reduzca los filtros e inténtelo nuevamente.' : 'Error al cargar el reporte.';
+            $('#grades-report-table').html('<div class="alert alert-danger mb-0">'+message+'</div>');
+            alert_toast(message, 'danger');
+        },
+        complete: function() {
             end_load();
         }
     });
 });
 
+function initializeReportTables() {
+    $('#grades-report-table .js-report-table').each(function() {
+        $(this).addClass('table-hover').css('width', '100%');
+        if ($.fn.dataTable && !$.fn.dataTable.isDataTable(this)) {
+            $(this).DataTable({
+                autoWidth: false,
+                pageLength: 15,
+                lengthMenu: [[15,25,50,100],[15,25,50,100]],
+                order: [],
+                language: { search:'Buscar:', lengthMenu:'Mostrar _MENU_', info:'Mostrando _START_ a _END_ de _TOTAL_', infoEmpty:'Sin registros', zeroRecords:'No se encontraron resultados', paginate:{previous:'Anterior',next:'Siguiente'} }
+            });
+        }
+    });
+}
+
+$(document).on('click', '.report-view', function() {
+    $('.report-view').removeClass('active');
+    $(this).addClass('active');
+    $('#report_view').val($(this).data('view'));
+    var studentMode = $(this).data('view') === 'student';
+    $('#student_id').closest('.col-md-3').toggleClass('border-left-primary pl-3', studentMode);
+    if (studentMode && !$('#student_id').val()) {
+        alert_toast('Seleccione un alumno para la ficha individual.', 'info');
+        return;
+    }
+    if (studentMode && (!$('#course_id').val() || !$('#bimestre').val())) {
+        alert_toast('Seleccione curso y bimestre para aplicar la ponderación por competencias.', 'info');
+        return;
+    }
+    $('#filter-form').trigger('submit');
+});
+
 $('#print-report').on('click', function(e) {
     e.preventDefault();
     
-    var bimestre = $('#bimestre').val();
-    if (!bimestre) {
-        alert_toast('Debe seleccionar un bimestre para imprimir.', 'warning');
-        return;
-    }
-    
-    var tables = $('#grades-report-table table');
-    if (!tables.length) {
+    if (!$('#grades-report-table table').length) {
         alert_toast('No hay reporte para imprimir.', 'warning');
         return;
     }
-    
-    var allTablesHtml = '';
-    tables.each(function() {
-        var dataTable = $.fn.dataTable.isDataTable(this) ? $(this).DataTable() : null;
-        var fullTable;
-        if (dataTable) {
-            var originalPageLength = dataTable.page.len();
-            dataTable.page.len(-1).draw();
-            fullTable = $(dataTable.table().node()).clone();
-            fullTable.removeClass('dataTable no-footer').removeAttr('style');
-            dataTable.page.len(originalPageLength).draw();
-        } else {
-            fullTable = $(this).clone();
-        }
-        allTablesHtml += '<div style="margin-bottom:30px;">' + fullTable.prop('outerHTML') + '</div>';
-    });
-    
-    var win = window.open('', '', 'width=900,height=700');
-    win.document.write('<html><head><title>Reporte de Notas</title>');
-    win.document.write('<style>body{font-family:sans-serif;padding:20px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ccc;padding:8px;}th{background:#e3e6f0;font-weight:bold;}</style>');
-    win.document.write('</head><body>');
-    win.document.write('<h2 style="text-align:center; color:#333;">Reporte de Notas</h2>');
-    win.document.write(allTablesHtml);
-    win.document.write('</body></html>');
-    win.document.close();
-    win.focus();
-    setTimeout(function(){ win.print(); }, 500);
+    var content = $('#grades-report-table').clone();
+    content.find('.dataTables_length,.dataTables_filter,.dataTables_info,.dataTables_paginate,script').remove();
+    content.find('table').removeClass('dataTable').removeAttr('style').css('width','100%');
+    var filters = [$('#academic_year_id option:selected').text(), $('#level').val(), $('#grado').val(), $('#seccion').val(), $('#course_id option:selected').text(), $('#bimestre option:selected').text()].filter(Boolean).join(' · ');
+    var html = '<!doctype html><html><head><meta charset="utf-8"><title>Reporte de notas</title><style>body{font-family:Arial,sans-serif;color:#25324b;padding:22px;font-size:12px}h2{margin:0 0 5px;color:#344767}.meta{color:#667085;margin-bottom:18px}table{width:100%;border-collapse:collapse;margin-bottom:16px}th,td{border:1px solid #cfd6e4;padding:6px;text-align:left}th{background:#eef2f8}.badge{border:1px solid #aaa;padding:2px 5px;border-radius:4px}@page{size:landscape;margin:10mm}</style></head><body><h2>Reporte de notas</h2><div class="meta">'+$('<div>').text(filters).html()+'</div>'+content.html()+'</body></html>';
+    var frame = document.getElementById('grades-print-frame');
+    frame.srcdoc = html;
+    $('#grades-print-modal').modal('show');
+});
+
+$('#confirm-print').on('click', function(){
+    var frame = document.getElementById('grades-print-frame');
+    if (frame && frame.contentWindow) { frame.contentWindow.focus(); frame.contentWindow.print(); }
 });
 
 $('#export-excel-report').on('click', function(e) {
@@ -677,6 +723,27 @@ $('#export-excel-report').on('click', function(e) {
     }
     
     $('#export-format-modal').modal('show');
+});
+
+$('#export-csv-report').on('click', function(e) {
+    e.preventDefault();
+    var table = $('#grades-report-table table').first();
+    if (!table.length) { alert_toast('No hay datos para exportar.', 'warning'); return; }
+    var rows = [];
+    var dataTable = $.fn.dataTable && $.fn.dataTable.isDataTable(table[0]) ? table.DataTable() : null;
+    var headers = table.find('thead tr').last().find('th').map(function(){ return $(this).text().trim(); }).get();
+    rows.push(headers);
+    if (dataTable) {
+        dataTable.rows({search:'applied'}).every(function(){
+            rows.push($(this.node()).find('td').map(function(){ return $(this).text().trim(); }).get());
+        });
+    } else {
+        table.find('tbody tr').each(function(){ rows.push($(this).find('td').map(function(){ return $(this).text().trim(); }).get()); });
+    }
+    var quote = function(value){ return '"'+String(value == null ? '' : value).replace(/"/g,'""')+'"'; };
+    var csv = '\ufeff' + rows.map(function(row){ return row.map(quote).join(';'); }).join('\r\n');
+    var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    var link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'reporte_notas.csv'; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href);
 });
 
 $(document).on('click', '.format-option', function() {
@@ -718,67 +785,6 @@ $('#confirm-export').on('click', function() {
 $('#export-format-modal').on('hidden.bs.modal', function() {
     $('.format-option').removeClass('border-primary bg-light');
     $('#confirm-export').prop('disabled', true);
-});
-
-$('#show-avg-report').on('click', function() {
-    var studentId = $('#student_id').val();
-    var bimestre = $('#bimestre').val();
-    
-    if (!studentId) {
-        alert_toast('Seleccione un alumno.', 'warning');
-        return;
-    }
-    
-    if (!bimestre) {
-        alert_toast('Seleccione un bimestre.', 'warning');
-        return;
-    }
-    
-    start_load();
-    
-    var course_id = $('#course_id').val();
-    var grado = $('#grado').val();
-    var seccion = $('#seccion').val();
-    var evaluation_id = $('#evaluation_id').val();
-    var nivel = $('#level').val();
-    
-    $.ajax({
-        url: 'grades_report_table.php',
-        method: 'POST',
-        data: {
-            course_id: course_id,
-            grado: grado,
-            seccion: seccion,
-            bimestre: bimestre,
-            student_id: studentId,
-            evaluation_id: evaluation_id,
-            level: nivel,
-            academic_year_id: $('#academic_year_id').val(),
-            show_avg: 1
-        },
-        success: function(resp) {
-            var win = window.open('', '', 'width=700,height=600');
-            if (!win) {
-                alert_toast('Por favor, permita ventanas emergentes.', 'warning');
-                end_load();
-                return;
-            }
-            
-            win.document.write('<html><head><title>Promedio Final</title>');
-            win.document.write('<style>body{font-family:sans-serif;padding:20px;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{border:1px solid #ccc;padding:8px;}th{background:#e3e6f0;}</style>');
-            win.document.write('</head><body>');
-            win.document.write('<h3 style="text-align:center;">Promedio Final del Alumno</h3>');
-            win.document.write(resp);
-            win.document.write('</body></html>');
-            win.document.close();
-            win.focus();
-            end_load();
-        },
-        error: function() {
-            alert_toast('Error al calcular el promedio.', 'danger');
-            end_load();
-        }
-    });
 });
 
 function loadLevelsByAcademicYear(academic_year_id) {

@@ -17,7 +17,7 @@ if (!isset($_SESSION['login_id']) && !isset($_SESSION['login_type'])) {
 }
 include('db_connect.php');
 $school_id = isset($_SESSION['login_school_id']) ? intval($_SESSION['login_school_id']) : 0;
-$can_manage_students = (($_SESSION['login_type'] ?? 0) == 1 || ($_SESSION['login_is_director'] ?? 0) == 1);
+$can_manage_students = (($_SESSION['login_type'] ?? 0) == 1);
 // Fallback: intentar obtener school_id desde user
 if ($school_id === 0 && isset($_SESSION['login_id'])) {
     $uid = intval($_SESSION['login_id']);

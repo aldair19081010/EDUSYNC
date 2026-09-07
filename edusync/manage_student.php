@@ -4,7 +4,7 @@ include_once 'db_connect.php';
 include_once 'includes/session_check.php';
 require_login_modal();
 if (session_status() == PHP_SESSION_NONE) session_start();
-if (($_SESSION['login_type'] ?? 0) != 1 && ($_SESSION['login_is_director'] ?? 0) != 1) {
+if (($_SESSION['login_type'] ?? 0) != 1) {
     echo "<div class='alert alert-danger'>No tienes permisos para modificar estudiantes.</div>";
     return;
 }
