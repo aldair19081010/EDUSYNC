@@ -14,14 +14,14 @@
   $(window).resize(function() {
     if ($(window).width() < 768) {
       $('.sidebar .collapse').collapse('hide');
-    };
+    }
     
     // Toggle the side navigation when window is resized below 480px
     if ($(window).width() < 480 && !$(".sidebar").hasClass("toggled")) {
       $("body").addClass("sidebar-toggled");
       $(".sidebar").addClass("toggled");
       $('.sidebar .collapse').collapse('hide');
-    };
+    }
   });
 
   // Prevent the content wrapper from scrolling when the fixed side navigation hovered over
@@ -75,3 +75,151 @@
 
 })(jQuery); // End of use strict
 
+// Mejoras visuales de la ficha individual del reporte de notas.
+(function($) {
+  "use strict";
+
+  function parseGradeNumber(value) {
+    if (value === null || value === undefined) return null;
+    var text = String(value).trim().replace(',', '.');
+    if (!text || text === '—' || text === '-') return null;
+    var num = parseFloat(text);
+    return isNaN(num) ? null : num;
+  }
+
+  function gradeStatus(score) {
+    if (score === null) {
+      return { letter: '—', label: 'Sin datos', className: 'ir-status-none', color: '#858796' };
+    }
+    if (score >= 18) {
+      return { letter: 'AD', label: 'Logro destacado', className: 'ir-status-ad', color: '#13855c' };
+    }
+    if (score >= 14) {
+      return { letter: 'A', label: 'Logro esperado', className: 'ir-status-a', color: '#1cc88a' };
+    }
+    if (score >= 11) {
+      return { letter: 'B', label: 'En proceso', className: 'ir-status-b', color: '#f6c23e' };
+    }
+    return { letter: 'C', label: 'En inicio', className: 'ir-status-c', color: '#e74a3b' };
+  }
+
+  function statusBadge(status, extraClass) {
+    return $('<span>', {
+      class: 'ir-status-badge ' + status.className + (extraClass ? ' ' + extraClass : ''),
+      text: status.letter + ' · ' + status.label
+    });
+  }
+
+  function ensureStyles() {
+    if (document.getElementById('grades-individual-status-styles')) return;
+    var css = [
+      '.individual-report .ir-result{min-width:190px;text-align:center;position:relative;overflow:hidden;transition:.2s ease}',
+      '.individual-report .ir-result.ir-result-status{border-width:2px}',
+      '.individual-report .ir-result .ir-final-status{display:inline-flex;margin-top:7px}',
+      '.individual-report .ir-status-badge{display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;border-radius:999px;font-size:.76rem;font-weight:700;line-height:1.1;border:1px solid transparent;white-space:nowrap}',
+      '.individual-report .ir-status-ad{background:#d8f3e8;color:#0f6848;border-color:#9edfc8}',
+      '.individual-report .ir-status-a{background:#e0f7ee;color:#107354;border-color:#abe8d2}',
+      '.individual-report .ir-status-b{background:#fff5d6;color:#856404;border-color:#f5d77c}',
+      '.individual-report .ir-status-c{background:#fde3e1;color:#a3281d;border-color:#f3aaa4}',
+      '.individual-report .ir-status-none{background:#f1f3f5;color:#6c757d;border-color:#d8dde2}',
+      '.individual-report .ir-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 18px}',
+      '.individual-report .ir-summary-item{border:1px solid #e3e6f0;border-radius:8px;padding:10px 12px;background:#fff}',
+      '.individual-report .ir-summary-item small{display:block;color:#7b8499;font-size:.72rem;margin-bottom:3px}',
+      '.individual-report .ir-summary-item strong{display:block;font-size:1.25rem;color:#344767}',
+      '.individual-report .ir-summary-item .ir-summary-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}',
+      '.individual-report .ir-comp-status{margin-left:auto}',
+      '.individual-report .ir-card-header .badge+.ir-comp-status{margin-left:0}',
+      '@media(max-width:767px){.individual-report .ir-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.individual-report .ir-result{width:100%}}',
+      '@media print{.individual-report .ir-status-badge,.individual-report .ir-summary-item,.individual-report .ir-result{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.individual-report .ir-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}'
+    ].join('');
+    $('<style>', { id: 'grades-individual-status-styles', text: css }).appendTo('head');
+  }
+
+  function enhanceIndividualReport(root) {
+    var $report = $(root);
+    if (!$report.length || $report.attr('data-status-enhanced') === '1') return;
+
+    ensureStyles();
+
+    var competencyStates = [];
+    $report.find('.ir-card').each(function() {
+      var $card = $(this);
+      var $avgLabel = $card.find('td').filter(function() {
+        return $.trim($(this).text()).toLowerCase() === 'promedio de la competencia';
+      }).first();
+      if (!$avgLabel.length) return;
+
+      var $avgCell = $avgLabel.next('td');
+      var score = parseGradeNumber($avgCell.text());
+      if (score === null) return;
+
+      var status = gradeStatus(score);
+      competencyStates.push(status);
+
+      var $header = $card.find('.ir-card-header').first();
+      if ($header.length && !$header.find('.ir-comp-status').length) {
+        $header.append(statusBadge(status, 'ir-comp-status'));
+      }
+
+      $avgCell.find('.ir-status-badge').remove();
+      $avgCell.append($('<div>', { class: 'mt-1' }).append(statusBadge(status)));
+    });
+
+    var finalScore = parseGradeNumber($report.find('.ir-result strong').first().text());
+    if (!competencyStates.length && finalScore === 0) finalScore = null;
+    var finalStatus = gradeStatus(finalScore);
+    var $result = $report.find('.ir-result').first();
+    if ($result.length) {
+      $result.addClass('ir-result-status').css({
+        borderColor: finalStatus.color,
+        boxShadow: 'inset 4px 0 0 ' + finalStatus.color
+      });
+      $result.find('.ir-final-status').remove();
+      $result.append(statusBadge(finalStatus, 'ir-final-status'));
+    }
+
+    if (competencyStates.length && !$report.find('.ir-summary-grid').length) {
+      var counts = { good: 0, process: 0, start: 0 };
+      competencyStates.forEach(function(status) {
+        if (status.letter === 'AD' || status.letter === 'A') counts.good++;
+        else if (status.letter === 'B') counts.process++;
+        else if (status.letter === 'C') counts.start++;
+      });
+
+      var items = [
+        { label: 'Competencias evaluadas', value: competencyStates.length, color: '#4e73df' },
+        { label: 'Logro esperado / destacado', value: counts.good, color: '#1cc88a' },
+        { label: 'En proceso', value: counts.process, color: '#f6c23e' },
+        { label: 'En inicio', value: counts.start, color: '#e74a3b' }
+      ];
+      var $summary = $('<div>', { class: 'ir-summary-grid', 'aria-label': 'Resumen del desempeño' });
+      items.forEach(function(item) {
+        var $box = $('<div>', { class: 'ir-summary-item' });
+        $box.append($('<small>').append($('<span>', { class: 'ir-summary-dot' }).css('backgroundColor', item.color)).append(document.createTextNode(item.label)));
+        $box.append($('<strong>', { text: item.value }));
+        $summary.append($box);
+      });
+      $report.find('.ir-heading').first().after($summary);
+    }
+
+    $report.attr('data-status-enhanced', '1');
+  }
+
+  function scanIndividualReports() {
+    $('.individual-report').each(function() {
+      enhanceIndividualReport(this);
+    });
+  }
+
+  $(scanIndividualReports);
+
+  if (window.MutationObserver) {
+    var observer = new MutationObserver(function(mutations) {
+      var shouldScan = mutations.some(function(mutation) {
+        return mutation.addedNodes && mutation.addedNodes.length;
+      });
+      if (shouldScan) scanIndividualReports();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  }
+})(jQuery);
