@@ -312,9 +312,6 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
                                 <a class="dropdown-item" href="#" id="export-excel-report">
                                     <i class="fa fa-file-excel text-success"></i> Excel del detalle oficial
                                 </a>
-                                <a class="dropdown-item" href="#" id="export-csv-report">
-                                    <i class="fa fa-file-csv text-primary"></i> Exportar vista CSV
-                                </a>
                             </div>
                         </div>
                     </div>
@@ -723,27 +720,6 @@ $('#export-excel-report').on('click', function(e) {
     }
     
     $('#export-format-modal').modal('show');
-});
-
-$('#export-csv-report').on('click', function(e) {
-    e.preventDefault();
-    var table = $('#grades-report-table table').first();
-    if (!table.length) { alert_toast('No hay datos para exportar.', 'warning'); return; }
-    var rows = [];
-    var dataTable = $.fn.dataTable && $.fn.dataTable.isDataTable(table[0]) ? table.DataTable() : null;
-    var headers = table.find('thead tr').last().find('th').map(function(){ return $(this).text().trim(); }).get();
-    rows.push(headers);
-    if (dataTable) {
-        dataTable.rows({search:'applied'}).every(function(){
-            rows.push($(this.node()).find('td').map(function(){ return $(this).text().trim(); }).get());
-        });
-    } else {
-        table.find('tbody tr').each(function(){ rows.push($(this).find('td').map(function(){ return $(this).text().trim(); }).get()); });
-    }
-    var quote = function(value){ return '"'+String(value == null ? '' : value).replace(/"/g,'""')+'"'; };
-    var csv = '\ufeff' + rows.map(function(row){ return row.map(quote).join(';'); }).join('\r\n');
-    var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    var link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = 'reporte_notas.csv'; document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(link.href);
 });
 
 $(document).on('click', '.format-option', function() {
