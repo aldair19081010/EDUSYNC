@@ -290,6 +290,12 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <?php $sb_admin_js_version = @filemtime(__DIR__ . '/js/sb-admin-2.min.js') ?: time(); ?>
     <script src="js/sb-admin-2.min.js?v=<?php echo $sb_admin_js_version; ?>"></script>
 
+    <?php if ($page === 'grades_report'): ?>
+    <!-- Mejora exclusiva de la vista previa del reporte de notas -->
+    <?php $grades_report_preview_version = @filemtime(__DIR__ . '/js/grades_report_preview.js') ?: time(); ?>
+    <script src="js/grades_report_preview.js?v=<?php echo $grades_report_preview_version; ?>"></script>
+    <?php endif; ?>
+
     <!-- Sidebar toggle guard: rebinds the click handlers in case another script detaches them -->
     <script>
     (function($){
