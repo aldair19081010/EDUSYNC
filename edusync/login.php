@@ -264,8 +264,8 @@ if (file_exists('./db_connect.php')) {
             console.log('Tipo de usuario:', userType);
             console.log('Datos del formulario:', formData);
 
-            // Si es estudiante, usar endpoint diferente
-            var endpoint = userType === 'student' ? 'api/login.php' : 'ajax.php?action=login';
+            // Estudiantes conservan su endpoint; administradores/docentes usan autenticación moderna.
+            var endpoint = userType === 'student' ? 'api/login.php' : 'auth_login.php';
             console.log('Endpoint:', endpoint);
 
             $.ajax({
