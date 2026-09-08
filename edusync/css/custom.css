@@ -156,11 +156,58 @@ a.text-primary:focus {
     margin-top: .12rem;
 }
 
+/* Sidebar fijo en escritorio: el contenido principal puede desplazarse sin mover el menú. */
 @media (min-width: 768px) {
+    #wrapper {
+        align-items: flex-start;
+    }
+
+    .edusync-sidebar {
+        position: -webkit-sticky;
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+        height: 100vh;
+        max-height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex-shrink: 0;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, .28) transparent;
+    }
+
+    .edusync-sidebar::-webkit-scrollbar {
+        width: 5px;
+    }
+
+    .edusync-sidebar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .edusync-sidebar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, .25);
+        border-radius: 999px;
+    }
+
+    .edusync-sidebar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, .42);
+    }
+
     .edusync-sidebar.toggled .sidebar-brand-role,
     .edusync-sidebar.toggled .sidebar-heading,
     .edusync-sidebar.toggled .sidebar-group .collapse {
         display: none !important;
+    }
+}
+
+/* En pantallas pequeñas se conserva el comportamiento móvil normal. */
+@media (max-width: 767.98px) {
+    .edusync-sidebar {
+        position: static;
+        height: auto;
+        max-height: none;
+        overflow: visible;
     }
 }
 
