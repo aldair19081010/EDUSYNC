@@ -175,6 +175,7 @@ a.text-primary:focus {
         overscroll-behavior: contain;
         scrollbar-width: thin;
         scrollbar-color: rgba(255, 255, 255, .28) transparent;
+        z-index: 1035;
     }
 
     .edusync-sidebar::-webkit-scrollbar {
@@ -194,10 +195,58 @@ a.text-primary:focus {
         background: rgba(255, 255, 255, .42);
     }
 
+    /* Contraído: se ocultan solo los textos generales, no los submenús. */
     .edusync-sidebar.toggled .sidebar-brand-role,
-    .edusync-sidebar.toggled .sidebar-heading,
-    .edusync-sidebar.toggled .sidebar-group .collapse {
+    .edusync-sidebar.toggled .sidebar-heading {
         display: none !important;
+    }
+
+    /* En modo contraído el sidebar deja salir los paneles hacia la derecha. */
+    .edusync-sidebar.toggled {
+        overflow: visible !important;
+        scrollbar-width: none;
+    }
+
+    .edusync-sidebar.toggled::-webkit-scrollbar {
+        display: none;
+    }
+
+    .edusync-sidebar.toggled .sidebar-group {
+        position: relative;
+    }
+
+    .edusync-sidebar.toggled .sidebar-group > .collapse {
+        display: none !important;
+        position: absolute !important;
+        left: 100% !important;
+        top: 0 !important;
+        width: 15.5rem !important;
+        min-width: 15.5rem;
+        margin-left: .35rem;
+        z-index: 1090;
+    }
+
+    .edusync-sidebar.toggled .sidebar-group > .collapse.show {
+        display: block !important;
+        height: auto !important;
+    }
+
+    .edusync-sidebar.toggled .sidebar-group-inner {
+        margin: 0;
+        padding: .45rem;
+        border: 1px solid rgba(0, 0, 0, .06);
+        border-radius: .55rem !important;
+        box-shadow: 0 .35rem 1.25rem rgba(31, 45, 61, .22);
+        max-height: calc(100vh - 1rem);
+        overflow-y: auto;
+    }
+
+    .edusync-sidebar.toggled .sidebar-group > .sidebar-group-toggle[aria-expanded="true"] {
+        background: rgba(255, 255, 255, .12);
+    }
+
+    .edusync-sidebar.toggled .sidebar-group > .sidebar-group-toggle[aria-expanded="true"] i {
+        color: #fff;
     }
 }
 
