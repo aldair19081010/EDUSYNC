@@ -297,6 +297,12 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <script src="js/grade_closure.js?v=<?php echo $grade_closure_version; ?>"></script>
     <?php endif; ?>
 
+    <?php if ($page === 'academic_year'): ?>
+    <!-- Gestión administrativa de cierres en modal -->
+    <?php $academic_year_grade_manager_version = @filemtime(__DIR__ . '/js/academic_year_grade_manager.js') ?: time(); ?>
+    <script src="js/academic_year_grade_manager.js?v=<?php echo $academic_year_grade_manager_version; ?>"></script>
+    <?php endif; ?>
+
     <?php if ($page === 'grades_report'): ?>
     <!-- Mejora exclusiva de la vista previa del reporte de notas -->
     <?php $grades_report_preview_version = @filemtime(__DIR__ . '/js/grades_report_preview.js') ?: time(); ?>
