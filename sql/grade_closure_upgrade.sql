@@ -59,3 +59,185 @@ CREATE TABLE IF NOT EXISTS grade_period_audit_log (
     INDEX idx_grade_period_audit (school_id, academic_year_id, bimester, created_at),
     INDEX idx_grade_period_audit_assignment (teacher_course_id, bimester, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Defensa a nivel de base de datos: aunque una pantalla antigua intente escribir,
+-- un periodo cerrado permanece inmutable hasta que Administración autorice la reapertura.
+DROP TRIGGER IF EXISTS trg_grade_close_eval_insert;
+DROP TRIGGER IF EXISTS trg_grade_close_eval_update;
+DROP TRIGGER IF EXISTS trg_grade_close_eval_delete;
+DROP TRIGGER IF EXISTS trg_grade_close_grade_insert;
+DROP TRIGGER IF EXISTS trg_grade_close_grade_update;
+DROP TRIGGER IF EXISTS trg_grade_close_grade_delete;
+DROP TRIGGER IF EXISTS trg_grade_close_comp_insert;
+DROP TRIGGER IF EXISTS trg_grade_close_comp_update;
+DROP TRIGGER IF EXISTS trg_grade_close_comp_delete;
+
+DELIMITER $$
+
+CREATE TRIGGER trg_grade_close_eval_insert
+BEFORE INSERT ON evaluations
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM grade_period_closures gpc
+        INNER JOIN teacher_courses tc ON tc.id = NEW.teacher_course_id AND tc.school_id = gpc.school_id
+        WHERE gpc.teacher_course_id = NEW.teacher_course_id
+          AND gpc.bimester = CAST(NEW.bimestre AS UNSIGNED)
+          AND gpc.status = 'Cerrado'
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El bimestre está cerrado. Solicite una reapertura antes de crear evaluaciones.';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_grade_close_eval_update
+BEFORE UPDATE ON evaluations
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM grade_period_closures gpc
+        WHERE gpc.teacher_course_id = OLD.teacher_course_id
+          AND gpc.bimester = CAST(OLD.bimestre AS UNSIGNED)
+          AND gpc.status = 'Cerrado'
+        LIMIT 1
+    ) OR EXISTS (
+        SELECT 1 FROM grade_period_closures gpc
+        WHERE gpc.teacher_course_id = NEW.teacher_course_id
+          AND gpc.bimester = CAST(NEW.bimestre AS UNSIGNED)
+          AND gpc.status = 'Cerrado'
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El bimestre está cerrado. Solicite una reapertura antes de modificar evaluaciones.';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_grade_close_eval_delete
+BEFORE DELETE ON evaluations
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM grade_period_closures gpc
+        WHERE gpc.teacher_course_id = OLD.teacher_course_id
+          AND gpc.bimester = CAST(OLD.bimestre AS UNSIGNED)
+          AND gpc.status = 'Cerrado'
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El bimestre está cerrado. No se puede eliminar ni anular una evaluación.';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_grade_close_grade_insert
+BEFORE INSERT ON evaluation_grades
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM evaluations e
+        INNER JOIN grade_period_closures gpc
+            ON gpc.teacher_course_id = e.teacher_course_id
+           AND gpc.bimester = CAST(e.bimestre AS UNSIGNED)
+           AND gpc.status = 'Cerrado'
+        WHERE e.id = NEW.evaluation_id
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Las notas de este bimestre están cerradas. Solicite una reapertura.';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_grade_close_grade_update
+BEFORE UPDATE ON evaluation_grades
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM evaluations e
+        INNER JOIN grade_period_closures gpc
+            ON gpc.teacher_course_id = e.teacher_course_id
+           AND gpc.bimester = CAST(e.bimestre AS UNSIGNED)
+           AND gpc.status = 'Cerrado'
+        WHERE e.id IN (OLD.evaluation_id, NEW.evaluation_id)
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Las notas de este bimestre están cerradas. Solicite una reapertura.';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_grade_close_grade_delete
+BEFORE DELETE ON evaluation_grades
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM evaluations e
+        INNER JOIN grade_period_closures gpc
+            ON gpc.teacher_course_id = e.teacher_course_id
+           AND gpc.bimester = CAST(e.bimestre AS UNSIGNED)
+           AND gpc.status = 'Cerrado'
+        WHERE e.id = OLD.evaluation_id
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Las notas de este bimestre están cerradas. Solicite una reapertura.';
+    END IF;
+END$$
+
+-- Las competencias son compartidas por los grados del mismo curso/docente/año.
+-- Si al menos una asignación de ese curso ya fue cerrada, se congelan para proteger
+-- el porcentaje y el promedio histórico guardado en el cierre.
+CREATE TRIGGER trg_grade_close_comp_insert
+BEFORE INSERT ON general_course_competencies
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM teacher_courses tc
+        INNER JOIN grade_period_closures gpc
+            ON gpc.teacher_course_id = tc.id
+           AND gpc.status = 'Cerrado'
+        WHERE tc.course_id = NEW.course_id
+          AND tc.teacher_id = NEW.teacher_id
+          AND tc.academic_year_id = NEW.academic_year_id
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Las competencias están protegidas porque este curso ya tiene notas cerradas.';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_grade_close_comp_update
+BEFORE UPDATE ON general_course_competencies
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM teacher_courses tc
+        INNER JOIN grade_period_closures gpc
+            ON gpc.teacher_course_id = tc.id
+           AND gpc.status = 'Cerrado'
+        WHERE tc.course_id = OLD.course_id
+          AND tc.teacher_id = OLD.teacher_id
+          AND tc.academic_year_id = OLD.academic_year_id
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Las competencias están protegidas porque este curso ya tiene notas cerradas.';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_grade_close_comp_delete
+BEFORE DELETE ON general_course_competencies
+FOR EACH ROW
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM teacher_courses tc
+        INNER JOIN grade_period_closures gpc
+            ON gpc.teacher_course_id = tc.id
+           AND gpc.status = 'Cerrado'
+        WHERE tc.course_id = OLD.course_id
+          AND tc.teacher_id = OLD.teacher_id
+          AND tc.academic_year_id = OLD.academic_year_id
+        LIMIT 1
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Las competencias están protegidas porque este curso ya tiene notas cerradas.';
+    END IF;
+END$$
+
+DELIMITER ;
