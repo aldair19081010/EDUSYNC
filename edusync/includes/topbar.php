@@ -78,15 +78,30 @@ $hasAvatar = $avatarPath !== '' && file_exists($avatarPath);
 $userInitials = topbar_initials($userName);
 
 $schoolName = 'EduSync';
+$schoolLogoPath = '';
+$hasSchoolLogo = false;
 $activeAcademicYear = null;
 if ($school_id_topbar > 0) {
-    $schoolStmt = $conn->prepare('SELECT name FROM schools WHERE id = ? LIMIT 1');
+    $schoolStmt = $conn->prepare('SELECT name, logo_path FROM schools WHERE id = ? LIMIT 1');
     if ($schoolStmt) {
         $schoolStmt->bind_param('i', $school_id_topbar);
         $schoolStmt->execute();
         $schoolRow = $schoolStmt->get_result()->fetch_assoc();
         $schoolStmt->close();
         if (!empty($schoolRow['name'])) $schoolName = $schoolRow['name'];
+
+        if (!empty($schoolRow['logo_path'])) {
+            $storedSchoolLogo = ltrim(str_replace('\\', '/', trim((string)$schoolRow['logo_path'])), '/');
+            if (strpos($storedSchoolLogo, 'assets/uploads/') === 0) {
+                $candidateSchoolLogo = $storedSchoolLogo;
+            } else {
+                $candidateSchoolLogo = 'assets/uploads/' . basename($storedSchoolLogo);
+            }
+            if (is_file($candidateSchoolLogo)) {
+                $schoolLogoPath = $candidateSchoolLogo;
+                $hasSchoolLogo = true;
+            }
+        }
     }
 
     $yearTable = $conn->query("SHOW TABLES LIKE 'academic_year'");
@@ -176,7 +191,15 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
     </button>
 
     <div class="edusync-topbar-context d-none d-md-flex" title="<?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?>">
-        <span class="edusync-topbar-school-icon"><i class="fas fa-school"></i></span>
+        <span class="edusync-topbar-school-icon">
+            <?php if ($hasSchoolLogo): ?>
+                <img src="<?php echo htmlspecialchars($schoolLogoPath, ENT_QUOTES, 'UTF-8'); ?>"
+                     alt="Logo de <?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?>"
+                     style="width:100%;height:100%;object-fit:contain;border-radius:.7rem;background:#fff;padding:.12rem;">
+            <?php else: ?>
+                <i class="fas fa-school"></i>
+            <?php endif; ?>
+        </span>
         <span class="edusync-topbar-school-copy">
             <span class="edusync-topbar-school-name"><?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?></span>
             <span class="edusync-topbar-school-meta">
