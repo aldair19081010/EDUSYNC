@@ -322,3 +322,106 @@ a.text-primary:focus {
 .modal-dialog.modal-xl {
     max-width: 1200px;
 }
+
+/* Años académicos: periodos legibles y alineados en móvil. */
+@media (max-width: 767.98px) {
+    #ay-periodos .ay-section {
+        padding: 14px !important;
+        overflow: hidden;
+    }
+
+    #ay-periodos .ay-section > .d-flex:first-child {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: .75rem;
+    }
+
+    #ay-periodos #add-period {
+        width: 100%;
+        align-self: stretch;
+        min-height: 40px;
+    }
+
+    #ay-periodos #period-list {
+        display: flex;
+        flex-direction: column;
+        gap: .75rem;
+    }
+
+    #ay-periodos .ay-period-row {
+        display: grid !important;
+        grid-template-columns: 42px minmax(0, 1fr) auto !important;
+        grid-template-areas:
+            "number name name"
+            "start start start"
+            "end end end"
+            "status status remove";
+        gap: 8px 10px !important;
+        align-items: center !important;
+        margin: 0 !important;
+        padding: 12px !important;
+        border: 1px solid #e3e8f0;
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 .08rem .25rem rgba(31, 45, 61, .05);
+    }
+
+    #ay-periodos .ay-period-row .period-number {
+        grid-area: number;
+        width: 100%;
+        min-width: 36px;
+        justify-self: center;
+        text-align: center;
+    }
+
+    #ay-periodos .ay-period-row .period-name {
+        grid-area: name;
+        grid-column: auto !important;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #ay-periodos .ay-period-row .period-start {
+        grid-area: start;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #ay-periodos .ay-period-row .period-end {
+        grid-area: end;
+        width: 100%;
+        min-width: 0;
+    }
+
+    #ay-periodos .ay-period-row > .badge:not(.period-number) {
+        grid-area: status;
+        justify-self: start;
+        align-self: center;
+        margin: 0;
+    }
+
+    #ay-periodos .ay-period-row .remove-period {
+        grid-area: remove;
+        justify-self: end;
+        width: 42px;
+        height: 38px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #ay-periodos .ay-period-row .form-control {
+        height: 40px;
+        font-size: .9rem;
+    }
+
+    #ay-periodos .ay-section > .text-right.mt-3 {
+        text-align: stretch !important;
+    }
+
+    #ay-periodos #save-periods {
+        width: 100%;
+        min-height: 42px;
+    }
+}
