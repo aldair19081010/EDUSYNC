@@ -25,6 +25,17 @@ function gradebook_column_exists(mysqli $conn, string $table, string $column): b
     return $result && $result->num_rows > 0;
 }
 
+function gradebook_teacher_period_closed(mysqli $conn, int $schoolId, int $teacherCourseId, int $bimester): bool {
+    if (!gradebook_table_exists($conn, 'grade_period_closures')) return false;
+    $stmt = $conn->prepare("SELECT id FROM grade_period_closures WHERE school_id=? AND teacher_course_id=? AND bimester=? AND status='Cerrado' LIMIT 1");
+    if (!$stmt) return false;
+    $stmt->bind_param('iii', $schoolId, $teacherCourseId, $bimester);
+    $stmt->execute();
+    $closed = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $closed;
+}
+
 $schoolId = (int)($_SESSION['login_school_id'] ?? 0);
 $teacherId = (int)($_SESSION['login_teacher_id'] ?? 0);
 $loginType = (int)($_SESSION['login_type'] ?? 0);
@@ -155,12 +166,18 @@ if ($action === 'load') {
         $lockResult = $conn->query("SELECT is_locked FROM bimester_locks WHERE academic_year_id=".(int)$assignment['academic_year_id']." AND school_id=$schoolId AND bimester=$bimester LIMIT 1");
         $locked = $lockResult && $lockResult->num_rows && (int)$lockResult->fetch_assoc()['is_locked'] === 1;
     }
+    $teacherClosed = gradebook_teacher_period_closed($conn, $schoolId, $teacherCourseId, $bimester);
     $yearReadOnly = (int)$assignment['is_active'] !== 1 || (isset($assignment['year_status']) && in_array($assignment['year_status'], ['Cerrado','Archivado'], true));
 
     $competencies=[];
     $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id']." AND is_active=1 ORDER BY id");
     while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>(float)$row['percentage']];
     foreach($evaluations as $evaluation){$found=false;foreach($competencies as $competency)if($competency['id']===$evaluation['competencia_id']){$found=true;break;}if(!$found&&$evaluation['competencia_id']>0)$competencies[]=['id'=>$evaluation['competencia_id'],'name'=>$evaluation['competency_name']?:'Competencia histórica','percentage'=>$evaluation['competency_percentage']];}
+
+    $readOnlyReason = '';
+    if ($locked) $readOnlyReason = 'El bimestre está bloqueado institucionalmente.';
+    elseif ($yearReadOnly) $readOnlyReason = 'El año académico es histórico o está cerrado.';
+    elseif ($teacherClosed) $readOnlyReason = 'Las notas de este curso y bimestre fueron cerradas por el docente.';
 
     gradebook_response([
         'status' => 1,
@@ -173,8 +190,9 @@ if ($action === 'load') {
         'competencies' => $competencies,
         'students' => $students,
         'grades' => $grades,
-        'read_only' => $locked || $yearReadOnly,
-        'read_only_reason' => $locked ? 'El bimestre está bloqueado.' : ($yearReadOnly ? 'El año académico es histórico o está cerrado.' : ''),
+        'read_only' => $locked || $yearReadOnly || $teacherClosed,
+        'read_only_reason' => $readOnlyReason,
+        'teacher_closed' => $teacherClosed,
         'history_ready' => gradebook_table_exists($conn,'evaluation_grade_history')
     ]);
 }
@@ -201,6 +219,9 @@ if ($action === 'save') {
     if (gradebook_table_exists($conn,'bimester_locks')) {
         $lock=$conn->query("SELECT is_locked FROM bimester_locks WHERE academic_year_id=".(int)$assignment['academic_year_id']." AND school_id=$schoolId AND bimester=$bimester LIMIT 1");
         if($lock&&$lock->num_rows&&(int)$lock->fetch_assoc()['is_locked']===1) gradebook_response(['status'=>0,'message'=>'El bimestre está bloqueado para editar notas.']);
+    }
+    if (gradebook_teacher_period_closed($conn, $schoolId, $teacherCourseId, $bimester)) {
+        gradebook_response(['status'=>0,'message'=>'Las notas de este curso y bimestre están cerradas. Solicita una reapertura a Administración.']);
     }
 
     $evaluationIds=[];$studentIds=[];
