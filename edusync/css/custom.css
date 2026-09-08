@@ -74,6 +74,96 @@ a.text-primary:focus {
     color: #fff;
 }
 
+/* EduSync sidebar reorganizado */
+.edusync-sidebar .sidebar-brand {
+    min-height: 4.8rem;
+    height: auto;
+    padding-top: .7rem;
+    padding-bottom: .7rem;
+}
+
+.edusync-sidebar .sidebar-brand-text {
+    line-height: 1.05;
+}
+
+.edusync-sidebar .sidebar-brand-role {
+    display: block;
+    margin-top: .28rem;
+    font-size: .62rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    opacity: .72;
+}
+
+.edusync-sidebar .sidebar-heading {
+    padding-top: .2rem;
+    padding-bottom: .35rem;
+}
+
+.edusync-sidebar .sidebar-group {
+    margin-bottom: .12rem;
+}
+
+.edusync-sidebar .sidebar-group > .sidebar-group-toggle {
+    padding-top: .7rem;
+    padding-bottom: .7rem;
+}
+
+.edusync-sidebar .sidebar-group.active > .sidebar-group-toggle {
+    font-weight: 700;
+}
+
+.edusync-sidebar .sidebar-group-inner {
+    margin-left: .6rem;
+    margin-right: .6rem;
+    padding-left: .35rem;
+    padding-right: .35rem;
+    box-shadow: 0 .15rem .7rem rgba(0, 0, 0, .08);
+}
+
+.edusync-sidebar .sidebar-subitem {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .58rem .65rem;
+    margin: .08rem 0;
+    border-radius: .35rem;
+    white-space: normal;
+    line-height: 1.18;
+}
+
+.edusync-sidebar .sidebar-subitem-icon {
+    width: 1rem;
+    flex: 0 0 1rem;
+    text-align: center;
+    color: #858796;
+    font-size: .78rem;
+}
+
+.edusync-sidebar .collapse-item.active .sidebar-subitem-icon,
+.edusync-sidebar .collapse-item:hover .sidebar-subitem-icon {
+    color: var(--primary-blue);
+}
+
+.edusync-sidebar .collapse-item.active {
+    background: rgba(66, 133, 244, .10);
+    color: var(--primary-blue);
+    font-weight: 700;
+}
+
+.edusync-sidebar .nav-link[data-toggle="collapse"]::after {
+    margin-top: .12rem;
+}
+
+@media (min-width: 768px) {
+    .edusync-sidebar.toggled .sidebar-brand-role,
+    .edusync-sidebar.toggled .sidebar-heading,
+    .edusync-sidebar.toggled .sidebar-group .collapse {
+        display: none !important;
+    }
+}
+
 /* Pagination */
 .page-item.active .page-link {
     background-color: var(--primary-blue) !important;
@@ -117,7 +207,6 @@ a.text-primary:focus {
     background-color: rgba(66, 133, 244, 0.5) !important;
 }
 
-
 /* Fix for Sticky Topbar */
 #content-wrapper {
     overflow-x: visible !important;
@@ -131,8 +220,6 @@ a.text-primary:focus {
     z-index: 1020 !important;
 }
 
-
-
 /* Modal Size Classes */
 .modal-dialog.mid-large {
     max-width: 900px;
@@ -141,5 +228,3 @@ a.text-primary:focus {
 .modal-dialog.modal-xl {
     max-width: 1200px;
 }
-
-
