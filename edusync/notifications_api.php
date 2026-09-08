@@ -100,10 +100,6 @@ if ($approver && nt($conn, 'attendance_change_requests')) {
         LEFT JOIN users rv ON rv.id=r.reviewed_by AND rv.school_id=r.school_id
         WHERE r.school_id=$school";
 
-    // La solicitud pendiente es compartida por administración, pero la resolución es
-    // una nueva comunicación para cada administrador que NO tomó la decisión.
-    // Se deriva de attendance_change_requests para que siga apareciendo aunque el
-    // destinatario inicie sesión mucho después de la aprobación/rechazo.
     $parts[] = "SELECT CONCAT('attendance_admin_result:',r.id) COLLATE utf8mb4_general_ci nkey,
         'Asistencia' COLLATE utf8mb4_general_ci category,
         IF(r.status='Rechazada','Alta','Normal') COLLATE utf8mb4_general_ci priority,
@@ -148,6 +144,32 @@ if (nt($conn, 'attendance_change_requests')) {
         WHERE r.school_id=$school AND r.requested_by=$user AND r.status IN ('Aprobada','Rechazada')";
 }
 
+// Reapertura de notas: es una tarea compartida por Administración. Que un administrador
+// la lea no la retira de Pendientes; solo desaparece cuando alguien la aprueba o rechaza.
+if ($approver && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_courses') && nt($conn, 'academic_courses')) {
+    $parts[] = "SELECT CONCAT('grade_reopen_request:',grr.id) COLLATE utf8mb4_general_ci nkey,
+        'Académica' COLLATE utf8mb4_general_ci category,
+        IF(grr.status='Pendiente','Alta','Normal') COLLATE utf8mb4_general_ci priority,
+        CONCAT(COALESCE(t.name,u.name,'Docente'),' solicita reabrir notas') COLLATE utf8mb4_general_ci title,
+        CONCAT(
+            ac.name,' · ',tc.grado,' ',COALESCE(NULLIF(tc.seccion,''),'U'),' · ',grr.bimester,'° Bimestre',
+            IF(COALESCE(grr.reason,'')<>'',CONCAT(' · ',grr.reason),''),
+            IF(grr.status<>'Pendiente' AND rv.name IS NOT NULL,CONCAT(' · Revisada por ',rv.name),''),
+            IF(grr.status<>'Pendiente' AND grr.reviewed_at IS NOT NULL,CONCAT(' · ',DATE_FORMAT(grr.reviewed_at,'%d/%m/%Y %H:%i')),'')
+        ) COLLATE utf8mb4_general_ci message,
+        grr.created_at,
+        'grade_reopen_request' COLLATE utf8mb4_general_ci source_type,
+        grr.id source_id,
+        grr.status COLLATE utf8mb4_general_ci workflow_status
+        FROM grade_reopen_requests grr
+        INNER JOIN teacher_courses tc ON tc.id=grr.teacher_course_id AND tc.school_id=grr.school_id
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id
+        LEFT JOIN teacher t ON t.id=grr.teacher_id
+        LEFT JOIN users u ON u.id=grr.requested_by AND u.school_id=grr.school_id
+        LEFT JOIN users rv ON rv.id=grr.reviewed_by AND rv.school_id=grr.school_id
+        WHERE grr.school_id=$school";
+}
+
 if ($approver && nt($conn, 'evaluations')) {
     $parts[] = "SELECT CONCAT('evaluation:',e.id) COLLATE utf8mb4_general_ci nkey,
         'Académica' COLLATE utf8mb4_general_ci category,
@@ -181,7 +203,6 @@ if (nt($conn, 'low_grade_notifications')) {
         WHERE s.school_id=$school AND $teacherFilter";
 }
 
-// Las tablas históricas pueden usar utf8 y las nuevas utf8mb4.
 $normalized = [];
 foreach ($parts as $part) {
     $part = str_replace(' COLLATE utf8mb4_general_ci', '', $part);
@@ -209,7 +230,8 @@ $searchInput = $_REQUEST['search'] ?? '';
 $search = trim(is_array($searchInput) ? ($searchInput['value'] ?? '') : $searchInput);
 $archived = $tab === 'archived' ? 1 : 0;
 
-$effectiveRead = "CASE WHEN n.source_type='attendance_request' AND n.workflow_status IN ('Aprobada','Rechazada') THEN 1 ELSE COALESCE(ns.is_read,0) END";
+$workflowSources = "'attendance_request','grade_reopen_request'";
+$effectiveRead = "CASE WHEN n.source_type IN ($workflowSources) AND n.workflow_status IN ('Aprobada','Rechazada') THEN 1 ELSE COALESCE(ns.is_read,0) END";
 $where = ['COALESCE(ns.is_archived,0)=' . $archived];
 $types = '';
 $params = [];
@@ -221,9 +243,7 @@ $add = function ($sql, $t, $v) use (&$where, &$types, &$params) {
 };
 
 if ($tab === 'pending') {
-    // Una autorización ya resuelta deja de ser una tarea pendiente para TODOS los administradores,
-    // aunque alguno de ellos nunca haya abierto su notificación individual.
-    $where[] = "((n.source_type='attendance_request' AND n.workflow_status='Pendiente') OR (n.source_type<>'attendance_request' AND ($effectiveRead)=0))";
+    $where[] = "((n.source_type IN ($workflowSources) AND n.workflow_status='Pendiente') OR (n.source_type NOT IN ($workflowSources) AND ($effectiveRead)=0))";
 } elseif (in_array($tab, ['attendance', 'academic', 'student_alerts'], true)) {
     $category = [
         'attendance' => 'Asistencia',
@@ -306,7 +326,7 @@ try {
 
 $dataStmt = $conn->prepare("SELECT n.*,($effectiveRead) is_read,COALESCE(ns.is_archived,0) is_archived
     $base
-    ORDER BY (n.source_type='attendance_request' AND n.workflow_status='Pendiente') DESC,($effectiveRead),n.created_at DESC
+    ORDER BY (n.source_type IN ($workflowSources) AND n.workflow_status='Pendiente') DESC,($effectiveRead),n.created_at DESC
     LIMIT $start,$length");
 nb($dataStmt, $types, $params);
 $dataStmt->execute();
@@ -316,20 +336,28 @@ while ($r = $res->fetch_assoc()) {
     $r['open_mode'] = 'modal';
     $isAttendanceResolution = in_array($r['source_type'], ['attendance_request', 'attendance_admin_result', 'attendance_result'], true)
         && in_array($r['workflow_status'], ['Aprobada', 'Rechazada'], true);
-    $r['open_url'] = ($r['source_type'] === 'attendance_request' || $isAttendanceResolution)
-        ? 'review_attendance_request.php?id=' . $r['source_id']
-        : ($r['source_type'] === 'evaluation'
-            ? 'manage_evaluation_grades.php?evaluation_id=' . $r['source_id'] . '&from=notifications'
-            : 'notification_detail.php?type=' . rawurlencode($r['source_type']) . '&id=' . (int)$r['source_id']);
+    if ($r['source_type'] === 'attendance_request' || $isAttendanceResolution) {
+        $r['open_url'] = 'review_attendance_request.php?id=' . $r['source_id'];
+    } elseif ($r['source_type'] === 'grade_reopen_request') {
+        $r['open_url'] = 'review_grade_reopen_request.php?id=' . $r['source_id'];
+    } elseif ($r['source_type'] === 'grade_reopen_result') {
+        $r['open_url'] = 'grade_reopen_result.php?id=' . $r['source_id'];
+    } elseif ($r['source_type'] === 'grade_period_closed') {
+        $r['open_url'] = 'grade_period_closure_detail.php?id=' . $r['source_id'];
+    } elseif ($r['source_type'] === 'evaluation') {
+        $r['open_url'] = 'manage_evaluation_grades.php?evaluation_id=' . $r['source_id'] . '&from=notifications';
+    } else {
+        $r['open_url'] = 'notification_detail.php?type=' . rawurlencode($r['source_type']) . '&id=' . (int)$r['source_id'];
+    }
     $rows[] = $r;
 }
 $dataStmt->close();
 
 $summaryQuery = $conn->query("SELECT
     COUNT(*) AS total,
-    SUM(CASE WHEN n.source_type='attendance_request' AND n.workflow_status IN ('Aprobada','Rechazada') THEN 0 ELSE COALESCE(ns.is_read,0)=0 END) AS unread,
+    SUM(CASE WHEN n.source_type IN ($workflowSources) AND n.workflow_status IN ('Aprobada','Rechazada') THEN 0 ELSE COALESCE(ns.is_read,0)=0 END) AS unread,
     SUM(n.priority='Alta') AS `high_priority`,
-    SUM(n.source_type='attendance_request' AND n.workflow_status='Pendiente') AS `requires_action`
+    SUM(n.source_type IN ($workflowSources) AND n.workflow_status='Pendiente') AS `requires_action`
     FROM ($union) n
     LEFT JOIN notification_user_state ns ON ns.school_id=$school AND ns.user_id=$user AND ns.notification_key=n.nkey
     WHERE COALESCE(ns.is_archived,0)=0");
