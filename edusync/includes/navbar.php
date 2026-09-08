@@ -283,3 +283,68 @@ if (typeof alert_toast !== 'function') {
 
 </ul>
 <!-- End of Sidebar -->
+
+<script>
+(function () {
+    var attempts = 0;
+
+    function initEduSyncSidebarAccordion() {
+        var $ = window.jQuery;
+        attempts++;
+
+        // El navbar se imprime antes que bootstrap.bundle.js. Esperamos hasta que
+        // el plugin Collapse esté listo y evitamos depender del orden de carga.
+        if (!$ || !$.fn || typeof $.fn.collapse !== 'function') {
+            if (attempts < 80) setTimeout(initEduSyncSidebarAccordion, 75);
+            return;
+        }
+
+        var $sidebar = $('#accordionSidebar');
+        if (!$sidebar.length || $sidebar.data('edusyncAccordionReady')) return;
+        $sidebar.data('edusyncAccordionReady', true);
+
+        // Quitamos el data-parent automático de Bootstrap porque en páginas con
+        // navegación propia podía dejar el acordeón en un estado intermedio.
+        $sidebar.find('.sidebar-group > .collapse').removeAttr('data-parent');
+
+        // El clic se gestiona aquí. stopPropagation evita que el handler delegado
+        // data-api de Bootstrap procese el mismo clic una segunda vez.
+        $sidebar.on('click.edusyncAccordion', '.sidebar-group-toggle', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            var $toggle = $(this);
+            var selector = $toggle.attr('data-target');
+            var $target = selector ? $(selector) : $();
+            if (!$target.length) return;
+
+            var opening = !$target.hasClass('show');
+
+            if (opening) {
+                $sidebar.find('.sidebar-group > .collapse.show').not($target).each(function () {
+                    $(this).collapse('hide');
+                });
+                $target.collapse('show');
+            } else {
+                $target.collapse('hide');
+            }
+        });
+
+        // Mantener flecha, aria-expanded y clase collapsed sincronizadas incluso
+        // cuando Bootstrap cierra otro grupo durante una animación.
+        $sidebar.find('.sidebar-group > .collapse')
+            .on('show.bs.collapse.edusyncAccordion', function () {
+                var id = this.id;
+                var $toggle = $sidebar.find('.sidebar-group-toggle[data-target="#' + id + '"]');
+                $toggle.removeClass('collapsed').attr('aria-expanded', 'true');
+            })
+            .on('hide.bs.collapse.edusyncAccordion', function () {
+                var id = this.id;
+                var $toggle = $sidebar.find('.sidebar-group-toggle[data-target="#' + id + '"]');
+                $toggle.addClass('collapsed').attr('aria-expanded', 'false');
+            });
+    }
+
+    initEduSyncSidebarAccordion();
+})();
+</script>
