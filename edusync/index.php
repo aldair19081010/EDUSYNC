@@ -291,10 +291,12 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <script src="js/sb-admin-2.min.js?v=<?php echo $sb_admin_js_version; ?>"></script>
 
     <?php if ($page === 'grades'): ?>
-    <!-- Cierre bimestral por curso del docente -->
+    <!-- Cierre bimestral y autoguardado unificado de notas -->
     <script>window.EDUSYNC_CSRF = <?php echo json_encode($_SESSION['csrf_token'] ?? ''); ?>;</script>
     <?php $grade_closure_version = @filemtime(__DIR__ . '/js/grade_closure.js') ?: time(); ?>
     <script src="js/grade_closure.js?v=<?php echo $grade_closure_version; ?>"></script>
+    <?php $grades_autosave_version = @filemtime(__DIR__ . '/js/grades_autosave.js') ?: time(); ?>
+    <script src="js/grades_autosave.js?v=<?php echo $grades_autosave_version; ?>"></script>
     <?php endif; ?>
 
     <?php if ($page === 'academic_year'): ?>
