@@ -99,6 +99,34 @@ if ($approver && nt($conn, 'attendance_change_requests')) {
         INNER JOIN users u ON u.id=r.requested_by
         LEFT JOIN users rv ON rv.id=r.reviewed_by AND rv.school_id=r.school_id
         WHERE r.school_id=$school";
+
+    // La solicitud pendiente es compartida por administración, pero la resolución es
+    // una nueva comunicación para cada administrador que NO tomó la decisión.
+    // Se deriva de attendance_change_requests para que siga apareciendo aunque el
+    // destinatario inicie sesión mucho después de la aprobación/rechazo.
+    $parts[] = "SELECT CONCAT('attendance_admin_result:',r.id) COLLATE utf8mb4_general_ci nkey,
+        'Asistencia' COLLATE utf8mb4_general_ci category,
+        IF(r.status='Rechazada','Alta','Normal') COLLATE utf8mb4_general_ci priority,
+        IF(r.status='Aprobada','Solicitud de asistencia aprobada','Solicitud de asistencia rechazada') COLLATE utf8mb4_general_ci title,
+        CONCAT(
+            COALESCE(rv.name,'Otro administrador'),
+            IF(r.status='Aprobada',' aprobó ',' rechazó '),
+            LOWER(r.request_type),
+            ' solicitada por ',COALESCE(rq.name,'un usuario'),
+            IF(COALESCE(r.review_notes,'')<>'',CONCAT(' · ',r.review_notes),''),
+            IF(r.reviewed_at IS NOT NULL,CONCAT(' · ',DATE_FORMAT(r.reviewed_at,'%d/%m/%Y %H:%i')),'')
+        ) COLLATE utf8mb4_general_ci message,
+        COALESCE(r.reviewed_at,r.updated_at,r.created_at) created_at,
+        'attendance_admin_result' COLLATE utf8mb4_general_ci source_type,
+        r.id source_id,
+        r.status COLLATE utf8mb4_general_ci workflow_status
+        FROM attendance_change_requests r
+        LEFT JOIN users rv ON rv.id=r.reviewed_by AND rv.school_id=r.school_id
+        LEFT JOIN users rq ON rq.id=r.requested_by AND rq.school_id=r.school_id
+        WHERE r.school_id=$school
+          AND r.status IN ('Aprobada','Rechazada')
+          AND r.reviewed_by IS NOT NULL
+          AND r.reviewed_by<>$user";
 }
 
 if (nt($conn, 'attendance_change_requests')) {
@@ -286,7 +314,9 @@ $res = $dataStmt->get_result();
 $rows = [];
 while ($r = $res->fetch_assoc()) {
     $r['open_mode'] = 'modal';
-    $r['open_url'] = $r['source_type'] === 'attendance_request'
+    $isAttendanceResolution = in_array($r['source_type'], ['attendance_request', 'attendance_admin_result', 'attendance_result'], true)
+        && in_array($r['workflow_status'], ['Aprobada', 'Rechazada'], true);
+    $r['open_url'] = ($r['source_type'] === 'attendance_request' || $isAttendanceResolution)
         ? 'review_attendance_request.php?id=' . $r['source_id']
         : ($r['source_type'] === 'evaluation'
             ? 'manage_evaluation_grades.php?evaluation_id=' . $r['source_id'] . '&from=notifications'
