@@ -195,34 +195,32 @@ a.text-primary:focus {
         background: rgba(255, 255, 255, .42);
     }
 
-    /* Contraído: se ocultan solo los textos generales, no los submenús. */
+    /* Contraído: se ocultan los textos generales pero se conserva el scroll vertical. */
     .edusync-sidebar.toggled .sidebar-brand-role,
     .edusync-sidebar.toggled .sidebar-heading {
         display: none !important;
     }
 
-    /* En modo contraído el sidebar deja salir los paneles hacia la derecha. */
     .edusync-sidebar.toggled {
-        overflow: visible !important;
-        scrollbar-width: none;
-    }
-
-    .edusync-sidebar.toggled::-webkit-scrollbar {
-        display: none;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        scrollbar-width: thin;
     }
 
     .edusync-sidebar.toggled .sidebar-group {
-        position: relative;
+        position: static;
     }
 
+    /* Los submenús contraídos se posicionan respecto a la ventana mediante JS.
+       Al usar position:fixed no necesitamos sacrificar el scroll del sidebar. */
     .edusync-sidebar.toggled .sidebar-group > .collapse {
         display: none !important;
-        position: absolute !important;
-        left: 100% !important;
-        top: 0 !important;
+        position: fixed !important;
+        left: auto;
+        top: auto;
         width: 15.5rem !important;
         min-width: 15.5rem;
-        margin-left: .35rem;
+        margin: 0;
         z-index: 1090;
     }
 
