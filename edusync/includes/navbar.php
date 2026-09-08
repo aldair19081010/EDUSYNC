@@ -287,6 +287,12 @@ if (typeof alert_toast !== 'function') {
     var sidebar = document.getElementById('accordionSidebar');
     if (!sidebar) return;
 
+    var SIDEBAR_STATE_KEY = 'edusync_sidebar_collapsed';
+
+    function isDesktop() {
+        return window.matchMedia ? window.matchMedia('(min-width: 768px)').matches : window.innerWidth >= 768;
+    }
+
     function syncToggle(toggle, open) {
         if (!toggle) return;
         toggle.classList.toggle('collapsed', !open);
@@ -301,6 +307,12 @@ if (typeof alert_toast !== 'function') {
         syncToggle(toggle, false);
     }
 
+    function closeAllGroups() {
+        sidebar.querySelectorAll('.sidebar-group > .collapse.show').forEach(function (panel) {
+            closeGroup(panel);
+        });
+    }
+
     function openGroup(panel) {
         if (!panel) return;
         panel.classList.remove('collapsing');
@@ -310,8 +322,51 @@ if (typeof alert_toast !== 'function') {
         syncToggle(toggle, true);
     }
 
-    // Se maneja en JavaScript nativo para que el sidebar siga funcionando aunque
-    // una página incluida haga exit/return antes de cargar bootstrap.bundle.js.
+    function setSidebarCollapsed(collapsed, savePreference) {
+        if (!isDesktop()) {
+            document.body.classList.remove('sidebar-toggled');
+            sidebar.classList.remove('toggled');
+            return;
+        }
+
+        document.body.classList.toggle('sidebar-toggled', collapsed);
+        sidebar.classList.toggle('toggled', collapsed);
+
+        // Al restaurar/contraer no dejamos un flyout abierto automáticamente.
+        if (collapsed) closeAllGroups();
+
+        if (savePreference) {
+            try {
+                localStorage.setItem(SIDEBAR_STATE_KEY, collapsed ? '1' : '0');
+            } catch (e) {}
+        }
+    }
+
+    function restoreSidebarState() {
+        if (!isDesktop()) return;
+        var collapsed = false;
+        try {
+            collapsed = localStorage.getItem(SIDEBAR_STATE_KEY) === '1';
+        } catch (e) {}
+        setSidebarCollapsed(collapsed, false);
+    }
+
+    // Restaurar la preferencia apenas el sidebar existe en el DOM.
+    restoreSidebarState();
+
+    // Control propio del botón para que funcione incluso en páginas que terminan
+    // antes de cargar los scripts finales de index.php.
+    var sidebarButton = document.getElementById('sidebarToggle');
+    if (sidebarButton) {
+        sidebarButton.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            var collapsed = !sidebar.classList.contains('toggled');
+            setSidebarCollapsed(collapsed, true);
+        });
+    }
+
+    // Los grupos se manejan en JavaScript nativo para no depender de Bootstrap.
     sidebar.querySelectorAll('.sidebar-group-toggle').forEach(function (toggle) {
         toggle.addEventListener('click', function (event) {
             event.preventDefault();
@@ -331,6 +386,16 @@ if (typeof alert_toast !== 'function') {
             if (shouldOpen) openGroup(target);
             else closeGroup(target);
         });
+    });
+
+    // Si cambia el tamaño de la ventana, respetar la preferencia solo en escritorio.
+    window.addEventListener('resize', function () {
+        if (isDesktop()) {
+            restoreSidebarState();
+        } else {
+            document.body.classList.remove('sidebar-toggled');
+            sidebar.classList.remove('toggled');
+        }
     });
 })();
 </script>
