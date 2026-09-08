@@ -21,13 +21,9 @@
         '</style>';
     if (!$('#gc-style').length) $('head').append(style);
 
-    // El cierre se gestiona únicamente desde este botón general.
-    // El Libro de notas y la Lista de evaluaciones solo respetan el estado cerrado.
     if (!$('#gr-general-close').length) {
         $('<button type="button" class="btn btn-outline-success btn-sm mr-1" id="gr-general-close"><i class="fas fa-lock mr-1"></i>Cierre bimestral</button>').insertBefore('#gr-new');
     }
-
-    // Eliminar cualquier panel antiguo de cierre que haya quedado insertado en el Libro de notas.
     $('#gc-panel').remove();
 
     function esc(v){ return $('<div>').text(v == null ? '' : v).html(); }
@@ -45,9 +41,22 @@
         return m[3]+'/'+m[2]+'/'+m[1]+' '+String(h).padStart(2,'0')+':'+m[5]+' '+suffix;
     }
     function validContext(ctx){ return ctx && Number(ctx.assignment)>0 && /^[1-4]$/.test(String(ctx.bimester||'')); }
+    function selectedAssignment(){
+        var course=$('#gc-general-course').val();
+        var level=$('#gc-general-level').val();
+        var grade=$('#gc-general-grade').val();
+        var section=$('#gc-general-section').val();
+        var rows=generalAssignments.filter(function(a){
+            return course && normalize(a.course_name)===normalize(course) &&
+                level && normalize(a.level)===normalize(level) &&
+                grade && normalize(a.grado)===normalize(grade) &&
+                section && normalize(a.seccion||'U')===normalize(section||'U');
+        });
+        return rows.length===1 ? String(rows[0].id) : '';
+    }
     function generalContext(){
         return {
-            assignment:String($('#gc-general-aula').val()||''),
+            assignment:selectedAssignment(),
             bimester:String($('#gc-general-bimester').val()||'')
         };
     }
@@ -118,7 +127,7 @@
     }
     function requestStatus(ctx,onSuccess,onError){
         if(!validContext(ctx)){
-            if(onError)onError('Selecciona curso, aula y bimestre.',false);
+            if(onError)onError('Selecciona curso, nivel, grado, sección y bimestre.',false);
             return;
         }
         $.getJSON(api,{action:'status',teacher_course_id:ctx.assignment,bimestre:ctx.bimester})
@@ -149,22 +158,22 @@
                         '<button class="close" data-dismiss="modal"><span>&times;</span></button>'+
                     '</div>'+
                     '<div class="modal-body">'+
-                        '<div class="alert gc-general-note small"><strong>Importante:</strong> el cierre se realiza por <strong>curso + aula + bimestre</strong>. Al cerrarlo, se bloquean simultáneamente la Lista de evaluaciones y el Libro de notas.</div>'+
+                        '<div class="alert gc-general-note small"><strong>Importante:</strong> el cierre se realiza por <strong>curso + nivel + grado + sección + bimestre</strong>. Los filtros se encadenan automáticamente para agilizar la selección.</div>'+
                         '<div class="row gc-general-select">'+
-                            '<div class="col-xl-3 col-md-6 mb-2"><label>Año académico</label><select class="form-control form-control-sm" id="gc-general-year">'+years+'</select></div>'+
-                            '<div class="col-xl-3 col-md-6 mb-2"><label>Curso</label><select class="form-control form-control-sm" id="gc-general-course"><option value="">Selecciona un curso</option></select><div class="gc-filter-help">Solo muestra cursos asignados al docente.</div></div>'+
-                            '<div class="col-xl-3 col-md-6 mb-2"><label>Aula</label><select class="form-control form-control-sm" id="gc-general-aula" disabled><option value="">Selecciona un aula</option></select><div class="gc-filter-help">Nivel, grado y sección de la asignación.</div></div>'+
-                            '<div class="col-xl-3 col-md-6 mb-2"><label>Bimestre</label><select class="form-control form-control-sm" id="gc-general-bimester"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>'+
+                            '<div class="col-xl-2 col-md-4 col-6 mb-2"><label>Año académico</label><select class="form-control form-control-sm" id="gc-general-year">'+years+'</select></div>'+
+                            '<div class="col-xl-2 col-md-4 col-6 mb-2"><label>Curso</label><select class="form-control form-control-sm" id="gc-general-course"><option value="">Selecciona curso</option></select></div>'+
+                            '<div class="col-xl-2 col-md-4 col-6 mb-2"><label>Nivel</label><select class="form-control form-control-sm" id="gc-general-level" disabled><option value="">Selecciona nivel</option></select></div>'+
+                            '<div class="col-xl-2 col-md-4 col-6 mb-2"><label>Grado</label><select class="form-control form-control-sm" id="gc-general-grade" disabled><option value="">Selecciona grado</option></select></div>'+
+                            '<div class="col-xl-2 col-md-4 col-6 mb-2"><label>Sección</label><select class="form-control form-control-sm" id="gc-general-section" disabled><option value="">Selecciona sección</option></select></div>'+
+                            '<div class="col-xl-2 col-md-4 col-6 mb-2"><label>Bimestre</label><select class="form-control form-control-sm" id="gc-general-bimester"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>'+
                         '</div>'+
-                        '<div id="gc-general-status" class="gc-panel gc-general-status mb-0"><div class="text-muted small"><i class="fas fa-info-circle mr-1"></i>Selecciona curso, aula y bimestre para verificar el cierre.</div></div>'+
+                        '<div class="gc-filter-help mb-2"><i class="fas fa-magic mr-1"></i>Si una selección deja una sola opción posible, EduSync la selecciona automáticamente.</div>'+
+                        '<div id="gc-general-status" class="gc-panel gc-general-status mb-0"><div class="text-muted small"><i class="fas fa-info-circle mr-1"></i>Selecciona curso, nivel, grado, sección y bimestre para verificar el cierre.</div></div>'+
                     '</div>'+
                     '<div class="modal-footer"><button class="btn btn-light border" data-dismiss="modal">Cerrar</button></div>'+
                 '</div></div>'+
             '</div>'
         );
-    }
-    function aulaLabel(a){
-        return (a.level||'Nivel')+' · '+gradeLabel(a.grado)+' '+(a.seccion||'U');
     }
     function currentSuggestedSelection(){
         if($('#gr-book-view').is(':visible')&&$('#gb-assignment').val()){
@@ -184,60 +193,89 @@
             seccion:$('#gr-section').val()
         };
     }
-    function uniqueCourses(){
-        var seen={};
-        var rows=[];
-        generalAssignments.forEach(function(a){
-            var key=normalize(a.course_name);
-            if(!key||seen[key])return;
-            seen[key]=true;
-            rows.push(a.course_name);
+    function uniqueValues(rows,key){
+        var seen={}, values=[];
+        rows.forEach(function(a){
+            var raw=String(a[key]==null?'':a[key]).trim();
+            var norm=normalize(raw || (key==='seccion'?'U':''));
+            if(!norm||seen[norm])return;
+            seen[norm]=true;
+            values.push(raw || (key==='seccion'?'U':''));
         });
-        return rows.sort(function(a,b){return String(a).localeCompare(String(b),'es',{sensitivity:'base'});});
+        return values.sort(function(a,b){return String(a).localeCompare(String(b),'es',{numeric:true,sensitivity:'base'});});
+    }
+    function setSelectOptions(selector,placeholder,values,formatter){
+        var s=$(selector), html='<option value="">'+placeholder+'</option>';
+        values.forEach(function(v){html+='<option value="'+esc(v)+'">'+esc(formatter?formatter(v):v)+'</option>';});
+        s.html(html).prop('disabled',values.length===0);
+        if(values.length===1)s.val(values[0]);
+    }
+    function assignmentFromSuggestion(suggestion){
+        if(!suggestion)return null;
+        if(suggestion.assignment){
+            return generalAssignments.find(function(a){return String(a.id)===String(suggestion.assignment);})||null;
+        }
+        var rows=generalAssignments.filter(function(a){
+            return (!suggestion.course||normalize(a.course_name)===normalize(suggestion.course))&&
+                (!suggestion.level||normalize(a.level)===normalize(suggestion.level))&&
+                (!suggestion.grado||normalize(a.grado)===normalize(suggestion.grado))&&
+                (!suggestion.seccion||normalize(a.seccion||'U')===normalize(suggestion.seccion||'U'));
+        });
+        return rows.length===1?rows[0]:null;
     }
     function populateCourses(suggestion){
-        var select=$('#gc-general-course');
-        var html='<option value="">Selecciona un curso</option>';
-        uniqueCourses().forEach(function(name){html+='<option value="'+esc(name)+'">'+esc(name)+'</option>';});
-        select.html(html).prop('disabled',generalAssignments.length===0);
-
-        var wanted='';
-        if(suggestion&&suggestion.assignment){
-            var byId=generalAssignments.find(function(a){return String(a.id)===String(suggestion.assignment);});
-            if(byId)wanted=byId.course_name||'';
+        var values=uniqueValues(generalAssignments,'course_name');
+        setSelectOptions('#gc-general-course','Selecciona curso',values);
+        var a=assignmentFromSuggestion(suggestion);
+        if(a)$('#gc-general-course').val(a.course_name);
+        else if(suggestion&&suggestion.course){
+            var match=values.find(function(v){return normalize(v)===normalize(suggestion.course);});
+            if(match)$('#gc-general-course').val(match);
         }
-        if(!wanted&&suggestion&&suggestion.course){
-            var byName=generalAssignments.find(function(a){return normalize(a.course_name)===normalize(suggestion.course);});
-            if(byName)wanted=byName.course_name||'';
-        }
-        if(wanted)select.val(wanted);
-        populateAulas(suggestion);
+        populateLevels(suggestion);
     }
-    function populateAulas(suggestion){
+    function courseRows(){
         var course=$('#gc-general-course').val();
-        var aula=$('#gc-general-aula');
-        var rows=generalAssignments.filter(function(a){return course&&normalize(a.course_name)===normalize(course);});
-        var html='<option value="">Selecciona un aula</option>';
-        rows.forEach(function(a){html+='<option value="'+Number(a.id)+'">'+esc(aulaLabel(a))+'</option>';});
-        aula.html(html).prop('disabled',!course||rows.length===0);
-
-        var wanted='';
-        if(suggestion&&suggestion.assignment&&rows.some(function(a){return String(a.id)===String(suggestion.assignment);})){wanted=String(suggestion.assignment);}
-        if(!wanted&&suggestion&&suggestion.course){
-            var matches=rows.filter(function(a){
-                return (!suggestion.level||normalize(a.level)===normalize(suggestion.level))&&
-                    (!suggestion.grado||normalize(a.grado)===normalize(suggestion.grado))&&
-                    (!suggestion.seccion||normalize(a.seccion||'U')===normalize(suggestion.seccion||'U'));
-            });
-            if(matches.length===1)wanted=String(matches[0].id);
-        }
-        if(wanted)aula.val(wanted);
+        return generalAssignments.filter(function(a){return course&&normalize(a.course_name)===normalize(course);});
+    }
+    function populateLevels(suggestion){
+        var rows=courseRows(), values=uniqueValues(rows,'level');
+        setSelectOptions('#gc-general-level','Selecciona nivel',values);
+        var a=assignmentFromSuggestion(suggestion);
+        if(a&&rows.some(function(x){return String(x.id)===String(a.id);})){ $('#gc-general-level').val(a.level); }
+        else if(suggestion&&suggestion.level){ var match=values.find(function(v){return normalize(v)===normalize(suggestion.level);}); if(match)$('#gc-general-level').val(match); }
+        populateGrades(suggestion);
+    }
+    function levelRows(){
+        var level=$('#gc-general-level').val();
+        return courseRows().filter(function(a){return level&&normalize(a.level)===normalize(level);});
+    }
+    function populateGrades(suggestion){
+        var rows=levelRows(), values=uniqueValues(rows,'grado');
+        setSelectOptions('#gc-general-grade','Selecciona grado',values,gradeLabel);
+        var a=assignmentFromSuggestion(suggestion);
+        if(a&&rows.some(function(x){return String(x.id)===String(a.id);})){ $('#gc-general-grade').val(a.grado); }
+        else if(suggestion&&suggestion.grado){ var match=values.find(function(v){return normalize(v)===normalize(suggestion.grado);}); if(match)$('#gc-general-grade').val(match); }
+        populateSections(suggestion);
+    }
+    function gradeRows(){
+        var grade=$('#gc-general-grade').val();
+        return levelRows().filter(function(a){return grade&&normalize(a.grado)===normalize(grade);});
+    }
+    function populateSections(suggestion){
+        var rows=gradeRows(), values=uniqueValues(rows,'seccion');
+        setSelectOptions('#gc-general-section','Selecciona sección',values);
+        var a=assignmentFromSuggestion(suggestion);
+        if(a&&rows.some(function(x){return String(x.id)===String(a.id);})){ $('#gc-general-section').val(a.seccion||'U'); }
+        else if(suggestion&&suggestion.seccion){ var match=values.find(function(v){return normalize(v||'U')===normalize(suggestion.seccion||'U');}); if(match)$('#gc-general-section').val(match); }
         refreshGeneral();
     }
     function loadGeneralAssignments(suggestion){
         var year=$('#gc-general-year').val();
         $('#gc-general-course').prop('disabled',true).html('<option value="">Cargando cursos...</option>');
-        $('#gc-general-aula').prop('disabled',true).html('<option value="">Selecciona primero un curso</option>');
+        $('#gc-general-level').prop('disabled',true).html('<option value="">Selecciona primero curso</option>');
+        $('#gc-general-grade').prop('disabled',true).html('<option value="">Selecciona primero nivel</option>');
+        $('#gc-general-section').prop('disabled',true).html('<option value="">Selecciona primero grado</option>');
         generalAssignments=[];
         $.getJSON(contextsApi,{action:'contexts',academic_year_id:year})
             .done(function(r){
@@ -248,7 +286,7 @@
             })
             .fail(function(){
                 $('#gc-general-course').html('<option value="">No se pudieron cargar los cursos</option>').prop('disabled',false);
-                $('#gc-general-aula').html('<option value="">Sin aulas disponibles</option>').prop('disabled',true);
+                $('#gc-general-level,#gc-general-grade,#gc-general-section').prop('disabled',true);
                 generalError('No se pudieron cargar las asignaciones del docente.',false);
             });
     }
@@ -260,8 +298,8 @@
         if(!$('#gc-general-modal').is(':visible'))return;
         var ctx=generalContext();
         var target=$('#gc-general-status');
-        if(!$('#gc-general-course').val()||!validContext(ctx)){
-            target.removeClass('gc-ready gc-closed gc-incomplete').html('<div class="text-muted small"><i class="fas fa-info-circle mr-1"></i>Selecciona curso, aula y bimestre para verificar el cierre.</div>');
+        if(!$('#gc-general-course').val()||!$('#gc-general-level').val()||!$('#gc-general-grade').val()||!$('#gc-general-section').val()||!validContext(ctx)){
+            target.removeClass('gc-ready gc-closed gc-incomplete').html('<div class="text-muted small"><i class="fas fa-info-circle mr-1"></i>Selecciona curso, nivel, grado, sección y bimestre para verificar el cierre.</div>');
             return;
         }
         target.html('<div class="text-muted small"><i class="fas fa-spinner fa-spin mr-1"></i>Verificando cierre bimestral...</div>');
@@ -291,8 +329,6 @@
         );
     }
     function afterClosureChange(){
-        // El Libro de notas consulta gradebook_api.php, que ya conoce el cierre general.
-        // Al recargarlo desaparecerán/volverán los controles según corresponda.
         if($('#gb-assignment').val()&&$('#gb-bimester').val())$('#gb-bimester').trigger('change');
         refreshGeneral();
         $(document).trigger('grade:closure-changed');
@@ -315,10 +351,10 @@
     $(document).on('change','#gc-general-year',function(){
         loadGeneralAssignments({bimester:$('#gc-general-bimester').val()});
     });
-    $(document).on('change','#gc-general-course',function(){
-        populateAulas({});
-    });
-    $(document).on('change','#gc-general-aula,#gc-general-bimester',refreshGeneral);
+    $(document).on('change','#gc-general-course',function(){ populateLevels({}); });
+    $(document).on('change','#gc-general-level',function(){ populateGrades({}); });
+    $(document).on('change','#gc-general-grade',function(){ populateSections({}); });
+    $(document).on('change','#gc-general-section,#gc-general-bimester',refreshGeneral);
     $(document).on('click','.gc-verify',function(){
         $('#gc-general-detail-area').stop(true,true).slideToggle(150);
     });
