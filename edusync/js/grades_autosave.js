@@ -14,6 +14,7 @@ var modalBaseline={};
 var modalBoundForm=null;
 var modalAllowClose=false;
 var lastBookSave='';
+var bookMutating=false;
 
 function esc(v){return $('<div>').text(v==null?'':v).html();}
 function toast(msg,type){if(typeof window.alert_toast==='function')window.alert_toast(msg,type||'success');else alert(msg);}
@@ -109,9 +110,15 @@ function loadPreference(){
 $(document).on('click','#gr-autosave-configure,.meg-change-save-pref',function(){ensureSettingsModal();$('#gr-autosave-setting-switch').prop('checked',enabled);$('#grades-autosave-settings-modal').modal('show');});
 $(document).on('change','#gr-autosave-setting-switch',function(){if(syncing||!ready)return;persistPreference(this.checked);});
 
+function setBookNode(cls,html,retryVisible){
+    var node=$('#gb-sync-state'),retry=$('#gb-retry-save');if(!node.length)return;
+    var changed=node.attr('class')!==cls||node.html()!==html;
+    if(changed){bookMutating=true;node.attr('class',cls).html(html);}
+    if(retry.length)retry.toggle(!!retryVisible);
+}
 function updateBookMode(){
     var nativeSwitch=$('#gb-autosave');
-    if(nativeSwitch.length){nativeSwitch.closest('.custom-control').addClass('d-none');}
+    if(nativeSwitch.length)nativeSwitch.closest('.custom-control').addClass('d-none');
     if(!$('#gb-save-mode').length&&$('#gb-sync-state').length)$('<span class="gb-save-mode" id="gb-save-mode"></span>').insertBefore('#gb-sync-state');
     $('#gb-save-mode').attr('class','gb-save-mode '+(enabled?'text-success':'text-muted')).html(enabled?'<i class="fas fa-bolt mr-1"></i>Automático':'<i class="fas fa-hand-paper mr-1"></i>Manual');
     if($('#gb-save').length)$('#gb-save').html('<i class="fas fa-save mr-1"></i>Guardar ahora');
@@ -123,54 +130,32 @@ function normalizeBookState(){
     var text=$.trim(node.text());
     var count=parseInt(String($('#gb-change-count').text()||'0'),10)||0;
     var readonly=$('#gb-readonly-banner').is(':visible');
-    var retry=$('#gb-retry-save');
-    if(readonly){node.attr('class','gb-sync text-muted').html('<i class="fas fa-lock mr-1"></i>Solo lectura');retry.hide();return;}
-    if(/sin conexión|error al guardar/i.test(text)){node.attr('class','gb-sync text-danger').html('<i class="fas fa-exclamation-circle mr-1"></i>No se pudieron guardar '+count+' cambio'+(count===1?'':'s'));retry.show();return;}
-    retry.hide();
-    if(/guardando/i.test(text)){node.attr('class','gb-sync text-primary').html('<i class="fas fa-circle-notch fa-spin mr-1"></i>Guardando '+count+' cambio'+(count===1?'':'s')+'…');return;}
-    if(/^guardado$/i.test(text)||/todo guardado/i.test(text)){lastBookSave=clock();node.attr('class','gb-sync text-success').html('<i class="fas fa-check-circle mr-1"></i>Todo guardado · '+lastBookSave);return;}
-    if(count>0){node.attr('class','gb-sync text-warning').html('<i class="fas fa-circle mr-1"></i>'+count+' cambio'+(count===1?'':'s')+' pendiente'+(count===1?'':'s')+(enabled?' · autoguardado':' · guardado manual'));return;}
-    node.attr('class','gb-sync text-success').html('<i class="fas fa-check-circle mr-1"></i>Todo guardado'+(lastBookSave?' · '+lastBookSave:'');
+    if(readonly){setBookNode('gb-sync text-muted','<i class="fas fa-lock mr-1"></i>Solo lectura',false);return;}
+    if(/sin conexión|error al guardar|no se pudieron guardar/i.test(text)){setBookNode('gb-sync text-danger','<i class="fas fa-exclamation-circle mr-1"></i>No se pudieron guardar '+count+' cambio'+(count===1?'':'s'),true);return;}
+    if(/guardando/i.test(text)){setBookNode('gb-sync text-primary','<i class="fas fa-circle-notch fa-spin mr-1"></i>Guardando '+count+' cambio'+(count===1?'':'s')+'…',false);return;}
+    if(/todo guardado/i.test(text)){setBookNode('gb-sync text-success',node.html(),false);return;}
+    if(/^guardado$/i.test(text)){lastBookSave=clock();setBookNode('gb-sync text-success','<i class="fas fa-check-circle mr-1"></i>Todo guardado · '+lastBookSave,false);return;}
+    if(count>0){setBookNode('gb-sync text-warning','<i class="fas fa-circle mr-1"></i>'+count+' cambio'+(count===1?'':'s')+' pendiente'+(count===1?'':'s')+(enabled?' · autoguardado':' · guardado manual'),false);return;}
+    setBookNode('gb-sync text-success','<i class="fas fa-check-circle mr-1"></i>Todo guardado'+(lastBookSave?' · '+lastBookSave:''),false);
 }
 $(document).on('click','#gb-retry-save',function(){$('#gb-save').trigger('click');});
 $(document).on('evaluation:gradesSaved.gradesAutosaveBook',function(){if($('#gr-book-view').is(':visible')){lastBookSave=clock();setTimeout(normalizeBookState,0);}});
-var bookObserver=new MutationObserver(function(){updateBookMode();});
+var bookObserver=new MutationObserver(function(){if(bookMutating){bookMutating=false;return;}updateBookMode();});
 var bookNode=document.getElementById('gb-sync-state');if(bookNode)bookObserver.observe(bookNode,{childList:true,characterData:true,subtree:true});
 
 function modalForm(){return $('#manage-evaluation-grades');}
-function collectModal(){
-    var values={};modalForm().find('.grade-input').each(function(i){values[$(this).attr('name')||('field_'+i)]=String($(this).val()==null?'':$(this).val()).trim().toUpperCase();});
-    values.__system=String($('#grading_system_used').val()||'numeric');return values;
-}
-function modalDirtyCount(){
-    if(!modalBoundForm||!modalBoundForm.length)return 0;
-    var now=collectModal(),keys={};Object.keys(now).forEach(function(k){keys[k]=1;});Object.keys(modalBaseline).forEach(function(k){keys[k]=1;});
-    var count=0;Object.keys(keys).forEach(function(k){if(String(now[k]??'')!==String(modalBaseline[k]??''))count++;});return count;
-}
-function modalValid(){
-    var system=String($('#grading_system_used').val()||'numeric'),valid=true;
-    modalForm().find('.grade-input').each(function(){var v=String($(this).val()==null?'':$(this).val()).trim().toUpperCase();if(v==='')return;if(system==='letters'){if(['C','B','A','AD'].indexOf(v)<0)valid=false;}else{var n=Number(v);if(isNaN(n)||n<0||n>20)valid=false;}});return valid;
-}
-function extractCardValue(card,label){
-    var value='';card.find('.row.small .col-md-6').each(function(){var html=$(this).html()||'';var text=$('<div>').html(html.replace(/<br\s*\/?\s*>/gi,'\n')).text();var re=new RegExp(label+'\\s*:\\s*([^\\n]+)','i');var m=text.match(re);if(m&&!value)value=$.trim(m[1]);});return value;
-}
+function collectModal(){var values={};modalForm().find('.grade-input').each(function(i){values[$(this).attr('name')||('field_'+i)]=String($(this).val()==null?'':$(this).val()).trim().toUpperCase();});values.__system=String($('#grading_system_used').val()||'numeric');return values;}
+function modalDirtyCount(){if(!modalBoundForm||!modalBoundForm.length)return 0;var now=collectModal(),keys={};Object.keys(now).forEach(function(k){keys[k]=1;});Object.keys(modalBaseline).forEach(function(k){keys[k]=1;});var count=0;Object.keys(keys).forEach(function(k){if(String(now[k]??'')!==String(modalBaseline[k]??''))count++;});return count;}
+function modalValid(){var system=String($('#grading_system_used').val()||'numeric'),valid=true;modalForm().find('.grade-input').each(function(){var v=String($(this).val()==null?'':$(this).val()).trim().toUpperCase();if(v==='')return;if(system==='letters'){if(['C','B','A','AD'].indexOf(v)<0)valid=false;}else{var n=Number(v);if(isNaN(n)||n<0||n>20)valid=false;}});return valid;}
+function extractCardValue(card,label){var value='';card.find('.row.small .col-md-6').each(function(){var html=$(this).html()||'';var text=$('<div>').html(html.replace(/<br\s*\/?\s*>/gi,'\n')).text();var re=new RegExp(label+'\\s*:\\s*([^\\n]+)','i');var m=text.match(re);if(m&&!value)value=$.trim(m[1]);});return value;}
 function organizeEvaluationModal(){
-    var form=modalForm();if(!form.length)return;
-    var container=form.closest('.container-fluid');
-    var infoCard=form.prevAll('.card').first();
+    var form=modalForm();if(!form.length)return;var container=form.closest('.container-fluid');var infoCard=form.prevAll('.card').first();
     if(infoCard.length&&!infoCard.hasClass('meg-evaluation-hero')){
-        var title=$.trim(infoCard.find('.card-header h6').first().text());
-        var course=extractCardValue(infoCard,'Curso'),level=extractCardValue(infoCard,'Nivel'),grade=extractCardValue(infoCard,'Grado'),section=extractCardValue(infoCard,'Sección'),bim=extractCardValue(infoCard,'Bimestre'),year=extractCardValue(infoCard,'Año Académico');
-        var desc=$.trim(infoCard.find('.card-body>p').first().text());
-        var grading=infoCard.find('.form-group').first().detach();
-        var counter=container.children('.meg-counter').first().detach();
+        var title=$.trim(infoCard.find('.card-header h6').first().text());var course=extractCardValue(infoCard,'Curso'),level=extractCardValue(infoCard,'Nivel'),grade=extractCardValue(infoCard,'Grado'),section=extractCardValue(infoCard,'Sección'),bim=extractCardValue(infoCard,'Bimestre'),year=extractCardValue(infoCard,'Año Académico');
+        var desc=$.trim(infoCard.find('.card-body>p').first().text());var grading=infoCard.find('.form-group').first().detach();var counter=container.children('.meg-counter').first().detach();
         var chips='<div class="meg-context"><span class="meg-context-course">'+esc(course||'Evaluación')+'</span>'+(level?'<span class="meg-context-chip">'+esc(level)+'</span>':'')+(grade?'<span class="meg-context-chip">'+esc(grade)+(section?' · '+esc(section):'')+'</span>':'')+(bim?'<span class="meg-context-chip">'+esc(bim)+'</span>':'')+(year?'<span class="meg-context-chip">'+esc(year)+'</span>':'')+'</div>';
-        infoCard.addClass('meg-evaluation-hero').removeClass('shadow');
-        infoCard.find('.card-header').html('<div class="small text-muted text-uppercase font-weight-bold">Registrar notas</div><h6 class="m-0 font-weight-bold text-primary">'+esc(title||'Evaluación')+'</h6>');
-        var body=infoCard.find('.card-body').empty().append(chips);
-        if(desc&&desc!=='Sin descripción disponible')body.append('<div class="meg-description">'+esc(desc)+'</div>');
-        if(grading.length)body.append(grading);
-        if(counter.length)body.append(counter);
+        infoCard.addClass('meg-evaluation-hero').removeClass('shadow');infoCard.find('.card-header').html('<div class="small text-muted text-uppercase font-weight-bold">Registrar notas</div><h6 class="m-0 font-weight-bold text-primary">'+esc(title||'Evaluación')+'</h6>');
+        var body=infoCard.find('.card-body').empty().append(chips);if(desc&&desc!=='Sin descripción disponible')body.append('<div class="meg-description">'+esc(desc)+'</div>');if(grading.length)body.append(grading);if(counter.length)body.append(counter);
         var yearAlert=form.prev('.alert-info');if(yearAlert.length&&/pertenece al año académico/i.test(yearAlert.text()))yearAlert.hide();
     }
     form.children('.card.shadow').removeClass('shadow').addClass('meg-competency-card');
@@ -178,50 +163,24 @@ function organizeEvaluationModal(){
     try{var p=window.parent&&window.parent.$?window.parent.$:$;p('#uni_modal #submit').hide();}catch(_){ }
 }
 function ensureModalStatus(){
-    if($('#meg-save-statusbar').length)return;
-    var form=modalForm(),hero=form.prevAll('.meg-evaluation-hero').first();if(!hero.length)return;
+    if($('#meg-save-statusbar').length)return;var form=modalForm(),hero=form.prevAll('.meg-evaluation-hero').first();if(!hero.length)return;
     hero.after('<div class="meg-save-statusbar" id="meg-save-statusbar"><div class="d-flex justify-content-between align-items-center flex-wrap"><div><div class="meg-save-mode" id="meg-save-mode"></div><div class="meg-key-help"><i class="fas fa-keyboard mr-1"></i>Enter: siguiente estudiante · También puedes pegar una lista desde Excel.</div></div><div class="meg-state-wrap text-md-right"><div id="meg-autosave-state" class="meg-autosave-state text-muted"><i class="fas fa-info-circle mr-1"></i>Sin cambios pendientes</div><button type="button" class="btn btn-link btn-sm p-0 mt-1 meg-change-save-pref"><i class="fas fa-cog mr-1"></i>Cambiar preferencia</button> <button type="button" class="btn btn-outline-danger btn-sm ml-2" id="meg-retry-save" style="display:none"><i class="fas fa-redo mr-1"></i>Reintentar</button></div></div></div>');
 }
 function setModalState(kind,text){
-    var node=$('#meg-autosave-state'),bar=$('#meg-save-statusbar');if(!node.length)return;
-    bar.removeClass('manual error pending saving');if(!enabled)bar.addClass('manual');if(kind==='error')bar.addClass('error');else if(kind==='pending')bar.addClass('pending');else if(kind==='saving')bar.addClass('saving');
-    var cls='meg-autosave-state ',icon='fa-info-circle';if(kind==='ok'){cls+='text-success';icon='fa-check-circle';}else if(kind==='error'){cls+='text-danger';icon='fa-exclamation-circle';}else if(kind==='saving'){cls+='text-primary';icon='fa-circle-notch fa-spin';}else if(kind==='pending'){cls+='text-warning';icon='fa-circle';}else cls+='text-muted';
-    node.attr('class',cls).html('<i class="fas '+icon+' mr-1"></i>'+esc(text));$('#meg-retry-save').toggle(kind==='error');
+    var node=$('#meg-autosave-state'),bar=$('#meg-save-statusbar');if(!node.length)return;bar.removeClass('manual error pending saving');if(!enabled)bar.addClass('manual');if(kind==='error')bar.addClass('error');else if(kind==='pending')bar.addClass('pending');else if(kind==='saving')bar.addClass('saving');
+    var cls='meg-autosave-state ',icon='fa-info-circle';if(kind==='ok'){cls+='text-success';icon='fa-check-circle';}else if(kind==='error'){cls+='text-danger';icon='fa-exclamation-circle';}else if(kind==='saving'){cls+='text-primary';icon='fa-circle-notch fa-spin';}else if(kind==='pending'){cls+='text-warning';icon='fa-circle';}else cls+='text-muted';node.attr('class',cls).html('<i class="fas '+icon+' mr-1"></i>'+esc(text));$('#meg-retry-save').toggle(kind==='error');
 }
-function refreshModalState(){
-    if(!modalBoundForm||!modalBoundForm.length)return;
-    $('#meg-save-mode').attr('class','meg-save-mode '+(enabled?'text-success':'text-muted')).html(enabled?'<i class="fas fa-bolt mr-1"></i>Guardado automático activo':'<i class="fas fa-hand-paper mr-1"></i>Guardado manual');
-    var count=modalDirtyCount();
-    if(!count){setModalState('ok','Todo guardado');return;}
-    if(!modalValid()){setModalState('error','Corrige las notas inválidas antes de guardar');return;}
-    if(enabled)setModalState('pending',count+' cambio'+(count===1?'':'s')+' pendiente'+(count===1?'':'s')+' · se guardará automáticamente');
-    else setModalState('pending',count+' cambio'+(count===1?'':'s')+' sin guardar · usa “Guardar ahora”');
-}
-function scheduleModal(){
-    clearTimeout(modalTimer);if(!modalBoundForm||!modalBoundForm.length)return;refreshModalState();
-    if(!enabled||modalSaving||!modalDirtyCount()||!modalValid()||!modalForm().find('.grade-input:not(:disabled)').length)return;
-    modalTimer=setTimeout(function(){saveModal(true,false);},1100);
-}
+function refreshModalState(){if(!modalBoundForm||!modalBoundForm.length)return;$('#meg-save-mode').attr('class','meg-save-mode '+(enabled?'text-success':'text-muted')).html(enabled?'<i class="fas fa-bolt mr-1"></i>Guardado automático activo':'<i class="fas fa-hand-paper mr-1"></i>Guardado manual');var count=modalDirtyCount();if(!count){setModalState('ok','Todo guardado');return;}if(!modalValid()){setModalState('error','Corrige las notas inválidas antes de guardar');return;}if(enabled)setModalState('pending',count+' cambio'+(count===1?'':'s')+' pendiente'+(count===1?'':'s')+' · se guardará automáticamente');else setModalState('pending',count+' cambio'+(count===1?'':'s')+' sin guardar · usa “Guardar ahora”');}
+function scheduleModal(){clearTimeout(modalTimer);if(!modalBoundForm||!modalBoundForm.length)return;refreshModalState();if(!enabled||modalSaving||!modalDirtyCount()||!modalValid()||!modalForm().find('.grade-input:not(:disabled)').length)return;modalTimer=setTimeout(function(){saveModal(true,false);},1100);}
 function setModalButtons(disabled){var editable=modalForm().find('.grade-input:not(:disabled)').length>0;modalForm().find('#meg-save-now,button[type="submit"]').prop('disabled',disabled||!editable);}
 function markModalSaved(){modalBaseline=collectModal();modalForm().find('.grade-input').each(function(){$(this).attr('data-original-value',this.value).data('original-value',this.value);});}
 function saveModal(automatic,closeAfter){
-    var form=modalForm();if(!form.length||modalSaving||!modalDirtyCount())return $.Deferred().resolve(false).promise();
-    if(!modalValid()){refreshModalState();return $.Deferred().resolve(false).promise();}
-    if(!form.find('.grade-input:not(:disabled)').length){setModalState('error','Las notas están en modo de solo lectura');return $.Deferred().resolve(false).promise();}
+    var form=modalForm();if(!form.length||modalSaving||!modalDirtyCount())return $.Deferred().resolve(false).promise();if(!modalValid()){refreshModalState();return $.Deferred().resolve(false).promise();}if(!form.find('.grade-input:not(:disabled)').length){setModalState('error','Las notas están en modo de solo lectura');return $.Deferred().resolve(false).promise();}
     clearTimeout(modalTimer);modalSaving=true;setModalButtons(true);setModalState('saving',automatic?'Guardando automáticamente…':'Guardando cambios…');
-    return $.ajax({url:'ajax.php?action=save_evaluation_grades',method:'POST',data:form.serialize(),dataType:'json'}).done(function(r){
-        if(!r||Number(r.status)!==1){setModalState('error',(r&&r.message)||'No se pudieron guardar los cambios');return;}
-        markModalSaved();setModalState('ok','Todo guardado · '+clock());
-        $(document).trigger('evaluation:gradesSaved',[r,{evaluation_id:form.find('input[name="evaluation_id"]').val(),source:automatic?'autosave':'manual'}]);
-        if(!automatic)toast('Calificaciones guardadas.','success');
-        if(closeAfter){modalAllowClose=true;setTimeout(function(){$('#uni_modal').modal('hide');},80);}
-    }).fail(function(x){var r=x.responseJSON||{};setModalState('error',(r.message||'Error de conexión')+' · cambios pendientes');}).always(function(){modalSaving=false;setModalButtons(false);if(modalDirtyCount()&&enabled&&!closeAfter)scheduleModal();});
+    return $.ajax({url:'ajax.php?action=save_evaluation_grades',method:'POST',data:form.serialize(),dataType:'json'}).done(function(r){if(!r||Number(r.status)!==1){setModalState('error',(r&&r.message)||'No se pudieron guardar los cambios');return;}markModalSaved();setModalState('ok','Todo guardado · '+clock());$(document).trigger('evaluation:gradesSaved',[r,{evaluation_id:form.find('input[name="evaluation_id"]').val(),source:automatic?'autosave':'manual'}]);if(!automatic)toast('Calificaciones guardadas.','success');if(closeAfter){modalAllowClose=true;setTimeout(function(){$('#uni_modal').modal('hide');},80);}}).fail(function(x){var r=x.responseJSON||{};setModalState('error',(r.message||'Error de conexión')+' · cambios pendientes');}).always(function(){modalSaving=false;setModalButtons(false);if(modalDirtyCount()&&enabled&&!closeAfter)scheduleModal();});
 }
 function attachEvaluationModal(){
-    var form=modalForm();if(!form.length||form.attr('data-grades-autosave-bound')==='1')return;
-    form.attr('data-grades-autosave-bound','1');modalBoundForm=form;clearTimeout(modalTimer);modalSaving=false;modalAllowClose=false;
-    organizeEvaluationModal();ensureModalStatus();modalBaseline=collectModal();refreshModalState();
-    form.off('submit').on('submit.gradesAutosave',function(e){e.preventDefault();e.stopImmediatePropagation();saveModal(false,false);return false;});
+    var form=modalForm();if(!form.length||form.attr('data-grades-autosave-bound')==='1')return;form.attr('data-grades-autosave-bound','1');modalBoundForm=form;clearTimeout(modalTimer);modalSaving=false;modalAllowClose=false;organizeEvaluationModal();ensureModalStatus();modalBaseline=collectModal();refreshModalState();form.off('submit').on('submit.gradesAutosave',function(e){e.preventDefault();e.stopImmediatePropagation();saveModal(false,false);return false;});
 }
 
 $(document).on('input.gradesAutosave change.gradesAutosave','#manage-evaluation-grades .grade-input',scheduleModal);
@@ -229,18 +188,11 @@ $(document).on('change.gradesAutosave','#manage-evaluation-grades #grading_syste
 $(document).on('click','#meg-retry-save',function(){saveModal(enabled,false);});
 $(document).on('evaluation:gradesSaved.gradesAutosave',function(e,r,meta){if(modalForm().length&&meta&&meta.source!=='autosave'&&meta.source!=='manual'){markModalSaved();refreshModalState();}});
 
-$('#uni_modal').on('hide.bs.modal.gradesAutosave',function(e){
-    if(!modalForm().length)return;if(modalAllowClose){modalAllowClose=false;return;}
-    var count=modalDirtyCount();if(!count)return;
-    if(modalSaving){e.preventDefault();setModalState('saving','Espera a que termine el guardado…');return;}
-    if(enabled){if(!modalValid()){e.preventDefault();setModalState('error','Hay notas inválidas; corrígelas antes de cerrar');return;}e.preventDefault();saveModal(true,true);return;}
-    if(!window.confirm('Hay '+count+' cambio'+(count===1?'':'s')+' sin guardar. ¿Cerrar y descartarlos?'))e.preventDefault();
-});
+$('#uni_modal').on('hide.bs.modal.gradesAutosave',function(e){if(!modalForm().length)return;if(modalAllowClose){modalAllowClose=false;return;}var count=modalDirtyCount();if(!count)return;if(modalSaving){e.preventDefault();setModalState('saving','Espera a que termine el guardado…');return;}if(enabled){if(!modalValid()){e.preventDefault();setModalState('error','Hay notas inválidas; corrígelas antes de cerrar');return;}e.preventDefault();saveModal(true,true);return;}if(!window.confirm('Hay '+count+' cambio'+(count===1?'':'s')+' sin guardar. ¿Cerrar y descartarlos?'))e.preventDefault();});
 $('#uni_modal').on('hidden.bs.modal.gradesAutosave',function(){clearTimeout(modalTimer);modalBoundForm=null;modalBaseline={};modalSaving=false;modalAllowClose=false;});
 
 var observer=new MutationObserver(function(){setTimeout(attachEvaluationModal,0);});observer.observe(document.body,{childList:true,subtree:true});
 
 window.EdusyncGradesAutosave={isEnabled:function(){return enabled;},isReady:function(){return ready;},set:function(v){if(ready)persistPreference(!!v);},refresh:function(){loadPreference();}};
-
 loadPreference();
 })(window.jQuery);
