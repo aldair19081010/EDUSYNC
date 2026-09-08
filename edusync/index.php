@@ -290,6 +290,13 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <?php $sb_admin_js_version = @filemtime(__DIR__ . '/js/sb-admin-2.min.js') ?: time(); ?>
     <script src="js/sb-admin-2.min.js?v=<?php echo $sb_admin_js_version; ?>"></script>
 
+    <?php if ($page === 'grades'): ?>
+    <!-- Cierre bimestral por curso del docente -->
+    <script>window.EDUSYNC_CSRF = <?php echo json_encode($_SESSION['csrf_token'] ?? ''); ?>;</script>
+    <?php $grade_closure_version = @filemtime(__DIR__ . '/js/grade_closure.js') ?: time(); ?>
+    <script src="js/grade_closure.js?v=<?php echo $grade_closure_version; ?>"></script>
+    <?php endif; ?>
+
     <?php if ($page === 'grades_report'): ?>
     <!-- Mejora exclusiva de la vista previa del reporte de notas -->
     <?php $grades_report_preview_version = @filemtime(__DIR__ . '/js/grades_report_preview.js') ?: time(); ?>
