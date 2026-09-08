@@ -1,19 +1,207 @@
 <?php
-// Verificar que hay una sesión activa (admin o estudiante)
-// No enviar headers aquí - index.php ya comenzó output
+// Verificar que hay una sesión activa (admin/docente/auxiliar/estudiante).
+// No enviar headers aquí: index.php ya comenzó la salida.
 if (!isset($_SESSION['login_type']) && !isset($_SESSION['student_logged_in'])) {
-    // Esto no debería ocurrir si index.php está validando correctamente
-    // pero lo dejamos por seguridad
-    return; // Solo retornar, no redirigir
+    return;
 }
 
-$login_type = isset($_SESSION['login_type']) ? $_SESSION['login_type'] : 'student';
-$is_student = isset($_SESSION['student_logged_in']) && $_SESSION['student_logged_in'];
+$login_type = isset($_SESSION['login_type']) ? (int)$_SESSION['login_type'] : 4;
+$is_student = !empty($_SESSION['student_logged_in']);
 $current_page = isset($_GET['page']) ? $_GET['page'] : 'home';
+$is_director = ($login_type === 1 && !empty($_SESSION['login_is_director']));
+
+$role_label = 'Usuario';
+if ($is_student || $login_type === 4) {
+    $role_label = 'Estudiante';
+} elseif ($login_type === 1) {
+    $role_label = $is_director ? 'Director' : 'Administrador';
+} elseif ($login_type === 2) {
+    $role_label = 'Docente';
+} elseif ($login_type === 3) {
+    $role_label = 'Auxiliar';
+}
+
+// Configuración centralizada del menú. Se mantienen las mismas rutas y permisos;
+// únicamente cambia la organización visual del sidebar.
+$groups = [];
+
+if ($login_type === 1) {
+    $groups = [
+        [
+            'id' => 'collapseAcademico',
+            'label' => 'Académico',
+            'icon' => 'fa-graduation-cap',
+            'items' => [
+                ['page' => 'students', 'label' => 'Estudiantes', 'icon' => 'fa-users'],
+                ['page' => 'bulk_student_update', 'label' => 'Actualización masiva', 'icon' => 'fa-users-cog'],
+                ['page' => 'teachers', 'label' => 'Docentes', 'icon' => 'fa-chalkboard-teacher'],
+                ['page' => 'teacher_courses', 'label' => 'Asignación de cursos', 'icon' => 'fa-user-graduate'],
+                ['page' => 'academic_management', 'label' => 'Gestión académica', 'icon' => 'fa-book-open'],
+                ['page' => 'competencias', 'label' => 'Competencias', 'icon' => 'fa-tasks'],
+                ['page' => 'academic_year', 'label' => 'Años académicos', 'icon' => 'fa-calendar-alt'],
+            ],
+        ],
+        [
+            'id' => 'collapseEvaluacion',
+            'label' => 'Evaluación',
+            'icon' => 'fa-clipboard-check',
+            'items' => [
+                ['page' => 'grades', 'label' => 'Libro de notas', 'icon' => 'fa-clipboard-list'],
+                ['page' => 'grades_report', 'label' => 'Reporte de notas', 'icon' => 'fa-chart-bar'],
+            ],
+        ],
+        [
+            'id' => 'collapseAsistencia',
+            'label' => 'Asistencia',
+            'icon' => 'fa-calendar-check',
+            'items' => [
+                ['page' => 'asistencia', 'label' => 'Registrar asistencia', 'icon' => 'fa-user-check'],
+                ['page' => 'attendance_rules_page', 'label' => 'Reglas de asistencia', 'icon' => 'fa-cog'],
+                ['page' => 'attendance_report', 'label' => 'Reporte de asistencia', 'icon' => 'fa-chart-line'],
+            ],
+        ],
+        [
+            'id' => 'collapseFinanzas',
+            'label' => 'Finanzas',
+            'icon' => 'fa-wallet',
+            'items' => [
+                ['page' => 'payments', 'label' => 'Registrar pagos', 'icon' => 'fa-cash-register'],
+                ['page' => 'concepts', 'label' => 'Conceptos de pago', 'icon' => 'fa-list-alt'],
+                ['page' => 'fees', 'label' => 'Asignar deudas', 'icon' => 'fa-file-invoice-dollar'],
+                ['page' => 'discounts', 'label' => 'Descuentos / Becas', 'icon' => 'fa-percentage'],
+                ['page' => 'payments_report', 'label' => 'Reporte de pagos', 'icon' => 'fa-chart-pie'],
+                ['page' => 'debt_reports', 'label' => 'Reporte de deudas', 'icon' => 'fa-exclamation-circle'],
+            ],
+        ],
+        [
+            'id' => 'collapseFacturacion',
+            'label' => 'Facturación',
+            'icon' => 'fa-file-invoice',
+            'items' => [
+                ['page' => 'comprobantes', 'label' => 'Comprobantes', 'icon' => 'fa-receipt'],
+                ['page' => 'facturacion_deudas', 'label' => 'Facturación de deudas', 'icon' => 'fa-file-invoice-dollar'],
+                ['page' => 'config_facturacion', 'label' => 'Configuración SUNAT', 'icon' => 'fa-cog'],
+            ],
+        ],
+        [
+            'id' => 'collapseReportesGenerales',
+            'label' => 'Reportes',
+            'icon' => 'fa-chart-area',
+            'items' => [
+                ['page' => 'fichas_reportes', 'label' => 'Fichas y reportes', 'icon' => 'fa-file-alt'],
+            ],
+        ],
+        [
+            'id' => 'collapseSistema',
+            'label' => 'Sistema',
+            'icon' => 'fa-cogs',
+            'items' => [
+                ['page' => 'users', 'label' => 'Usuarios', 'icon' => 'fa-users-cog'],
+            ],
+        ],
+    ];
+} elseif ($login_type === 2) {
+    $groups = [
+        [
+            'id' => 'collapseDocenteAcademico',
+            'label' => 'Académico',
+            'icon' => 'fa-book',
+            'items' => [
+                ['page' => 'my_courses', 'label' => 'Mis cursos', 'icon' => 'fa-book-open'],
+                ['page' => 'competencias', 'label' => 'Competencias', 'icon' => 'fa-tasks'],
+            ],
+        ],
+        [
+            'id' => 'collapseDocenteEvaluacion',
+            'label' => 'Evaluación',
+            'icon' => 'fa-clipboard-check',
+            'items' => [
+                ['page' => 'grades', 'label' => 'Libro de notas', 'icon' => 'fa-clipboard-list'],
+                ['page' => 'grades_report', 'label' => 'Reporte de notas', 'icon' => 'fa-chart-bar'],
+            ],
+        ],
+    ];
+} elseif ($login_type === 3) {
+    $groups = [
+        [
+            'id' => 'collapseAuxiliarAsistencia',
+            'label' => 'Asistencia',
+            'icon' => 'fa-calendar-check',
+            'items' => [
+                ['page' => 'asistencia', 'label' => 'Registrar asistencia', 'icon' => 'fa-user-check'],
+                ['page' => 'attendance_rules_page', 'label' => 'Reglas de asistencia', 'icon' => 'fa-cog'],
+                ['page' => 'attendance_report', 'label' => 'Reporte de asistencia', 'icon' => 'fa-chart-line'],
+            ],
+        ],
+    ];
+} elseif ($login_type === 4 || $is_student) {
+    $groups = [
+        [
+            'id' => 'collapseEstudianteAcademico',
+            'label' => 'Académico',
+            'icon' => 'fa-graduation-cap',
+            'items' => [
+                ['page' => 'student_grades', 'label' => 'Mis notas', 'icon' => 'fa-clipboard-list'],
+                ['page' => 'student_attendances', 'label' => 'Mis asistencias', 'icon' => 'fa-calendar-check'],
+            ],
+        ],
+        [
+            'id' => 'collapseEstudianteFinanzas',
+            'label' => 'Pagos',
+            'icon' => 'fa-wallet',
+            'items' => [
+                ['page' => 'student_payments', 'label' => 'Mis pagos', 'icon' => 'fa-credit-card'],
+                ['page' => 'student_debts', 'label' => 'Mis deudas', 'icon' => 'fa-exclamation-triangle'],
+            ],
+        ],
+    ];
+}
+
+$render_group = function ($group) use ($current_page) {
+    $pages = [];
+    foreach ($group['items'] as $item) {
+        $pages[] = $item['page'];
+    }
+    $is_open = in_array($current_page, $pages, true);
+    $id = htmlspecialchars($group['id'], ENT_QUOTES, 'UTF-8');
+    $label = htmlspecialchars($group['label'], ENT_QUOTES, 'UTF-8');
+    $icon = htmlspecialchars($group['icon'], ENT_QUOTES, 'UTF-8');
+    ?>
+    <li class="nav-item sidebar-group <?php echo $is_open ? 'active' : ''; ?>">
+        <a class="nav-link sidebar-group-toggle <?php echo $is_open ? '' : 'collapsed'; ?>"
+           href="#"
+           data-toggle="collapse"
+           data-target="#<?php echo $id; ?>"
+           aria-expanded="<?php echo $is_open ? 'true' : 'false'; ?>"
+           aria-controls="<?php echo $id; ?>">
+            <i class="fas fa-fw <?php echo $icon; ?>"></i>
+            <span><?php echo $label; ?></span>
+        </a>
+        <div id="<?php echo $id; ?>"
+             class="collapse <?php echo $is_open ? 'show' : ''; ?>"
+             data-parent="#accordionSidebar">
+            <div class="bg-white py-2 collapse-inner rounded sidebar-group-inner">
+                <?php foreach ($group['items'] as $item):
+                    $item_active = ($current_page === $item['page']);
+                    $item_page = htmlspecialchars($item['page'], ENT_QUOTES, 'UTF-8');
+                    $item_label = htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8');
+                    $item_icon = htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8');
+                ?>
+                    <a class="collapse-item sidebar-subitem <?php echo $item_active ? 'active' : ''; ?>"
+                       href="index.php?page=<?php echo $item_page; ?>">
+                        <i class="fas fa-fw <?php echo $item_icon; ?> sidebar-subitem-icon"></i>
+                        <span><?php echo $item_label; ?></span>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </li>
+    <?php
+};
 ?>
 
 <script>
-// Minimal loader/toast fallbacks that do NOT require jQuery and are available early
+// Minimal loader/toast fallbacks that do NOT require jQuery and are available early.
 if (typeof start_load !== 'function') {
   function start_load(){
     try {
@@ -59,346 +247,36 @@ if (typeof alert_toast !== 'function') {
 </script>
 
 <!-- Sidebar -->
-<ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+<ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion edusync-sidebar" id="accordionSidebar">
 
-    <!-- Sidebar - Brand -->
     <a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.php?page=home">
         <div class="sidebar-brand-icon rotate-n-15">
             <i class="fas fa-graduation-cap"></i>
         </div>
-        <div class="sidebar-brand-text mx-3">EduSync</div>
+        <div class="sidebar-brand-text mx-3 text-left">
+            <span class="d-block">EduSync</span>
+            <small class="sidebar-brand-role"><?php echo htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8'); ?></small>
+        </div>
     </a>
 
-    <!-- Divider -->
     <hr class="sidebar-divider my-0">
 
-    <!-- Nav Item - Dashboard -->
-    <li class="nav-item <?php echo ($current_page == 'home') ? 'active' : ''; ?>">
+    <li class="nav-item <?php echo ($current_page === 'home') ? 'active' : ''; ?>">
         <a class="nav-link" href="index.php?page=home">
             <i class="fas fa-fw fa-home"></i>
             <span>Inicio</span>
         </a>
     </li>
 
-    <!-- Divider -->
     <hr class="sidebar-divider">
+    <div class="sidebar-heading">Navegación</div>
 
-    <?php if ($login_type == 1): // ADMINISTRADOR ?>
-        
-        <!-- Heading -->
-        <div class="sidebar-heading">Estudiantes</div>
+    <?php foreach ($groups as $group) {
+        $render_group($group);
+    } ?>
 
-        <!-- Nav Item - Estudiantes -->
-        <li class="nav-item <?php echo ($current_page == 'students') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=students">
-                <i class="fas fa-fw fa-users"></i>
-                <span>Lista de Estudiantes</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'bulk_student_update') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=bulk_student_update">
-                <i class="fas fa-fw fa-users-cog"></i>
-                <span>Actualización Masiva</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Docentes</div>
-
-        <li class="nav-item <?php echo ($current_page == 'teachers') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=teachers">
-                <i class="fas fa-fw fa-chalkboard-teacher"></i>
-                <span>Lista de Docentes</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'teacher_courses') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=teacher_courses">
-                <i class="fas fa-fw fa-user-graduate"></i>
-                <span>Asignar a Cursos</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Cursos y Conceptos</div>
-
-        <li class="nav-item <?php echo ($current_page == 'academic_management') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=academic_management">
-                <i class="fas fa-fw fa-graduation-cap"></i>
-                <span>Gestión Académica</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'academic_year') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=academic_year">
-                <i class="fas fa-fw fa-calendar-alt"></i>
-                <span>Años Académicos</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Competencias</div>
-
-        <li class="nav-item <?php echo ($current_page == 'competencias') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=competencias">
-                <i class="fas fa-fw fa-tasks"></i>
-                <span>Competencias por Nivel</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Pagos</div>
-
-        <!-- Nav Item - Pagos Collapse Menu -->
-        <li class="nav-item">
-            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapsePagos"
-                aria-expanded="true" aria-controls="collapsePagos">
-                <i class="fas fa-fw fa-dollar-sign"></i>
-                <span>Gestión de Pagos</span>
-            </a>
-            <div id="collapsePagos" class="collapse <?php echo in_array($current_page, ['concepts', 'fees', 'payments', 'discounts']) ? 'show' : ''; ?>" 
-                aria-labelledby="headingPagos" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Opciones de Pagos:</h6>
-                    <a class="collapse-item <?php echo ($current_page == 'concepts') ? 'active' : ''; ?>" href="index.php?page=concepts">Conceptos de Pagos</a>
-                    <a class="collapse-item <?php echo ($current_page == 'fees') ? 'active' : ''; ?>" href="index.php?page=fees">Asignar Deudas</a>
-                    <a class="collapse-item <?php echo ($current_page == 'payments') ? 'active' : ''; ?>" href="index.php?page=payments">Pagos</a>
-                    <a class="collapse-item <?php echo ($current_page == 'discounts') ? 'active' : ''; ?>" href="index.php?page=discounts">Descuentos/Becas</a>
-                </div>
-            </div>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Facturación Electrónica</div>
-
-        <!-- Nav Item - Facturación Collapse Menu -->
-        <li class="nav-item">
-            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseFacturacion"
-                aria-expanded="true" aria-controls="collapseFacturacion">
-                <i class="fas fa-fw fa-file-invoice"></i>
-                <span>Facturación SUNAT</span>
-            </a>
-            <div id="collapseFacturacion" class="collapse <?php echo in_array($current_page, ['comprobantes', 'config_facturacion', 'facturacion_deudas']) ? 'show' : ''; ?>" 
-                aria-labelledby="headingFacturacion" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Opciones:</h6>
-                    <a class="collapse-item <?php echo ($current_page == 'comprobantes') ? 'active' : ''; ?>" href="index.php?page=comprobantes">
-                        <i class="fas fa-receipt"></i> Comprobantes
-                    </a>
-                    <a class="collapse-item <?php echo ($current_page == 'facturacion_deudas') ? 'active' : ''; ?>" href="index.php?page=facturacion_deudas">
-                        <i class="fas fa-file-invoice-dollar"></i> Facturación de Deudas
-                    </a>
-                    <a class="collapse-item <?php echo ($current_page == 'config_facturacion') ? 'active' : ''; ?>" href="index.php?page=config_facturacion">
-                        <i class="fas fa-cog"></i> Configuración
-                    </a>
-                </div>
-            </div>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Asistencia</div>
-
-        <li class="nav-item <?php echo ($current_page == 'asistencia') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=asistencia">
-                <i class="fas fa-fw fa-calendar-check"></i>
-                <span>Asistencia</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'attendance_rules_page') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=attendance_rules_page">
-                <i class="fas fa-fw fa-cog"></i>
-                <span>Reglas de Asistencia</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Notas</div>
-
-        <li class="nav-item <?php echo ($current_page == 'grades') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=grades">
-                <i class="fas fa-fw fa-clipboard-list"></i>
-                <span>Notas</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Reportes</div>
-
-        <!-- Nav Item - Reportes Collapse Menu -->
-        <li class="nav-item">
-            <a class="nav-link collapsed" href="#" data-toggle="collapse" data-target="#collapseReportes"
-                aria-expanded="true" aria-controls="collapseReportes">
-                <i class="fas fa-fw fa-chart-area"></i>
-                <span>Reportes</span>
-            </a>
-            <div id="collapseReportes" class="collapse <?php echo in_array($current_page, ['payments_report', 'grades_report', 'attendance_report', 'debt_reports', 'fichas_reportes']) ? 'show' : ''; ?>" 
-                aria-labelledby="headingReportes" data-parent="#accordionSidebar">
-                <div class="bg-white py-2 collapse-inner rounded">
-                    <h6 class="collapse-header">Tipos de Reportes:</h6>
-                    <a class="collapse-item <?php echo ($current_page == 'payments_report') ? 'active' : ''; ?>" href="index.php?page=payments_report">Reporte de Pagos</a>
-                    <a class="collapse-item <?php echo ($current_page == 'grades_report') ? 'active' : ''; ?>" href="index.php?page=grades_report">Reporte de Notas</a>
-                    <a class="collapse-item <?php echo ($current_page == 'attendance_report') ? 'active' : ''; ?>" href="index.php?page=attendance_report">Reporte de Asistencia</a>
-                    <a class="collapse-item <?php echo ($current_page == 'debt_reports') ? 'active' : ''; ?>" href="index.php?page=debt_reports">Reporte de Deudas</a>
-                    <a class="collapse-item <?php echo ($current_page == 'fichas_reportes') ? 'active' : ''; ?>" href="index.php?page=fichas_reportes">Fichas y Reportes</a>
-                </div>
-            </div>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Sistema</div>
-
-        <li class="nav-item <?php echo ($current_page == 'users') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=users">
-                <i class="fas fa-fw fa-users-cog"></i>
-                <span>Usuarios</span>
-            </a>
-        </li>
-
-    <?php elseif ($login_type == 2): // PROFESOR ?>
-        
-        <!-- Heading -->
-        <div class="sidebar-heading">Académico</div>
-
-        <li class="nav-item <?php echo ($current_page == 'my_courses') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=my_courses">
-                <i class="fas fa-fw fa-book"></i>
-                <span>Mis Cursos</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'grades') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=grades">
-                <i class="fas fa-fw fa-clipboard-list"></i>
-                <span>Notas</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'grades_report') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=grades_report">
-                <i class="fas fa-fw fa-chart-bar"></i>
-                <span>Reporte de Notas</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Competencias</div>
-
-        <li class="nav-item <?php echo ($current_page == 'competencias') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=competencias">
-                <i class="fas fa-fw fa-tasks"></i>
-                <span>Competencias por Nivel</span>
-            </a>
-        </li>
-
-    <?php elseif ($login_type == 3): // AUXILIAR ?>
-        
-        <!-- Heading -->
-        <div class="sidebar-heading">Asistencia</div>
-
-        <li class="nav-item <?php echo ($current_page == 'asistencia') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=asistencia">
-                <i class="fas fa-fw fa-calendar-check"></i>
-                <span>Asistencia</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'attendance_rules_page') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=attendance_rules_page">
-                <i class="fas fa-fw fa-cog"></i>
-                <span>Reglas de Asistencia</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Reportes</div>
-
-        <li class="nav-item <?php echo ($current_page == 'attendance_report') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=attendance_report">
-                <i class="fas fa-fw fa-calendar-alt"></i>
-                <span>Reporte de Asistencia</span>
-            </a>
-        </li>
-
-    <?php elseif ($login_type == 4 || $is_student): // ESTUDIANTE ?>
-        
-        <!-- Heading -->
-        <div class="sidebar-heading">Académico</div>
-
-        <li class="nav-item <?php echo ($current_page == 'student_grades') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=student_grades">
-                <i class="fas fa-fw fa-graduation-cap"></i>
-                <span>Mis Notas</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'student_attendances') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=student_attendances">
-                <i class="fas fa-fw fa-clipboard-list"></i>
-                <span>Mis Asistencias</span>
-            </a>
-        </li>
-
-        <!-- Divider -->
-        <hr class="sidebar-divider">
-
-        <!-- Heading -->
-        <div class="sidebar-heading">Pagos</div>
-
-        <li class="nav-item <?php echo ($current_page == 'student_payments') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=student_payments">
-                <i class="fas fa-fw fa-credit-card"></i>
-                <span>Mis Pagos</span>
-            </a>
-        </li>
-
-        <li class="nav-item <?php echo ($current_page == 'student_debts') ? 'active' : ''; ?>">
-            <a class="nav-link" href="index.php?page=student_debts">
-                <i class="fas fa-fw fa-exclamation-triangle"></i>
-                <span>Mis Deudas</span>
-            </a>
-        </li>
-
-    <?php endif; ?>
-
-    <!-- Divider -->
     <hr class="sidebar-divider d-none d-md-block">
 
-    <!-- Sidebar Toggler (Sidebar) -->
     <div class="text-center d-none d-md-inline">
         <button class="rounded-circle border-0" id="sidebarToggle"></button>
     </div>
