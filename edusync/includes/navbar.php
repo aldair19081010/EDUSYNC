@@ -319,6 +319,8 @@ if (typeof alert_toast !== 'function') {
     if (!sidebar) return;
 
     var SIDEBAR_STATE_KEY = 'edusync_sidebar_collapsed';
+    var SIDEBAR_SCROLL_KEY = 'edusync_sidebar_scroll_top_<?php echo (int)$login_type; ?>';
+    var scrollSaveScheduled = false;
 
     function isDesktop() {
         return window.matchMedia ? window.matchMedia('(min-width: 768px)').matches : window.innerWidth >= 768;
@@ -353,6 +355,43 @@ if (typeof alert_toast !== 'function') {
         syncToggle(toggle, true);
     }
 
+    function saveSidebarScroll() {
+        if (!isDesktop()) return;
+        try {
+            sessionStorage.setItem(SIDEBAR_SCROLL_KEY, String(sidebar.scrollTop || 0));
+        } catch (e) {}
+    }
+
+    function keepActiveItemVisible() {
+        if (!isDesktop()) return;
+        var activeItem = sidebar.querySelector('.nav-item.active > .nav-link');
+        if (!activeItem) return;
+
+        var sidebarRect = sidebar.getBoundingClientRect();
+        var activeRect = activeItem.getBoundingClientRect();
+        var activeInsideView = activeRect.top >= sidebarRect.top && activeRect.bottom <= sidebarRect.bottom;
+        if (activeInsideView) return;
+
+        var targetTop = sidebar.scrollTop + (activeRect.top - sidebarRect.top) - ((sidebar.clientHeight - activeRect.height) / 2);
+        sidebar.scrollTop = Math.max(0, targetTop);
+        saveSidebarScroll();
+    }
+
+    function restoreSidebarScroll() {
+        if (!isDesktop()) return;
+        var savedPosition = null;
+        try {
+            savedPosition = sessionStorage.getItem(SIDEBAR_SCROLL_KEY);
+        } catch (e) {}
+
+        if (savedPosition !== null && savedPosition !== '' && !isNaN(Number(savedPosition))) {
+            sidebar.scrollTop = Math.max(0, Number(savedPosition));
+            return;
+        }
+
+        keepActiveItemVisible();
+    }
+
     function setSidebarCollapsed(collapsed, savePreference) {
         if (!isDesktop()) {
             document.body.classList.remove('sidebar-toggled');
@@ -384,6 +423,34 @@ if (typeof alert_toast !== 'function') {
 
     restoreSidebarState();
 
+    // Restaurar la posición después de aplicar el estado expandido/contraído y el layout.
+    if (typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(function () {
+            window.requestAnimationFrame(restoreSidebarScroll);
+        });
+    } else {
+        setTimeout(restoreSidebarScroll, 0);
+    }
+
+    // Mantener actualizada la posición del scroll sin escribir en cada pixel desplazado.
+    sidebar.addEventListener('scroll', function () {
+        if (scrollSaveScheduled) return;
+        scrollSaveScheduled = true;
+        var save = function () {
+            scrollSaveScheduled = false;
+            saveSidebarScroll();
+        };
+        if (typeof window.requestAnimationFrame === 'function') window.requestAnimationFrame(save);
+        else setTimeout(save, 50);
+    }, { passive: true });
+
+    // Guardar inmediatamente antes de navegar a otra opción del sidebar.
+    sidebar.querySelectorAll('a[href^="index.php?page="]').forEach(function (link) {
+        link.addEventListener('click', function () {
+            saveSidebarScroll();
+        });
+    });
+
     var sidebarButton = document.getElementById('sidebarToggle');
     if (sidebarButton) {
         sidebarButton.addEventListener('click', function (event) {
@@ -391,6 +458,7 @@ if (typeof alert_toast !== 'function') {
             event.stopImmediatePropagation();
             var collapsed = !sidebar.classList.contains('toggled');
             setSidebarCollapsed(collapsed, true);
+            saveSidebarScroll();
         });
     }
 
@@ -413,12 +481,17 @@ if (typeof alert_toast !== 'function') {
 
             if (shouldOpen) openGroup(target);
             else closeGroup(target);
+
+            saveSidebarScroll();
         });
     });
+
+    window.addEventListener('beforeunload', saveSidebarScroll);
 
     window.addEventListener('resize', function () {
         if (isDesktop()) {
             restoreSidebarState();
+            restoreSidebarScroll();
         } else {
             document.body.classList.remove('sidebar-toggled');
             sidebar.classList.remove('toggled');
