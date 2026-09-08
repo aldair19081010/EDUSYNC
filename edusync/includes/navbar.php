@@ -321,6 +321,7 @@ if (typeof alert_toast !== 'function') {
     var SIDEBAR_STATE_KEY = 'edusync_sidebar_collapsed';
     var SIDEBAR_SCROLL_KEY = 'edusync_sidebar_scroll_top_<?php echo (int)$login_type; ?>';
     var scrollSaveScheduled = false;
+    var flyoutPositionScheduled = false;
 
     function isDesktop() {
         return window.matchMedia ? window.matchMedia('(min-width: 768px)').matches : window.innerWidth >= 768;
@@ -332,12 +333,23 @@ if (typeof alert_toast !== 'function') {
         toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
+    function getPanelToggle(panel) {
+        if (!panel || !panel.id) return null;
+        return sidebar.querySelector('.sidebar-group-toggle[data-target="#' + panel.id + '"]');
+    }
+
+    function clearFlyoutPosition(panel) {
+        if (!panel) return;
+        panel.style.removeProperty('left');
+        panel.style.removeProperty('top');
+    }
+
     function closeGroup(panel) {
         if (!panel) return;
         panel.classList.remove('show', 'collapsing');
         panel.style.height = '';
-        var toggle = sidebar.querySelector('.sidebar-group-toggle[data-target="#' + panel.id + '"]');
-        syncToggle(toggle, false);
+        clearFlyoutPosition(panel);
+        syncToggle(getPanelToggle(panel), false);
     }
 
     function closeAllGroups() {
@@ -346,13 +358,55 @@ if (typeof alert_toast !== 'function') {
         });
     }
 
+    function positionCollapsedFlyout(toggle, panel) {
+        if (!toggle || !panel) return;
+        if (!isDesktop() || !sidebar.classList.contains('toggled') || !panel.classList.contains('show')) {
+            clearFlyoutPosition(panel);
+            return;
+        }
+
+        var sidebarRect = sidebar.getBoundingClientRect();
+        var toggleRect = toggle.getBoundingClientRect();
+        var viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+        var panelHeight = panel.getBoundingClientRect().height || panel.offsetHeight || 0;
+        var desiredTop = toggleRect.top;
+        var maxTop = Math.max(8, viewportHeight - panelHeight - 8);
+        var top = Math.max(8, Math.min(desiredTop, maxTop));
+
+        panel.style.left = Math.round(sidebarRect.right + 6) + 'px';
+        panel.style.top = Math.round(top) + 'px';
+    }
+
+    function positionOpenFlyouts() {
+        flyoutPositionScheduled = false;
+        if (!isDesktop() || !sidebar.classList.contains('toggled')) return;
+        sidebar.querySelectorAll('.sidebar-group > .collapse.show').forEach(function (panel) {
+            positionCollapsedFlyout(getPanelToggle(panel), panel);
+        });
+    }
+
+    function scheduleFlyoutPosition() {
+        if (flyoutPositionScheduled) return;
+        flyoutPositionScheduled = true;
+        if (typeof window.requestAnimationFrame === 'function') {
+            window.requestAnimationFrame(positionOpenFlyouts);
+        } else {
+            setTimeout(positionOpenFlyouts, 16);
+        }
+    }
+
     function openGroup(panel) {
         if (!panel) return;
         panel.classList.remove('collapsing');
         panel.style.height = '';
         panel.classList.add('show');
-        var toggle = sidebar.querySelector('.sidebar-group-toggle[data-target="#' + panel.id + '"]');
+        var toggle = getPanelToggle(panel);
         syncToggle(toggle, true);
+        if (isDesktop() && sidebar.classList.contains('toggled')) {
+            positionCollapsedFlyout(toggle, panel);
+        } else {
+            clearFlyoutPosition(panel);
+        }
     }
 
     function saveSidebarScroll() {
@@ -386,6 +440,7 @@ if (typeof alert_toast !== 'function') {
 
         if (savedPosition !== null && savedPosition !== '' && !isNaN(Number(savedPosition))) {
             sidebar.scrollTop = Math.max(0, Number(savedPosition));
+            scheduleFlyoutPosition();
             return;
         }
 
@@ -393,23 +448,30 @@ if (typeof alert_toast !== 'function') {
     }
 
     function setSidebarCollapsed(collapsed, savePreference) {
-        if (!isDesktop()) {
-            document.body.classList.remove('sidebar-toggled');
-            sidebar.classList.remove('toggled');
-            return;
-        }
+        if (!isDesktop()) return;
 
         document.body.classList.toggle('sidebar-toggled', collapsed);
         sidebar.classList.toggle('toggled', collapsed);
 
-        // Al restaurar/contraer no dejamos un flyout abierto automáticamente.
-        if (collapsed) closeAllGroups();
+        if (collapsed) {
+            closeAllGroups();
+        } else {
+            sidebar.querySelectorAll('.sidebar-group > .collapse').forEach(clearFlyoutPosition);
+        }
 
         if (savePreference) {
             try {
                 localStorage.setItem(SIDEBAR_STATE_KEY, collapsed ? '1' : '0');
             } catch (e) {}
         }
+    }
+
+    function setMobileSidebarHidden(hidden) {
+        if (isDesktop()) return;
+        document.body.classList.toggle('sidebar-toggled', hidden);
+        sidebar.classList.toggle('toggled', hidden);
+        if (hidden) closeAllGroups();
+        sidebar.querySelectorAll('.sidebar-group > .collapse').forEach(clearFlyoutPosition);
     }
 
     function restoreSidebarState() {
@@ -421,9 +483,9 @@ if (typeof alert_toast !== 'function') {
         setSidebarCollapsed(collapsed, false);
     }
 
-    restoreSidebarState();
+    if (isDesktop()) restoreSidebarState();
+    else setMobileSidebarHidden(true);
 
-    // Restaurar la posición después de aplicar el estado expandido/contraído y el layout.
     if (typeof window.requestAnimationFrame === 'function') {
         window.requestAnimationFrame(function () {
             window.requestAnimationFrame(restoreSidebarScroll);
@@ -432,8 +494,8 @@ if (typeof alert_toast !== 'function') {
         setTimeout(restoreSidebarScroll, 0);
     }
 
-    // Mantener actualizada la posición del scroll sin escribir en cada pixel desplazado.
     sidebar.addEventListener('scroll', function () {
+        scheduleFlyoutPosition();
         if (scrollSaveScheduled) return;
         scrollSaveScheduled = true;
         var save = function () {
@@ -444,23 +506,34 @@ if (typeof alert_toast !== 'function') {
         else setTimeout(save, 50);
     }, { passive: true });
 
-    // Guardar inmediatamente antes de navegar a otra opción del sidebar.
     sidebar.querySelectorAll('a[href^="index.php?page="]').forEach(function (link) {
         link.addEventListener('click', function () {
             saveSidebarScroll();
         });
     });
 
-    var sidebarButton = document.getElementById('sidebarToggle');
-    if (sidebarButton) {
-        sidebarButton.addEventListener('click', function (event) {
-            event.preventDefault();
-            event.stopImmediatePropagation();
+    // Un único controlador en fase de captura evita que SB Admin, index.php y el
+    // topbar ejecuten el toggle varias veces sobre el mismo clic.
+    document.addEventListener('click', function (event) {
+        var target = event.target;
+        var button = target && target.closest ? target.closest('#sidebarToggle, #sidebarToggleTop') : null;
+        if (!button) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+
+        if (isDesktop()) {
+            if (button.id !== 'sidebarToggle') return;
             var collapsed = !sidebar.classList.contains('toggled');
             setSidebarCollapsed(collapsed, true);
             saveSidebarScroll();
-        });
-    }
+        } else {
+            if (button.id !== 'sidebarToggleTop') return;
+            var shouldHide = !sidebar.classList.contains('toggled');
+            setMobileSidebarHidden(shouldHide);
+        }
+    }, true);
 
     // Solo Pagos y Facturación usan submenú desplegable.
     sidebar.querySelectorAll('.sidebar-group-toggle').forEach(function (toggle) {
@@ -483,19 +556,24 @@ if (typeof alert_toast !== 'function') {
             else closeGroup(target);
 
             saveSidebarScroll();
+            scheduleFlyoutPosition();
         });
     });
 
     window.addEventListener('beforeunload', saveSidebarScroll);
 
+    var resizeTimer = null;
     window.addEventListener('resize', function () {
-        if (isDesktop()) {
-            restoreSidebarState();
-            restoreSidebarScroll();
-        } else {
-            document.body.classList.remove('sidebar-toggled');
-            sidebar.classList.remove('toggled');
-        }
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function () {
+            if (isDesktop()) {
+                restoreSidebarState();
+                restoreSidebarScroll();
+                scheduleFlyoutPosition();
+            } else {
+                setMobileSidebarHidden(true);
+            }
+        }, 80);
     });
 })();
 </script>
