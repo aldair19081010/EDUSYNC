@@ -20,146 +20,165 @@ if ($is_student || $login_type === 4) {
     $role_label = 'Auxiliar';
 }
 
-$groups = [];
+$sections = [];
 
 if ($login_type === 1) {
-    $groups = [
+    $sections = [
         [
-            'id' => 'collapseAcademico',
-            'label' => 'Académico',
-            'icon' => 'fa-graduation-cap',
+            'heading' => 'Estudiantes',
             'items' => [
-                ['page' => 'students', 'label' => 'Estudiantes', 'icon' => 'fa-users'],
-                ['page' => 'bulk_student_update', 'label' => 'Actualización masiva', 'icon' => 'fa-users-cog'],
-                ['page' => 'teachers', 'label' => 'Docentes', 'icon' => 'fa-chalkboard-teacher'],
-                ['page' => 'teacher_courses', 'label' => 'Asignación de cursos', 'icon' => 'fa-user-graduate'],
-                ['page' => 'academic_management', 'label' => 'Gestión académica', 'icon' => 'fa-book-open'],
-                ['page' => 'competencias', 'label' => 'Competencias', 'icon' => 'fa-tasks'],
-                ['page' => 'academic_year', 'label' => 'Años académicos', 'icon' => 'fa-calendar-alt'],
+                ['page' => 'students', 'label' => 'Lista de Estudiantes', 'icon' => 'fa-users'],
+                ['page' => 'bulk_student_update', 'label' => 'Actualización Masiva', 'icon' => 'fa-users-cog'],
             ],
         ],
         [
-            'id' => 'collapseEvaluacion',
-            'label' => 'Evaluación',
-            'icon' => 'fa-clipboard-check',
+            'heading' => 'Docentes',
             'items' => [
-                ['page' => 'grades', 'label' => 'Libro de notas', 'icon' => 'fa-clipboard-list'],
-                ['page' => 'grades_report', 'label' => 'Reporte de notas', 'icon' => 'fa-chart-bar'],
+                ['page' => 'teachers', 'label' => 'Lista de Docentes', 'icon' => 'fa-chalkboard-teacher'],
+                ['page' => 'teacher_courses', 'label' => 'Asignar a Cursos', 'icon' => 'fa-user-graduate'],
             ],
         ],
         [
-            'id' => 'collapseAsistencia',
-            'label' => 'Asistencia',
-            'icon' => 'fa-calendar-check',
+            'heading' => 'Cursos y Conceptos',
             'items' => [
-                ['page' => 'asistencia', 'label' => 'Registrar asistencia', 'icon' => 'fa-user-check'],
-                ['page' => 'attendance_rules_page', 'label' => 'Reglas de asistencia', 'icon' => 'fa-cog'],
-                ['page' => 'attendance_report', 'label' => 'Reporte de asistencia', 'icon' => 'fa-chart-line'],
+                ['page' => 'academic_management', 'label' => 'Gestión Académica', 'icon' => 'fa-graduation-cap'],
+                ['page' => 'academic_year', 'label' => 'Años Académicos', 'icon' => 'fa-calendar-alt'],
             ],
         ],
         [
-            'id' => 'collapseFinanzas',
-            'label' => 'Finanzas',
-            'icon' => 'fa-wallet',
+            'heading' => 'Competencias',
             'items' => [
-                ['page' => 'payments', 'label' => 'Registrar pagos', 'icon' => 'fa-cash-register'],
-                ['page' => 'concepts', 'label' => 'Conceptos de pago', 'icon' => 'fa-list-alt'],
-                ['page' => 'fees', 'label' => 'Asignar deudas', 'icon' => 'fa-file-invoice-dollar'],
-                ['page' => 'discounts', 'label' => 'Descuentos / Becas', 'icon' => 'fa-percentage'],
-                ['page' => 'payments_report', 'label' => 'Reporte de pagos', 'icon' => 'fa-chart-pie'],
-                ['page' => 'debt_reports', 'label' => 'Reporte de deudas', 'icon' => 'fa-exclamation-circle'],
+                ['page' => 'competencias', 'label' => 'Competencias por Nivel', 'icon' => 'fa-tasks'],
             ],
         ],
         [
-            'id' => 'collapseFacturacion',
-            'label' => 'Facturación',
-            'icon' => 'fa-file-invoice',
-            'items' => [
-                ['page' => 'comprobantes', 'label' => 'Comprobantes', 'icon' => 'fa-receipt'],
-                ['page' => 'facturacion_deudas', 'label' => 'Facturación de deudas', 'icon' => 'fa-file-invoice-dollar'],
-                ['page' => 'config_facturacion', 'label' => 'Configuración SUNAT', 'icon' => 'fa-cog'],
+            'heading' => 'Pagos',
+            'collapse' => [
+                'id' => 'collapsePagos',
+                'label' => 'Gestión de Pagos',
+                'icon' => 'fa-dollar-sign',
+                'header' => 'Opciones de Pagos',
+                'items' => [
+                    ['page' => 'concepts', 'label' => 'Conceptos de Pagos', 'icon' => 'fa-list-alt'],
+                    ['page' => 'fees', 'label' => 'Asignar Deudas', 'icon' => 'fa-file-invoice-dollar'],
+                    ['page' => 'payments', 'label' => 'Registrar Pagos', 'icon' => 'fa-cash-register'],
+                    ['page' => 'discounts', 'label' => 'Descuentos / Becas', 'icon' => 'fa-percentage'],
+                    ['page' => 'payments_report', 'label' => 'Reporte de Pagos', 'icon' => 'fa-chart-pie', 'separator_before' => true],
+                    ['page' => 'debt_reports', 'label' => 'Reporte de Deudas', 'icon' => 'fa-exclamation-circle'],
+                ],
             ],
         ],
         [
-            'id' => 'collapseReportesGenerales',
-            'label' => 'Reportes',
-            'icon' => 'fa-chart-area',
-            'items' => [
-                ['page' => 'fichas_reportes', 'label' => 'Fichas y reportes', 'icon' => 'fa-file-alt'],
+            'heading' => 'Facturación Electrónica',
+            'collapse' => [
+                'id' => 'collapseFacturacion',
+                'label' => 'Facturación SUNAT',
+                'icon' => 'fa-file-invoice',
+                'header' => 'Opciones',
+                'items' => [
+                    ['page' => 'comprobantes', 'label' => 'Comprobantes', 'icon' => 'fa-receipt'],
+                    ['page' => 'facturacion_deudas', 'label' => 'Facturación de Deudas', 'icon' => 'fa-file-invoice-dollar'],
+                    ['page' => 'config_facturacion', 'label' => 'Configuración', 'icon' => 'fa-cog'],
+                ],
             ],
         ],
         [
-            'id' => 'collapseSistema',
-            'label' => 'Sistema',
-            'icon' => 'fa-cogs',
+            'heading' => 'Asistencia',
+            'items' => [
+                ['page' => 'asistencia', 'label' => 'Asistencia', 'icon' => 'fa-calendar-check'],
+                ['page' => 'attendance_rules_page', 'label' => 'Reglas de Asistencia', 'icon' => 'fa-cog'],
+                ['page' => 'attendance_report', 'label' => 'Reporte de Asistencia', 'icon' => 'fa-chart-line'],
+            ],
+        ],
+        [
+            'heading' => 'Notas',
+            'items' => [
+                ['page' => 'grades', 'label' => 'Libro de Notas', 'icon' => 'fa-clipboard-list'],
+                ['page' => 'grades_report', 'label' => 'Reporte de Notas', 'icon' => 'fa-chart-bar'],
+            ],
+        ],
+        [
+            'heading' => 'Fichas y Reportes',
+            'items' => [
+                ['page' => 'fichas_reportes', 'label' => 'Fichas y Reportes', 'icon' => 'fa-file-alt'],
+            ],
+        ],
+        [
+            'heading' => 'Sistema',
             'items' => [
                 ['page' => 'users', 'label' => 'Usuarios', 'icon' => 'fa-users-cog'],
             ],
         ],
     ];
 } elseif ($login_type === 2) {
-    $groups = [
+    $sections = [
         [
-            'id' => 'collapseDocenteAcademico',
-            'label' => 'Académico',
-            'icon' => 'fa-book',
+            'heading' => 'Académico',
             'items' => [
-                ['page' => 'my_courses', 'label' => 'Mis cursos', 'icon' => 'fa-book-open'],
-                ['page' => 'competencias', 'label' => 'Competencias', 'icon' => 'fa-tasks'],
+                ['page' => 'my_courses', 'label' => 'Mis Cursos', 'icon' => 'fa-book'],
+                ['page' => 'competencias', 'label' => 'Competencias por Nivel', 'icon' => 'fa-tasks'],
             ],
         ],
         [
-            'id' => 'collapseDocenteEvaluacion',
-            'label' => 'Evaluación',
-            'icon' => 'fa-clipboard-check',
+            'heading' => 'Notas',
             'items' => [
-                ['page' => 'grades', 'label' => 'Libro de notas', 'icon' => 'fa-clipboard-list'],
-                ['page' => 'grades_report', 'label' => 'Reporte de notas', 'icon' => 'fa-chart-bar'],
+                ['page' => 'grades', 'label' => 'Libro de Notas', 'icon' => 'fa-clipboard-list'],
+                ['page' => 'grades_report', 'label' => 'Reporte de Notas', 'icon' => 'fa-chart-bar'],
             ],
         ],
     ];
 } elseif ($login_type === 3) {
-    $groups = [
+    $sections = [
         [
-            'id' => 'collapseAuxiliarAsistencia',
-            'label' => 'Asistencia',
-            'icon' => 'fa-calendar-check',
+            'heading' => 'Asistencia',
             'items' => [
-                ['page' => 'asistencia', 'label' => 'Registrar asistencia', 'icon' => 'fa-user-check'],
-                ['page' => 'attendance_rules_page', 'label' => 'Reglas de asistencia', 'icon' => 'fa-cog'],
-                ['page' => 'attendance_report', 'label' => 'Reporte de asistencia', 'icon' => 'fa-chart-line'],
+                ['page' => 'asistencia', 'label' => 'Asistencia', 'icon' => 'fa-calendar-check'],
+                ['page' => 'attendance_rules_page', 'label' => 'Reglas de Asistencia', 'icon' => 'fa-cog'],
+                ['page' => 'attendance_report', 'label' => 'Reporte de Asistencia', 'icon' => 'fa-chart-line'],
             ],
         ],
     ];
 } elseif ($login_type === 4 || $is_student) {
-    $groups = [
+    $sections = [
         [
-            'id' => 'collapseEstudianteAcademico',
-            'label' => 'Académico',
-            'icon' => 'fa-graduation-cap',
+            'heading' => 'Académico',
             'items' => [
-                ['page' => 'student_grades', 'label' => 'Mis notas', 'icon' => 'fa-clipboard-list'],
-                ['page' => 'student_attendances', 'label' => 'Mis asistencias', 'icon' => 'fa-calendar-check'],
+                ['page' => 'student_grades', 'label' => 'Mis Notas', 'icon' => 'fa-graduation-cap'],
+                ['page' => 'student_attendances', 'label' => 'Mis Asistencias', 'icon' => 'fa-clipboard-list'],
             ],
         ],
         [
-            'id' => 'collapseEstudianteFinanzas',
-            'label' => 'Pagos',
-            'icon' => 'fa-wallet',
+            'heading' => 'Pagos',
             'items' => [
-                ['page' => 'student_payments', 'label' => 'Mis pagos', 'icon' => 'fa-credit-card'],
-                ['page' => 'student_debts', 'label' => 'Mis deudas', 'icon' => 'fa-exclamation-triangle'],
+                ['page' => 'student_payments', 'label' => 'Mis Pagos', 'icon' => 'fa-credit-card'],
+                ['page' => 'student_debts', 'label' => 'Mis Deudas', 'icon' => 'fa-exclamation-triangle'],
             ],
         ],
     ];
 }
 
-$render_group = function ($group) use ($current_page) {
+$render_direct_item = function ($item) use ($current_page) {
+    $active = ($current_page === $item['page']);
+    $page = htmlspecialchars($item['page'], ENT_QUOTES, 'UTF-8');
+    $label = htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8');
+    $icon = htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8');
+    ?>
+    <li class="nav-item <?php echo $active ? 'active' : ''; ?>">
+        <a class="nav-link" href="index.php?page=<?php echo $page; ?>">
+            <i class="fas fa-fw <?php echo $icon; ?>"></i>
+            <span><?php echo $label; ?></span>
+        </a>
+    </li>
+    <?php
+};
+
+$render_collapse = function ($group) use ($current_page) {
     $pages = array_column($group['items'], 'page');
     $is_open = in_array($current_page, $pages, true);
     $id = htmlspecialchars($group['id'], ENT_QUOTES, 'UTF-8');
     $label = htmlspecialchars($group['label'], ENT_QUOTES, 'UTF-8');
     $icon = htmlspecialchars($group['icon'], ENT_QUOTES, 'UTF-8');
+    $header = htmlspecialchars($group['header'] ?? '', ENT_QUOTES, 'UTF-8');
     ?>
     <li class="nav-item sidebar-group <?php echo $is_open ? 'active' : ''; ?>">
         <a class="nav-link sidebar-group-toggle <?php echo $is_open ? '' : 'collapsed'; ?>"
@@ -173,12 +192,18 @@ $render_group = function ($group) use ($current_page) {
         </a>
         <div id="<?php echo $id; ?>" class="collapse <?php echo $is_open ? 'show' : ''; ?>">
             <div class="bg-white py-2 collapse-inner rounded sidebar-group-inner">
+                <?php if ($header !== ''): ?>
+                    <h6 class="collapse-header"><?php echo $header; ?>:</h6>
+                <?php endif; ?>
                 <?php foreach ($group['items'] as $item):
                     $item_active = ($current_page === $item['page']);
                     $item_page = htmlspecialchars($item['page'], ENT_QUOTES, 'UTF-8');
                     $item_label = htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8');
                     $item_icon = htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8');
                 ?>
+                    <?php if (!empty($item['separator_before'])): ?>
+                        <div class="dropdown-divider my-1"></div>
+                    <?php endif; ?>
                     <a class="collapse-item sidebar-subitem <?php echo $item_active ? 'active' : ''; ?>"
                        href="index.php?page=<?php echo $item_page; ?>">
                         <i class="fas fa-fw <?php echo $item_icon; ?> sidebar-subitem-icon"></i>
@@ -268,12 +293,18 @@ if (typeof alert_toast !== 'function') {
         </a>
     </li>
 
-    <hr class="sidebar-divider">
-    <div class="sidebar-heading">Navegación</div>
+    <?php foreach ($sections as $index => $section): ?>
+        <hr class="sidebar-divider<?php echo $index === 0 ? '' : ' my-0'; ?>">
+        <div class="sidebar-heading"><?php echo htmlspecialchars($section['heading'], ENT_QUOTES, 'UTF-8'); ?></div>
 
-    <?php foreach ($groups as $group) {
-        $render_group($group);
-    } ?>
+        <?php if (!empty($section['collapse'])): ?>
+            <?php $render_collapse($section['collapse']); ?>
+        <?php else: ?>
+            <?php foreach ($section['items'] as $item) {
+                $render_direct_item($item);
+            } ?>
+        <?php endif; ?>
+    <?php endforeach; ?>
 
     <hr class="sidebar-divider d-none d-md-block">
 
@@ -351,11 +382,8 @@ if (typeof alert_toast !== 'function') {
         setSidebarCollapsed(collapsed, false);
     }
 
-    // Restaurar la preferencia apenas el sidebar existe en el DOM.
     restoreSidebarState();
 
-    // Control propio del botón para que funcione incluso en páginas que terminan
-    // antes de cargar los scripts finales de index.php.
     var sidebarButton = document.getElementById('sidebarToggle');
     if (sidebarButton) {
         sidebarButton.addEventListener('click', function (event) {
@@ -366,7 +394,7 @@ if (typeof alert_toast !== 'function') {
         });
     }
 
-    // Los grupos se manejan en JavaScript nativo para no depender de Bootstrap.
+    // Solo Pagos y Facturación usan submenú desplegable.
     sidebar.querySelectorAll('.sidebar-group-toggle').forEach(function (toggle) {
         toggle.addEventListener('click', function (event) {
             event.preventDefault();
@@ -388,7 +416,6 @@ if (typeof alert_toast !== 'function') {
         });
     });
 
-    // Si cambia el tamaño de la ventana, respetar la preferencia solo en escritorio.
     window.addEventListener('resize', function () {
         if (isDesktop()) {
             restoreSidebarState();
