@@ -22,6 +22,11 @@ function getCsrf(){
     return csrf;
 }
 function roman(b){ return ['', 'I','II','III','IV'][Number(b)] || String(b); }
+function gradeLabel(v){
+    var grade=String(v == null ? '' : v).trim().replace(/[°º]+$/u,'').trim();
+    return grade ? esc(grade)+'°' : '';
+}
+function aulaLabel(x){ return gradeLabel(x.grado)+' '+esc(x.seccion); }
 function fmtDate(v){
     if(!v) return '—';
     var m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
@@ -85,9 +90,9 @@ function renderRows(){
     $('#aym-count').text(items.length);
     items.forEach(function(x){
         var cls=x.closed?'aym-row-closed':(!x.ready?'aym-row-incomplete':'');
-        rows+='<tr class="'+cls+'"><td><input type="checkbox" class="aym-check" value="'+x.teacher_course_id+'" '+(x.closed?'disabled':'')+'></td><td><strong>'+esc(x.teacher_name)+'</strong></td><td>'+esc(x.course_name)+'</td><td>'+esc(x.level)+'</td><td>'+esc(x.grado)+'° '+esc(x.seccion)+'</td><td>'+Number(x.grade_progress||0).toFixed(1)+'%</td><td>'+stateBadge(x.state)+'</td><td>'+closureText(x)+'</td><td class="text-right">'+actionButtons(x)+'</td></tr>';
+        rows+='<tr class="'+cls+'"><td><input type="checkbox" class="aym-check" value="'+x.teacher_course_id+'" '+(x.closed?'disabled':'')+'></td><td><strong>'+esc(x.teacher_name)+'</strong></td><td>'+esc(x.course_name)+'</td><td>'+esc(x.level)+'</td><td>'+aulaLabel(x)+'</td><td>'+Number(x.grade_progress||0).toFixed(1)+'%</td><td>'+stateBadge(x.state)+'</td><td>'+closureText(x)+'</td><td class="text-right">'+actionButtons(x)+'</td></tr>';
         var c=x.closed?'closed':(x.ready?'ready':'incomplete');
-        cards+='<div class="aym-card '+c+'"><div class="d-flex justify-content-between align-items-start"><div><strong>'+esc(x.course_name)+'</strong><div class="small text-muted">'+esc(x.teacher_name)+'</div></div><input type="checkbox" class="aym-check" value="'+x.teacher_course_id+'" '+(x.closed?'disabled':'')+'></div><div class="small mt-2"><strong>'+esc(x.level)+' · '+esc(x.grado)+'° '+esc(x.seccion)+'</strong> · '+Number(x.grade_progress||0).toFixed(1)+'%</div><div class="mt-1">'+stateBadge(x.state)+'</div><div class="mt-1">'+closureText(x)+'</div><div class="aym-card-actions">'+actionButtons(x)+'</div></div>';
+        cards+='<div class="aym-card '+c+'"><div class="d-flex justify-content-between align-items-start"><div><strong>'+esc(x.course_name)+'</strong><div class="small text-muted">'+esc(x.teacher_name)+'</div></div><input type="checkbox" class="aym-check" value="'+x.teacher_course_id+'" '+(x.closed?'disabled':'')+'></div><div class="small mt-2"><strong>'+esc(x.level)+' · '+aulaLabel(x)+'</strong> · '+Number(x.grade_progress||0).toFixed(1)+'%</div><div class="mt-1">'+stateBadge(x.state)+'</div><div class="mt-1">'+closureText(x)+'</div><div class="aym-card-actions">'+actionButtons(x)+'</div></div>';
     });
     if(!rows) rows='<tr><td colspan="9" class="text-center text-muted py-4">No hay asignaciones con los filtros seleccionados.</td></tr>';
     if(!cards) cards='<div class="alert alert-light border">No hay asignaciones con los filtros seleccionados.</div>';
@@ -138,7 +143,7 @@ function showDetails(x,closure){
     $('#admin-close-modal').attr('data-aym-mode','view');
     $('#admin-close-title').text(closure?'Información del cierre':'Detalle de pendientes');
     var m=closureMeta[String(x.teacher_course_id)]||{};
-    var html='<strong>'+esc(x.course_name)+' · '+esc(x.grado)+'° '+esc(x.seccion)+'</strong><br><span class="small text-muted">'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre</span>';
+    var html='<strong>'+esc(x.course_name)+' · '+aulaLabel(x)+'</strong><br><span class="small text-muted">'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre</span>';
     if(closure) html+='<hr class="my-2"><div class="small"><strong>Tipo:</strong> '+esc(m.mode||'Cerrado')+'<br><strong>Realizado por:</strong> '+esc(m.closed_by_name||x.closed_by_name||'—')+'<br><strong>Fecha:</strong> '+fmtDate(m.closed_at||x.closed_at)+'<br><strong>Versión:</strong> #'+Number(m.closure_version||1)+'<br><strong>Motivo:</strong> '+esc(m.reason||'Sin observación adicional')+'</div>';
     $('#admin-close-summary').attr('class','alert alert-light border').html(html);
     var issues=x.issues||[];
@@ -149,7 +154,7 @@ function showDetails(x,closure){
 function openClose(x,force){
     $('#admin-close-modal').attr('data-aym-mode','close'); $('#admin-close-modal').data('aym-item',x).data('aym-force',force?1:0);
     $('#admin-close-title').text(force?'Cierre administrativo excepcional':'Cierre administrativo');
-    $('#admin-close-summary').attr('class','alert '+(force?'alert-warning':'alert-info')).html('<strong>'+esc(x.course_name)+' · '+esc(x.grado)+'° '+esc(x.seccion)+'</strong><br>'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre · '+Number(x.grade_progress||0).toFixed(1)+'% completo');
+    $('#admin-close-summary').attr('class','alert '+(force?'alert-warning':'alert-info')).html('<strong>'+esc(x.course_name)+' · '+aulaLabel(x)+'</strong><br>'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre · '+Number(x.grade_progress||0).toFixed(1)+'% completo');
     var issues=x.issues||[];
     $('#admin-close-issues').html(force&&issues.length?'<div class="small mb-3"><strong>Pendientes:</strong><ul class="mb-0 mt-1">'+issues.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul></div>':'');
     $('#admin-close-reason').val('').closest('.form-group').show(); $('#admin-close-confirm-check').prop('checked',false); $('#admin-close-confirm-wrap').toggle(!!force); $('#admin-close-confirm').show().prop('disabled',false).attr('class','btn '+(force?'btn-danger':'btn-success')).html('<i class="fas fa-lock mr-1"></i>'+(force?'Cerrar excepcionalmente':'Cerrar asignación'));
