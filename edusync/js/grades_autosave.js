@@ -47,7 +47,6 @@ function renderPreference(triggerGradebook){
     $('#meg-autosave-state-pref').attr('class','small '+(enabled?'text-success':'text-muted')).text(enabled?'Activado para ambos modos':'Desactivado para ambos modos');
     if(triggerGradebook&&$('#gb-autosave').length){$('#gb-autosave').trigger('change');}
     syncing=false;
-    $(document).trigger('grades:autosave-changed',[enabled]);
 }
 
 function persistPreference(next,source){
@@ -123,8 +122,8 @@ function scheduleModal(){
     modalTimer=setTimeout(function(){saveModalAutomatic(false);},1100);
 }
 function setModalButtons(disabled){
-    modalForm().find('button[type="submit"]').prop('disabled',disabled);
-    try{var p=window.parent&&window.parent.$?window.parent.$:$;p('#uni_modal #submit').prop('disabled',disabled);}catch(_){ }
+    var editable=modalForm().find('.grade-input:not(:disabled)').length>0;
+    modalForm().find('button[type="submit"]').prop('disabled',disabled||!editable);
 }
 function saveModalAutomatic(closeAfter){
     var form=modalForm();
@@ -157,7 +156,6 @@ function attachEvaluationModal(){
 $(document).on('input.gradesAutosave change.gradesAutosave','#manage-evaluation-grades .grade-input',scheduleModal);
 $(document).on('change.gradesAutosave','#manage-evaluation-grades #grading_system',function(){setTimeout(scheduleModal,0);});
 $(document).on('evaluation:gradesSaved.gradesAutosave',function(){if(modalForm().length){modalBaseline=collectModal();refreshModalState();}});
-$(document).on('grades:autosave-changed.gradesAutosave',function(){renderPreference(false);scheduleModal();});
 
 $('#uni_modal').on('hide.bs.modal.gradesAutosave',function(e){
     if(!modalForm().length)return;
