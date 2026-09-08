@@ -1,6 +1,5 @@
 <?php
-// Verificar que hay una sesión activa (admin/docente/auxiliar/estudiante).
-// No enviar headers aquí: index.php ya comenzó la salida.
+// Sidebar EduSync. No enviar headers aquí: index.php ya comenzó la salida.
 if (!isset($_SESSION['login_type']) && !isset($_SESSION['student_logged_in'])) {
     return;
 }
@@ -21,8 +20,6 @@ if ($is_student || $login_type === 4) {
     $role_label = 'Auxiliar';
 }
 
-// Configuración centralizada del menú. Se mantienen las mismas rutas y permisos;
-// únicamente cambia la organización visual del sidebar.
 $groups = [];
 
 if ($login_type === 1) {
@@ -158,10 +155,7 @@ if ($login_type === 1) {
 }
 
 $render_group = function ($group) use ($current_page) {
-    $pages = [];
-    foreach ($group['items'] as $item) {
-        $pages[] = $item['page'];
-    }
+    $pages = array_column($group['items'], 'page');
     $is_open = in_array($current_page, $pages, true);
     $id = htmlspecialchars($group['id'], ENT_QUOTES, 'UTF-8');
     $label = htmlspecialchars($group['label'], ENT_QUOTES, 'UTF-8');
@@ -177,9 +171,7 @@ $render_group = function ($group) use ($current_page) {
             <i class="fas fa-fw <?php echo $icon; ?>"></i>
             <span><?php echo $label; ?></span>
         </a>
-        <div id="<?php echo $id; ?>"
-             class="collapse <?php echo $is_open ? 'show' : ''; ?>"
-             data-parent="#accordionSidebar">
+        <div id="<?php echo $id; ?>" class="collapse <?php echo $is_open ? 'show' : ''; ?>">
             <div class="bg-white py-2 collapse-inner rounded sidebar-group-inner">
                 <?php foreach ($group['items'] as $item):
                     $item_active = ($current_page === $item['page']);
@@ -201,7 +193,8 @@ $render_group = function ($group) use ($current_page) {
 ?>
 
 <script>
-// Minimal loader/toast fallbacks that do NOT require jQuery and are available early.
+// Fallbacks disponibles incluso si una página incluida termina antes de cargar
+// los scripts ubicados al final de index.php.
 if (typeof start_load !== 'function') {
   function start_load(){
     try {
@@ -224,12 +217,15 @@ if (typeof start_load !== 'function') {
       inner.innerText = 'Cargando...';
       el.appendChild(inner);
       document.body.appendChild(el);
-    } catch (e) { /* silent */ }
+    } catch (e) {}
   }
 }
 if (typeof end_load !== 'function') {
   function end_load(){
-    try { var el = document.getElementById('page-loader'); if (el && el.parentNode) el.parentNode.removeChild(el); } catch(e){}
+    try {
+      var el = document.getElementById('page-loader');
+      if (el && el.parentNode) el.parentNode.removeChild(el);
+    } catch(e) {}
   }
 }
 if (typeof alert_toast !== 'function') {
@@ -237,18 +233,22 @@ if (typeof alert_toast !== 'function') {
     try {
       var d = document.createElement('div');
       d.className = 'toast-alert-fixed alert alert-' + (type || 'info');
-      d.style.position = 'fixed'; d.style.top = '20px'; d.style.right = '20px'; d.style.zIndex = 2000001; d.style.minWidth = '220px';
+      d.style.position = 'fixed';
+      d.style.top = '20px';
+      d.style.right = '20px';
+      d.style.zIndex = 2000001;
+      d.style.minWidth = '220px';
       d.innerText = message;
       document.body.appendChild(d);
       setTimeout(function(){ try { d.remove(); } catch(e){} }, 3500);
-    } catch (e) { console.log(type, message); }
+    } catch (e) {
+      console.log(type, message);
+    }
   }
 }
 </script>
 
-<!-- Sidebar -->
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion edusync-sidebar" id="accordionSidebar">
-
     <a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.php?page=home">
         <div class="sidebar-brand-icon rotate-n-15">
             <i class="fas fa-graduation-cap"></i>
@@ -280,71 +280,57 @@ if (typeof alert_toast !== 'function') {
     <div class="text-center d-none d-md-inline">
         <button class="rounded-circle border-0" id="sidebarToggle"></button>
     </div>
-
 </ul>
-<!-- End of Sidebar -->
 
 <script>
 (function () {
-    var attempts = 0;
+    var sidebar = document.getElementById('accordionSidebar');
+    if (!sidebar) return;
 
-    function initEduSyncSidebarAccordion() {
-        var $ = window.jQuery;
-        attempts++;
-
-        // El navbar se imprime antes que bootstrap.bundle.js. Esperamos hasta que
-        // el plugin Collapse esté listo y evitamos depender del orden de carga.
-        if (!$ || !$.fn || typeof $.fn.collapse !== 'function') {
-            if (attempts < 80) setTimeout(initEduSyncSidebarAccordion, 75);
-            return;
-        }
-
-        var $sidebar = $('#accordionSidebar');
-        if (!$sidebar.length || $sidebar.data('edusyncAccordionReady')) return;
-        $sidebar.data('edusyncAccordionReady', true);
-
-        // Quitamos el data-parent automático de Bootstrap porque en páginas con
-        // navegación propia podía dejar el acordeón en un estado intermedio.
-        $sidebar.find('.sidebar-group > .collapse').removeAttr('data-parent');
-
-        // El clic se gestiona aquí. stopPropagation evita que el handler delegado
-        // data-api de Bootstrap procese el mismo clic una segunda vez.
-        $sidebar.on('click.edusyncAccordion', '.sidebar-group-toggle', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            var $toggle = $(this);
-            var selector = $toggle.attr('data-target');
-            var $target = selector ? $(selector) : $();
-            if (!$target.length) return;
-
-            var opening = !$target.hasClass('show');
-
-            if (opening) {
-                $sidebar.find('.sidebar-group > .collapse.show').not($target).each(function () {
-                    $(this).collapse('hide');
-                });
-                $target.collapse('show');
-            } else {
-                $target.collapse('hide');
-            }
-        });
-
-        // Mantener flecha, aria-expanded y clase collapsed sincronizadas incluso
-        // cuando Bootstrap cierra otro grupo durante una animación.
-        $sidebar.find('.sidebar-group > .collapse')
-            .on('show.bs.collapse.edusyncAccordion', function () {
-                var id = this.id;
-                var $toggle = $sidebar.find('.sidebar-group-toggle[data-target="#' + id + '"]');
-                $toggle.removeClass('collapsed').attr('aria-expanded', 'true');
-            })
-            .on('hide.bs.collapse.edusyncAccordion', function () {
-                var id = this.id;
-                var $toggle = $sidebar.find('.sidebar-group-toggle[data-target="#' + id + '"]');
-                $toggle.addClass('collapsed').attr('aria-expanded', 'false');
-            });
+    function syncToggle(toggle, open) {
+        if (!toggle) return;
+        toggle.classList.toggle('collapsed', !open);
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
-    initEduSyncSidebarAccordion();
+    function closeGroup(panel) {
+        if (!panel) return;
+        panel.classList.remove('show', 'collapsing');
+        panel.style.height = '';
+        var toggle = sidebar.querySelector('.sidebar-group-toggle[data-target="#' + panel.id + '"]');
+        syncToggle(toggle, false);
+    }
+
+    function openGroup(panel) {
+        if (!panel) return;
+        panel.classList.remove('collapsing');
+        panel.style.height = '';
+        panel.classList.add('show');
+        var toggle = sidebar.querySelector('.sidebar-group-toggle[data-target="#' + panel.id + '"]');
+        syncToggle(toggle, true);
+    }
+
+    // Se maneja en JavaScript nativo para que el sidebar siga funcionando aunque
+    // una página incluida haga exit/return antes de cargar bootstrap.bundle.js.
+    sidebar.querySelectorAll('.sidebar-group-toggle').forEach(function (toggle) {
+        toggle.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var selector = toggle.getAttribute('data-target');
+            if (!selector) return;
+            var target = document.querySelector(selector);
+            if (!target) return;
+
+            var shouldOpen = !target.classList.contains('show');
+
+            sidebar.querySelectorAll('.sidebar-group > .collapse.show').forEach(function (panel) {
+                if (panel !== target) closeGroup(panel);
+            });
+
+            if (shouldOpen) openGroup(target);
+            else closeGroup(target);
+        });
+    });
 })();
 </script>
