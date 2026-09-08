@@ -135,7 +135,8 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
     }
 
     function actions(r){
-        const resolvedRequest = r.source_type === 'attendance_request' && (r.workflow_status === 'Aprobada' || r.workflow_status === 'Rechazada');
+        const resolvedRequest = ['attendance_request','attendance_admin_result','attendance_result'].includes(r.source_type)
+            && (r.workflow_status === 'Aprobada' || r.workflow_status === 'Rechazada');
         const openTitle = resolvedRequest ? 'Ver resolución' : 'Abrir';
         const openClass = resolvedRequest ? 'btn-outline-success' : 'btn-outline-primary';
         const open = r.open_mode === 'modal'
@@ -177,7 +178,8 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
             },
             createdRow: (row, data) => {
                 if(!Number(data.is_read)) $(row).addClass('nt-unread');
-                if(data.source_type === 'attendance_request' && data.workflow_status && data.workflow_status !== 'Pendiente') $(row).addClass('nt-resolved');
+                if(['attendance_request','attendance_admin_result','attendance_result'].includes(data.source_type)
+                    && data.workflow_status && data.workflow_status !== 'Pendiente') $(row).addClass('nt-resolved');
             },
             columns: [
                 {data:'created_at', render:date},
