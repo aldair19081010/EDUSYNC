@@ -57,6 +57,10 @@ $('<style id="aym-style">'+
   '#ay-admin-close-panel{display:none!important}'+
   '#info-modal.aym-manager .modal-dialog{max-width:1280px;width:calc(100% - 32px)}'+
   '#info-modal.aym-manager .modal-body{padding:1rem}'+
+  '#admin-close-modal.aym-pending-fixed{overflow:hidden!important;z-index:1070}'+
+  '#admin-close-modal.aym-pending-fixed .modal-dialog{position:fixed;top:50%;left:50%;margin:0!important;width:calc(100% - 24px);max-width:560px;transform:translate(-50%,-50%)!important}'+
+  '#admin-close-modal.aym-pending-fixed .modal-content{max-height:calc(100vh - 32px);overflow:hidden}'+
+  '#admin-close-modal.aym-pending-fixed .modal-body{overflow-y:auto;overscroll-behavior:contain}'+
   '.aym-toolbar{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:10px;padding:12px}'+
   '.aym-toolbar label{font-size:.7rem;font-weight:700;color:#5a5c69;text-transform:uppercase;margin-bottom:4px}'+
   '.aym-actions{display:flex;gap:6px;flex-wrap:wrap}'+
@@ -140,7 +144,8 @@ function refreshManager(){
     });
 }
 function showDetails(x,closure){
-    $('#admin-close-modal').attr('data-aym-mode','view');
+    var modal=$('#admin-close-modal');
+    modal.attr('data-aym-mode','view').toggleClass('aym-pending-fixed',!closure);
     $('#admin-close-title').text(closure?'Información del cierre':'Detalle de pendientes');
     var m=closureMeta[String(x.teacher_course_id)]||{};
     var html='<strong>'+esc(x.course_name)+' · '+aulaLabel(x)+'</strong><br><span class="small text-muted">'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre</span>';
@@ -149,10 +154,10 @@ function showDetails(x,closure){
     var issues=x.issues||[];
     $('#admin-close-issues').html(!closure&&issues.length?'<div class="mb-3"><strong>Pendientes detectados</strong><ul class="small mt-2 mb-0">'+issues.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul></div>':'');
     $('#admin-close-reason').closest('.form-group').hide(); $('#admin-close-confirm-wrap').hide(); $('#admin-close-confirm').hide();
-    $('#admin-close-modal').modal('show');
+    modal.modal('show');
 }
 function openClose(x,force){
-    $('#admin-close-modal').attr('data-aym-mode','close'); $('#admin-close-modal').data('aym-item',x).data('aym-force',force?1:0);
+    $('#admin-close-modal').removeClass('aym-pending-fixed').attr('data-aym-mode','close'); $('#admin-close-modal').data('aym-item',x).data('aym-force',force?1:0);
     $('#admin-close-title').text(force?'Cierre administrativo excepcional':'Cierre administrativo');
     $('#admin-close-summary').attr('class','alert '+(force?'alert-warning':'alert-info')).html('<strong>'+esc(x.course_name)+' · '+aulaLabel(x)+'</strong><br>'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre · '+Number(x.grade_progress||0).toFixed(1)+'% completo');
     var issues=x.issues||[];
@@ -200,8 +205,10 @@ $(document).on('click','#aym-close-selected',function(){bulk(selectedIds(),'sele
 $(document).on('click','#aym-close-ready',function(){var ids=filteredItems().filter(function(x){return x.ready&&!x.closed;}).map(function(x){return Number(x.teacher_course_id);});bulk(ids,'que están listas');});
 
 $('#admin-close-modal').on('hidden.bs.modal',function(){
-    $(this).removeAttr('data-aym-mode').removeData('aym-item').removeData('aym-force');
+    var managerStillOpen=$('#info-modal').hasClass('show');
+    $(this).removeClass('aym-pending-fixed').removeAttr('data-aym-mode').removeData('aym-item').removeData('aym-force');
     $('#admin-close-reason').closest('.form-group').show();$('#admin-close-confirm').show();$('#admin-close-confirm-wrap').hide();
+    if(managerStillOpen) $('body').addClass('modal-open');
 });
 $('#info-modal').on('hidden.bs.modal',function(){
     if($(this).hasClass('aym-manager')){$(this).removeClass('aym-manager');$(this).find('.modal-dialog').removeClass('modal-xl').addClass('modal-lg');}
