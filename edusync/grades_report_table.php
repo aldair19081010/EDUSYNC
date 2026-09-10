@@ -20,6 +20,8 @@ if (session_status() == PHP_SESSION_NONE) {
 $school_id = $_SESSION['login_school_id'] ?? null;
 $login_type = $_SESSION['login_type'] ?? null;
 $teacher_id = $_SESSION['login_teacher_id'] ?? null;
+require_once __DIR__ . '/includes/grades_report_access.php';
+$reportDirector = grades_report_is_director($conn);
 
 if (!$school_id) {
     die("<div class=\"alert alert-danger\">Error: ID de colegio no configurado.</div>");
@@ -395,7 +397,7 @@ if ($show_avg && !empty($student_id_filter)) {
         $types_avg .= "i"; 
     }
 
-    if ($login_type == 2 && $teacher_id) {
+    if ($login_type == 2 && $teacher_id && !$reportDirector) {
         $sql_grades .= " AND EXISTS (SELECT 1 FROM teacher_courses tc2 
                                   WHERE tc2.id = e.teacher_course_id 
                                   AND tc2.teacher_id = ?)";
@@ -507,7 +509,7 @@ if ($show_avg && !empty($student_id_filter)) {
         $types .= "i";
     }
 
-    if ($login_type == 2 && $teacher_id) {
+    if ($login_type == 2 && $teacher_id && !$reportDirector) {
         $where_clauses[] = "tc.teacher_id = ?";
         $params[] = $teacher_id;
         $types .= "i";

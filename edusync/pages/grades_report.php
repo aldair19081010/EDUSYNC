@@ -22,6 +22,10 @@ $login_type = $_SESSION['login_type'] ?? null;
 $is_admin = ($login_type == 1);
 $is_teacher = ($login_type == 2);
 $teacher_id = $_SESSION['login_teacher_id'] ?? null;
+require_once dirname(__DIR__) . '/includes/grades_report_access.php';
+$reportDirector = grades_report_is_director($conn);
+$is_admin = $is_admin || $reportDirector;
+$is_teacher = $is_teacher && !$reportDirector;
 
 if (!$school_id || !$login_type) {
     die("Acceso no autorizado o configuración de sesión incompleta. Por favor, inicie sesión nuevamente.");
@@ -397,6 +401,13 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
 $(document).ready(function() {
     if (typeof $.fn.select2 !== 'undefined') {
         $('.select2').select2({ width: '100%' });
+    }
+});
+
+// Identify report-only catalog requests without changing permissions in other modules.
+$.ajaxPrefilter(function(options) {
+    if (/ajax\.php\?action=get_(grados_by_nivel|secciones_by_grado_nivel|courses_by_aula|students_by_grado_seccion|evaluations_by_filters|levels_by_academic_year)(?:&|$)/.test(options.url)) {
+        options.data = (options.data ? options.data + '&' : '') + 'report_scope=grades_report';
     }
 });
 
