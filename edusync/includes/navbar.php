@@ -18,6 +18,8 @@ if ($is_student || $login_type === 4) {
     $role_label = 'Docente';
 } elseif ($login_type === 3) {
     $role_label = 'Auxiliar';
+} elseif ($login_type === 5) {
+    $role_label = 'Apoderado';
 }
 
 $sections = [];
@@ -29,6 +31,7 @@ if ($login_type === 1) {
             'items' => [
                 ['page' => 'students', 'label' => 'Lista de Estudiantes', 'icon' => 'fa-users'],
                 ['page' => 'bulk_student_update', 'label' => 'Actualización Masiva', 'icon' => 'fa-users-cog'],
+                ['page' => 'guardians', 'label' => 'Apoderados', 'icon' => 'fa-user-friends'],
             ],
         ],
         [
