@@ -75,6 +75,12 @@ function load_teacher_for_user($conn, $teacher_id, $school_id) {
     return $row ?: null;
 }
 
+function reject_guardian_account_from_users($target) {
+    if ($target && intval($target['type'] ?? 0) === 5) {
+        user_api_reply(0, 'Las cuentas de apoderado se administran exclusivamente desde el módulo Apoderados.');
+    }
+}
+
 $login_id = intval($_SESSION['login_id'] ?? 0);
 $school_id = intval($_SESSION['login_school_id'] ?? 0);
 if (!$login_id || !$school_id) user_api_reply(0, 'Sesión no válida. Vuelve a iniciar sesión.');
@@ -117,6 +123,7 @@ if ($action === 'save') {
 
     $current = $id ? load_target_user($conn, $id, $school_id) : null;
     if ($id && !$current) user_api_reply(0, 'Usuario no encontrado.');
+    reject_guardian_account_from_users($current);
 
     if ($id === $login_id) {
         if ($status !== 'Activo') user_api_reply(0, 'No puedes desactivar tu propia cuenta.');
@@ -196,6 +203,7 @@ if ($action === 'toggle_status') {
     $id = intval($_POST['id'] ?? 0);
     $target = load_target_user($conn, $id, $school_id);
     if (!$target) user_api_reply(0, 'Usuario no encontrado.');
+    reject_guardian_account_from_users($target);
     if ($id === $login_id) user_api_reply(0, 'No puedes desactivar tu propia cuenta.');
 
     $new_status = $target['status'] === 'Activo' ? 'Inactivo' : 'Activo';
@@ -224,6 +232,7 @@ if ($action === 'reset_password') {
     if (strlen($new_password) < 8) user_api_reply(0, 'La contraseña debe tener al menos 8 caracteres.');
     $target = load_target_user($conn, $id, $school_id);
     if (!$target) user_api_reply(0, 'Usuario no encontrado.');
+    reject_guardian_account_from_users($target);
 
     $hash = password_hash($new_password, PASSWORD_DEFAULT);
     $stmt = $conn->prepare('UPDATE users SET password = ? WHERE id = ? AND school_id = ?');
@@ -264,6 +273,7 @@ if ($action === 'delete_permanent') {
     $id = intval($_POST['id'] ?? 0);
     $target = load_target_user($conn, $id, $school_id);
     if (!$target) user_api_reply(0, 'Usuario no encontrado.');
+    reject_guardian_account_from_users($target);
     if ($id === $login_id) user_api_reply(0, 'No puedes eliminar tu propia cuenta.');
     if ($target['status'] !== 'Inactivo') user_api_reply(0, 'Primero debes desactivar al usuario antes de eliminarlo definitivamente.');
 
