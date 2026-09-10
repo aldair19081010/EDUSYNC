@@ -61,106 +61,105 @@ try {
 
 $format = (string)($_GET['print_format'] ?? 'auto');
 if (!in_array($format, ['numeric','letters'], true)) $format = $data['auto_format'];
-$allCourses = ((int)$filters['course_id'] === 0);
 
-function grp_h($text) {
-    return htmlspecialchars((string)$text, ENT_QUOTES, 'UTF-8');
+function grp_h($value) {
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function grp_course_table(array $data, $courseId, $format) {
+function grp_course_page(array $data, $courseId, $format, $index, $total) {
     $course = $data['courses'][$courseId];
     $competencies = $data['competencies'][$courseId] ?? [];
     ?>
-    <section class="course-section">
-        <h2><?= grp_h(mb_strtoupper($course['name'], 'UTF-8')) ?></h2>
-        <div class="course-meta"><?= grp_h($data['level']) ?> · <?= grp_h($data['grade']) ?> <?= grp_h($data['section']) ?> · <?= (int)$data['bimester'] ?>° Bimestre · Año <?= grp_h($data['year']) ?></div>
-        <table class="course-table">
-            <thead>
-                <tr>
-                    <th rowspan="2" class="student-col">APELLIDOS Y NOMBRES</th>
-                    <?php foreach ($competencies as $competency):
-                        $span = max(1, count($competency['evaluations'])) + 1;
-                        $pct = rtrim(rtrim(number_format((float)$competency['percentage'], 2, '.', ''), '0'), '.'); ?>
-                        <th colspan="<?= $span ?>" class="competency"><?= grp_h(mb_strtoupper($competency['name'], 'UTF-8')) ?> (<?= grp_h($pct) ?>%)</th>
-                    <?php endforeach; ?>
-                    <th rowspan="2" class="final-col">PROMEDIO FINAL</th>
-                </tr>
-                <tr>
-                    <?php foreach ($competencies as $competency): ?>
-                        <?php if ($competency['evaluations']): ?>
-                            <?php foreach ($competency['evaluations'] as $evaluation): ?>
-                                <th><?= grp_h($evaluation['title']) ?></th>
-                            <?php endforeach; ?>
-                        <?php else: ?>
-                            <th>Sin evaluaciones</th>
-                        <?php endif; ?>
-                        <th class="avg-col">PROMEDIO</th>
-                    <?php endforeach; ?>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($data['students'] as $student):
-                    $weighted = 0.0;
-                    $hasAny = false; ?>
+    <section class="print-page">
+        <div class="page-topline">
+            <span>REPORTE DE NOTAS</span>
+            <?php if ($total > 1): ?><span>Curso <?= (int)$index ?> de <?= (int)$total ?></span><?php endif; ?>
+        </div>
+        <h1><?= grp_h(mb_strtoupper($course['name'], 'UTF-8')) ?></h1>
+        <div class="meta">
+            Año <?= grp_h($data['year']) ?> · <?= grp_h($data['level']) ?> · <?= grp_h($data['grade']) ?> <?= grp_h($data['section']) ?> · <?= (int)$data['bimester'] ?>° Bimestre · <?= $format === 'letters' ? 'Letras' : 'Numérico' ?>
+        </div>
+        <div class="state">Estado: <?= $data['locked'] ? 'CERRADO INSTITUCIONALMENTE' : 'ABIERTO' ?><?= $data['closed_at'] ? ' · Cierre: ' . grp_h(date('d/m/Y H:i', strtotime($data['closed_at']))) : '' ?></div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
                     <tr>
-                        <td class="student-col"><?= grp_h($student['name']) ?></td>
-                        <?php foreach ($competencies as $competencyId => $competency):
-                            $values = []; ?>
+                        <th rowspan="2" class="student-col">APELLIDOS Y NOMBRES</th>
+                        <?php foreach ($competencies as $competency):
+                            $span = max(1, count($competency['evaluations'])) + 1;
+                            $pct = rtrim(rtrim(number_format((float)$competency['percentage'], 2, '.', ''), '0'), '.'); ?>
+                            <th colspan="<?= $span ?>" class="competency"><?= grp_h(mb_strtoupper($competency['name'], 'UTF-8')) ?> (<?= grp_h($pct) ?>%)</th>
+                        <?php endforeach; ?>
+                        <th rowspan="2" class="final-col">PROMEDIO FINAL</th>
+                    </tr>
+                    <tr>
+                        <?php foreach ($competencies as $competency): ?>
                             <?php if ($competency['evaluations']): ?>
-                                <?php foreach ($competency['evaluations'] as $evaluation):
-                                    $raw = grbd_grade_for($data['grades'], $student['id'], $evaluation['id'], $competencyId);
-                                    $num = grbd_numeric($raw);
-                                    if ($num !== null) $values[] = $num; ?>
-                                    <td><?= grp_h(grbd_display_raw($raw, $format)) ?></td>
+                                <?php foreach ($competency['evaluations'] as $evaluation): ?>
+                                    <th><?= grp_h($evaluation['title']) ?></th>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <td>-</td>
+                                <th>Sin evaluaciones</th>
                             <?php endif; ?>
-                            <?php
-                            $avg = $values ? array_sum($values) / count($values) : null;
-                            if ($avg !== null) {
-                                $weighted += $avg * ((float)$competency['percentage'] / 100);
-                                $hasAny = true;
-                            }
-                            ?>
-                            <td class="avg-col"><?= grp_h(grbd_display_avg($avg, $format)) ?></td>
+                            <th class="avg-col">PROMEDIO</th>
                         <?php endforeach; ?>
-                        <td class="final-col"><?= grp_h(grbd_display_avg($hasAny ? $weighted : null, $format)) ?></td>
                     </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    <?php foreach ($data['students'] as $student):
+                        $weighted = 0.0;
+                        $hasAny = false; ?>
+                        <tr>
+                            <td class="student-col"><?= grp_h($student['name']) ?></td>
+                            <?php foreach ($competencies as $competencyId => $competency):
+                                $values = []; ?>
+                                <?php if ($competency['evaluations']): ?>
+                                    <?php foreach ($competency['evaluations'] as $evaluation):
+                                        $raw = grbd_grade_for($data['grades'], $student['id'], $evaluation['id'], $competencyId);
+                                        $num = grbd_numeric($raw);
+                                        if ($num !== null) $values[] = $num; ?>
+                                        <td><?= grp_h(grbd_display_raw($raw, $format)) ?></td>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <td>-</td>
+                                <?php endif; ?>
+                                <?php
+                                $avg = $values ? array_sum($values) / count($values) : null;
+                                if ($avg !== null) {
+                                    $weighted += $avg * ((float)$competency['percentage'] / 100);
+                                    $hasAny = true;
+                                }
+                                ?>
+                                <td class="avg-col"><?= grp_h(grbd_display_avg($avg, $format)) ?></td>
+                            <?php endforeach; ?>
+                            <td class="final-col"><?= grp_h(grbd_display_avg($hasAny ? $weighted : null, $format)) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
     </section>
     <?php
 }
+
+$courseIds = array_keys($data['courses']);
+$totalCourses = count($courseIds);
 ?><!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <title>Vista de impresión - Reporte de notas</title>
 <style>
-*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;margin:0;padding:18px;font-size:10px}.report-title{text-align:center;margin-bottom:4px;font-size:18px;color:#25324b}.report-meta{text-align:center;margin-bottom:5px;color:#4b5563}.report-state{text-align:center;margin:0 auto 18px;font-weight:700}.summary-section,.course-section{margin-bottom:24px}.course-section{break-after:page;page-break-after:always}.course-section:last-child{break-after:auto;page-break-after:auto}h2{text-align:center;font-size:15px;margin:0 0 4px;color:#25324b}.course-meta{text-align:center;color:#667085;margin-bottom:10px}table{width:100%;border-collapse:collapse;table-layout:auto}thead{display:table-header-group}tr{break-inside:avoid;page-break-inside:avoid}th,td{border:1px solid #374151;padding:4px 5px;text-align:center;vertical-align:middle}th{background:#f2f2f2;font-weight:700}.competency{background:#e6eff9}.avg-col,.final-col{background:#dae3f3;font-weight:700}.student-col{text-align:left;min-width:180px}.summary-table .student-col{min-width:210px}.summary-table th,.summary-table td{padding:5px}.summary-table tbody td:not(.student-col){text-align:center}@page{size:A4 landscape;margin:8mm}@media screen{body{background:#eef2f7}.summary-section,.course-section{background:#fff;max-width:1500px;margin:0 auto 18px;padding:16px;box-shadow:0 1px 8px rgba(0,0,0,.08)}}
+*{box-sizing:border-box}html,body{margin:0;padding:0}body{font-family:Arial,Helvetica,sans-serif;background:#e9edf3;color:#1f2937;font-size:9.5px}.print-page{background:#fff;width:calc(100% - 24px);margin:12px auto;padding:12mm 9mm;min-height:185mm;box-shadow:0 2px 10px rgba(0,0,0,.12);page-break-after:always;break-after:page}.print-page:last-child{page-break-after:auto;break-after:auto}.page-topline{display:flex;justify-content:space-between;font-size:9px;font-weight:700;color:#667085;margin-bottom:5px}.print-page h1{text-align:center;font-size:16px;margin:0 0 4px;color:#25324b}.meta,.state{text-align:center;margin-bottom:4px}.state{font-weight:700;margin-bottom:12px}.table-wrap{width:100%;overflow:visible}table{width:100%;border-collapse:collapse;table-layout:auto}thead{display:table-header-group}tr{page-break-inside:avoid;break-inside:avoid}th,td{border:1px solid #111827;padding:4px 5px;text-align:center;vertical-align:middle}th{background:#f2f2f2;font-weight:700}.competency{background:#e6eff9}.avg-col,.final-col{background:#dae3f3;font-weight:700}.student-col{text-align:left;min-width:190px;white-space:normal}@page{size:A4 landscape;margin:7mm}@media print{body{background:#fff}.print-page{width:100%;margin:0;padding:0;min-height:0;box-shadow:none}}
 </style>
 </head>
 <body>
-<h1 class="report-title">REPORTE DE NOTAS</h1>
-<div class="report-meta">Año <?= grp_h($data['year']) ?> · <?= grp_h($data['level']) ?> · <?= grp_h($data['grade']) ?> <?= grp_h($data['section']) ?> · <?= (int)$data['bimester'] ?>° Bimestre · <?= $format === 'letters' ? 'Letras' : 'Numérico' ?></div>
-<div class="report-state">Estado: <?= $data['locked'] ? 'CERRADO INSTITUCIONALMENTE' : 'ABIERTO' ?><?= $data['closed_at'] ? ' · Cierre: ' . grp_h(date('d/m/Y H:i', strtotime($data['closed_at']))) : '' ?></div>
-
-<?php if ($allCourses): ?>
-<section class="summary-section">
-    <h2>CONSOLIDADO DEL AULA</h2>
-    <table class="summary-table">
-        <thead><tr><th>N°</th><th>DNI</th><th class="student-col">APELLIDOS Y NOMBRES</th><?php foreach ($data['courses'] as $course): ?><th><?= grp_h(mb_strtoupper($course['name'], 'UTF-8')) ?></th><?php endforeach; ?></tr></thead>
-        <tbody>
-        <?php $n=1; foreach ($data['students'] as $student): ?>
-            <tr><td><?= $n++ ?></td><td><?= grp_h($student['dni']) ?></td><td class="student-col"><?= grp_h($student['name']) ?></td><?php foreach ($data['courses'] as $cid=>$course): ?><td><?= grp_h(grbd_display_avg(grbd_course_result($data['competencies'][$cid] ?? [], $data['grades'], $student['id']), $format)) ?></td><?php endforeach; ?></tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-</section>
-<?php endif; ?>
-
-<?php foreach (array_keys($data['courses']) as $courseId) grp_course_table($data, $courseId, $format); ?>
+<?php
+$index = 1;
+foreach ($courseIds as $courseId) {
+    grp_course_page($data, $courseId, $format, $index++, $totalCourses);
+}
+?>
 </body>
 </html>
