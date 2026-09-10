@@ -25,7 +25,7 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
 $allowed_pages = [
     'home', 
     // Admin pages
-    'students', 'bulk_student_update',
+    'students', 'bulk_student_update', 'guardians',
     'teachers', 'teacher_courses',
     'academic_management', 'academic_year',
     'competencias',
