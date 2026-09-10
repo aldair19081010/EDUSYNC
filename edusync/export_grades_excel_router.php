@@ -2,7 +2,7 @@
 // Exportador inteligente del Reporte de notas.
 // - Curso específico: conserva el exportador oficial existente.
 // - Curso = Todos: genera un .xlsx con RESUMEN + una hoja por curso.
-// Todas las hojas comienzan en A con APELLIDOS Y NOMBRES para conservar la alineación visual.
+// Todas las hojas comienzan en A con APELLIDOS Y NOMBRES.
 
 date_default_timezone_set('America/Lima');
 
@@ -93,6 +93,28 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
+function gre_utf8_text($value) {
+    $text = trim((string)$value);
+    if ($text === '') return '';
+
+    if (function_exists('mb_check_encoding') && !mb_check_encoding($text, 'UTF-8')) {
+        $converted = @mb_convert_encoding($text, 'UTF-8', ['Windows-1252', 'ISO-8859-1']);
+        if ($converted !== false && $converted !== '') $text = $converted;
+    }
+
+    if (function_exists('mb_check_encoding') && !mb_check_encoding($text, 'UTF-8') && function_exists('iconv')) {
+        $converted = @iconv('Windows-1252', 'UTF-8//IGNORE', $text);
+        if ($converted !== false && $converted !== '') $text = $converted;
+    }
+
+    return trim($text);
+}
+
+function gre_upper($value) {
+    $text = gre_utf8_text($value);
+    return function_exists('mb_strtoupper') ? mb_strtoupper($text, 'UTF-8') : strtoupper($text);
+}
+
 function gre_header_style($sheet, $range) {
     $style = $sheet->getStyle($range);
     $style->getFont()->setBold(true);
@@ -107,17 +129,27 @@ function gre_body_style($sheet, $range) {
     $style->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
 }
 
-function gre_sheet_name($name, array &$used) {
-    $name = preg_replace('/[\\\/?*\[\]:]/u', ' ', trim((string)$name));
-    $name = preg_replace('/\s+/u', ' ', $name ?: 'CURSO');
-    $base = mb_substr($name, 0, 31, 'UTF-8') ?: 'CURSO';
+function gre_sheet_name($name, $courseId, array &$used) {
+    $name = gre_upper($name);
+    $name = str_replace(['\\', '/', '?', '*', '[', ']', ':'], ' ', $name);
+    $name = preg_replace('/\s+/', ' ', trim($name));
+    if (!$name) $name = 'CURSO ' . (int)$courseId;
+
+    $base = function_exists('mb_substr') ? mb_substr($name, 0, 31, 'UTF-8') : substr($name, 0, 31);
+    if (!$base) $base = 'CURSO ' . (int)$courseId;
     $candidate = $base;
     $n = 2;
-    while (isset($used[mb_strtolower($candidate, 'UTF-8')])) {
+
+    $key = function_exists('mb_strtolower') ? mb_strtolower($candidate, 'UTF-8') : strtolower($candidate);
+    while (isset($used[$key])) {
         $suffix = ' ' . $n++;
-        $candidate = mb_substr($base, 0, 31 - mb_strlen($suffix, 'UTF-8'), 'UTF-8') . $suffix;
+        $max = 31 - strlen($suffix);
+        $short = function_exists('mb_substr') ? mb_substr($base, 0, $max, 'UTF-8') : substr($base, 0, $max);
+        $candidate = rtrim($short) . $suffix;
+        $key = function_exists('mb_strtolower') ? mb_strtolower($candidate, 'UTF-8') : strtolower($candidate);
     }
-    $used[mb_strtolower($candidate, 'UTF-8')] = true;
+
+    $used[$key] = true;
     return $candidate;
 }
 
@@ -130,6 +162,24 @@ function gre_page_setup($sheet) {
         ->setFitToPage(true);
     $sheet->getPageMargins()->setTop(0.35)->setBottom(0.35)->setLeft(0.25)->setRight(0.25);
 }
+
+// Asegurar que cada curso tenga el nombre real guardado en academic_courses.
+foreach ($data['courses'] as $cid => &$course) {
+    $realName = gre_utf8_text($course['name'] ?? '');
+    if ($realName === '') {
+        $nameStmt = $conn->prepare('SELECT name FROM academic_courses WHERE id=? AND school_id=? LIMIT 1');
+        if ($nameStmt) {
+            $cidInt = (int)$cid;
+            $nameStmt->bind_param('ii', $cidInt, $schoolId);
+            $nameStmt->execute();
+            $nameRow = $nameStmt->get_result()->fetch_assoc();
+            $nameStmt->close();
+            $realName = gre_utf8_text($nameRow['name'] ?? '');
+        }
+    }
+    $course['name'] = $realName !== '' ? $realName : ('CURSO ' . (int)$cid);
+}
+unset($course);
 
 $spreadsheet = new Spreadsheet();
 
@@ -156,13 +206,13 @@ $summary->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CE
 $summary->setCellValue('A5', 'APELLIDOS Y NOMBRES');
 $summaryCol = 2;
 foreach ($data['courses'] as $course) {
-    $summary->setCellValue(Coordinate::stringFromColumnIndex($summaryCol++) . '5', mb_strtoupper($course['name'], 'UTF-8'));
+    $summary->setCellValue(Coordinate::stringFromColumnIndex($summaryCol++) . '5', gre_upper($course['name']));
 }
 gre_header_style($summary, "A5:{$summaryLastCol}5");
 
 $row = 6;
 foreach ($data['students'] as $student) {
-    $summary->setCellValue("A{$row}", $student['name']);
+    $summary->setCellValue("A{$row}", gre_utf8_text($student['name']));
     $summaryCol = 2;
     foreach ($data['courses'] as $cid => $course) {
         $result = grbd_course_result($data['competencies'][$cid] ?? [], $data['grades'], $student['id']);
@@ -186,7 +236,7 @@ gre_page_setup($summary);
 $usedNames = ['resumen' => true];
 foreach ($data['courses'] as $cid => $course) {
     $sheet = $spreadsheet->createSheet();
-    $sheet->setTitle(gre_sheet_name(mb_strtoupper($course['name'], 'UTF-8'), $usedNames));
+    $sheet->setTitle(gre_sheet_name($course['name'], $cid, $usedNames));
     $competencies = $data['competencies'][$cid] ?? [];
 
     $columnIndex = 2;
@@ -199,12 +249,12 @@ foreach ($data['courses'] as $cid => $course) {
         $endCol = Coordinate::stringFromColumnIndex($columnIndex + $evalCount);
         $sheet->mergeCells("{$startCol}1:{$endCol}1");
         $pct = rtrim(rtrim(number_format((float)$competency['percentage'], 2, '.', ''), '0'), '.');
-        $sheet->setCellValue("{$startCol}1", mb_strtoupper($competency['name'], 'UTF-8') . " ({$pct}%)");
+        $sheet->setCellValue("{$startCol}1", gre_upper($competency['name']) . " ({$pct}%)");
 
         if ($competency['evaluations']) {
             foreach ($competency['evaluations'] as $evaluation) {
                 $cellCol = Coordinate::stringFromColumnIndex($columnIndex++);
-                $sheet->setCellValue("{$cellCol}2", $evaluation['title']);
+                $sheet->setCellValue("{$cellCol}2", gre_utf8_text($evaluation['title']));
             }
         } else {
             $cellCol = Coordinate::stringFromColumnIndex($columnIndex++);
@@ -221,7 +271,7 @@ foreach ($data['courses'] as $cid => $course) {
 
     $dataRow = 3;
     foreach ($data['students'] as $student) {
-        $sheet->setCellValue("A{$dataRow}", $student['name']);
+        $sheet->setCellValue("A{$dataRow}", gre_utf8_text($student['name']));
         $columnIndex = 2;
         $weighted = 0.0;
         $hasAny = false;
@@ -269,7 +319,8 @@ foreach ($data['courses'] as $cid => $course) {
 
 $spreadsheet->setActiveSheetIndex(0);
 $clean = static function ($text, $fallback) {
-    $value = preg_replace('/[^A-Za-z0-9_-]+/u', '_', (string)$text);
+    $text = gre_utf8_text($text);
+    $value = preg_replace('/[^A-Za-z0-9_-]+/', '_', $text);
     return trim((string)$value, '_') ?: $fallback;
 };
 $filename = 'Reporte_Notas_' . $clean($data['level'], 'Nivel') . '_' . $clean($data['grade'], 'Grado') . '_' . $clean($data['section'], 'Seccion') . '_' . (int)$data['bimester'] . 'B_' . $clean($data['year'], 'Anio') . '.xlsx';
