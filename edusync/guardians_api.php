@@ -43,13 +43,15 @@ function guardian_audit(mysqli $db, int $schoolId, int $guardianId, string $acti
 
 function guardian_load(mysqli $db, int $guardianId, int $schoolId): ?array
 {
-    $stmt = $db->prepare('SELECT g.*, u.username, u.status AS user_status FROM guardians g LEFT JOIN users u ON u.id=g.user_id AND u.school_id=g.school_id WHERE g.id=? AND g.school_id=? LIMIT 1');
+    $stmt = $db->prepare('SELECT g.*, u.username, u.status AS user_status FROM guardians g LEFT JOIN users u ON u.id=g.user_id AND u.school_id=g.school_id AND u.type=5 WHERE g.id=? AND g.school_id=? LIMIT 1');
     if (!$stmt) return null;
     $stmt->bind_param('ii', $guardianId, $schoolId);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    return $row ?: null;
+    if (!$row) return null;
+    $row['has_access'] = !empty($row['user_id']) ? 1 : 0;
+    return $row;
 }
 
 function guardian_full_name(array $data): string
@@ -61,27 +63,75 @@ function guardian_full_name(array $data): string
     ], static fn($v) => $v !== '')));
 }
 
+function guardian_create_access(mysqli $db, int $schoolId, array $guardian, string $pin): int
+{
+    $dni = trim((string)$guardian['dni']);
+    $guardianId = (int)$guardian['id'];
+    $fullName = guardian_full_name($guardian);
+    $status = (($guardian['status'] ?? 'Activo') === 'Inactivo') ? 'Inactivo' : 'Activo';
+
+    $dup = $db->prepare('SELECT id,type FROM users WHERE school_id=? AND username=? LIMIT 1');
+    if (!$dup) throw new Exception('No se pudo verificar el usuario del apoderado.');
+    $dup->bind_param('is', $schoolId, $dni);
+    $dup->execute();
+    $existing = $dup->get_result()->fetch_assoc();
+    $dup->close();
+    if ($existing) {
+        throw new Exception('El DNI del apoderado ya está siendo usado como usuario dentro del colegio.');
+    }
+
+    $hash = password_hash($pin, PASSWORD_DEFAULT);
+    $type = 5;
+    $isDirector = 0;
+    $teacherId = 0;
+    $stmt = $db->prepare('INSERT INTO users (school_id,name,username,password,type,is_director,teacher_id,status) VALUES (?,?,?,?,?,?,NULLIF(?,0),?)');
+    if (!$stmt) throw new Exception('No se pudo preparar la cuenta de acceso.');
+    $stmt->bind_param('isssiiis', $schoolId, $fullName, $dni, $hash, $type, $isDirector, $teacherId, $status);
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        throw new Exception($error ?: 'No se pudo crear la cuenta de acceso.');
+    }
+    $newUserId = (int)$db->insert_id;
+    $stmt->close();
+
+    $stmt = $db->prepare('UPDATE guardians SET user_id=? WHERE id=? AND school_id=? AND user_id IS NULL');
+    if (!$stmt) throw new Exception('No se pudo vincular la cuenta de acceso.');
+    $stmt->bind_param('iii', $newUserId, $guardianId, $schoolId);
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        throw new Exception($error ?: 'No se pudo vincular la cuenta de acceso.');
+    }
+    $stmt->close();
+    return $newUserId;
+}
+
 $schoolId = (int)($_SESSION['login_school_id'] ?? 0);
 $userId = (int)($_SESSION['login_id'] ?? 0);
 if (!$schoolId || !$userId) guardian_reply(['status' => 0, 'message' => 'Sesión no válida.'], 403);
 
-$role = $conn->prepare('SELECT type FROM users WHERE id=? AND school_id=? LIMIT 1');
+$role = $conn->prepare('SELECT type,status FROM users WHERE id=? AND school_id=? LIMIT 1');
 if (!$role) guardian_reply(['status' => 0, 'message' => 'No se pudo validar el acceso.'], 500);
 $role->bind_param('ii', $userId, $schoolId);
 $role->execute();
 $roleRow = $role->get_result()->fetch_assoc();
 $role->close();
 if (!$roleRow || (int)$roleRow['type'] !== 1) guardian_reply(['status' => 0, 'message' => 'No tienes permisos para administrar apoderados.'], 403);
+if (($roleRow['status'] ?? 'Activo') !== 'Activo') guardian_reply(['status' => 0, 'message' => 'Tu cuenta está inactiva.'], 403);
 
 $ready = guardian_table_exists($conn, 'guardians')
     && guardian_table_exists($conn, 'guardian_students')
     && guardian_table_exists($conn, 'guardian_audit_log')
-    && guardian_column_exists($conn, 'users', 'status');
+    && guardian_column_exists($conn, 'users', 'status')
+    && guardian_column_exists($conn, 'guardians', 'direccion')
+    && guardian_column_exists($conn, 'guardian_students', 'source_type')
+    && guardian_column_exists($conn, 'guardian_students', 'source_slot');
 if (!$ready) {
     guardian_reply([
         'status' => 0,
         'migration_required' => true,
-        'message' => 'Falta actualizar la base de datos. Ejecuta sql/guardians_module_upgrade.sql.'
+        'message' => 'Falta actualizar la base de datos. Ejecuta nuevamente sql/guardians_module_upgrade.sql.'
     ], 409);
 }
 
@@ -96,7 +146,8 @@ if (in_array($action, $writeActions, true)) {
 }
 
 if ($action === 'list') {
-    $stmt = $conn->prepare("SELECT g.id,g.dni,g.nombres,g.apellido_paterno,g.apellido_materno,g.telefono,g.email,g.status,g.created_at,
+    $stmt = $conn->prepare("SELECT g.id,g.user_id,g.dni,g.nombres,g.apellido_paterno,g.apellido_materno,g.telefono,g.email,g.direccion,g.status,g.created_at,
+        CASE WHEN g.user_id IS NULL OR g.user_id=0 THEN 0 ELSE 1 END has_access,
         COUNT(CASE WHEN gs.status='Activo' THEN 1 END) linked_students,
         SUM(CASE WHEN gs.status='Activo' AND gs.is_primary=1 THEN 1 ELSE 0 END) primary_links,
         GROUP_CONCAT(CASE WHEN gs.status='Activo' THEN s.name END ORDER BY s.name SEPARATOR ' | ') student_names
@@ -106,12 +157,14 @@ if ($action === 'list') {
         WHERE g.school_id=?
         GROUP BY g.id
         ORDER BY g.apellido_paterno,g.apellido_materno,g.nombres");
+    if (!$stmt) guardian_reply(['status' => 0, 'message' => 'No se pudo preparar el listado.'], 500);
     $stmt->bind_param('i', $schoolId);
     $stmt->execute();
     $rows = [];
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
         $row['full_name'] = guardian_full_name($row);
+        $row['has_access'] = (int)$row['has_access'];
         $row['linked_students'] = (int)$row['linked_students'];
         $row['primary_links'] = (int)$row['primary_links'];
         $rows[] = $row;
@@ -128,7 +181,7 @@ if ($action === 'detail') {
 
     $stmt = $conn->prepare("SELECT gs.id AS link_id,gs.student_id,gs.parentesco,gs.is_primary,
         gs.can_view_grades,gs.can_view_attendance,gs.can_view_payments,gs.can_receive_communications,
-        s.id_no,s.name,s.nivel,s.grado,s.seccion,s.status AS student_status
+        gs.source_type,gs.source_slot,s.id_no,s.name,s.nivel,s.grado,s.seccion,s.status AS student_status
         FROM guardian_students gs
         INNER JOIN student s ON s.id=gs.student_id AND s.school_id=gs.school_id
         WHERE gs.guardian_id=? AND gs.school_id=? AND gs.status='Activo'
@@ -141,6 +194,7 @@ if ($action === 'detail') {
         foreach (['is_primary','can_view_grades','can_view_attendance','can_view_payments','can_receive_communications'] as $key) {
             $row[$key] = (int)$row[$key];
         }
+        $row['source_slot'] = $row['source_slot'] === null ? null : (int)$row['source_slot'];
         $links[] = $row;
     }
     $stmt->close();
@@ -181,14 +235,17 @@ if ($action === 'save') {
     $status = (($_POST['status'] ?? 'Activo') === 'Inactivo') ? 'Inactivo' : 'Activo';
     $pin = trim((string)($_POST['pin'] ?? ''));
 
+    $current = $guardianId ? guardian_load($conn, $guardianId, $schoolId) : null;
+    if ($guardianId && !$current) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
+    $direccion = array_key_exists('direccion', $_POST)
+        ? trim((string)$_POST['direccion'])
+        : trim((string)($current['direccion'] ?? ''));
+
     if (!preg_match('/^\d{8,12}$/', $dni)) guardian_reply(['status' => 0, 'message' => 'El DNI/documento debe contener entre 8 y 12 dígitos.']);
     if ($nombres === '' || $apellidoPaterno === '') guardian_reply(['status' => 0, 'message' => 'Nombres y apellido paterno son obligatorios.']);
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) guardian_reply(['status' => 0, 'message' => 'El correo no es válido.']);
     if ($guardianId === 0 && !preg_match('/^\d{6,12}$/', $pin)) guardian_reply(['status' => 0, 'message' => 'La clave inicial debe tener entre 6 y 12 dígitos.']);
     if ($pin !== '' && !preg_match('/^\d{6,12}$/', $pin)) guardian_reply(['status' => 0, 'message' => 'La clave debe contener únicamente entre 6 y 12 dígitos.']);
-
-    $current = $guardianId ? guardian_load($conn, $guardianId, $schoolId) : null;
-    if ($guardianId && !$current) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
 
     $dup = $conn->prepare('SELECT id FROM guardians WHERE school_id=? AND dni=? AND id<>? LIMIT 1');
     $dup->bind_param('isi', $schoolId, $dni, $guardianId);
@@ -203,7 +260,9 @@ if ($action === 'save') {
     $userDup->execute();
     $userDupRow = $userDup->get_result()->fetch_assoc();
     $userDup->close();
-    if ($userDupRow) guardian_reply(['status' => 0, 'message' => 'Ese DNI ya está siendo usado como usuario dentro del colegio.']);
+    if ($userDupRow && ($guardianId === 0 || $pin !== '' || $currentUserId > 0)) {
+        guardian_reply(['status' => 0, 'message' => 'Ese DNI ya está siendo usado como usuario dentro del colegio.']);
+    }
 
     $fullName = guardian_full_name([
         'nombres' => $nombres,
@@ -225,60 +284,79 @@ if ($action === 'save') {
             $guardianUserId = (int)$conn->insert_id;
             $userStmt->close();
 
-            $stmt = $conn->prepare('INSERT INTO guardians (school_id,user_id,dni,nombres,apellido_paterno,apellido_materno,telefono,email,status) VALUES (?,?,?,?,?,?,?,?,?)');
+            $stmt = $conn->prepare('INSERT INTO guardians (school_id,user_id,dni,nombres,apellido_paterno,apellido_materno,telefono,email,direccion,status) VALUES (?,?,?,?,?,?,?,?,?,?)');
             if (!$stmt) throw new Exception('No se pudo preparar el registro del apoderado.');
-            $stmt->bind_param('iisssssss', $schoolId, $guardianUserId, $dni, $nombres, $apellidoPaterno, $apellidoMaterno, $telefono, $email, $status);
+            $stmt->bind_param('iissssssss', $schoolId, $guardianUserId, $dni, $nombres, $apellidoPaterno, $apellidoMaterno, $telefono, $email, $direccion, $status);
             if (!$stmt->execute()) throw new Exception($stmt->error);
             $guardianId = (int)$conn->insert_id;
             $stmt->close();
             $conn->commit();
-            guardian_audit($conn, $schoolId, $guardianId, 'CREATED', ['dni' => $dni, 'name' => $fullName, 'status' => $status]);
-            guardian_reply(['status' => 1, 'message' => 'Apoderado creado correctamente.', 'id' => $guardianId]);
+            guardian_audit($conn, $schoolId, $guardianId, 'CREATED', ['dni' => $dni, 'name' => $fullName, 'status' => $status, 'access_created' => true]);
+            guardian_reply(['status' => 1, 'message' => 'Apoderado creado correctamente.', 'id' => $guardianId, 'has_access' => 1]);
         }
 
-        if ($currentUserId <= 0) throw new Exception('La cuenta de acceso vinculada al apoderado no existe.');
-        if ($pin !== '') {
-            $hash = password_hash($pin, PASSWORD_DEFAULT);
-            $userStmt = $conn->prepare('UPDATE users SET name=?,username=?,password=?,status=? WHERE id=? AND school_id=? AND type=5');
-            $userStmt->bind_param('ssssii', $fullName, $dni, $hash, $status, $currentUserId, $schoolId);
-        } else {
-            $userStmt = $conn->prepare('UPDATE users SET name=?,username=?,status=? WHERE id=? AND school_id=? AND type=5');
-            $userStmt->bind_param('sssii', $fullName, $dni, $status, $currentUserId, $schoolId);
+        $accessCreated = false;
+        if ($currentUserId > 0) {
+            if ($pin !== '') {
+                $hash = password_hash($pin, PASSWORD_DEFAULT);
+                $userStmt = $conn->prepare('UPDATE users SET name=?,username=?,password=?,status=? WHERE id=? AND school_id=? AND type=5');
+                $userStmt->bind_param('ssssii', $fullName, $dni, $hash, $status, $currentUserId, $schoolId);
+            } else {
+                $userStmt = $conn->prepare('UPDATE users SET name=?,username=?,status=? WHERE id=? AND school_id=? AND type=5');
+                $userStmt->bind_param('sssii', $fullName, $dni, $status, $currentUserId, $schoolId);
+            }
+            if (!$userStmt->execute()) throw new Exception($userStmt->error ?: 'No se pudo actualizar la cuenta de acceso.');
+            $userStmt->close();
+        } elseif ($pin !== '') {
+            $draftGuardian = array_merge($current ?: [], [
+                'id' => $guardianId,
+                'dni' => $dni,
+                'nombres' => $nombres,
+                'apellido_paterno' => $apellidoPaterno,
+                'apellido_materno' => $apellidoMaterno,
+                'status' => $status,
+            ]);
+            $currentUserId = guardian_create_access($conn, $schoolId, $draftGuardian, $pin);
+            $accessCreated = true;
         }
-        if (!$userStmt->execute() || $userStmt->affected_rows < 0) throw new Exception($userStmt->error ?: 'No se pudo actualizar la cuenta de acceso.');
-        $userStmt->close();
 
-        $stmt = $conn->prepare('UPDATE guardians SET dni=?,nombres=?,apellido_paterno=?,apellido_materno=?,telefono=?,email=?,status=? WHERE id=? AND school_id=?');
-        $stmt->bind_param('sssssssii', $dni, $nombres, $apellidoPaterno, $apellidoMaterno, $telefono, $email, $status, $guardianId, $schoolId);
+        $stmt = $conn->prepare('UPDATE guardians SET dni=?,nombres=?,apellido_paterno=?,apellido_materno=?,telefono=?,email=?,direccion=?,status=? WHERE id=? AND school_id=?');
+        $stmt->bind_param('ssssssssii', $dni, $nombres, $apellidoPaterno, $apellidoMaterno, $telefono, $email, $direccion, $status, $guardianId, $schoolId);
         if (!$stmt->execute()) throw new Exception($stmt->error);
         $stmt->close();
         $conn->commit();
+
         guardian_audit($conn, $schoolId, $guardianId, 'UPDATED', [
-            'before' => ['dni' => $current['dni'], 'name' => guardian_full_name($current), 'status' => $current['status']],
-            'after' => ['dni' => $dni, 'name' => $fullName, 'status' => $status],
-            'pin_changed' => ($pin !== '')
+            'before' => $current,
+            'after' => ['dni' => $dni, 'name' => $fullName, 'telefono' => $telefono, 'email' => $email, 'status' => $status],
+            'pin_changed' => $pin !== '',
+            'access_created' => $accessCreated,
         ]);
-        guardian_reply(['status' => 1, 'message' => 'Apoderado actualizado correctamente.', 'id' => $guardianId]);
-    } catch (Throwable $error) {
+        guardian_reply([
+            'status' => 1,
+            'message' => $accessCreated ? 'Apoderado actualizado y acceso creado correctamente.' : 'Apoderado actualizado correctamente.',
+            'id' => $guardianId,
+            'has_access' => $currentUserId > 0 ? 1 : 0,
+        ]);
+    } catch (Throwable $e) {
         $conn->rollback();
-        guardian_reply(['status' => 0, 'message' => 'No se pudo guardar el apoderado: ' . $error->getMessage()]);
+        guardian_reply(['status' => 0, 'message' => $e->getMessage()], 400);
     }
 }
 
 if ($action === 'link') {
     $guardianId = (int)($_POST['guardian_id'] ?? 0);
     $studentId = (int)($_POST['student_id'] ?? 0);
-    $parentesco = trim((string)($_POST['parentesco'] ?? ''));
+    $parentesco = trim((string)($_POST['parentesco'] ?? '')) ?: 'Apoderado';
     $isPrimary = !empty($_POST['is_primary']) ? 1 : 0;
     $canGrades = !empty($_POST['can_view_grades']) ? 1 : 0;
     $canAttendance = !empty($_POST['can_view_attendance']) ? 1 : 0;
     $canPayments = !empty($_POST['can_view_payments']) ? 1 : 0;
     $canCommunications = !empty($_POST['can_receive_communications']) ? 1 : 0;
-    if (!$guardianId || !$studentId || $parentesco === '') guardian_reply(['status' => 0, 'message' => 'Selecciona estudiante y parentesco.']);
-    if (mb_strlen($parentesco, 'UTF-8') > 40) guardian_reply(['status' => 0, 'message' => 'El parentesco es demasiado largo.']);
-    $guardian = guardian_load($conn, $guardianId, $schoolId);
-    if (!$guardian) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
-    $student = $conn->prepare('SELECT id,id_no,name,nivel,grado,seccion FROM student WHERE id=? AND school_id=? LIMIT 1');
+
+    if (!$guardianId || !$studentId) guardian_reply(['status' => 0, 'message' => 'Selecciona apoderado y estudiante.']);
+    if (!guardian_load($conn, $guardianId, $schoolId)) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
+    $student = $conn->prepare('SELECT id,name FROM student WHERE id=? AND school_id=? LIMIT 1');
     $student->bind_param('ii', $studentId, $schoolId);
     $student->execute();
     $studentRow = $student->get_result()->fetch_assoc();
@@ -294,79 +372,102 @@ if ($action === 'link') {
             $clear->close();
         }
         $stmt = $conn->prepare("INSERT INTO guardian_students
-            (school_id,guardian_id,student_id,parentesco,is_primary,can_view_grades,can_view_attendance,can_view_payments,can_receive_communications,status)
-            VALUES (?,?,?,?,?,?,?,?,?,'Activo')
-            ON DUPLICATE KEY UPDATE parentesco=VALUES(parentesco),is_primary=VALUES(is_primary),can_view_grades=VALUES(can_view_grades),
-            can_view_attendance=VALUES(can_view_attendance),can_view_payments=VALUES(can_view_payments),can_receive_communications=VALUES(can_receive_communications),status='Activo'");
+            (school_id,guardian_id,student_id,parentesco,is_primary,can_view_grades,can_view_attendance,can_view_payments,can_receive_communications,source_type,source_slot,status)
+            VALUES (?,?,?,?,?,?,?,?,?,'Manual',NULL,'Activo')
+            ON DUPLICATE KEY UPDATE parentesco=VALUES(parentesco),is_primary=VALUES(is_primary),can_view_grades=VALUES(can_view_grades),can_view_attendance=VALUES(can_view_attendance),can_view_payments=VALUES(can_view_payments),can_receive_communications=VALUES(can_receive_communications),source_type='Manual',source_slot=NULL,status='Activo'");
         $stmt->bind_param('iiisiiiii', $schoolId, $guardianId, $studentId, $parentesco, $isPrimary, $canGrades, $canAttendance, $canPayments, $canCommunications);
         if (!$stmt->execute()) throw new Exception($stmt->error);
         $stmt->close();
         $conn->commit();
-        guardian_audit($conn, $schoolId, $guardianId, 'LINKED_STUDENT', [
-            'student_id' => $studentId,
-            'student' => $studentRow['name'],
-            'parentesco' => $parentesco,
-            'is_primary' => $isPrimary,
-            'permissions' => ['grades' => $canGrades, 'attendance' => $canAttendance, 'payments' => $canPayments, 'communications' => $canCommunications]
-        ]);
-        guardian_reply(['status' => 1, 'message' => 'Estudiante vinculado correctamente.']);
-    } catch (Throwable $error) {
+    } catch (Throwable $e) {
         $conn->rollback();
-        guardian_reply(['status' => 0, 'message' => 'No se pudo vincular: ' . $error->getMessage()]);
+        guardian_reply(['status' => 0, 'message' => $e->getMessage()], 400);
     }
+    guardian_audit($conn, $schoolId, $guardianId, 'STUDENT_LINKED', ['student_id' => $studentId, 'student_name' => $studentRow['name'], 'parentesco' => $parentesco, 'is_primary' => $isPrimary]);
+    guardian_reply(['status' => 1, 'message' => 'Estudiante vinculado correctamente.']);
 }
 
 if ($action === 'unlink') {
     $guardianId = (int)($_POST['guardian_id'] ?? 0);
     $studentId = (int)($_POST['student_id'] ?? 0);
-    $guardian = guardian_load($conn, $guardianId, $schoolId);
-    if (!$guardian) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
-    $stmt = $conn->prepare("UPDATE guardian_students SET status='Inactivo',is_primary=0 WHERE school_id=? AND guardian_id=? AND student_id=? AND status='Activo'");
+    $stmt = $conn->prepare('SELECT source_type,source_slot FROM guardian_students WHERE school_id=? AND guardian_id=? AND student_id=? AND status=\'Activo\' LIMIT 1');
     $stmt->bind_param('iii', $schoolId, $guardianId, $studentId);
-    if (!$stmt->execute()) guardian_reply(['status' => 0, 'message' => 'No se pudo desvincular al estudiante.']);
-    $changed = $stmt->affected_rows;
+    $stmt->execute();
+    $link = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    if ($changed < 1) guardian_reply(['status' => 0, 'message' => 'El vínculo ya no estaba activo.']);
-    guardian_audit($conn, $schoolId, $guardianId, 'UNLINKED_STUDENT', ['student_id' => $studentId]);
-    guardian_reply(['status' => 1, 'message' => 'Estudiante desvinculado.']);
+    if (!$link) guardian_reply(['status' => 0, 'message' => 'El vínculo no está activo.'], 404);
+    if (($link['source_type'] ?? '') === 'StudentForm') {
+        $slot = (int)($link['source_slot'] ?? 0);
+        guardian_reply([
+            'status' => 0,
+            'message' => 'Este vínculo proviene de la ficha del alumno. Para quitarlo, edita el Tutor ' . ($slot === 1 ? 'Principal' : 'Secundario') . ' del estudiante.'
+        ], 409);
+    }
+    $stmt = $conn->prepare("UPDATE guardian_students SET status='Inactivo',is_primary=0 WHERE school_id=? AND guardian_id=? AND student_id=?");
+    $stmt->bind_param('iii', $schoolId, $guardianId, $studentId);
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        guardian_reply(['status' => 0, 'message' => $error ?: 'No se pudo desvincular.'], 400);
+    }
+    $stmt->close();
+    guardian_audit($conn, $schoolId, $guardianId, 'STUDENT_UNLINKED', ['student_id' => $studentId]);
+    guardian_reply(['status' => 1, 'message' => 'Estudiante desvinculado correctamente.']);
 }
 
 if ($action === 'reset_pin') {
     $guardianId = (int)($_POST['guardian_id'] ?? 0);
     $pin = trim((string)($_POST['pin'] ?? ''));
-    if (!preg_match('/^\d{6,12}$/', $pin)) guardian_reply(['status' => 0, 'message' => 'La nueva clave debe tener entre 6 y 12 dígitos.']);
+    if (!preg_match('/^\d{6,12}$/', $pin)) guardian_reply(['status' => 0, 'message' => 'La clave debe contener únicamente entre 6 y 12 dígitos.']);
     $guardian = guardian_load($conn, $guardianId, $schoolId);
-    if (!$guardian || empty($guardian['user_id'])) guardian_reply(['status' => 0, 'message' => 'Cuenta de apoderado no encontrada.'], 404);
-    $hash = password_hash($pin, PASSWORD_DEFAULT);
-    $stmt = $conn->prepare('UPDATE users SET password=? WHERE id=? AND school_id=? AND type=5');
-    $uid = (int)$guardian['user_id'];
-    $stmt->bind_param('sii', $hash, $uid, $schoolId);
-    if (!$stmt->execute()) guardian_reply(['status' => 0, 'message' => 'No se pudo restablecer la clave.']);
-    $stmt->close();
-    guardian_audit($conn, $schoolId, $guardianId, 'PIN_RESET', []);
-    guardian_reply(['status' => 1, 'message' => 'Clave numérica restablecida correctamente.']);
+    if (!$guardian) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
+
+    $conn->begin_transaction();
+    try {
+        $accessCreated = false;
+        $guardianUserId = (int)($guardian['user_id'] ?? 0);
+        if ($guardianUserId <= 0) {
+            $guardianUserId = guardian_create_access($conn, $schoolId, $guardian, $pin);
+            $accessCreated = true;
+        } else {
+            $hash = password_hash($pin, PASSWORD_DEFAULT);
+            $stmt = $conn->prepare('UPDATE users SET password=? WHERE id=? AND school_id=? AND type=5');
+            $stmt->bind_param('sii', $hash, $guardianUserId, $schoolId);
+            if (!$stmt->execute()) throw new Exception($stmt->error);
+            $stmt->close();
+        }
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        guardian_reply(['status' => 0, 'message' => $e->getMessage()], 400);
+    }
+    guardian_audit($conn, $schoolId, $guardianId, $accessCreated ? 'ACCESS_CREATED' : 'PIN_RESET', []);
+    guardian_reply(['status' => 1, 'message' => $accessCreated ? 'Acceso del apoderado creado correctamente.' : 'Clave actualizada correctamente.', 'has_access' => 1]);
 }
 
 if ($action === 'toggle_status') {
     $guardianId = (int)($_POST['guardian_id'] ?? 0);
     $guardian = guardian_load($conn, $guardianId, $schoolId);
-    if (!$guardian || empty($guardian['user_id'])) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
-    $newStatus = $guardian['status'] === 'Activo' ? 'Inactivo' : 'Activo';
-    $uid = (int)$guardian['user_id'];
+    if (!$guardian) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
+    $newStatus = ($guardian['status'] ?? 'Activo') === 'Activo' ? 'Inactivo' : 'Activo';
+
     $conn->begin_transaction();
     try {
         $stmt = $conn->prepare('UPDATE guardians SET status=? WHERE id=? AND school_id=?');
         $stmt->bind_param('sii', $newStatus, $guardianId, $schoolId);
         if (!$stmt->execute()) throw new Exception($stmt->error);
         $stmt->close();
-        $stmt = $conn->prepare('UPDATE users SET status=? WHERE id=? AND school_id=? AND type=5');
-        $stmt->bind_param('sii', $newStatus, $uid, $schoolId);
-        if (!$stmt->execute()) throw new Exception($stmt->error);
-        $stmt->close();
+        if (!empty($guardian['user_id'])) {
+            $guardianUserId = (int)$guardian['user_id'];
+            $stmt = $conn->prepare('UPDATE users SET status=? WHERE id=? AND school_id=? AND type=5');
+            $stmt->bind_param('sii', $newStatus, $guardianUserId, $schoolId);
+            if (!$stmt->execute()) throw new Exception($stmt->error);
+            $stmt->close();
+        }
         $conn->commit();
-    } catch (Throwable $error) {
+    } catch (Throwable $e) {
         $conn->rollback();
-        guardian_reply(['status' => 0, 'message' => 'No se pudo cambiar el estado: ' . $error->getMessage()]);
+        guardian_reply(['status' => 0, 'message' => $e->getMessage()], 400);
     }
     guardian_audit($conn, $schoolId, $guardianId, $newStatus === 'Activo' ? 'ACTIVATED' : 'DEACTIVATED', ['previous_status' => $guardian['status'], 'new_status' => $newStatus]);
     guardian_reply(['status' => 1, 'message' => 'Estado actualizado.', 'new_status' => $newStatus]);
@@ -374,19 +475,19 @@ if ($action === 'toggle_status') {
 
 if ($action === 'history') {
     $guardianId = (int)($_GET['id'] ?? 0);
-    $guardian = guardian_load($conn, $guardianId, $schoolId);
-    if (!$guardian) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
-    $stmt = $conn->prepare("SELECT l.action,l.details,l.ip_address,l.created_at,COALESCE(u.name,'Sistema') actor_name
-        FROM guardian_audit_log l
-        LEFT JOIN users u ON u.id=l.actor_user_id AND u.school_id=l.school_id
-        WHERE l.school_id=? AND l.guardian_id=?
-        ORDER BY l.id DESC LIMIT 100");
+    if (!guardian_load($conn, $guardianId, $schoolId)) guardian_reply(['status' => 0, 'message' => 'Apoderado no encontrado.'], 404);
+    $stmt = $conn->prepare("SELECT ga.action,ga.details,ga.ip_address,ga.created_at,COALESCE(u.name,'Sistema') actor_name
+        FROM guardian_audit_log ga
+        LEFT JOIN users u ON u.id=ga.actor_user_id AND u.school_id=ga.school_id
+        WHERE ga.school_id=? AND ga.guardian_id=?
+        ORDER BY ga.id DESC LIMIT 100");
     $stmt->bind_param('ii', $schoolId, $guardianId);
     $stmt->execute();
     $rows = [];
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
-        $row['details'] = $row['details'] ? json_decode($row['details'], true) : null;
+        $decoded = json_decode((string)($row['details'] ?? ''), true);
+        $row['details'] = is_array($decoded) ? $decoded : [];
         $rows[] = $row;
     }
     $stmt->close();
