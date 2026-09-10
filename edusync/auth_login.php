@@ -56,6 +56,13 @@ if ($stored !== '' && password_verify($password, $stored)) {
 }
 if (!$password_ok) auth_reply(0, 'Usuario, contraseña o colegio incorrectos.');
 
+// Las cuentas de apoderado ya se preparan desde Administración, pero el portal
+// familiar se habilitará en la siguiente etapa. Evitar que este rol caiga en el
+// panel general antes de que existan sus vistas y permisos específicos.
+if ((int)$row['type'] === 5) {
+    auth_reply(0, 'Tu cuenta de apoderado ya está registrada. El portal de familias aún no está habilitado.');
+}
+
 if ((int)$row['type'] === 2) {
     if (empty($row['teacher_id']) || empty($row['linked_teacher_id'])) {
         auth_reply(0, 'Este usuario docente ya no está vinculado a un docente de la institución.');
