@@ -2,7 +2,7 @@
 // Exportador inteligente del Reporte de notas.
 // - Curso específico: conserva el exportador oficial existente.
 // - Curso = Todos: genera un .xlsx con RESUMEN + una hoja por curso.
-// Todas las hojas comienzan en A con APELLIDOS Y NOMBRES.
+// Las hojas por curso conservan el estilo del exportador individual.
 
 date_default_timezone_set('America/Lima');
 
@@ -11,7 +11,7 @@ if (session_status() === PHP_SESSION_NONE) {
     if (!is_dir($session_save_path)) @mkdir($session_save_path, 0755, true);
     ini_set('session.save_path', $session_save_path);
     session_name('EDUSYNCSESSID');
-    session_set_cookie_params(['path'=>'/','httponly'=>true,'samesite'=>'Lax']);
+    session_set_cookie_params(['path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
     session_start();
 }
 
@@ -38,7 +38,7 @@ $roleStmt->execute();
 $role = $roleStmt->get_result()->fetch_assoc();
 $roleStmt->close();
 
-if (!$role || !in_array((int)$role['type'], [1,2], true)) {
+if (!$role || !in_array((int)$role['type'], [1, 2], true)) {
     http_response_code(403);
     exit('No tiene permisos para exportar el reporte de notas.');
 }
@@ -65,7 +65,7 @@ $filters = [
     'course_id' => 0
 ];
 $format = (string)($_GET['export_format'] ?? 'numeric');
-if (!in_array($format, ['numeric','letters'], true)) $format = 'numeric';
+if (!in_array($format, ['numeric', 'letters'], true)) $format = 'numeric';
 
 try {
     $data = grbd_build($conn, $filters, [
@@ -101,12 +101,10 @@ function gre_utf8_text($value) {
         $converted = @mb_convert_encoding($text, 'UTF-8', ['Windows-1252', 'ISO-8859-1']);
         if ($converted !== false && $converted !== '') $text = $converted;
     }
-
     if (function_exists('mb_check_encoding') && !mb_check_encoding($text, 'UTF-8') && function_exists('iconv')) {
         $converted = @iconv('Windows-1252', 'UTF-8//IGNORE', $text);
         if ($converted !== false && $converted !== '') $text = $converted;
     }
-
     return trim($text);
 }
 
@@ -129,6 +127,15 @@ function gre_body_style($sheet, $range) {
     $style->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
 }
 
+// Mismo resaltado azul usado por el Excel individual para PROMEDIO/PROMEDIO FINAL.
+function gre_average_style($sheet, $range) {
+    $style = $sheet->getStyle($range);
+    $style->getFont()->setBold(true);
+    $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDAE3F3');
+    $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+    $style->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FF000000');
+}
+
 function gre_sheet_name($name, $courseId, array &$used) {
     $name = gre_upper($name);
     $name = str_replace(['\\', '/', '?', '*', '[', ']', ':'], ' ', $name);
@@ -139,8 +146,8 @@ function gre_sheet_name($name, $courseId, array &$used) {
     if (!$base) $base = 'CURSO ' . (int)$courseId;
     $candidate = $base;
     $n = 2;
-
     $key = function_exists('mb_strtolower') ? mb_strtolower($candidate, 'UTF-8') : strtolower($candidate);
+
     while (isset($used[$key])) {
         $suffix = ' ' . $n++;
         $max = 31 - strlen($suffix);
@@ -163,7 +170,7 @@ function gre_page_setup($sheet) {
     $sheet->getPageMargins()->setTop(0.35)->setBottom(0.35)->setLeft(0.25)->setRight(0.25);
 }
 
-// Asegurar que cada curso tenga el nombre real guardado en academic_courses.
+// Asegurar el nombre real de cada curso.
 foreach ($data['courses'] as $cid => &$course) {
     $realName = gre_utf8_text($course['name'] ?? '');
     if ($realName === '') {
@@ -183,7 +190,7 @@ unset($course);
 
 $spreadsheet = new Spreadsheet();
 
-// RESUMEN: A siempre es APELLIDOS Y NOMBRES.
+// RESUMEN.
 $summary = $spreadsheet->getActiveSheet();
 $summary->setTitle('RESUMEN');
 $courseCount = count($data['courses']);
@@ -232,12 +239,13 @@ if ($courseCount > 0) {
 $summary->getStyle("A5:{$summaryLastCol}" . max(5, $row - 1))->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER);
 gre_page_setup($summary);
 
-// HOJAS POR CURSO: misma estructura del Excel individual, sin título arriba ni panel congelado.
+// HOJAS POR CURSO: misma estructura y resaltado del Excel individual.
 $usedNames = ['resumen' => true];
 foreach ($data['courses'] as $cid => $course) {
     $sheet = $spreadsheet->createSheet();
     $sheet->setTitle(gre_sheet_name($course['name'], $cid, $usedNames));
     $competencies = $data['competencies'][$cid] ?? [];
+    $averageColumns = [];
 
     $columnIndex = 2;
     $sheet->mergeCells('A1:A2');
@@ -260,7 +268,9 @@ foreach ($data['courses'] as $cid => $course) {
             $cellCol = Coordinate::stringFromColumnIndex($columnIndex++);
             $sheet->setCellValue("{$cellCol}2", 'Sin evaluaciones');
         }
+
         $avgCol = Coordinate::stringFromColumnIndex($columnIndex++);
+        $averageColumns[] = $avgCol;
         $sheet->setCellValue("{$avgCol}2", 'PROMEDIO');
     }
 
@@ -300,18 +310,29 @@ foreach ($data['courses'] as $cid => $course) {
             }
         }
 
-        $sheet->setCellValue(Coordinate::stringFromColumnIndex($columnIndex) . $dataRow, grbd_display_avg($hasAny ? $weighted : null, $format));
+        $sheet->setCellValue(
+            Coordinate::stringFromColumnIndex($columnIndex) . $dataRow,
+            grbd_display_avg($hasAny ? $weighted : null, $format)
+        );
         $dataRow++;
     }
 
-    if ($dataRow > 3) gre_body_style($sheet, "A3:{$finalCol}" . ($dataRow - 1));
+    $lastDataRow = max(2, $dataRow - 1);
+    if ($dataRow > 3) gre_body_style($sheet, "A3:{$finalCol}{$lastDataRow}");
+
+    // Resaltar las columnas de promedio exactamente como en el exportador individual.
+    foreach ($averageColumns as $avgColumn) {
+        gre_average_style($sheet, "{$avgColumn}2:{$avgColumn}{$lastDataRow}");
+    }
+    gre_average_style($sheet, "{$finalCol}1:{$finalCol}{$lastDataRow}");
+
     $sheet->getColumnDimension('A')->setWidth(42);
     for ($c = 2; $c <= $columnIndex; $c++) {
         $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setWidth(16);
     }
-    $sheet->getStyle("A1:A" . max(2, $dataRow - 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-    $sheet->getStyle("B1:{$finalCol}" . max(2, $dataRow - 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-    $sheet->getStyle("A1:{$finalCol}" . max(2, $dataRow - 1))->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+    $sheet->getStyle("A1:A{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+    $sheet->getStyle("B1:{$finalCol}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $sheet->getStyle("A1:{$finalCol}{$lastDataRow}")->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
     $sheet->getRowDimension(1)->setRowHeight(34);
     $sheet->getRowDimension(2)->setRowHeight(30);
     gre_page_setup($sheet);
