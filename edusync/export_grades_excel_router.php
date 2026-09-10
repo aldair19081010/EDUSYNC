@@ -1,7 +1,8 @@
 <?php
-// Exportador del Reporte de notas.
-// Curso específico: conserva el exportador oficial existente.
-// Curso = Todos: genera RESUMEN + una hoja por curso con el mismo orden visual del reporte individual.
+// Exportador inteligente del Reporte de notas.
+// - Curso específico: conserva el exportador oficial existente.
+// - Curso = Todos: genera un .xlsx con RESUMEN + una hoja por curso.
+// Todas las hojas comienzan en A con APELLIDOS Y NOMBRES para conservar la alineación visual.
 
 date_default_timezone_set('America/Lima');
 
@@ -21,16 +22,22 @@ $schoolId = (int)($_SESSION['login_school_id'] ?? 0);
 $userId = (int)($_SESSION['login_id'] ?? 0);
 $sessionType = (int)($_SESSION['login_type'] ?? 0);
 $sessionTeacherId = (int)($_SESSION['login_teacher_id'] ?? 0);
+
 if ($schoolId <= 0 || $userId <= 0 || $sessionType <= 0) {
     http_response_code(401);
     exit('Sesión no válida. Inicie sesión nuevamente.');
 }
 
 $roleStmt = $conn->prepare('SELECT type,is_director,teacher_id FROM users WHERE id=? AND school_id=? LIMIT 1');
+if (!$roleStmt) {
+    http_response_code(500);
+    exit('No se pudo validar el acceso al reporte.');
+}
 $roleStmt->bind_param('ii', $userId, $schoolId);
 $roleStmt->execute();
 $role = $roleStmt->get_result()->fetch_assoc();
 $roleStmt->close();
+
 if (!$role || !in_array((int)$role['type'], [1,2], true)) {
     http_response_code(403);
     exit('No tiene permisos para exportar el reporte de notas.');
@@ -84,19 +91,20 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 
-function gre_style_header($sheet, $range) {
-    $sheet->getStyle($range)->getFont()->setBold(true);
-    $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE6EFF9');
-    $sheet->getStyle($range)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
-    $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FF000000');
+function gre_header_style($sheet, $range) {
+    $style = $sheet->getStyle($range);
+    $style->getFont()->setBold(true);
+    $style->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE6EFF9');
+    $style->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+    $style->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FF000000');
 }
 
-function gre_style_body($sheet, $range) {
-    $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FF000000');
-    $sheet->getStyle($range)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+function gre_body_style($sheet, $range) {
+    $style = $sheet->getStyle($range);
+    $style->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FF000000');
+    $style->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
 }
 
 function gre_sheet_name($name, array &$used) {
@@ -113,11 +121,23 @@ function gre_sheet_name($name, array &$used) {
     return $candidate;
 }
 
+function gre_page_setup($sheet) {
+    $sheet->getPageSetup()
+        ->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)
+        ->setPaperSize(PageSetup::PAPERSIZE_A4)
+        ->setFitToWidth(1)
+        ->setFitToHeight(0)
+        ->setFitToPage(true);
+    $sheet->getPageMargins()->setTop(0.35)->setBottom(0.35)->setLeft(0.25)->setRight(0.25);
+}
+
 $spreadsheet = new Spreadsheet();
+
+// RESUMEN: A siempre es APELLIDOS Y NOMBRES.
 $summary = $spreadsheet->getActiveSheet();
 $summary->setTitle('RESUMEN');
 $courseCount = count($data['courses']);
-$summaryLastCol = Coordinate::stringFromColumnIndex(3 + $courseCount);
+$summaryLastCol = Coordinate::stringFromColumnIndex(1 + $courseCount);
 
 $summary->mergeCells("A1:{$summaryLastCol}1");
 $summary->setCellValue('A1', 'REPORTE DE NOTAS - CONSOLIDADO DEL AULA');
@@ -133,91 +153,76 @@ $summary->setCellValue('A3', 'Estado: ' . $status);
 $summary->getStyle('A3')->getFont()->setBold(true);
 $summary->getStyle('A3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-$headers = ['N°','DNI','APELLIDOS Y NOMBRES'];
-foreach ($data['courses'] as $course) $headers[] = mb_strtoupper($course['name'], 'UTF-8');
-$summary->fromArray($headers, null, 'A5');
-gre_style_header($summary, "A5:{$summaryLastCol}5");
+$summary->setCellValue('A5', 'APELLIDOS Y NOMBRES');
+$summaryCol = 2;
+foreach ($data['courses'] as $course) {
+    $summary->setCellValue(Coordinate::stringFromColumnIndex($summaryCol++) . '5', mb_strtoupper($course['name'], 'UTF-8'));
+}
+gre_header_style($summary, "A5:{$summaryLastCol}5");
 
 $row = 6;
-$number = 1;
 foreach ($data['students'] as $student) {
-    $summary->setCellValue("A{$row}", $number++);
-    $summary->setCellValueExplicit("B{$row}", $student['dni'], DataType::TYPE_STRING);
-    $summary->setCellValue("C{$row}", $student['name']);
-    $col = 4;
+    $summary->setCellValue("A{$row}", $student['name']);
+    $summaryCol = 2;
     foreach ($data['courses'] as $cid => $course) {
         $result = grbd_course_result($data['competencies'][$cid] ?? [], $data['grades'], $student['id']);
-        $summary->setCellValue(Coordinate::stringFromColumnIndex($col++) . $row, grbd_display_avg($result, $format));
+        $summary->setCellValue(Coordinate::stringFromColumnIndex($summaryCol++) . $row, grbd_display_avg($result, $format));
     }
     $row++;
 }
-if ($row > 6) gre_style_body($summary, "A6:{$summaryLastCol}" . ($row - 1));
-$summary->freezePane('D6');
-$summary->getColumnDimension('A')->setWidth(6);
-$summary->getColumnDimension('B')->setWidth(14);
-$summary->getColumnDimension('C')->setWidth(38);
-for ($c=4; $c<=3+$courseCount; $c++) $summary->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setWidth(18);
-$summary->getStyle("A5:{$summaryLastCol}" . max(5,$row-1))->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER);
-$summary->getStyle("A5:B" . max(5,$row-1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-$summary->getStyle("D6:{$summaryLastCol}" . max(6,$row-1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-$summary->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)->setPaperSize(PageSetup::PAPERSIZE_A4)->setFitToWidth(1)->setFitToHeight(0);
-$summary->getPageSetup()->setFitToPage(true);
-$summary->getPageMargins()->setTop(0.35)->setBottom(0.35)->setLeft(0.25)->setRight(0.25);
+if ($row > 6) gre_body_style($summary, "A6:{$summaryLastCol}" . ($row - 1));
+$summary->getColumnDimension('A')->setWidth(42);
+for ($c = 2; $c <= 1 + $courseCount; $c++) {
+    $summary->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setWidth(18);
+}
+$summary->getStyle("A5:A" . max(5, $row - 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+if ($courseCount > 0) {
+    $summary->getStyle("B6:{$summaryLastCol}" . max(6, $row - 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+}
+$summary->getStyle("A5:{$summaryLastCol}" . max(5, $row - 1))->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER);
+gre_page_setup($summary);
 
-$usedNames = ['resumen'=>true];
+// HOJAS POR CURSO: misma estructura del Excel individual, sin título arriba ni panel congelado.
+$usedNames = ['resumen' => true];
 foreach ($data['courses'] as $cid => $course) {
     $sheet = $spreadsheet->createSheet();
     $sheet->setTitle(gre_sheet_name(mb_strtoupper($course['name'], 'UTF-8'), $usedNames));
     $competencies = $data['competencies'][$cid] ?? [];
 
-    // Igual que el Excel individual: A = alumno; desde B empiezan competencias/evaluaciones.
-    $colIndex = 2;
-    foreach ($competencies as $competency) {
-        $colIndex += max(1, count($competency['evaluations'])) + 1;
-    }
-    $finalColumnIndex = $colIndex;
-    $lastCol = Coordinate::stringFromColumnIndex($finalColumnIndex);
+    $columnIndex = 2;
+    $sheet->mergeCells('A1:A2');
+    $sheet->setCellValue('A1', 'APELLIDOS Y NOMBRES');
 
-    $sheet->mergeCells("A1:{$lastCol}1");
-    $sheet->setCellValue('A1', mb_strtoupper($course['name'], 'UTF-8'));
-    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-    $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-    $sheet->mergeCells("A2:{$lastCol}2");
-    $sheet->setCellValue('A2', "{$data['level']} | {$data['grade']} {$data['section']} | {$data['bimester']}° Bimestre | Año {$data['year']} | " . ($format === 'letters' ? 'Letras' : 'Numérico'));
-    $sheet->getStyle('A2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-    $sheet->mergeCells('A4:A5');
-    $sheet->setCellValue('A4', 'APELLIDOS Y NOMBRES');
-    $colIndex = 2;
     foreach ($competencies as $competencyId => $competency) {
         $evalCount = max(1, count($competency['evaluations']));
-        $start = Coordinate::stringFromColumnIndex($colIndex);
-        $end = Coordinate::stringFromColumnIndex($colIndex + $evalCount);
-        $sheet->mergeCells("{$start}4:{$end}4");
+        $startCol = Coordinate::stringFromColumnIndex($columnIndex);
+        $endCol = Coordinate::stringFromColumnIndex($columnIndex + $evalCount);
+        $sheet->mergeCells("{$startCol}1:{$endCol}1");
         $pct = rtrim(rtrim(number_format((float)$competency['percentage'], 2, '.', ''), '0'), '.');
-        $sheet->setCellValue("{$start}4", mb_strtoupper($competency['name'], 'UTF-8') . " ({$pct}%)");
+        $sheet->setCellValue("{$startCol}1", mb_strtoupper($competency['name'], 'UTF-8') . " ({$pct}%)");
 
         if ($competency['evaluations']) {
             foreach ($competency['evaluations'] as $evaluation) {
-                $cell = Coordinate::stringFromColumnIndex($colIndex++);
-                $sheet->setCellValue("{$cell}5", $evaluation['title']);
+                $cellCol = Coordinate::stringFromColumnIndex($columnIndex++);
+                $sheet->setCellValue("{$cellCol}2", $evaluation['title']);
             }
         } else {
-            $cell = Coordinate::stringFromColumnIndex($colIndex++);
-            $sheet->setCellValue("{$cell}5", 'Sin evaluaciones');
+            $cellCol = Coordinate::stringFromColumnIndex($columnIndex++);
+            $sheet->setCellValue("{$cellCol}2", 'Sin evaluaciones');
         }
-        $avgCell = Coordinate::stringFromColumnIndex($colIndex++);
-        $sheet->setCellValue("{$avgCell}5", 'PROMEDIO');
+        $avgCol = Coordinate::stringFromColumnIndex($columnIndex++);
+        $sheet->setCellValue("{$avgCol}2", 'PROMEDIO');
     }
-    $finalCol = Coordinate::stringFromColumnIndex($colIndex);
-    $sheet->mergeCells("{$finalCol}4:{$finalCol}5");
-    $sheet->setCellValue("{$finalCol}4", 'PROMEDIO FINAL');
-    gre_style_header($sheet, "A4:{$finalCol}5");
 
-    $dataRow = 6;
+    $finalCol = Coordinate::stringFromColumnIndex($columnIndex);
+    $sheet->mergeCells("{$finalCol}1:{$finalCol}2");
+    $sheet->setCellValue("{$finalCol}1", 'PROMEDIO FINAL');
+    gre_header_style($sheet, "A1:{$finalCol}2");
+
+    $dataRow = 3;
     foreach ($data['students'] as $student) {
         $sheet->setCellValue("A{$dataRow}", $student['name']);
-        $colIndex = 2;
+        $columnIndex = 2;
         $weighted = 0.0;
         $hasAny = false;
 
@@ -228,45 +233,46 @@ foreach ($data['courses'] as $cid => $course) {
                     $raw = grbd_grade_for($data['grades'], $student['id'], $evaluation['id'], $competencyId);
                     $num = grbd_numeric($raw);
                     if ($num !== null) $values[] = $num;
-                    $cell = Coordinate::stringFromColumnIndex($colIndex++);
-                    $sheet->setCellValue("{$cell}{$dataRow}", grbd_display_raw($raw, $format));
+                    $cellCol = Coordinate::stringFromColumnIndex($columnIndex++);
+                    $sheet->setCellValue("{$cellCol}{$dataRow}", grbd_display_raw($raw, $format));
                 }
             } else {
-                $cell = Coordinate::stringFromColumnIndex($colIndex++);
-                $sheet->setCellValue("{$cell}{$dataRow}", '-');
+                $cellCol = Coordinate::stringFromColumnIndex($columnIndex++);
+                $sheet->setCellValue("{$cellCol}{$dataRow}", '-');
             }
 
             $avg = $values ? array_sum($values) / count($values) : null;
-            $avgCell = Coordinate::stringFromColumnIndex($colIndex++);
-            $sheet->setCellValue("{$avgCell}{$dataRow}", grbd_display_avg($avg, $format));
+            $avgCol = Coordinate::stringFromColumnIndex($columnIndex++);
+            $sheet->setCellValue("{$avgCol}{$dataRow}", grbd_display_avg($avg, $format));
             if ($avg !== null) {
                 $weighted += $avg * ((float)$competency['percentage'] / 100);
                 $hasAny = true;
             }
         }
 
-        $finalCol = Coordinate::stringFromColumnIndex($colIndex);
-        $sheet->setCellValue("{$finalCol}{$dataRow}", grbd_display_avg($hasAny ? $weighted : null, $format));
+        $sheet->setCellValue(Coordinate::stringFromColumnIndex($columnIndex) . $dataRow, grbd_display_avg($hasAny ? $weighted : null, $format));
         $dataRow++;
     }
 
-    if ($dataRow > 6) gre_style_body($sheet, "A6:{$lastCol}" . ($dataRow - 1));
-    $sheet->getColumnDimension('A')->setWidth(38);
-    for ($c=2; $c<=$finalColumnIndex; $c++) $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setWidth(16);
-    $sheet->getStyle("B6:{$lastCol}" . max(6,$dataRow-1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-    $sheet->getStyle("A4:{$lastCol}" . max(5,$dataRow-1))->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_CENTER);
-    $sheet->freezePane('B6');
-    $sheet->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE)->setPaperSize(PageSetup::PAPERSIZE_A4)->setFitToWidth(1)->setFitToHeight(0);
-    $sheet->getPageSetup()->setFitToPage(true);
-    $sheet->getPageMargins()->setTop(0.35)->setBottom(0.35)->setLeft(0.25)->setRight(0.25);
+    if ($dataRow > 3) gre_body_style($sheet, "A3:{$finalCol}" . ($dataRow - 1));
+    $sheet->getColumnDimension('A')->setWidth(42);
+    for ($c = 2; $c <= $columnIndex; $c++) {
+        $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setWidth(16);
+    }
+    $sheet->getStyle("A1:A" . max(2, $dataRow - 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+    $sheet->getStyle("B1:{$finalCol}" . max(2, $dataRow - 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    $sheet->getStyle("A1:{$finalCol}" . max(2, $dataRow - 1))->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+    $sheet->getRowDimension(1)->setRowHeight(34);
+    $sheet->getRowDimension(2)->setRowHeight(30);
+    gre_page_setup($sheet);
 }
 
 $spreadsheet->setActiveSheetIndex(0);
-$clean = function ($text, $fallback) {
+$clean = static function ($text, $fallback) {
     $value = preg_replace('/[^A-Za-z0-9_-]+/u', '_', (string)$text);
     return trim((string)$value, '_') ?: $fallback;
 };
-$filename = 'Reporte_Notas_' . $clean($data['level'],'Nivel') . '_' . $clean($data['grade'],'Grado') . '_' . $clean($data['section'],'Seccion') . '_' . $data['bimester'] . 'B_' . $data['year'] . '.xlsx';
+$filename = 'Reporte_Notas_' . $clean($data['level'], 'Nivel') . '_' . $clean($data['grade'], 'Grado') . '_' . $clean($data['section'], 'Seccion') . '_' . (int)$data['bimester'] . 'B_' . $clean($data['year'], 'Anio') . '.xlsx';
 
 while (ob_get_level()) ob_end_clean();
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
