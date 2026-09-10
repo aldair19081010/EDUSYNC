@@ -34,6 +34,7 @@ if ($director_report_legacy_account) {
     $_SESSION['login_type'] = $director_report_original_type;
 }
 ?>
+<script src="js/grades_report_excel_export.js?v=20260910"></script>
 <?php if ($director_report_legacy_account): ?>
 <script>
 (function($){
