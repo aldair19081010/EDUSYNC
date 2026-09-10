@@ -49,11 +49,13 @@
     function actions(row) {
         var id = Number(row.id || 0);
         var name = esc(row.full_name || 'Apoderado');
+        var hasAccess = Number(row.has_access || 0) === 1;
+        var keyTitle = hasAccess ? 'Restablecer clave' : 'Crear acceso';
         return '' +
             '<div class="btn-group btn-group-sm" role="group">' +
             '<button class="btn btn-outline-primary btn-guardian-links" data-id="' + id + '" title="Vincular estudiantes"><i class="fas fa-link"></i></button>' +
             '<button class="btn btn-outline-secondary btn-guardian-edit" data-id="' + id + '" title="Editar"><i class="fas fa-edit"></i></button>' +
-            '<button class="btn btn-outline-warning btn-guardian-pin" data-id="' + id + '" data-name="' + name + '" title="Restablecer clave"><i class="fas fa-key"></i></button>' +
+            '<button class="btn btn-outline-warning btn-guardian-pin" data-id="' + id + '" data-name="' + name + '" data-access="' + (hasAccess ? '1' : '0') + '" title="' + keyTitle + '"><i class="fas fa-key"></i></button>' +
             '<button class="btn btn-outline-info btn-guardian-history" data-id="' + id + '" data-name="' + name + '" title="Historial"><i class="fas fa-history"></i></button>' +
             '<button class="btn ' + (row.status === 'Activo' ? 'btn-outline-danger' : 'btn-outline-success') + ' btn-guardian-toggle" data-id="' + id + '" data-status="' + esc(row.status) + '" title="' + (row.status === 'Activo' ? 'Desactivar' : 'Activar') + '"><i class="fas ' + (row.status === 'Activo' ? 'fa-user-slash' : 'fa-user-check') + '"></i></button>' +
             '</div>';
@@ -67,6 +69,15 @@
         }).join('');
         if (names.length > 2) chips += '<span class="guardian-chip">+' + (names.length - 2) + '</span>';
         return '<strong>' + count + '</strong><div>' + (chips || '<span class="text-muted small">Sin vínculos</span>') + '</div>';
+    }
+
+    function renderStatus(row) {
+        var status = row.status || 'Activo';
+        var statusBadge = '<span class="badge badge-' + (status === 'Activo' ? 'success' : 'secondary') + '">' + esc(status) + '</span>';
+        var accessBadge = Number(row.has_access || 0) === 1
+            ? '<span class="badge badge-light border mt-1"><i class="fas fa-key text-success mr-1"></i>Acceso creado</span>'
+            : '<span class="badge badge-warning mt-1"><i class="fas fa-key mr-1"></i>Sin acceso</span>';
+        return statusBadge + '<div>' + accessBadge + '</div>';
     }
 
     function rebuild(rows) {
@@ -93,12 +104,13 @@
                     { data: null, render: function (row) { return '<strong>' + esc(row.full_name) + '</strong><div class="small text-muted">' + esc(row.email || 'Sin correo') + '</div>'; } },
                     { data: null, render: function (row) { return esc(row.telefono || '—'); } },
                     { data: null, render: renderStudents, orderable: false },
-                    { data: 'status', render: function (v) { return '<span class="badge badge-' + (v === 'Activo' ? 'success' : 'secondary') + '">' + esc(v) + '</span>'; } },
+                    { data: null, render: renderStatus },
                     { data: null, render: actions, orderable: false, searchable: false }
                 ]
             });
             $('#guardian-status-filter').on('change', function () {
-                table.column(4).search(this.value).draw();
+                var value = this.value;
+                table.column(4).search(value ? '^' + value : '', true, false).draw();
             });
         }
 
@@ -126,7 +138,7 @@
         $('#guardian-status').val('Activo');
         $('#guardian-form-title').text('Nuevo apoderado');
         $('#guardian-pin-label').text('Clave numérica inicial *');
-        $('#guardian-pin-note').text('6 a 12 dígitos. No se mostrará nuevamente.');
+        $('#guardian-pin-note').text('6 a 12 dígitos. Se creará el acceso junto con el perfil.');
         $('#guardian-pin').prop('required', true).val('');
         $('#guardian-form-modal').modal('show');
     }
@@ -135,6 +147,7 @@
         get('detail', { id: id }).done(function (resp) {
             if (!resp || Number(resp.status) !== 1) return toast(resp && resp.message || 'No se pudo cargar el apoderado.', 'danger');
             var g = resp.guardian;
+            var hasAccess = Number(g.has_access || 0) === 1;
             $('#guardian-id').val(g.id);
             $('#guardian-dni').val(g.dni);
             $('#guardian-nombres').val(g.nombres);
@@ -144,8 +157,8 @@
             $('#guardian-email').val(g.email || '');
             $('#guardian-status').val(g.status);
             $('#guardian-pin').val('').prop('required', false);
-            $('#guardian-pin-label').text('Nueva clave numérica (opcional)');
-            $('#guardian-pin-note').text('Déjala vacía para conservar la clave actual.');
+            $('#guardian-pin-label').text(hasAccess ? 'Nueva clave numérica (opcional)' : 'Crear acceso con clave (opcional)');
+            $('#guardian-pin-note').text(hasAccess ? 'Déjala vacía para conservar la clave actual.' : 'Este perfil vino de la ficha de un alumno y aún no tiene acceso. Déjala vacía para conservarlo así.');
             $('#guardian-form-title').text('Editar apoderado');
             $('#guardian-form-modal').modal('show');
         }).fail(function (xhr) {
@@ -169,13 +182,18 @@
             $('#guardian-links-name').text(resp.guardian.full_name + ' · ' + resp.guardian.dni);
             var html = '';
             (resp.links || []).forEach(function (link) {
+                var fromStudent = link.source_type === 'StudentForm';
+                var source = fromStudent ? '<div><span class="badge badge-info mt-1">Ficha del alumno</span></div>' : '';
+                var unlink = fromStudent
+                    ? '<span class="text-muted small" title="Este vínculo se administra desde la ficha del alumno"><i class="fas fa-lock"></i></span>'
+                    : '<button class="btn btn-sm btn-outline-danger btn-guardian-unlink" data-student="' + Number(link.student_id) + '" title="Desvincular"><i class="fas fa-unlink"></i></button>';
                 html += '<tr>' +
                     '<td><strong>' + esc(link.name) + '</strong><div class="small text-muted">' + esc(link.id_no) + '</div></td>' +
                     '<td>' + esc(link.nivel + ' · ' + link.grado + ' ' + (link.seccion || 'U')) + '<div class="small text-muted">' + esc(link.student_status) + '</div></td>' +
-                    '<td>' + esc(link.parentesco) + '</td>' +
+                    '<td>' + esc(link.parentesco) + source + '</td>' +
                     '<td>' + (Number(link.is_primary) ? '<span class="badge badge-primary">Sí</span>' : '<span class="text-muted">No</span>') + '</td>' +
                     '<td><div class="guardian-permissions">' + permissionBadges(link) + '</div></td>' +
-                    '<td class="text-right"><button class="btn btn-sm btn-outline-danger btn-guardian-unlink" data-student="' + Number(link.student_id) + '" title="Desvincular"><i class="fas fa-unlink"></i></button></td>' +
+                    '<td class="text-right">' + unlink + '</td>' +
                     '</tr>';
             });
             if (!html) html = '<tr><td colspan="6" class="guardian-empty">Este apoderado todavía no tiene estudiantes vinculados.</td></tr>';
@@ -204,10 +222,12 @@
         });
     }
 
-    function openPin(id, name) {
+    function openPin(id, name, hasAccess) {
         $('#guardian-pin-id').val(id);
         $('#guardian-pin-name').text(name || 'Apoderado');
         $('#guardian-new-pin').val('');
+        $('#guardian-pin-modal .modal-title').html('<i class="fas fa-key text-primary mr-2"></i>' + (hasAccess ? 'Restablecer clave' : 'Crear acceso'));
+        $('#guardian-pin-form button[type="submit"]').text(hasAccess ? 'Guardar nueva clave' : 'Crear acceso');
         $('#guardian-pin-modal').modal('show');
     }
 
@@ -257,7 +277,7 @@
 
     $('#guardians-table tbody').on('click', '.btn-guardian-edit', function () { editGuardian($(this).data('id')); });
     $('#guardians-table tbody').on('click', '.btn-guardian-links', function () { loadLinks($(this).data('id'), true); });
-    $('#guardians-table tbody').on('click', '.btn-guardian-pin', function () { openPin($(this).data('id'), $(this).data('name')); });
+    $('#guardians-table tbody').on('click', '.btn-guardian-pin', function () { openPin($(this).data('id'), $(this).data('name'), String($(this).data('access')) === '1'); });
     $('#guardians-table tbody').on('click', '.btn-guardian-history', function () { showHistory($(this).data('id'), $(this).data('name')); });
     $('#guardians-table tbody').on('click', '.btn-guardian-toggle', function () {
         var id = $(this).data('id');
@@ -312,10 +332,11 @@
         var id = Number($('#guardian-pin-id').val() || 0);
         var pin = String($('#guardian-new-pin').val() || '');
         post('reset_pin', { guardian_id: id, pin: pin }).done(function (resp) {
-            if (!resp || Number(resp.status) !== 1) return toast(resp && resp.message || 'No se pudo restablecer la clave.', 'danger');
+            if (!resp || Number(resp.status) !== 1) return toast(resp && resp.message || 'No se pudo guardar la clave.', 'danger');
             $('#guardian-pin-modal').modal('hide');
             toast(resp.message || 'Clave actualizada.');
-        }).fail(function (xhr) { toast((xhr.responseJSON || {}).message || 'No se pudo restablecer la clave.', 'danger'); });
+            loadGuardians();
+        }).fail(function (xhr) { toast((xhr.responseJSON || {}).message || 'No se pudo guardar la clave.', 'danger'); });
     });
 
     $('#guardian-links-modal').on('shown.bs.modal', function () {
