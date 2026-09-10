@@ -163,16 +163,13 @@ proc: BEGIN
             direccion = COALESCE(NULLIF(VALUES(direccion),''), guardians.direccion),
             status = 'Activo';
 
-        SELECT id INTO v_guardian_id
+        SELECT MAX(id) INTO v_guardian_id
         FROM guardians
-        WHERE school_id = p_school_id AND dni = v_tutor1_dni
-        LIMIT 1;
+        WHERE school_id = p_school_id AND dni = v_tutor1_dni;
 
-        SET v_existing_source = NULL;
-        SELECT source_type INTO v_existing_source
+        SELECT MAX(source_type) INTO v_existing_source
         FROM guardian_students
-        WHERE school_id = p_school_id AND guardian_id = v_guardian_id AND student_id = p_student_id
-        LIMIT 1;
+        WHERE school_id = p_school_id AND guardian_id = v_guardian_id AND student_id = p_student_id;
 
         IF v_existing_source IS NULL THEN
             INSERT INTO guardian_students
@@ -202,6 +199,13 @@ proc: BEGIN
               AND guardian_id = v_guardian_id
               AND student_id = p_student_id;
         END IF;
+
+        -- Si el apoderado ya tenía acceso, mantener sincronizado su nombre de cuenta.
+        UPDATE users u
+        INNER JOIN guardians g ON g.user_id = u.id AND g.school_id = u.school_id
+        SET u.name = TRIM(CONCAT_WS(' ', g.nombres, g.apellido_paterno, g.apellido_materno)),
+            u.username = g.dni
+        WHERE g.id = v_guardian_id AND u.type = 5;
     END IF;
 
     -- Tutor secundario. Si repite el mismo DNI del principal no se crea un segundo vínculo.
@@ -223,16 +227,13 @@ proc: BEGIN
             direccion = COALESCE(NULLIF(VALUES(direccion),''), guardians.direccion),
             status = 'Activo';
 
-        SELECT id INTO v_guardian_id
+        SELECT MAX(id) INTO v_guardian_id
         FROM guardians
-        WHERE school_id = p_school_id AND dni = v_tutor2_dni
-        LIMIT 1;
+        WHERE school_id = p_school_id AND dni = v_tutor2_dni;
 
-        SET v_existing_source = NULL;
-        SELECT source_type INTO v_existing_source
+        SELECT MAX(source_type) INTO v_existing_source
         FROM guardian_students
-        WHERE school_id = p_school_id AND guardian_id = v_guardian_id AND student_id = p_student_id
-        LIMIT 1;
+        WHERE school_id = p_school_id AND guardian_id = v_guardian_id AND student_id = p_student_id;
 
         IF v_existing_source IS NULL THEN
             INSERT INTO guardian_students
@@ -260,6 +261,12 @@ proc: BEGIN
               AND guardian_id = v_guardian_id
               AND student_id = p_student_id;
         END IF;
+
+        UPDATE users u
+        INNER JOIN guardians g ON g.user_id = u.id AND g.school_id = u.school_id
+        SET u.name = TRIM(CONCAT_WS(' ', g.nombres, g.apellido_paterno, g.apellido_materno)),
+            u.username = g.dni
+        WHERE g.id = v_guardian_id AND u.type = 5;
     END IF;
 END$$
 
