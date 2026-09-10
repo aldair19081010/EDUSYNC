@@ -90,6 +90,10 @@ $login_type = $_SESSION['login_type'] ?? null;
 $is_admin = ($login_type == 1);
 $is_teacher = ($login_type == 2);
 $teacher_id = $_SESSION['login_teacher_id'] ?? null;
+require_once __DIR__ . '/includes/grades_report_access.php';
+$reportDirector = grades_report_is_director($conn);
+$is_admin = $is_admin || $reportDirector;
+$is_teacher = $is_teacher && !$reportDirector;
 
 if (!$school_id || !$login_type) {
     die("Acceso no autorizado o configuraciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n de sesiÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n incompleta.");

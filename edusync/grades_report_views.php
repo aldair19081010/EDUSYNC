@@ -14,7 +14,9 @@ require_login_modal();
 $schoolId = (int)($_SESSION['login_school_id'] ?? 0);
 $loginType = (int)($_SESSION['login_type'] ?? 0);
 $teacherId = (int)($_SESSION['login_teacher_id'] ?? 0);
-if (!in_array($loginType, [1, 2], true) || ($loginType === 2 && $teacherId <= 0)) {
+require_once __DIR__ . '/includes/grades_report_access.php';
+$reportDirector = grades_report_is_director($conn);
+if (!in_array($loginType, [1, 2], true) || ($loginType === 2 && $teacherId <= 0 && !$reportDirector)) {
     http_response_code(403);
     exit('No tiene permisos para consultar este reporte.');
 }
@@ -113,7 +115,7 @@ $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
 
 $params = [$schoolId, $schoolId, $schoolId, report_level_key($level), $grade, $section, $yearId, report_level_key($level), $grade, $section];
 $types = 'iiisssisss';
-if ($loginType === 2 && $teacherId > 0) {
+if ($loginType === 2 && $teacherId > 0 && !$reportDirector) {
     $sql .= ' AND tc.teacher_id=?';
     $params[] = $teacherId;
     $types .= 'i';

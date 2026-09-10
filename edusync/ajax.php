@@ -16,6 +16,12 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 use PhpOffice\PhpSpreadsheet\IOFactory;
 include 'db_connect.php';
 $action = $_GET['action'] ?? null;
+$reportDirector = false;
+$reportCatalogActions = ['get_grados_by_nivel', 'get_secciones_by_grado_nivel', 'get_courses_by_aula', 'get_students_by_grado_seccion', 'get_evaluations_by_filters', 'get_levels_by_academic_year'];
+if (in_array($action, $reportCatalogActions, true) && ($_POST['report_scope'] ?? '') === 'grades_report') {
+    require_once __DIR__ . '/includes/grades_report_access.php';
+    $reportDirector = grades_report_is_director($conn);
+}
 include 'admin_class.php';
 $crud = new Action();
 
@@ -884,7 +890,7 @@ try {
 		echo $crud->delete_evaluation();
 		exit;
 	}
-	if ($action == 'get_students_by_grado_seccion') {
+if ($action == 'get_students_by_grado_seccion') {
 		header('Content-Type: application/json');
 		$grado = $_POST['grado'] ?? '';
 		$seccion = $_POST['seccion'] ?? '';
@@ -1087,7 +1093,7 @@ try {
 		
 		$grados = [];
 		if ($level) {
-			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
+			if (!$reportDirector && $_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
 				// Para profesores, solo mostrar sus grados asignados
 				$teacher_id = $_SESSION['login_teacher_id'];
 				$sql = "SELECT DISTINCT tc.grado 
@@ -1157,7 +1163,7 @@ try {
 		
 		$secciones = [];
 		if ($level && $grado) {
-			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
+			if (!$reportDirector && $_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
 				// Para profesores, solo mostrar sus secciones asignadas
 				$teacher_id = $_SESSION['login_teacher_id'];
 				$sql = "SELECT DISTINCT tc.seccion 
@@ -1230,7 +1236,7 @@ try {
 		
 		$courses = [];
 		if ($level && $grado && $seccion) {
-			if ($_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
+			if (!$reportDirector && $_SESSION['login_type'] == 2 && isset($_SESSION['login_teacher_id'])) {
 				// Para profesores, solo mostrar sus cursos asignados
 				$teacher_id = $_SESSION['login_teacher_id'];
 				$sql = "SELECT DISTINCT ac.id, ac.name 
@@ -1303,7 +1309,7 @@ try {
 		
 		$levels = [];
 		if ($academic_year_id && $school_id) {
-			if ($login_type == 1) {
+			if ($login_type == 1 || $reportDirector) {
 				// Para administradores, obtener todos los niveles del año académico
 				$q = $conn->prepare("SELECT DISTINCT ac.level FROM academic_courses ac 
 									 INNER JOIN teacher_courses tc ON ac.id = tc.course_id 
