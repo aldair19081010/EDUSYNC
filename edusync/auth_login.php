@@ -56,11 +56,24 @@ if ($stored !== '' && password_verify($password, $stored)) {
 }
 if (!$password_ok) auth_reply(0, 'Usuario, contraseña o colegio incorrectos.');
 
-// Las cuentas de apoderado ya se preparan desde Administración, pero el portal
-// familiar se habilitará en la siguiente etapa. Evitar que este rol caiga en el
-// panel general antes de que existan sus vistas y permisos específicos.
+$guardian_id = 0;
 if ((int)$row['type'] === 5) {
-    auth_reply(0, 'Tu cuenta de apoderado ya está registrada. El portal de familias aún no está habilitado.');
+    $guardian_check = $conn->prepare('SELECT id,status FROM guardians WHERE user_id=? AND school_id=? LIMIT 1');
+    if (!$guardian_check) {
+        auth_reply(0, 'El módulo de apoderados aún no está preparado en este colegio.');
+    }
+    $uid = (int)$row['id'];
+    $guardian_check->bind_param('ii', $uid, $school_id);
+    $guardian_check->execute();
+    $guardian = $guardian_check->get_result()->fetch_assoc();
+    $guardian_check->close();
+    if (!$guardian) {
+        auth_reply(0, 'La cuenta no está vinculada a un perfil de apoderado. Comunícate con la institución.');
+    }
+    if (($guardian['status'] ?? 'Inactivo') !== 'Activo') {
+        auth_reply(0, 'El perfil del apoderado está inactivo. Comunícate con la institución.');
+    }
+    $guardian_id = (int)$guardian['id'];
 }
 
 if ((int)$row['type'] === 2) {
@@ -96,13 +109,19 @@ $_SESSION['user_name'] = $row['name'];
 if ((int)$row['type'] === 2 && !empty($row['teacher_id'])) {
     $_SESSION['login_teacher_id'] = intval($row['teacher_id']);
 }
+if ((int)$row['type'] === 5) {
+    $_SESSION['guardian_id'] = $guardian_id;
+    unset($_SESSION['student_logged_in']);
+}
 if (!empty($row['avatar'])) $_SESSION['login_avatar'] = $row['avatar'];
 
 $session_id_value = session_id();
+$redirect = ((int)$row['type'] === 5) ? 'guardian_portal.php' : 'index.php?page=home';
 session_write_close();
 auth_reply(1, 'Inicio de sesión exitoso.', [
     'login_type' => intval($row['type']),
     'login_id' => intval($row['id']),
-    'session_id' => $session_id_value
+    'session_id' => $session_id_value,
+    'redirect' => $redirect
 ]);
 ?>
