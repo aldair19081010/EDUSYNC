@@ -425,3 +425,538 @@ a.text-primary:focus {
         min-height: 42px;
     }
 }
+
+/* ========================================================================== 
+   EduSync UI System
+   Capa visual global para mantener consistencia sobre Bootstrap 4 / SB Admin 2.
+   Los selectores ed-* son la referencia para módulos nuevos. El bloque de
+   compatibilidad normaliza los módulos existentes sin modificar su lógica.
+   ========================================================================== */
+:root {
+    --ed-primary: #4285f4;
+    --ed-primary-hover: #2a75f3;
+    --ed-primary-active: #0b51c5;
+    --ed-text: #344054;
+    --ed-heading: #233b52;
+    --ed-muted: #6e7891;
+    --ed-border: #e3e6f0;
+    --ed-border-soft: #edf0f5;
+    --ed-surface: #ffffff;
+    --ed-surface-soft: #f8f9fc;
+    --ed-surface-blue: #f5f8ff;
+    --ed-success: #1cc88a;
+    --ed-warning: #f6c23e;
+    --ed-danger: #e74a3b;
+    --ed-info: #36b9cc;
+    --ed-radius: .6rem;
+    --ed-radius-sm: .45rem;
+    --ed-shadow: 0 .125rem .5rem rgba(31, 45, 61, .06);
+    --ed-shadow-hover: 0 .3rem .9rem rgba(31, 45, 61, .10);
+}
+
+/* Componentes de referencia para módulos nuevos. */
+.ed-page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    margin-bottom: 1rem;
+    padding: 1rem 1.2rem;
+    background: var(--ed-surface);
+    border: 1px solid var(--ed-border);
+    border-left: 4px solid var(--ed-primary);
+    border-radius: var(--ed-radius);
+    box-shadow: var(--ed-shadow);
+}
+
+.ed-page-heading {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-width: 0;
+}
+
+.ed-page-icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: .65rem;
+    background: #eaf2ff;
+    color: var(--ed-primary);
+    font-size: 1.05rem;
+}
+
+.ed-page-title {
+    margin: 0;
+    color: var(--ed-heading);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.ed-page-subtitle {
+    margin: .15rem 0 0;
+    color: var(--ed-muted);
+    font-size: .84rem;
+}
+
+.ed-page-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.ed-stat-card,
+.ed-filter-card,
+.ed-content-card {
+    background: var(--ed-surface);
+    border: 1px solid var(--ed-border);
+    border-radius: var(--ed-radius);
+    box-shadow: var(--ed-shadow);
+}
+
+.ed-stat-card {
+    height: 100%;
+    padding: .9rem 1rem;
+}
+
+.ed-stat-label {
+    color: var(--ed-muted);
+    font-size: .74rem;
+    font-weight: 700;
+}
+
+.ed-stat-value {
+    display: block;
+    margin-top: .15rem;
+    color: var(--ed-heading);
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.ed-stat-meta {
+    margin-top: .15rem;
+    color: #858796;
+    font-size: .72rem;
+}
+
+.ed-filter-card {
+    padding: .9rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.ed-content-card {
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+.ed-content-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .8rem 1rem;
+    border-bottom: 1px solid var(--ed-border-soft);
+}
+
+.ed-content-card-body {
+    padding: 1rem;
+}
+
+.ed-empty-state {
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: #858796;
+}
+
+/* Compatibilidad: encabezados actuales de los diferentes módulos. */
+#content .user-hero,
+#content .gr-header,
+#content .mc-header,
+#content .gr-report-hero,
+#content .pr-head,
+#content .ar-header,
+#content .ir-hero,
+#content .dc-head,
+#content .py-head,
+#content .am-head,
+#content .cp-head,
+#content .df-head,
+#content .dr-head,
+#content .at-head,
+#content .ar-head,
+#content .ay-hero,
+#content .page-title-wrapper > .page-title {
+    width: 100% !important;
+    margin-bottom: 1rem !important;
+    padding: 1rem 1.2rem !important;
+    background: var(--ed-surface) !important;
+    border: 1px solid var(--ed-border) !important;
+    border-left: 4px solid var(--ed-primary) !important;
+    border-radius: var(--ed-radius) !important;
+    box-shadow: var(--ed-shadow) !important;
+}
+
+#content .user-hero h1,
+#content .gr-header h1,
+#content .mc-header h1,
+#content .gr-report-hero h1,
+#content .pr-head h1,
+#content .ar-header h1,
+#content .ir-hero h1,
+#content .dr-head h1,
+#content .at-head h1,
+#content .ar-head h1,
+#content .user-hero h4,
+#content .dc-head h4,
+#content .py-title h5,
+#content .am-heading h5,
+#content .cp-heading h5,
+#content .df-title h5,
+#content .ay-hero h5,
+#content .page-title .page-title-text {
+    color: var(--ed-heading) !important;
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+}
+
+#content .user-hero p,
+#content .gr-header p,
+#content .mc-header p,
+#content .gr-report-hero p,
+#content .pr-head p,
+#content .ar-header .text-muted,
+#content .ir-hero p,
+#content .dr-head p,
+#content .at-sub,
+#content .ar-sub,
+#content .dc-head small,
+#content .py-title small,
+#content .am-heading small,
+#content .cp-heading small,
+#content .df-title small,
+#content .ay-hero small,
+#content .page-title .page-title-sub {
+    color: var(--ed-muted) !important;
+    font-size: .84rem !important;
+}
+
+#content .py-icon,
+#content .am-icon,
+#content .cp-icon,
+#content .df-icon,
+#content .dc-icon,
+#content .ay-hero-icon,
+#content .page-title .title-icon {
+    width: 44px !important;
+    height: 44px !important;
+    flex: 0 0 44px !important;
+    border-radius: .65rem !important;
+    background: #eaf2ff !important;
+    color: var(--ed-primary) !important;
+    box-shadow: none !important;
+}
+
+/* Compatibilidad: tarjetas de indicadores/KPI. */
+#content .user-stat,
+#content .teacher-summary-card,
+#content .py-stat,
+#content .am-stat,
+#content .cp-stat,
+#content .df-stat,
+#content .dc-stat,
+#content .gr-stat,
+#content .ar-kpi,
+#content .pr-stat,
+#content .dr-stat,
+#content .mc-summary,
+#content .ay-stat {
+    background: var(--ed-surface) !important;
+    border: 1px solid var(--ed-border) !important;
+    border-radius: var(--ed-radius) !important;
+    box-shadow: var(--ed-shadow) !important;
+}
+
+#content .user-stat:hover,
+#content .teacher-summary-card:hover,
+#content .py-stat:hover,
+#content .am-stat:hover,
+#content .cp-stat:hover,
+#content .df-stat:hover,
+#content .dc-stat:hover,
+#content .gr-stat:hover,
+#content .ar-kpi:hover,
+#content .pr-stat:hover,
+#content .dr-stat:hover,
+#content .mc-summary:hover,
+#content .ay-stat:hover {
+    transform: none !important;
+    box-shadow: var(--ed-shadow-hover) !important;
+}
+
+#content .user-stat .number,
+#content .teacher-summary-value,
+#content .py-stat strong,
+#content .am-stat strong,
+#content .cp-stat strong,
+#content .df-stat strong,
+#content .dc-stat strong,
+#content .gr-stat .h5,
+#content .ar-kpi strong,
+#content .pr-stat strong,
+#content .dr-stat strong,
+#content .mc-summary .h5,
+#content .ay-stat strong {
+    color: var(--ed-heading) !important;
+}
+
+/* Compatibilidad: superficies de filtros y paneles. */
+#content .py-filters,
+#content .am-toolbar,
+#content .cp-toolbar,
+#content .df-filters,
+#content .dc-filter,
+#content .gr-filter,
+#content .mc-filter,
+#content .pr-filters,
+#content .dr-filters,
+#content .at-toolbar,
+#content .gr-filter-card,
+#content .pr-views,
+#content .users-table-card,
+#content .students-card,
+#content .content-card,
+#content .py-panel,
+#content .am-panel,
+#content .cp-panel,
+#content .df-panel,
+#content .pr-panel,
+#content .dr-panel,
+#content .gr-results-card {
+    background: var(--ed-surface) !important;
+    border: 1px solid var(--ed-border) !important;
+    border-radius: var(--ed-radius) !important;
+    box-shadow: var(--ed-shadow) !important;
+}
+
+#content .py-panel-head,
+#content .am-panel-head,
+#content .cp-panel-head,
+#content .df-panel-head,
+#content .card-header.bg-white,
+#content .students-card .card-header,
+#content .content-card .card-header,
+#content .users-table-card .card-header {
+    background: var(--ed-surface) !important;
+    border-bottom-color: var(--ed-border-soft) !important;
+}
+
+/* Formularios: misma geometría y foco en todos los módulos internos. */
+#content .form-control,
+#content .custom-select,
+#content .input-group-text {
+    border-color: #d8deea;
+    border-radius: var(--ed-radius-sm);
+}
+
+#content .form-control:focus,
+#content .custom-select:focus {
+    border-color: #9cbcf9;
+    box-shadow: 0 0 0 .14rem rgba(66, 133, 244, .13);
+}
+
+#content label,
+#content .ed-label {
+    color: #526274;
+}
+
+#content .btn:not(.btn-circle):not(.btn-user):not(.btn-icon-split) {
+    border-radius: var(--ed-radius-sm);
+    font-weight: 600;
+}
+
+#content .btn-light {
+    border-color: var(--ed-border);
+}
+
+/* Select2 alineado con los form-control de Bootstrap. */
+#content .select2-container--default .select2-selection--single {
+    border-color: #d8deea !important;
+    border-radius: var(--ed-radius-sm) !important;
+}
+
+#content .select2-container--default.select2-container--focus .select2-selection--single,
+#content .select2-container--default.select2-container--open .select2-selection--single {
+    border-color: #9cbcf9 !important;
+    box-shadow: 0 0 0 .14rem rgba(66, 133, 244, .13) !important;
+}
+
+/* Tablas administrativas: encabezado neutro y hover común. */
+#content #usersTable thead th,
+#content #payments-table thead th,
+#content #feesTable thead th,
+#content #cp-table thead th,
+#content #gr-table thead th,
+#content #ar-table thead th,
+#content #debt-reports-table thead th,
+#content #payments-report-table thead th,
+#content #years-table thead th,
+#content .student-table thead th,
+#content .table-custom thead th,
+#content .ay-admin-table thead th {
+    background: var(--ed-surface-soft) !important;
+    color: #526274 !important;
+    border-bottom: 1px solid var(--ed-border) !important;
+    font-size: .78rem;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+#content #usersTable tbody tr:hover,
+#content #payments-table tbody tr:hover,
+#content #feesTable tbody tr:hover,
+#content #cp-table tbody tr:hover,
+#content #gr-table tbody tr:hover,
+#content #ar-table tbody tr:hover,
+#content #debt-reports-table tbody tr:hover,
+#content #payments-report-table tbody tr:hover,
+#content #years-table tbody tr:hover,
+#content .student-table tbody tr:hover,
+#content .table-custom tbody tr:hover,
+#content .ay-admin-table tbody tr:hover {
+    background: #f8fbff !important;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+#content .table td,
+#content .table th {
+    vertical-align: middle;
+}
+
+/* DataTables comparte la misma apariencia que el resto de formularios. */
+#content .dataTables_wrapper .dataTables_filter input,
+#content .dataTables_wrapper .dataTables_length select {
+    border: 1px solid #d8deea;
+    border-radius: var(--ed-radius-sm);
+    background: #fff;
+}
+
+#content .dataTables_wrapper .dataTables_filter input:focus,
+#content .dataTables_wrapper .dataTables_length select:focus {
+    outline: 0;
+    border-color: #9cbcf9;
+    box-shadow: 0 0 0 .14rem rgba(66, 133, 244, .13);
+}
+
+/* Badges, dropdowns y modales. */
+#content .badge {
+    border-radius: .35rem;
+    font-weight: 600;
+}
+
+.modal-content {
+    border: 0;
+    border-radius: var(--ed-radius);
+    box-shadow: 0 .5rem 1.6rem rgba(31, 45, 61, .18);
+}
+
+.modal-header {
+    border-bottom-color: var(--ed-border-soft);
+}
+
+.modal-footer {
+    border-top-color: var(--ed-border-soft);
+}
+
+.dropdown-menu {
+    border-color: var(--ed-border-soft);
+    border-radius: var(--ed-radius-sm);
+    box-shadow: 0 .35rem 1.1rem rgba(31, 45, 61, .12);
+}
+
+/* Estados vacíos existentes. */
+#content .am-empty,
+#content .cp-empty,
+#content .gr-empty,
+#content .mc-empty,
+#content .hd-empty,
+#content .edusync-empty,
+#content .empty-state {
+    color: #858796 !important;
+}
+
+/* Evitar los movimientos verticales distintos entre módulos al pasar el mouse. */
+#content .students-card:hover,
+#content .content-card:hover,
+#content .ficha-option:hover,
+#content .catalog-card:hover,
+#content .inicio-card:hover {
+    transform: none !important;
+}
+
+/* Responsividad común de los encabezados y acciones. */
+@media (max-width: 767.98px) {
+    .ed-page-header,
+    #content .user-hero,
+    #content .gr-header,
+    #content .mc-header,
+    #content .gr-report-hero,
+    #content .pr-head,
+    #content .ar-header,
+    #content .ir-hero,
+    #content .dc-head,
+    #content .py-head,
+    #content .am-head,
+    #content .cp-head,
+    #content .df-head,
+    #content .dr-head,
+    #content .at-head,
+    #content .ar-head,
+    #content .ay-hero,
+    #content .page-title-wrapper > .page-title {
+        align-items: flex-start !important;
+        gap: .75rem !important;
+    }
+
+    .ed-page-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .ed-page-header {
+        flex-direction: column;
+        align-items: stretch;
+        padding: .9rem 1rem;
+    }
+
+    #content .user-hero,
+    #content .gr-header,
+    #content .mc-header,
+    #content .gr-report-hero,
+    #content .pr-head,
+    #content .ar-header,
+    #content .ir-hero,
+    #content .dc-head,
+    #content .py-head,
+    #content .am-head,
+    #content .cp-head,
+    #content .df-head,
+    #content .dr-head,
+    #content .at-head,
+    #content .ar-head,
+    #content .ay-hero,
+    #content .page-title-wrapper > .page-title {
+        padding: .9rem 1rem !important;
+    }
+}
