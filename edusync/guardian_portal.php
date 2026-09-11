@@ -70,7 +70,7 @@ function gp_dashboard_metrics(mysqli $conn, ?array $student): array
     $studentId = (int)$student['student_id'];
     $metrics = ['grades' => 0, 'attendance' => 0, 'late' => 0, 'payments' => 0.0, 'debt' => 0.0];
 
-    $stmt = $conn->prepare('SELECT COUNT(*) c FROM evaluation_grades WHERE student_id=? AND grade IS NOT NULL AND TRIM(grade)<>\'\'');
+    $stmt = $conn->prepare("SELECT COUNT(*) c FROM evaluation_grades WHERE student_id=? AND grade IS NOT NULL AND TRIM(grade)<>''");
     if ($stmt) {
         $stmt->bind_param('i', $studentId);
         $stmt->execute();
@@ -146,6 +146,13 @@ $permissionGranted = true;
 if (isset($permissionMap[$view])) {
     $permissionGranted = $active && !empty($active[$permissionMap[$view]]);
 }
+
+function gp_nav_class(string $current, string $target, bool $enabled = true): string {
+    $classes = 'list-group-item list-group-item-action border-0';
+    if ($current === $target) $classes .= ' active';
+    if (!$enabled) $classes .= ' disabled text-muted';
+    return $classes;
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -162,94 +169,166 @@ if (isset($permissionMap[$view])) {
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/datatables/jquery.dataTables.min.js"></script>
     <script src="vendor/datatables/dataTables.bootstrap4.min.js"></script>
-    <style>
-        body{background:#f6f8fc}.gp-shell{min-height:100vh;display:flex}.gp-sidebar{width:250px;background:linear-gradient(180deg,#4285f4 0%,#2a65cc 100%);color:#fff;padding:1.2rem 1rem;position:fixed;left:0;top:0;bottom:0;overflow-y:auto;z-index:1030}.gp-brand{display:flex;align-items:center;gap:.7rem;padding:.25rem .5rem 1.2rem;border-bottom:1px solid rgba(255,255,255,.18);margin-bottom:1rem}.gp-brand img{width:42px;height:42px;border-radius:10px;object-fit:cover;background:#fff}.gp-brand strong{display:block;font-size:1.05rem}.gp-brand small{opacity:.8}.gp-nav-title{font-size:.67rem;text-transform:uppercase;letter-spacing:.08em;opacity:.65;font-weight:800;margin:1rem .65rem .35rem}.gp-link{display:flex;align-items:center;gap:.7rem;color:rgba(255,255,255,.86);padding:.7rem .75rem;border-radius:.55rem;text-decoration:none!important;font-size:.88rem;font-weight:700;margin:.12rem 0}.gp-link:hover,.gp-link.active{color:#fff;background:rgba(255,255,255,.16)}.gp-link.disabled{opacity:.55;pointer-events:none}.gp-main{margin-left:250px;width:calc(100% - 250px);min-height:100vh}.gp-topbar{background:#fff;border-bottom:1px solid #e3e6f0;min-height:72px;padding:.8rem 1.3rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;position:sticky;top:0;z-index:1020}.gp-user strong{display:block;color:#27364f}.gp-user small{color:#7b8499}.gp-content{padding:1.25rem}.gp-selector{background:#fff;border:1px solid #dfe5ef;border-radius:.65rem;padding:.8rem 1rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem}.gp-selector-info{min-width:0}.gp-selector-info strong{display:block;color:#2f3c55}.gp-selector-info small{color:#7b8499}.gp-selector form{display:flex;align-items:center;gap:.5rem;min-width:360px}.gp-selector select{min-width:280px}.gp-hero{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4285f4;border-radius:.7rem;padding:1.15rem 1.25rem;margin-bottom:1rem}.gp-hero h1{font-size:1.35rem;font-weight:800;color:#2f3c55;margin:0}.gp-hero p{margin:.25rem 0 0;color:#7b8499}.gp-card{display:block;background:#fff;border:1px solid #e3e6f0;border-radius:.7rem;padding:1rem;height:100%;text-decoration:none!important;transition:.15s}.gp-card:hover{transform:translateY(-2px);box-shadow:0 .3rem 1rem rgba(38,55,84,.08);border-color:#b9c7ea}.gp-card-top{display:flex;align-items:center;justify-content:space-between}.gp-card-label{font-size:.73rem;text-transform:uppercase;color:#7b8499;font-weight:800}.gp-icon{width:42px;height:42px;border-radius:.6rem;display:flex;align-items:center;justify-content:center;background:#edf2ff;color:#4285f4}.gp-value{font-size:1.35rem;font-weight:800;color:#263754;margin:.7rem 0 .15rem}.gp-sub{font-size:.76rem;color:#858796}.gp-no-child{background:#fff;border:1px dashed #cfd7e6;border-radius:.75rem;padding:3rem 1rem;text-align:center;color:#6e7891}.gp-mobile-toggle{display:none}.gp-badge-main{background:#edf2ff;color:#3159aa;border-radius:1rem;padding:.2rem .55rem;font-size:.68rem;font-weight:800}.gp-denied{background:#fff;border:1px solid #f0d5d5;border-left:4px solid #e74a3b;border-radius:.65rem;padding:1rem;color:#7b3940}@media(max-width:900px){.gp-sidebar{transform:translateX(-100%);transition:.2s}.gp-sidebar.open{transform:translateX(0)}.gp-main{margin-left:0;width:100%}.gp-mobile-toggle{display:inline-flex}.gp-selector{align-items:flex-start;flex-direction:column}.gp-selector form{min-width:0;width:100%}.gp-selector select{min-width:0;flex:1}.gp-content{padding:.8rem}.gp-topbar{padding:.7rem .8rem}}
-    </style>
 </head>
-<body>
-<div class="gp-shell">
-    <aside class="gp-sidebar" id="gp-sidebar">
-        <div class="gp-brand">
-            <img src="assets/uploads/logo.jpg" alt="EduSync">
-            <div><strong>EduSync</strong><small>Portal del Apoderado</small></div>
+<body id="page-top" class="bg-light">
+
+<nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+    <a class="navbar-brand d-flex align-items-center" href="guardian_portal.php">
+        <img src="assets/uploads/logo.jpg" alt="EduSync" class="rounded mr-2" style="width:38px;height:38px;object-fit:cover">
+        <span class="font-weight-bold text-primary">EduSync</span>
+        <span class="badge badge-light border ml-2 d-none d-sm-inline">Portal del Apoderado</span>
+    </a>
+    <ul class="navbar-nav ml-auto align-items-center">
+        <li class="nav-item d-none d-md-block mr-3 text-right">
+            <span class="d-block small font-weight-bold text-gray-800"><?php echo htmlspecialchars($guardianName, ENT_QUOTES, 'UTF-8'); ?></span>
+            <span class="d-block text-xs text-gray-600">DNI: <?php echo htmlspecialchars((string)$guardian['dni'], ENT_QUOTES, 'UTF-8'); ?></span>
+        </li>
+        <li class="nav-item">
+            <a class="btn btn-outline-secondary btn-sm" href="logout.php"><i class="fas fa-sign-out-alt mr-1"></i><span class="d-none d-sm-inline">Cerrar sesión</span></a>
+        </li>
+    </ul>
+</nav>
+
+<div class="container-fluid pb-4">
+    <?php if ($message): ?>
+        <div class="alert alert-<?php echo htmlspecialchars($message['type'], ENT_QUOTES, 'UTF-8'); ?> alert-dismissible fade show shadow-sm" role="alert">
+            <?php echo htmlspecialchars($message['text'], ENT_QUOTES, 'UTF-8'); ?>
+            <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
         </div>
-        <div class="gp-nav-title">Familia</div>
-        <a class="gp-link <?php echo $view==='home'?'active':''; ?>" href="guardian_portal.php?view=home"><i class="fas fa-home fa-fw"></i> Inicio</a>
-        <div class="gp-nav-title">Académico</div>
-        <a class="gp-link <?php echo $view==='grades'?'active':''; ?><?php echo $active && empty($active['can_view_grades'])?' disabled':''; ?>" href="guardian_portal.php?view=grades"><i class="fas fa-graduation-cap fa-fw"></i> Notas</a>
-        <a class="gp-link <?php echo $view==='attendance'?'active':''; ?><?php echo $active && empty($active['can_view_attendance'])?' disabled':''; ?>" href="guardian_portal.php?view=attendance"><i class="fas fa-calendar-check fa-fw"></i> Asistencia</a>
-        <div class="gp-nav-title">Finanzas</div>
-        <a class="gp-link <?php echo $view==='payments'?'active':''; ?><?php echo $active && empty($active['can_view_payments'])?' disabled':''; ?>" href="guardian_portal.php?view=payments"><i class="fas fa-credit-card fa-fw"></i> Pagos</a>
-        <a class="gp-link <?php echo $view==='debts'?'active':''; ?><?php echo $active && empty($active['can_view_payments'])?' disabled':''; ?>" href="guardian_portal.php?view=debts"><i class="fas fa-file-invoice-dollar fa-fw"></i> Deudas</a>
-        <div class="gp-nav-title">Comunicaciones</div>
-        <a class="gp-link <?php echo $view==='communications'?'active':''; ?><?php echo $active && empty($active['can_receive_communications'])?' disabled':''; ?>" href="guardian_portal.php?view=communications"><i class="fas fa-bullhorn fa-fw"></i> Comunicaciones</a>
-        <div class="gp-nav-title">Cuenta</div>
-        <a class="gp-link" href="logout.php"><i class="fas fa-sign-out-alt fa-fw"></i> Cerrar sesión</a>
-    </aside>
+    <?php endif; ?>
 
-    <main class="gp-main">
-        <header class="gp-topbar">
-            <div class="d-flex align-items-center">
-                <button class="btn btn-light border gp-mobile-toggle mr-2" id="gp-mobile-toggle" type="button"><i class="fas fa-bars"></i></button>
-                <div class="gp-user"><strong><?php echo htmlspecialchars($guardianName, ENT_QUOTES, 'UTF-8'); ?></strong><small>Apoderado · <?php echo htmlspecialchars((string)$guardian['dni'], ENT_QUOTES, 'UTF-8'); ?></small></div>
+    <?php if (!$children): ?>
+        <div class="card shadow mb-4">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-user-friends fa-3x text-primary mb-3"></i>
+                <h4 class="font-weight-bold text-gray-800">Tu cuenta aún no tiene estudiantes vinculados</h4>
+                <p class="text-muted mb-0">Comunícate con la institución para revisar la ficha del alumno y el vínculo del apoderado.</p>
             </div>
-            <a href="logout.php" class="btn btn-outline-secondary btn-sm"><i class="fas fa-sign-out-alt mr-1"></i> Salir</a>
-        </header>
-
-        <div class="gp-content">
-            <?php if ($message): ?>
-                <div class="alert alert-<?php echo htmlspecialchars($message['type'], ENT_QUOTES, 'UTF-8'); ?> alert-dismissible fade show">
-                    <?php echo htmlspecialchars($message['text'], ENT_QUOTES, 'UTF-8'); ?>
-                    <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+        </div>
+    <?php else: ?>
+    <div class="row">
+        <div class="col-xl-2 col-lg-3 mb-4">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 bg-primary text-white">
+                    <h6 class="m-0 font-weight-bold"><i class="fas fa-user-friends mr-2"></i>Familia</h6>
                 </div>
-            <?php endif; ?>
+                <div class="list-group list-group-flush">
+                    <a href="guardian_portal.php?view=home" class="<?php echo gp_nav_class($view, 'home'); ?>"><i class="fas fa-home fa-fw mr-2"></i>Inicio</a>
+                </div>
+                <div class="card-header py-2 bg-light"><span class="text-xs font-weight-bold text-primary text-uppercase">Académico</span></div>
+                <div class="list-group list-group-flush">
+                    <a href="guardian_portal.php?view=grades" class="<?php echo gp_nav_class($view, 'grades', !empty($active['can_view_grades'])); ?>"><i class="fas fa-graduation-cap fa-fw mr-2"></i>Notas</a>
+                    <a href="guardian_portal.php?view=attendance" class="<?php echo gp_nav_class($view, 'attendance', !empty($active['can_view_attendance'])); ?>"><i class="fas fa-calendar-check fa-fw mr-2"></i>Asistencia</a>
+                </div>
+                <div class="card-header py-2 bg-light"><span class="text-xs font-weight-bold text-primary text-uppercase">Finanzas</span></div>
+                <div class="list-group list-group-flush">
+                    <a href="guardian_portal.php?view=payments" class="<?php echo gp_nav_class($view, 'payments', !empty($active['can_view_payments'])); ?>"><i class="fas fa-credit-card fa-fw mr-2"></i>Pagos</a>
+                    <a href="guardian_portal.php?view=debts" class="<?php echo gp_nav_class($view, 'debts', !empty($active['can_view_payments'])); ?>"><i class="fas fa-file-invoice-dollar fa-fw mr-2"></i>Deudas</a>
+                </div>
+                <div class="card-header py-2 bg-light"><span class="text-xs font-weight-bold text-primary text-uppercase">Institución</span></div>
+                <div class="list-group list-group-flush">
+                    <a href="guardian_portal.php?view=communications" class="<?php echo gp_nav_class($view, 'communications', !empty($active['can_receive_communications'])); ?>"><i class="fas fa-bullhorn fa-fw mr-2"></i>Comunicaciones</a>
+                </div>
+            </div>
+        </div>
 
-            <?php if ($children): ?>
-                <section class="gp-selector">
-                    <div class="gp-selector-info">
-                        <small>Estudiante seleccionado</small>
-                        <strong><?php echo htmlspecialchars((string)$active['name'], ENT_QUOTES, 'UTF-8'); ?> <?php echo !empty($active['is_primary']) ? '<span class="gp-badge-main">VÍNCULO PRINCIPAL</span>' : ''; ?></strong>
-                        <small><?php echo htmlspecialchars(trim((string)$active['nivel'] . ' · ' . (string)$active['grado'] . ' ' . (string)$active['seccion']), ENT_QUOTES, 'UTF-8'); ?></small>
+        <div class="col-xl-10 col-lg-9">
+            <div class="card shadow mb-4">
+                <div class="card-body py-3">
+                    <div class="row align-items-center">
+                        <div class="col-md mb-3 mb-md-0">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Estudiante seleccionado</div>
+                            <div class="h5 mb-1 font-weight-bold text-gray-800">
+                                <?php echo htmlspecialchars((string)$active['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                <?php if (!empty($active['is_primary'])): ?><span class="badge badge-primary ml-1">Vínculo principal</span><?php endif; ?>
+                            </div>
+                            <div class="small text-muted"><?php echo htmlspecialchars(trim((string)$active['nivel'] . ' · ' . (string)$active['grado'] . ' ' . (string)$active['seccion']), ENT_QUOTES, 'UTF-8'); ?></div>
+                        </div>
+                        <?php if (count($children) > 1): ?>
+                        <div class="col-md-5 col-xl-4">
+                            <form method="post" action="guardian_portal.php?view=<?php echo urlencode($view); ?>">
+                                <input type="hidden" name="action" value="switch_student">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="return_view" value="<?php echo htmlspecialchars($view, ENT_QUOTES, 'UTF-8'); ?>">
+                                <label class="small font-weight-bold mb-1" for="guardian-student-selector">Cambiar estudiante</label>
+                                <select class="form-control form-control-sm" id="guardian-student-selector" name="student_id" onchange="this.form.submit()">
+                                    <?php foreach ($children as $child): ?>
+                                        <option value="<?php echo (int)$child['student_id']; ?>" <?php echo (int)$child['student_id']===(int)$active['student_id']?'selected':''; ?>>
+                                            <?php echo htmlspecialchars((string)$child['name'] . ' · ' . (string)$child['nivel'] . ' ' . (string)$child['grado'] . ' ' . (string)$child['seccion'], ENT_QUOTES, 'UTF-8'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </form>
+                        </div>
+                        <?php endif; ?>
                     </div>
-                    <?php if (count($children) > 1): ?>
-                    <form method="post" action="guardian_portal.php?view=<?php echo urlencode($view); ?>">
-                        <input type="hidden" name="action" value="switch_student">
-                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
-                        <input type="hidden" name="return_view" value="<?php echo htmlspecialchars($view, ENT_QUOTES, 'UTF-8'); ?>">
-                        <select class="form-control form-control-sm" name="student_id" onchange="this.form.submit()">
-                            <?php foreach ($children as $child): ?>
-                                <option value="<?php echo (int)$child['student_id']; ?>" <?php echo (int)$child['student_id']===(int)$active['student_id']?'selected':''; ?>>
-                                    <?php echo htmlspecialchars((string)$child['name'] . ' · ' . (string)$child['nivel'] . ' ' . (string)$child['grado'] . ' ' . (string)$child['seccion'], ENT_QUOTES, 'UTF-8'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </form>
-                    <?php endif; ?>
-                </section>
-            <?php endif; ?>
+                </div>
+            </div>
 
-            <?php if (!$children): ?>
-                <div class="gp-no-child"><i class="fas fa-user-friends fa-3x text-primary mb-3"></i><h4>Tu cuenta aún no tiene estudiantes vinculados</h4><p class="mb-0">Comunícate con la institución para revisar la ficha del alumno y el vínculo del apoderado.</p></div>
-            <?php elseif (!$permissionGranted): ?>
-                <div class="gp-denied"><i class="fas fa-lock mr-2"></i>No tienes permiso para consultar este módulo del estudiante seleccionado.</div>
+            <?php if (!$permissionGranted): ?>
+                <div class="alert alert-danger shadow-sm"><i class="fas fa-lock mr-2"></i>No tienes permiso para consultar este módulo del estudiante seleccionado.</div>
             <?php elseif ($view === 'home'): ?>
-                <section class="gp-hero">
-                    <h1>Hola, <?php echo htmlspecialchars((string)$guardian['nombres'], ENT_QUOTES, 'UTF-8'); ?></h1>
-                    <p>Resumen de <?php echo htmlspecialchars((string)$active['name'], ENT_QUOTES, 'UTF-8'); ?>. Cambia de estudiante arriba si tienes más de un hijo vinculado.</p>
-                </section>
+                <div class="card shadow mb-4 border-left-primary">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Portal familiar</div>
+                                <div class="h4 mb-1 font-weight-bold text-gray-800">Hola, <?php echo htmlspecialchars((string)$guardian['nombres'], ENT_QUOTES, 'UTF-8'); ?></div>
+                                <div class="text-muted">Este es el resumen de <?php echo htmlspecialchars((string)$active['name'], ENT_QUOTES, 'UTF-8'); ?>.</div>
+                            </div>
+                            <div class="col-auto"><i class="fas fa-home fa-2x text-gray-300"></i></div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row">
                     <?php if (!empty($active['can_view_grades'])): ?>
-                    <div class="col-xl-3 col-md-6 mb-3"><a class="gp-card" href="guardian_portal.php?view=grades"><div class="gp-card-top"><span class="gp-card-label">Notas</span><span class="gp-icon"><i class="fas fa-graduation-cap"></i></span></div><div class="gp-value"><?php echo (int)$metrics['grades']; ?></div><div class="gp-sub">Registros de calificación disponibles</div></a></div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <a class="text-decoration-none" href="guardian_portal.php?view=grades">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2"><div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Notas</div><div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo (int)$metrics['grades']; ?></div><div class="small text-muted mt-1">Registros disponibles</div></div><div class="col-auto"><i class="fas fa-graduation-cap fa-2x text-gray-300"></i></div></div></div>
+                            </div>
+                        </a>
+                    </div>
                     <?php endif; ?>
+
                     <?php if (!empty($active['can_view_attendance'])): ?>
-                    <div class="col-xl-3 col-md-6 mb-3"><a class="gp-card" href="guardian_portal.php?view=attendance"><div class="gp-card-top"><span class="gp-card-label">Asistencia · 30 días</span><span class="gp-icon"><i class="fas fa-calendar-check"></i></span></div><div class="gp-value"><?php echo (int)$metrics['attendance']; ?></div><div class="gp-sub"><?php echo (int)$metrics['late']; ?> registro(s) de tardanza</div></a></div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <a class="text-decoration-none" href="guardian_portal.php?view=attendance">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2"><div class="text-xs font-weight-bold text-success text-uppercase mb-1">Asistencia · 30 días</div><div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo (int)$metrics['attendance']; ?></div><div class="small text-muted mt-1"><?php echo (int)$metrics['late']; ?> tardanza(s)</div></div><div class="col-auto"><i class="fas fa-calendar-check fa-2x text-gray-300"></i></div></div></div>
+                            </div>
+                        </a>
+                    </div>
                     <?php endif; ?>
+
                     <?php if (!empty($active['can_view_payments'])): ?>
-                    <div class="col-xl-3 col-md-6 mb-3"><a class="gp-card" href="guardian_portal.php?view=payments"><div class="gp-card-top"><span class="gp-card-label">Pagado</span><span class="gp-icon"><i class="fas fa-credit-card"></i></span></div><div class="gp-value"><?php echo gp_money($metrics['payments']); ?></div><div class="gp-sub">Histórico registrado</div></a></div>
-                    <div class="col-xl-3 col-md-6 mb-3"><a class="gp-card" href="guardian_portal.php?view=debts"><div class="gp-card-top"><span class="gp-card-label">Deuda pendiente</span><span class="gp-icon"><i class="fas fa-file-invoice-dollar"></i></span></div><div class="gp-value"><?php echo gp_money($metrics['debt']); ?></div><div class="gp-sub">Saldo pendiente estimado</div></a></div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <a class="text-decoration-none" href="guardian_portal.php?view=payments">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2"><div class="text-xs font-weight-bold text-info text-uppercase mb-1">Pagado</div><div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo gp_money($metrics['payments']); ?></div><div class="small text-muted mt-1">Histórico registrado</div></div><div class="col-auto"><i class="fas fa-credit-card fa-2x text-gray-300"></i></div></div></div>
+                            </div>
+                        </a>
+                    </div>
+                    <div class="col-xl-3 col-md-6 mb-4">
+                        <a class="text-decoration-none" href="guardian_portal.php?view=debts">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body"><div class="row no-gutters align-items-center"><div class="col mr-2"><div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Deuda pendiente</div><div class="h5 mb-0 font-weight-bold text-gray-800"><?php echo gp_money($metrics['debt']); ?></div><div class="small text-muted mt-1">Saldo pendiente</div></div><div class="col-auto"><i class="fas fa-file-invoice-dollar fa-2x text-gray-300"></i></div></div></div>
+                            </div>
+                        </a>
+                    </div>
                     <?php endif; ?>
                 </div>
-                <div class="card shadow-sm border-0 mt-2"><div class="card-body"><h6 class="font-weight-bold text-primary mb-3"><i class="fas fa-shield-alt mr-2"></i>Permisos para este estudiante</h6><div class="d-flex flex-wrap" style="gap:.5rem"><span class="badge badge-<?php echo !empty($active['can_view_grades'])?'success':'secondary'; ?> p-2">Notas</span><span class="badge badge-<?php echo !empty($active['can_view_attendance'])?'success':'secondary'; ?> p-2">Asistencia</span><span class="badge badge-<?php echo !empty($active['can_view_payments'])?'success':'secondary'; ?> p-2">Pagos y deudas</span><span class="badge badge-<?php echo !empty($active['can_receive_communications'])?'success':'secondary'; ?> p-2">Comunicaciones</span></div></div></div>
+
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-shield-alt mr-2"></i>Permisos para este estudiante</h6></div>
+                    <div class="card-body">
+                        <span class="badge badge-<?php echo !empty($active['can_view_grades'])?'success':'secondary'; ?> p-2 mr-2 mb-2">Notas</span>
+                        <span class="badge badge-<?php echo !empty($active['can_view_attendance'])?'success':'secondary'; ?> p-2 mr-2 mb-2">Asistencia</span>
+                        <span class="badge badge-<?php echo !empty($active['can_view_payments'])?'success':'secondary'; ?> p-2 mr-2 mb-2">Pagos y deudas</span>
+                        <span class="badge badge-<?php echo !empty($active['can_receive_communications'])?'success':'secondary'; ?> p-2 mr-2 mb-2">Comunicaciones</span>
+                    </div>
+                </div>
             <?php elseif ($view === 'grades'): ?>
                 <?php gp_include_student_page(__DIR__ . '/pages/student_grades.php', $conn, $active); ?>
             <?php elseif ($view === 'attendance'): ?>
@@ -259,20 +338,21 @@ if (isset($permissionMap[$view])) {
             <?php elseif ($view === 'debts'): ?>
                 <?php gp_include_student_page(__DIR__ . '/pages/student_debts.php', $conn, $active); ?>
             <?php elseif ($view === 'communications'): ?>
-                <section class="gp-hero"><h1>Comunicaciones</h1><p>Este espacio ya está reservado para la siguiente etapa del módulo.</p></section>
-                <div class="card shadow-sm border-0"><div class="card-body text-center py-5"><i class="fas fa-bullhorn fa-3x text-primary mb-3"></i><h5 class="font-weight-bold">Centro de Comunicaciones</h5><p class="text-muted mb-0">Aquí llegarán los comunicados del colegio para el estudiante seleccionado, con lectura y confirmación. Lo implementaremos en la siguiente etapa sin mezclarlo con el desarrollo actual.</p></div></div>
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-bullhorn mr-2"></i>Comunicaciones</h6></div>
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-bullhorn fa-3x text-primary mb-3"></i>
+                        <h5 class="font-weight-bold text-gray-800">Centro de Comunicaciones</h5>
+                        <p class="text-muted mb-0">Aquí llegarán los comunicados del colegio para el estudiante seleccionado, con lectura y confirmación. Se implementará en la siguiente etapa.</p>
+                    </div>
+                </div>
             <?php endif; ?>
         </div>
-    </main>
+    </div>
+    <?php endif; ?>
 </div>
+
 <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
-<script>
-(function(){
-    var btn=document.getElementById('gp-mobile-toggle');
-    var sidebar=document.getElementById('gp-sidebar');
-    if(btn&&sidebar){btn.addEventListener('click',function(){sidebar.classList.toggle('open');});}
-})();
-</script>
 </body>
 </html>
