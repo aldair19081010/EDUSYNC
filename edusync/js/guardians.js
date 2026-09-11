@@ -65,10 +65,10 @@
         var count = Number(row.linked_students || 0);
         var names = String(row.student_names || '').split(' | ').filter(Boolean);
         var chips = names.slice(0, 2).map(function (name) {
-            return '<span class="guardian-chip">' + esc(name) + '</span>';
+            return '<span class="badge badge-light border mr-1 mb-1">' + esc(name) + '</span>';
         }).join('');
-        if (names.length > 2) chips += '<span class="guardian-chip">+' + (names.length - 2) + '</span>';
-        return '<strong>' + count + '</strong><div>' + (chips || '<span class="text-muted small">Sin vínculos</span>') + '</div>';
+        if (names.length > 2) chips += '<span class="badge badge-secondary mr-1 mb-1">+' + (names.length - 2) + '</span>';
+        return '<strong>' + count + '</strong><div class="mt-1">' + (chips || '<span class="text-muted small">Sin vínculos</span>') + '</div>';
     }
 
     function renderStatus(row) {
@@ -109,8 +109,7 @@
                 ]
             });
             $('#guardian-status-filter').on('change', function () {
-                var value = this.value;
-                table.column(4).search(value ? '^' + value : '', true, false).draw();
+                table.column(4).search(this.value).draw();
             });
         }
 
@@ -192,11 +191,11 @@
                     '<td>' + esc(link.nivel + ' · ' + link.grado + ' ' + (link.seccion || 'U')) + '<div class="small text-muted">' + esc(link.student_status) + '</div></td>' +
                     '<td>' + esc(link.parentesco) + source + '</td>' +
                     '<td>' + (Number(link.is_primary) ? '<span class="badge badge-primary">Sí</span>' : '<span class="text-muted">No</span>') + '</td>' +
-                    '<td><div class="guardian-permissions">' + permissionBadges(link) + '</div></td>' +
+                    '<td>' + permissionBadges(link) + '</td>' +
                     '<td class="text-right">' + unlink + '</td>' +
                     '</tr>';
             });
-            if (!html) html = '<tr><td colspan="6" class="guardian-empty">Este apoderado todavía no tiene estudiantes vinculados.</td></tr>';
+            if (!html) html = '<tr><td colspan="6" class="text-center text-muted py-4">Este apoderado todavía no tiene estudiantes vinculados.</td></tr>';
             $('#guardian-links-body').html(html);
             if (openModal) $('#guardian-links-modal').modal('show');
         }).fail(function (xhr) {
@@ -226,7 +225,7 @@
         $('#guardian-pin-id').val(id);
         $('#guardian-pin-name').text(name || 'Apoderado');
         $('#guardian-new-pin').val('');
-        $('#guardian-pin-modal .modal-title').html('<i class="fas fa-key text-primary mr-2"></i>' + (hasAccess ? 'Restablecer clave' : 'Crear acceso'));
+        $('#guardian-pin-modal .modal-title').html('<i class="fas fa-key mr-2"></i>' + (hasAccess ? 'Restablecer clave' : 'Crear acceso'));
         $('#guardian-pin-form button[type="submit"]').text(hasAccess ? 'Guardar nueva clave' : 'Crear acceso');
         $('#guardian-pin-modal').modal('show');
     }
@@ -242,7 +241,7 @@
                 var detail = row.details ? JSON.stringify(row.details, null, 2) : '—';
                 html += '<tr><td class="text-nowrap">' + esc(row.created_at) + '</td><td><span class="badge badge-light border">' + esc(row.action) + '</span></td><td>' + esc(row.actor_name) + '</td><td><div class="guardian-history-details">' + esc(detail) + '</div></td></tr>';
             });
-            if (!html) html = '<tr><td colspan="4" class="guardian-empty">Sin movimientos registrados.</td></tr>';
+            if (!html) html = '<tr><td colspan="4" class="text-center text-muted py-4">Sin movimientos registrados.</td></tr>';
             $('#guardian-history-body').html(html);
         }).fail(function (xhr) {
             $('#guardian-history-body').html('<tr><td colspan="4" class="text-danger">' + esc((xhr.responseJSON || {}).message || 'No se pudo cargar el historial.') + '</td></tr>');
@@ -277,7 +276,7 @@
 
     $('#guardians-table tbody').on('click', '.btn-guardian-edit', function () { editGuardian($(this).data('id')); });
     $('#guardians-table tbody').on('click', '.btn-guardian-links', function () { loadLinks($(this).data('id'), true); });
-    $('#guardians-table tbody').on('click', '.btn-guardian-pin', function () { openPin($(this).data('id'), $(this).data('name'), String($(this).data('access')) === '1'); });
+    $('#guardians-table tbody').on('click', '.btn-guardian-pin', function () { openPin($(this).data('id'), $(this).data('name'), Number($(this).data('access')) === 1); });
     $('#guardians-table tbody').on('click', '.btn-guardian-history', function () { showHistory($(this).data('id'), $(this).data('name')); });
     $('#guardians-table tbody').on('click', '.btn-guardian-toggle', function () {
         var id = $(this).data('id');
