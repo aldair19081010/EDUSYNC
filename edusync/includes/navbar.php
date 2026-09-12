@@ -7,16 +7,20 @@ $ui_refinements_file = dirname(__DIR__) . '/css/ui_refinements.css';
 $ui_report_tables_file = dirname(__DIR__) . '/css/ui_report_tables.css';
 $ui_grades_individual_file = dirname(__DIR__) . '/css/ui_grades_individual.css';
 $ui_modals_file = dirname(__DIR__) . '/css/ui_modals.css';
+$ui_feedback_file = dirname(__DIR__) . '/css/ui_feedback.css';
 $ui_js_file = dirname(__DIR__) . '/js/ui_consistency.js';
 $ui_modals_js_file = dirname(__DIR__) . '/js/ui_modals.js';
+$ui_feedback_js_file = dirname(__DIR__) . '/js/ui_feedback.js';
 $custom_css_version = @filemtime($custom_css_file) ?: time();
 $ui_css_version = @filemtime($ui_css_file) ?: time();
 $ui_refinements_version = @filemtime($ui_refinements_file) ?: time();
 $ui_report_tables_version = @filemtime($ui_report_tables_file) ?: time();
 $ui_grades_individual_version = @filemtime($ui_grades_individual_file) ?: time();
 $ui_modals_version = @filemtime($ui_modals_file) ?: time();
+$ui_feedback_version = @filemtime($ui_feedback_file) ?: time();
 $ui_js_version = @filemtime($ui_js_file) ?: time();
 $ui_modals_js_version = @filemtime($ui_modals_js_file) ?: time();
+$ui_feedback_js_version = @filemtime($ui_feedback_js_file) ?: time();
 ?>
 <script>
 (function(){
@@ -65,7 +69,16 @@ $ui_modals_js_version = @filemtime($ui_modals_js_file) ?: time();
         modals.setAttribute('data-edusync-ui-modals', '1');
         document.head.appendChild(modals);
     }
+
+    if (!document.querySelector('link[data-edusync-ui-feedback]')) {
+        var feedback = document.createElement('link');
+        feedback.rel = 'stylesheet';
+        feedback.href = 'css/ui_feedback.css?v=<?php echo rawurlencode((string)$ui_feedback_version); ?>';
+        feedback.setAttribute('data-edusync-ui-feedback', '1');
+        document.head.appendChild(feedback);
+    }
 })();
 </script>
 <script src="js/ui_consistency.js?v=<?php echo rawurlencode((string)$ui_js_version); ?>"></script>
 <script src="js/ui_modals.js?v=<?php echo rawurlencode((string)$ui_modals_js_version); ?>"></script>
+<script src="js/ui_feedback.js?v=<?php echo rawurlencode((string)$ui_feedback_js_version); ?>"></script>
