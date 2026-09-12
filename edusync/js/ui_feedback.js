@@ -359,9 +359,7 @@
         inline: inline
     };
 
-    /* Deben existir desde temprano para que footer.php no instale sus fallbacks. */
     installCompatibility();
-
     document.addEventListener('submit', autoBusySubmit, true);
 
     if ($) {
@@ -377,12 +375,5 @@
             releaseAutoBusy();
             stopLoader(true);
         });
-    }
-
-    /* footer.php define _conf más tarde; al terminar el parseo restauramos el estándar. */
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', installCompatibility, { once: true });
-    } else {
-        installCompatibility();
     }
 })(window, document, window.jQuery);

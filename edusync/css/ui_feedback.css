@@ -119,16 +119,8 @@
     outline: 0;
 }
 
-/* Compatibilidad visual con toasts antiguos que pudieran quedar en pantalla. */
-.toast-alert-fixed {
-    border: 1px solid #e3e6f0 !important;
-    border-radius: .6rem !important;
-    box-shadow: 0 .55rem 1.5rem rgba(31,45,61,.16) !important;
-}
-
 /* --------------------------------------------------------------------------
    Loader global
-   !important evita que el antiguo fallback inline de footer.php cambie el diseño.
    -------------------------------------------------------------------------- */
 #page-loader {
     position: fixed !important;

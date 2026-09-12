@@ -23,7 +23,7 @@ $page = isset($_GET['page']) ? $_GET['page'] : 'home';
 
 // Por seguridad, lista blanca de páginas permitidas
 $allowed_pages = [
-    'home', 
+    'home',
     // Admin pages
     'students', 'bulk_student_update',
     'teachers', 'teacher_courses',
@@ -127,20 +127,22 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <link href="css/custom.css" rel="stylesheet">
     <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
-    <!-- Select2 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-theme@0.1.0-beta.10/dist/select2-bootstrap.min.css" rel="stylesheet" />
-    <!-- Load jQuery early so inline page scripts can safely use it -->
+    <!-- Select2 global -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-theme@0.1.0-beta.10/dist/select2-bootstrap.min.css" rel="stylesheet">
+
+    <!-- Dependencias requeridas por scripts inline de los módulos -->
     <script src="vendor/jquery/jquery.min.js"></script>
-    <!-- DataTables debe estar disponible antes de ejecutar scripts inline de cada módulo -->
     <script src="vendor/datatables/jquery.dataTables.min.js"></script>
     <script src="vendor/datatables/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <?php if ($page === 'payments'): ?>
     <!-- Generación local de la imagen del recibo para compartirla desde el dispositivo -->
     <script src="js/vendor/html2canvas.min.js"></script>
     <?php endif; ?>
-    
-    <!-- Logout Modal (movido al head para disponibilidad temprana) -->
+
+    <!-- Logout Modal (se conserva por compatibilidad con el topbar actual) -->
     <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
@@ -158,63 +160,6 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
             </div>
         </div>
     </div>
-    
-    <!-- Shim temprano: asegurar window.uni_modal antes de handlers del topbar -->
-    <script>
-        (function(){
-                if (typeof window.uni_modal !== 'function') {
-                        window.uni_modal = function(title, url, size) {
-                                try {
-                                        var $ = window.jQuery || window.$;
-                                        if (!$) { console.warn('uni_modal shim: jQuery no disponible aún'); return; }
-                                        var modal = $('#uni_modal');
-                                        if (!modal.length) {
-                                                var dlgSize = size || 'modal-lg';
-                                                var html = ''+
-                                                '<div class="modal fade" id="uni_modal" tabindex="-1" role="dialog" aria-labelledby="uni_modal_label" aria-hidden="true">'+
-                                                    '<div class="modal-dialog '+ dlgSize +'" role="document">'+
-                                                        '<div class="modal-content">'+
-                                                            '<div class="modal-header">'+
-                                                                '<h5 class="modal-title" id="uni_modal_label"></h5>'+
-                                                                '<button type="button" class="close" data-dismiss="modal" aria-label="Close">'+
-                                                                    '<span aria-hidden="true">&times;</span>'+
-                                                                '</button>'+
-                                                            '</div>'+
-                                                            '<div class="modal-body" id="uni_modal_body"></div>'+
-                                                        '</div>'+
-                                                    '</div>'+
-                                                '</div>';
-                                                $('body').append(html);
-                                                modal = $('#uni_modal');
-                                        } else {
-                                                var modalDialog = modal.find('.modal-dialog');
-                                                modalDialog.removeClass('modal-sm modal-lg modal-xl mid-large');
-                                                modalDialog.addClass(size || 'modal-lg');
-                                        }
-                                        // Mostrar modal INMEDIATAMENTE (vacío)
-                                        $('#uni_modal_label').html(title || '');
-                                        $('#uni_modal_body').html('');
-                                        modal.modal('show');
-                                        
-                                        // Cargar contenido en segundo plano
-                                        $.ajax({
-                                            url: url,
-                                            type: 'GET',
-                                            cache: false,
-                                            success: function(response) {
-                                                $('#uni_modal_body').html(response);
-                                            },
-                                            error: function(xhr) {
-                                                $('#uni_modal_body').html('<div class="alert alert-danger">Error al cargar el contenido: ' + xhr.status + ' ' + xhr.statusText + '</div>');
-                                            }
-                                        });
-                                } catch (e) {
-                                        console.error('uni_modal shim error:', e);
-                                }
-                        };
-                }
-        })();
-        </script>
 </head>
 
 <body id="page-top">
@@ -278,7 +223,6 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- Bootstrap CDN como respaldo -->
     <script>
     if (typeof $.fn.dropdown === 'undefined' && typeof window.bootstrap === 'undefined') {
-        console.log('⚠️ Bootstrap local no disponible, cargando desde CDN...');
         document.write('<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"><\/script>');
     }
     </script>
@@ -326,44 +270,6 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
         }
         $(bindSidebarToggle);
         $(document).on('edusync:rebindSidebar', bindSidebarToggle);
-    })(window.jQuery);
-    </script>
-
-    <!-- Select2 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
-    <!-- INICIALIZACIÓN DE DROPDOWNS DEL TOPBAR -->
-    <script>
-    console.log('🔵 SCRIPT DE INICIALIZACIÓN DE INDEX.PHP EJECUTANDO');
-    
-    // Log sin jQuery
-    document.addEventListener('click', function(e) {
-        var target = e.target;
-        if (target.closest && target.closest('.dropdown-menu')) {
-            console.log('🔴 CLICK DETECTADO EN DROPDOWN:', target.innerText || target.textContent);
-        }
-    }, true); // true = captura durante la fase de captura
-    
-    (function($){
-        console.log('jQuery disponible en script final');
-        
-        function initDropdowns() {
-            if (typeof $.fn.dropdown !== 'undefined') {
-                console.log('Bootstrap dropdown disponible');
-                $('.topbar [data-toggle="dropdown"]').each(function() {
-                    try {
-                        $(this).dropdown();
-                    } catch(e) {
-                        console.error('Error inicializando dropdown:', e.message);
-                    }
-                });
-            } else {
-                console.log('Esperando Bootstrap...');
-                setTimeout(initDropdowns, 100);
-            }
-        }
-        
-        initDropdowns();
     })(window.jQuery);
     </script>
 

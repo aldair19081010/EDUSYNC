@@ -217,62 +217,6 @@ $render_collapse = function ($group) use ($current_page) {
 };
 ?>
 
-<script>
-// Fallbacks disponibles incluso si una página incluida termina antes de cargar
-// los scripts ubicados al final de index.php.
-if (typeof start_load !== 'function') {
-  function start_load(){
-    try {
-      if (document.getElementById('page-loader')) return;
-      var el = document.createElement('div');
-      el.id = 'page-loader';
-      el.setAttribute('role','status');
-      el.style.position = 'fixed';
-      el.style.inset = '0';
-      el.style.background = 'rgba(0,0,0,0.35)';
-      el.style.zIndex = 2000000;
-      el.style.display = 'flex';
-      el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
-      var inner = document.createElement('div');
-      inner.style.background = '#fff';
-      inner.style.padding = '12px 14px';
-      inner.style.borderRadius = '8px';
-      inner.style.boxShadow = '0 6px 20px rgba(0,0,0,0.12)';
-      inner.innerText = 'Cargando...';
-      el.appendChild(inner);
-      document.body.appendChild(el);
-    } catch (e) {}
-  }
-}
-if (typeof end_load !== 'function') {
-  function end_load(){
-    try {
-      var el = document.getElementById('page-loader');
-      if (el && el.parentNode) el.parentNode.removeChild(el);
-    } catch(e) {}
-  }
-}
-if (typeof alert_toast !== 'function') {
-  function alert_toast(message, type){
-    try {
-      var d = document.createElement('div');
-      d.className = 'toast-alert-fixed alert alert-' + (type || 'info');
-      d.style.position = 'fixed';
-      d.style.top = '20px';
-      d.style.right = '20px';
-      d.style.zIndex = 2000001;
-      d.style.minWidth = '220px';
-      d.innerText = message;
-      document.body.appendChild(d);
-      setTimeout(function(){ try { d.remove(); } catch(e){} }, 3500);
-    } catch (e) {
-      console.log(type, message);
-    }
-  }
-}
-</script>
-
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion edusync-sidebar" id="accordionSidebar">
     <a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.php?page=home">
         <div class="sidebar-brand-icon rotate-n-15">
