@@ -31,14 +31,13 @@ function my_payments_is_confirmed($status): bool {
     return $value === '' || in_array($value, ['confirmado', 'confirmed', 'pagado', 'completado'], true);
 }
 
-function my_payments_operation_state(array $operation, float $confirmedAmount): string {
-    if (!empty($operation['corrected_by_id'])) return 'Corregido';
-    $status = trim((string)($operation['status'] ?? ''));
-    $lower = mb_strtolower($status, 'UTF-8');
-    if (strpos($lower, 'anul') !== false || strpos($lower, 'cancel') !== false) return 'Anulado';
-    if (strpos($lower, 'correg') !== false) return 'Corregido';
-    if ($confirmedAmount > 0.009) return 'Confirmado';
-    return $status !== '' ? $status : 'Pendiente';
+function my_payments_operation_is_void(array $operation): bool {
+    if (!empty($operation['corrected_by_id'])) return true;
+    $status = mb_strtolower(trim((string)($operation['status'] ?? '')), 'UTF-8');
+    if ($status === '') return false;
+    return strpos($status, 'anul') !== false
+        || strpos($status, 'cancel') !== false
+        || strpos($status, 'correg') !== false;
 }
 
 function my_payments_unique_values(array $values): array {
@@ -66,6 +65,7 @@ try {
         $authMode = 'session';
     } else {
         if ($dni === '') my_payments_out(['status' => 'error', 'message' => 'DNI no recibido'], 400);
+
         if ($requestedSchoolId > 0) {
             $stmt = $conn->prepare('SELECT id,id_no,name,school_id FROM student WHERE id_no=? AND school_id=? ORDER BY id DESC LIMIT 1');
             $stmt->bind_param('si', $dni, $requestedSchoolId);
@@ -73,6 +73,7 @@ try {
             $stmt = $conn->prepare('SELECT id,id_no,name,school_id FROM student WHERE id_no=? ORDER BY id DESC LIMIT 1');
             $stmt->bind_param('s', $dni);
         }
+
         $stmt->execute();
         $student = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -83,6 +84,7 @@ try {
     $studentId = (int)$student['id'];
     $schoolId = (int)($student['school_id'] ?? 0);
     $data = [];
+
     $hasPaymentStatus = debt_engine_column_exists($conn, 'payments', 'payment_status');
     $hasOperationId = debt_engine_column_exists($conn, 'payments', 'operation_id');
     $hasOperations = debt_engine_table_exists($conn, 'payment_operations') && $hasOperationId;
@@ -97,9 +99,8 @@ try {
         $statusExpr = debt_engine_column_exists($conn, 'payment_operations', 'status') ? 'po.status' : "'Confirmado'";
         $dateExpr = debt_engine_column_exists($conn, 'payment_operations', 'payment_date') ? 'po.payment_date' : 'po.date_created';
         $receiptExpr = debt_engine_column_exists($conn, 'payment_operations', 'receipt_full') ? 'po.receipt_full' : "CONCAT('OP-',po.id)";
-        $totalExpr = debt_engine_column_exists($conn, 'payment_operations', 'total_amount') ? 'po.total_amount' : '0';
 
-        $stmt = $conn->prepare("SELECT po.id,$receiptExpr receipt_full,$totalExpr total_amount,$dateExpr payment_date,$statusExpr status,$correctionExpr corrected_by_id FROM payment_operations po WHERE po.student_id=? AND po.school_id=? ORDER BY payment_date DESC,po.id DESC");
+        $stmt = $conn->prepare("SELECT po.id,$receiptExpr receipt_full,$dateExpr payment_date,$statusExpr status,$correctionExpr corrected_by_id FROM payment_operations po WHERE po.student_id=? AND po.school_id=? ORDER BY payment_date DESC,po.id DESC");
         $stmt->bind_param('ii', $studentId, $schoolId);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -135,6 +136,8 @@ try {
         }
 
         foreach ($operationRows as $oid => $operation) {
+            if (my_payments_operation_is_void($operation)) continue;
+
             $lines = $operationLines[$oid] ?? [];
             if (!$lines) continue;
 
@@ -146,27 +149,27 @@ try {
             $firstEf = 0;
 
             foreach ($lines as $line) {
+                if (!my_payments_is_confirmed($line['payment_status'])) continue;
+
                 if (!$firstPid) $firstPid = (int)$line['pid'];
                 if (!$firstEf) $firstEf = (int)$line['ef_id'];
+
                 $concepts[] = (string)($line['course'] ?: 'Concepto de pago');
                 $year = trim((string)($line['anio_academico'] ?? ''));
                 if ($year !== '') $years[] = $year;
-                if (my_payments_is_confirmed($line['payment_status'])) {
-                    $amount = max(0, (float)$line['amount']);
-                    $confirmedAmount += $amount;
-                    $key = $year !== '' ? $year : 'Sin año';
-                    $yearAmounts[$key] = ($yearAmounts[$key] ?? 0) + $amount;
-                }
+
+                $amount = max(0, (float)$line['amount']);
+                $confirmedAmount += $amount;
+                $key = $year !== '' ? $year : 'Sin año';
+                $yearAmounts[$key] = ($yearAmounts[$key] ?? 0) + $amount;
             }
+
+            if ($confirmedAmount <= EDUSYNC_DEBT_TOLERANCE) continue;
 
             $concepts = my_payments_unique_values($concepts);
             $years = my_payments_unique_values($years);
-            $state = my_payments_operation_state($operation, $confirmedAmount);
-            $counted = $state === 'Confirmado' ? round($confirmedAmount, 2) : 0.0;
             $methods = $operationMethods[$oid] ?? [];
             $methodNames = my_payments_unique_values(array_column($methods, 'nombre'));
-            $displayAmount = (float)($operation['total_amount'] ?? 0);
-            if ($displayAmount <= 0) $displayAmount = $confirmedAmount;
 
             $data[] = [
                 'operation_id' => $oid,
@@ -178,9 +181,9 @@ try {
                 'concepto' => implode(' + ', $concepts),
                 'anios_academicos' => $years,
                 'anio_academico' => count($years) === 1 ? $years[0] : (count($years) > 1 ? 'Varios' : ''),
-                'monto' => round($displayAmount, 2),
-                'monto_contabilizado' => $counted,
-                'estado' => $state,
+                'monto' => round($confirmedAmount, 2),
+                'monto_contabilizado' => round($confirmedAmount, 2),
+                'estado' => 'Confirmado',
                 'metodos_pago' => $methods,
                 'medio_pago' => implode(' + ', $methodNames),
                 'year_amounts' => array_map(static fn($v) => round((float)$v, 2), $yearAmounts),
@@ -191,15 +194,20 @@ try {
 
     $paymentStatusExpr = $hasPaymentStatus ? "COALESCE(p.payment_status,'Confirmado')" : "'Confirmado'";
     $operationFilter = $hasOperationId ? 'AND p.operation_id IS NULL' : '';
-    $stmt = $conn->prepare("SELECT p.id pid,p.ef_id,p.date_created,p.amount,p.receipt_no,$paymentStatusExpr payment_status,c.course concepto,ay.year anio_academico,ay.description anio_descripcion,pm.name medio_pago FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id LEFT JOIN courses c ON c.id=ef.course_id LEFT JOIN academic_year ay ON ay.id=c.academic_year_id LEFT JOIN payment_methods pm ON pm.id=p.payment_method_id WHERE ef.student_id=? $operationFilter ORDER BY p.date_created DESC,p.id DESC");
+    $legacyStatusFilter = $hasPaymentStatus ? "AND COALESCE(p.payment_status,'Confirmado')='Confirmado'" : '';
+
+    $stmt = $conn->prepare("SELECT p.id pid,p.ef_id,p.date_created,p.amount,p.receipt_no,$paymentStatusExpr payment_status,c.course concepto,ay.year anio_academico,ay.description anio_descripcion,pm.name medio_pago FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id LEFT JOIN courses c ON c.id=ef.course_id LEFT JOIN academic_year ay ON ay.id=c.academic_year_id LEFT JOIN payment_methods pm ON pm.id=p.payment_method_id WHERE ef.student_id=? $operationFilter $legacyStatusFilter ORDER BY p.date_created DESC,p.id DESC");
     $stmt->bind_param('i', $studentId);
     $stmt->execute();
     $result = $stmt->get_result();
+
     while ($row = $result->fetch_assoc()) {
-        $confirmed = my_payments_is_confirmed($row['payment_status']);
+        if (!my_payments_is_confirmed($row['payment_status'])) continue;
+
         $year = trim((string)($row['anio_academico'] ?? ''));
         $amount = max(0, (float)$row['amount']);
-        $status = $confirmed ? 'Confirmado' : (stripos((string)$row['payment_status'], 'anul') !== false ? 'Anulado' : (string)$row['payment_status']);
+        if ($amount <= EDUSYNC_DEBT_TOLERANCE) continue;
+
         $receipt = trim((string)$row['receipt_no']);
         if ($receipt === '') $receipt = 'PAGO-' . (int)$row['pid'];
 
@@ -215,11 +223,11 @@ try {
             'anio_academico' => $year,
             'anio_descripcion' => $row['anio_descripcion'],
             'monto' => round($amount, 2),
-            'monto_contabilizado' => $confirmed ? round($amount, 2) : 0.0,
-            'estado' => $status !== '' ? $status : 'Pendiente',
+            'monto_contabilizado' => round($amount, 2),
+            'estado' => 'Confirmado',
             'metodos_pago' => !empty($row['medio_pago']) ? [['nombre' => $row['medio_pago'], 'monto' => $amount]] : [],
             'medio_pago' => (string)($row['medio_pago'] ?? ''),
-            'year_amounts' => $confirmed ? [($year !== '' ? $year : 'Sin año') => round($amount, 2)] : [],
+            'year_amounts' => [($year !== '' ? $year : 'Sin año') => round($amount, 2)],
             'legacy' => true
         ];
     }
@@ -238,27 +246,32 @@ try {
     $yearsSummary = [];
 
     foreach ($data as $payment) {
-        if (($payment['estado'] ?? '') === 'Confirmado') {
-            $confirmedOperations++;
-            $totalPaid += (float)$payment['monto_contabilizado'];
-            $date = trim((string)($payment['fecha'] ?? ''));
-            if ($date !== '' && ($lastPaymentDate === null || strtotime($date) > strtotime($lastPaymentDate))) $lastPaymentDate = $date;
+        $confirmedOperations++;
+        $totalPaid += (float)$payment['monto_contabilizado'];
+
+        $date = trim((string)($payment['fecha'] ?? ''));
+        if ($date !== '' && ($lastPaymentDate === null || strtotime($date) > strtotime($lastPaymentDate))) {
+            $lastPaymentDate = $date;
         }
 
         foreach (($payment['year_amounts'] ?? []) as $year => $amount) {
             if (!isset($yearsSummary[$year])) {
                 $yearsSummary[$year] = ['año' => $year, 'total_pagos' => 0, 'monto_total' => 0.0];
             }
-            if (($payment['estado'] ?? '') === 'Confirmado') $yearsSummary[$year]['total_pagos']++;
+            $yearsSummary[$year]['total_pagos']++;
             $yearsSummary[$year]['monto_total'] += (float)$amount;
         }
     }
 
     uasort($yearsSummary, static fn($a, $b) => strnatcmp((string)$b['año'], (string)$a['año']));
-    foreach ($yearsSummary as &$yearSummary) $yearSummary['monto_total'] = round((float)$yearSummary['monto_total'], 2);
+    foreach ($yearsSummary as &$yearSummary) {
+        $yearSummary['monto_total'] = round((float)$yearSummary['monto_total'], 2);
+    }
     unset($yearSummary);
 
-    $pendingDebts = debt_engine_pending_debts(debt_engine_get_student_debts($conn, $studentId, $schoolId));
+    $pendingDebts = debt_engine_pending_debts(
+        debt_engine_get_student_debts($conn, $studentId, $schoolId)
+    );
     $debtSummary = debt_engine_summary($pendingDebts);
     $debtByYear = debt_engine_year_summary($pendingDebts);
 
