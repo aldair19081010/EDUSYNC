@@ -2,6 +2,24 @@
 ob_start();
 date_default_timezone_set('America/Lima');
 include_once __DIR__ . '/includes/session_check.php';
+
+// El portal del estudiante no usa la bandeja administrativa de notificaciones.
+// El topbar puede consultar este endpoint si el módulo unificado está instalado;
+// devolvemos una respuesta DataTables vacía en vez de un 403.
+$isStudentNotificationSession = !empty($_SESSION['student_logged_in']) || (int)($_SESSION['login_type'] ?? 0) === 4;
+if ($isStudentNotificationSession) {
+    while (ob_get_level()) ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'draw' => (int)($_GET['draw'] ?? 1),
+        'recordsTotal' => 0,
+        'recordsFiltered' => 0,
+        'data' => [],
+        'summary' => ['total' => 0, 'unread' => 0, 'high_priority' => 0, 'requires_action' => 0]
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 require_login_modal();
 include __DIR__ . '/db_connect.php';
 $conn->query("SET time_zone = '-05:00'");
@@ -144,8 +162,6 @@ if (nt($conn, 'attendance_change_requests')) {
         WHERE r.school_id=$school AND r.requested_by=$user AND r.status IN ('Aprobada','Rechazada')";
 }
 
-// Reapertura de notas: es una tarea compartida por Administración. Que un administrador
-// la lea no la retira de Pendientes; solo desaparece cuando alguien la aprueba o rechaza.
 if ($approver && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_courses') && nt($conn, 'academic_courses')) {
     $parts[] = "SELECT CONCAT('grade_reopen_request:',grr.id) COLLATE utf8mb4_general_ci nkey,
         'Académica' COLLATE utf8mb4_general_ci category,
