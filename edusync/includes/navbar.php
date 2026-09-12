@@ -10,10 +10,12 @@ $ui_modals_file = dirname(__DIR__) . '/css/ui_modals.css';
 $ui_feedback_file = dirname(__DIR__) . '/css/ui_feedback.css';
 $ui_responsive_file = dirname(__DIR__) . '/css/ui_responsive.css';
 $ui_table_actions_file = dirname(__DIR__) . '/css/ui_table_actions.css';
+$student_grades_css_file = dirname(__DIR__) . '/css/student_grades.css';
 $ui_js_file = dirname(__DIR__) . '/js/ui_consistency.js';
 $ui_modals_js_file = dirname(__DIR__) . '/js/ui_modals.js';
 $ui_feedback_js_file = dirname(__DIR__) . '/js/ui_feedback.js';
 $ui_table_actions_js_file = dirname(__DIR__) . '/js/ui_table_actions.js';
+$student_grades_js_file = dirname(__DIR__) . '/js/student_grades.js';
 $custom_css_version = @filemtime($custom_css_file) ?: time();
 $ui_css_version = @filemtime($ui_css_file) ?: time();
 $ui_refinements_version = @filemtime($ui_refinements_file) ?: time();
@@ -23,10 +25,13 @@ $ui_modals_version = @filemtime($ui_modals_file) ?: time();
 $ui_feedback_version = @filemtime($ui_feedback_file) ?: time();
 $ui_responsive_version = @filemtime($ui_responsive_file) ?: time();
 $ui_table_actions_version = @filemtime($ui_table_actions_file) ?: time();
+$student_grades_css_version = @filemtime($student_grades_css_file) ?: time();
 $ui_js_version = @filemtime($ui_js_file) ?: time();
 $ui_modals_js_version = @filemtime($ui_modals_js_file) ?: time();
 $ui_feedback_js_version = @filemtime($ui_feedback_js_file) ?: time();
 $ui_table_actions_js_version = @filemtime($ui_table_actions_js_file) ?: time();
+$student_grades_js_version = @filemtime($student_grades_js_file) ?: time();
+$is_student_grades_page = ($current_page ?? '') === 'student_grades';
 ?>
 <script>
 (function(){
@@ -99,9 +104,22 @@ $ui_table_actions_js_version = @filemtime($ui_table_actions_js_file) ?: time();
         tableActions.setAttribute('data-edusync-ui-table-actions', '1');
         document.head.appendChild(tableActions);
     }
+
+    <?php if ($is_student_grades_page): ?>
+    if (!document.querySelector('link[data-edusync-student-grades]')) {
+        var studentGrades = document.createElement('link');
+        studentGrades.rel = 'stylesheet';
+        studentGrades.href = 'css/student_grades.css?v=<?php echo rawurlencode((string)$student_grades_css_version); ?>';
+        studentGrades.setAttribute('data-edusync-student-grades', '1');
+        document.head.appendChild(studentGrades);
+    }
+    <?php endif; ?>
 })();
 </script>
 <script src="js/ui_consistency.js?v=<?php echo rawurlencode((string)$ui_js_version); ?>"></script>
 <script src="js/ui_modals.js?v=<?php echo rawurlencode((string)$ui_modals_js_version); ?>"></script>
 <script src="js/ui_feedback.js?v=<?php echo rawurlencode((string)$ui_feedback_js_version); ?>"></script>
 <script src="js/ui_table_actions.js?v=<?php echo rawurlencode((string)$ui_table_actions_js_version); ?>"></script>
+<?php if ($is_student_grades_page): ?>
+<script src="js/student_grades.js?v=<?php echo rawurlencode((string)$student_grades_js_version); ?>"></script>
+<?php endif; ?>
