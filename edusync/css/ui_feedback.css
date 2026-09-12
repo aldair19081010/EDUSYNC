@@ -1,0 +1,290 @@
+/*
+ * EduSync Feedback System
+ * Sistema visual único para notificaciones, confirmaciones, carga y botones ocupados.
+ * No modifica lógica de negocio ni respuestas del servidor.
+ */
+
+/* --------------------------------------------------------------------------
+   Toasts
+   -------------------------------------------------------------------------- */
+#ed-feedback-stack {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 2000002;
+    width: min(380px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.ed-feedback-toast {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    width: 100%;
+    margin-bottom: .65rem;
+    padding: .85rem 2.5rem .85rem .9rem;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid #e3e6f0;
+    border-left: 4px solid #4285f4;
+    border-radius: .6rem;
+    box-shadow: 0 .55rem 1.5rem rgba(31,45,61,.16);
+    color: #344054;
+    pointer-events: auto;
+    animation: edFeedbackIn .18s ease-out;
+}
+
+.ed-feedback-toast.is-hiding {
+    opacity: 0;
+    transform: translateY(-5px);
+    transition: opacity .18s ease, transform .18s ease;
+}
+
+.ed-feedback-toast-success { border-left-color: #1cc88a; }
+.ed-feedback-toast-warning { border-left-color: #f6c23e; }
+.ed-feedback-toast-danger { border-left-color: #e74a3b; }
+.ed-feedback-toast-info { border-left-color: #4285f4; }
+
+.ed-feedback-toast-icon {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #edf4ff;
+    color: #4285f4;
+    font-size: .9rem;
+}
+
+.ed-feedback-toast-success .ed-feedback-toast-icon {
+    background: #e8f8f2;
+    color: #159766;
+}
+
+.ed-feedback-toast-warning .ed-feedback-toast-icon {
+    background: #fff8df;
+    color: #9b7300;
+}
+
+.ed-feedback-toast-danger .ed-feedback-toast-icon {
+    background: #fff0ee;
+    color: #d93a2c;
+}
+
+.ed-feedback-toast-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.ed-feedback-toast-title {
+    display: block;
+    margin-bottom: .08rem;
+    color: #233b52;
+    font-size: .82rem;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+.ed-feedback-toast-message {
+    margin: 0;
+    color: #667085;
+    font-size: .84rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.ed-feedback-toast-close {
+    position: absolute;
+    top: .48rem;
+    right: .5rem;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: .4rem;
+    background: transparent;
+    color: #7b8495;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.ed-feedback-toast-close:hover,
+.ed-feedback-toast-close:focus {
+    background: #f2f4f7;
+    color: #344054;
+    outline: 0;
+}
+
+/* Compatibilidad visual con toasts antiguos que pudieran quedar en pantalla. */
+.toast-alert-fixed {
+    border: 1px solid #e3e6f0 !important;
+    border-radius: .6rem !important;
+    box-shadow: 0 .55rem 1.5rem rgba(31,45,61,.16) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Loader global
+   !important evita que el antiguo fallback inline de footer.php cambie el diseño.
+   -------------------------------------------------------------------------- */
+#page-loader {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2000000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 1rem !important;
+    background: rgba(31,45,61,.28) !important;
+    backdrop-filter: blur(1.5px);
+}
+
+#page-loader .loader-inner {
+    min-width: 190px !important;
+    max-width: min(330px, calc(100vw - 2rem)) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: .7rem !important;
+    padding: .9rem 1rem !important;
+    background: #fff !important;
+    border: 1px solid #e3e6f0 !important;
+    border-radius: .65rem !important;
+    box-shadow: 0 .75rem 2rem rgba(31,45,61,.22) !important;
+    color: #344054 !important;
+    font-size: .88rem !important;
+    font-weight: 700 !important;
+}
+
+#page-loader .spinner-border {
+    flex: 0 0 auto !important;
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+    margin: 0 !important;
+    border-width: .16em !important;
+}
+
+/* --------------------------------------------------------------------------
+   Botones ocupados
+   -------------------------------------------------------------------------- */
+.ed-btn-busy {
+    position: relative;
+    pointer-events: none;
+}
+
+.ed-btn-busy .ed-btn-spinner {
+    width: .9rem;
+    height: .9rem;
+    margin-right: .4rem;
+    border-width: .13em;
+    vertical-align: -.1rem;
+}
+
+.ed-btn-busy[disabled] {
+    cursor: wait !important;
+    opacity: .76;
+}
+
+/* --------------------------------------------------------------------------
+   Confirmaciones
+   -------------------------------------------------------------------------- */
+#confirm_modal .modal-dialog {
+    max-width: 430px;
+}
+
+#confirm_modal .modal-body {
+    padding: 1.15rem 1rem !important;
+}
+
+.ed-confirm-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: .8rem;
+}
+
+.ed-confirm-icon {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #fff0ee;
+    color: #d93a2c;
+    font-size: 1rem;
+}
+
+.ed-confirm-icon.ed-confirm-warning {
+    background: #fff8df;
+    color: #9b7300;
+}
+
+.ed-confirm-icon.ed-confirm-info {
+    background: #edf4ff;
+    color: #2f6fed;
+}
+
+.ed-confirm-copy {
+    min-width: 0;
+    padding-top: .12rem;
+    color: #526274;
+    font-size: .9rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Mensajes inline reutilizables
+   -------------------------------------------------------------------------- */
+.ed-inline-feedback {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    margin-bottom: .8rem;
+    padding: .7rem .8rem;
+    border: 1px solid #dce5f2;
+    border-radius: .5rem;
+    background: #f7faff;
+    color: #526274;
+    font-size: .84rem;
+}
+
+.ed-inline-feedback-success {
+    border-color: #ccebdd;
+    background: #f1fbf7;
+}
+
+.ed-inline-feedback-warning {
+    border-color: #f2dfa2;
+    background: #fffbef;
+}
+
+.ed-inline-feedback-danger {
+    border-color: #f1cbc7;
+    background: #fff6f5;
+}
+
+@keyframes edFeedbackIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 575.98px) {
+    #ed-feedback-stack {
+        top: .65rem;
+        right: .65rem;
+        width: calc(100vw - 1.3rem);
+    }
+
+    .ed-feedback-toast {
+        margin-bottom: .5rem;
+    }
+
+    #confirm_modal .modal-dialog {
+        max-width: none;
+    }
+}
