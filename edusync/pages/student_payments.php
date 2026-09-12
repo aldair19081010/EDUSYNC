@@ -53,9 +53,7 @@ $student_dni = (string)($_SESSION['student_dni'] ?? '');
                 </h6>
                 <div id="student-payments-caption" class="small text-muted mt-1">Cargando información...</div>
             </div>
-            <div class="small text-muted mt-2 mt-md-0">
-                Solo se muestran comprobantes vigentes
-            </div>
+            <div class="small text-muted mt-2 mt-md-0">Comprobantes vigentes</div>
         </div>
         <div class="card-body p-0">
             <div id="student-payments-list" class="student-payments-list">
