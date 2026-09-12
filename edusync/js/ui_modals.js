@@ -1,7 +1,7 @@
 /*
  * EduSync Modal System
- * Detecta contenido cargado dinámicamente en #uni_modal y aplica únicamente
- * clases visuales. No modifica datos, AJAX ni reglas de negocio.
+ * Centraliza el modal universal y normaliza visualmente el contenido AJAX.
+ * No modifica datos ni reglas de negocio.
  */
 (function ($) {
     'use strict';
@@ -17,6 +17,61 @@
         'ed-modal-concept',
         'ed-modal-discount'
     ];
+
+    function normalizeRequestedSize(size) {
+        var value = String(size || 'modal-lg').trim();
+        var aliases = {
+            small: 'modal-sm',
+            large: 'modal-lg',
+            'extra-large': 'modal-xl',
+            xlarge: 'modal-xl'
+        };
+        value = aliases[value] || value;
+        return ['modal-sm', 'modal-lg', 'modal-xl', 'mid-large'].indexOf(value) !== -1 ? value : 'modal-lg';
+    }
+
+    function sessionAwareUrl(url) {
+        var target = String(url || '');
+        try {
+            var match = document.cookie.match('(^|; )EDUSYNCSESSID=([^;]+)');
+            if (match && match[2] && target.indexOf('sid=') === -1) {
+                target += (target.indexOf('?') === -1 ? '?' : '&') + 'sid=' + encodeURIComponent(decodeURIComponent(match[2]));
+            }
+        } catch (_) {}
+        return target;
+    }
+
+    /* Única implementación del modal dinámico para toda la aplicación. */
+    window.uni_modal = function (title, url, size) {
+        var $modal = $('#uni_modal');
+        if (!$modal.length) {
+            console.error('EduSync: #uni_modal no está disponible.');
+            return;
+        }
+
+        var $dialog = $modal.find('.modal-dialog');
+        $dialog.removeClass('modal-sm modal-lg modal-xl mid-large').addClass(normalizeRequestedSize(size));
+        $('#uni_modal_label').html(title || '');
+        $('#uni_modal_body').empty();
+        $modal.modal({ backdrop: 'static', keyboard: false, show: true });
+
+        $.ajax({
+            url: sessionAwareUrl(url),
+            type: 'GET',
+            cache: false
+        }).done(function (response) {
+            $('#uni_modal_body').html(response);
+            normalizeModal($modal);
+        }).fail(function (xhr) {
+            if (xhr && xhr.status === 401) {
+                $('#uni_modal_body').html(xhr.responseText || '<div class="alert alert-danger">Sesión expirada. Por favor <a href="login.php">inicie sesión</a>.</div>');
+                return;
+            }
+            var status = xhr ? xhr.status : '';
+            var statusText = xhr ? xhr.statusText : '';
+            $('#uni_modal_body').html('<div class="alert alert-danger">Error al cargar el contenido: ' + status + ' ' + statusText + '</div>');
+        });
+    };
 
     function detectKind($modal) {
         if ($modal.find('#manage-student').length) return 'ed-modal-student';
