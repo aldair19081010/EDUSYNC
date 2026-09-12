@@ -6,13 +6,17 @@ $ui_css_file = dirname(__DIR__) . '/css/ui_consistency.css';
 $ui_refinements_file = dirname(__DIR__) . '/css/ui_refinements.css';
 $ui_report_tables_file = dirname(__DIR__) . '/css/ui_report_tables.css';
 $ui_grades_individual_file = dirname(__DIR__) . '/css/ui_grades_individual.css';
+$ui_modals_file = dirname(__DIR__) . '/css/ui_modals.css';
 $ui_js_file = dirname(__DIR__) . '/js/ui_consistency.js';
+$ui_modals_js_file = dirname(__DIR__) . '/js/ui_modals.js';
 $custom_css_version = @filemtime($custom_css_file) ?: time();
 $ui_css_version = @filemtime($ui_css_file) ?: time();
 $ui_refinements_version = @filemtime($ui_refinements_file) ?: time();
 $ui_report_tables_version = @filemtime($ui_report_tables_file) ?: time();
 $ui_grades_individual_version = @filemtime($ui_grades_individual_file) ?: time();
+$ui_modals_version = @filemtime($ui_modals_file) ?: time();
 $ui_js_version = @filemtime($ui_js_file) ?: time();
+$ui_modals_js_version = @filemtime($ui_modals_js_file) ?: time();
 ?>
 <script>
 (function(){
@@ -53,6 +57,15 @@ $ui_js_version = @filemtime($ui_js_file) ?: time();
         gradesIndividual.setAttribute('data-edusync-ui-grades-individual', '1');
         document.head.appendChild(gradesIndividual);
     }
+
+    if (!document.querySelector('link[data-edusync-ui-modals]')) {
+        var modals = document.createElement('link');
+        modals.rel = 'stylesheet';
+        modals.href = 'css/ui_modals.css?v=<?php echo rawurlencode((string)$ui_modals_version); ?>';
+        modals.setAttribute('data-edusync-ui-modals', '1');
+        document.head.appendChild(modals);
+    }
 })();
 </script>
 <script src="js/ui_consistency.js?v=<?php echo rawurlencode((string)$ui_js_version); ?>"></script>
+<script src="js/ui_modals.js?v=<?php echo rawurlencode((string)$ui_modals_js_version); ?>"></script>
