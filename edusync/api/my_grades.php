@@ -84,40 +84,44 @@ $grado_alumno = $stu_first['grado'] ?? '';
 $seccion_alumno = $stu_first['seccion'] ?? '';
 
 if ($student_id) {
-    // Verificar si las calificaciones están bloqueadas por deuda
-    $debt_check = $conn->query("
-        SELECT * FROM partial_payments 
-        WHERE student_id IN ($student_ids_sql) AND status = 'unpaid'
-        ORDER BY deadline ASC
-    ");
-    
-    $filas_consideradas = 0;
-    $ultimas_con_deuda = 0;
-    $total_pendiente_ultimas = 0;
-
-    if ($debt_check->num_rows > 0) {
-        $todos_los_pagos = [];
-        while ($row = $debt_check->fetch_assoc()) {
-            $todos_los_pagos[] = $row;
-        }
-        $pagos_recientes = array_slice($todos_los_pagos, -2);
+    // Verificar si las calificaciones están bloqueadas por deuda solo cuando
+    // la instalación dispone del módulo/tabla partial_payments.
+    $partial_payments_table = $conn->query("SHOW TABLES LIKE 'partial_payments'");
+    if ($partial_payments_table && $partial_payments_table->num_rows > 0) {
+        $debt_check = $conn->query("
+            SELECT * FROM partial_payments 
+            WHERE student_id IN ($student_ids_sql) AND status = 'unpaid'
+            ORDER BY deadline ASC
+        ");
         
-        foreach ($pagos_recientes as $pago) {
-            $filas_consideradas++;
-            if ($pago['status'] === 'unpaid') {
-                $ultimas_con_deuda++;
-                $total_pendiente_ultimas += floatval($pago['amount']);
-            }
-        }
+        $filas_consideradas = 0;
+        $ultimas_con_deuda = 0;
+        $total_pendiente_ultimas = 0;
 
-        if ($filas_consideradas >= 2 && $ultimas_con_deuda >= 2) {
-            echo json_encode([
-                'status' => 'error',
-                'reason' => 'debt',
-                'message' => 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).',
-                'total_pendiente_ultimas' => number_format($total_pendiente_ultimas, 2)
-            ]);
-            exit;
+        if ($debt_check && $debt_check->num_rows > 0) {
+            $todos_los_pagos = [];
+            while ($row = $debt_check->fetch_assoc()) {
+                $todos_los_pagos[] = $row;
+            }
+            $pagos_recientes = array_slice($todos_los_pagos, -2);
+            
+            foreach ($pagos_recientes as $pago) {
+                $filas_consideradas++;
+                if ($pago['status'] === 'unpaid') {
+                    $ultimas_con_deuda++;
+                    $total_pendiente_ultimas += floatval($pago['amount']);
+                }
+            }
+
+            if ($filas_consideradas >= 2 && $ultimas_con_deuda >= 2) {
+                echo json_encode([
+                    'status' => 'error',
+                    'reason' => 'debt',
+                    'message' => 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).',
+                    'total_pendiente_ultimas' => number_format($total_pendiente_ultimas, 2)
+                ]);
+                exit;
+            }
         }
     }
 
