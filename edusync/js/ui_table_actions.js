@@ -78,7 +78,20 @@
                 .html('<i class="fa fa-ellipsis-v"></i>');
 
             $menu.detach().addClass('ed-action-menu');
-            $menu.find('.cp-delete').removeClass('text-danger').addClass('ed-action-danger');
+            $menu.find('.cp-state').each(function () {
+                var $item = $(this);
+                var state = String($item.data('state') || '');
+                if ($item.find('i').length) return;
+                if (state === 'Activo') $item.prepend('<i class="fa fa-check-circle text-success"></i>');
+                else if (state === 'Suspendido') $item.prepend('<i class="fa fa-pause-circle text-warning"></i>');
+                else $item.prepend('<i class="fa fa-archive text-secondary"></i>');
+            });
+            $menu.find('.cp-delete')
+                .removeClass('text-danger')
+                .addClass('ed-action-danger')
+                .each(function () {
+                    if (!$(this).find('i').length) $(this).prepend('<i class="fa fa-trash-alt"></i>');
+                });
 
             var $dropdown = $('<div class="dropdown"></div>').append($toggle).append($menu);
             var $actions = $('<div class="ed-row-actions"></div>').append($edit).append($dropdown);
