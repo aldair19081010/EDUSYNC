@@ -26,11 +26,23 @@ function edu_chat_first_name(string $name): string {
 
 function edu_chat_history_add(string $role, string $text, array $extra = []): void {
     if (!isset($_SESSION['chatbot_history']) || !is_array($_SESSION['chatbot_history'])) $_SESSION['chatbot_history'] = [];
-    $item = array_merge(['role' => $role, 'text' => $text], $extra);
-    $_SESSION['chatbot_history'][] = $item;
-    if (count($_SESSION['chatbot_history']) > 16) {
-        $_SESSION['chatbot_history'] = array_slice($_SESSION['chatbot_history'], -16);
+    $_SESSION['chatbot_history'][] = array_merge(['role' => $role, 'text' => $text], $extra);
+    if (count($_SESSION['chatbot_history']) > 16) $_SESSION['chatbot_history'] = array_slice($_SESSION['chatbot_history'], -16);
+}
+
+function edu_chat_rate_limit(): void {
+    $now = microtime(true);
+    $state = is_array($_SESSION['chatbot_rate'] ?? null) ? $_SESSION['chatbot_rate'] : ['last' => 0.0, 'hits' => []];
+    $last = (float)($state['last'] ?? 0);
+    if ($last > 0 && ($now - $last) < 0.45) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'Espera un momento antes de enviar otra consulta.'], 429);
     }
+    $hits = array_values(array_filter((array)($state['hits'] ?? []), static fn($ts) => ($now - (float)$ts) <= 600));
+    if (count($hits) >= 60) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'Has realizado muchas consultas seguidas. Inténtalo nuevamente más tarde.'], 429);
+    }
+    $hits[] = $now;
+    $_SESSION['chatbot_rate'] = ['last' => $now, 'hits' => $hits];
 }
 
 try {
@@ -61,13 +73,11 @@ try {
     }
 
     if ($action === 'reset') {
-        unset($_SESSION['chatbot_context'], $_SESSION['chatbot_history']);
-        edu_chat_api_reply([
-            'status' => 1,
-            'message' => 'Conversación reiniciada.',
-            'suggestions' => edu_chat_suggestions($actor)
-        ]);
+        unset($_SESSION['chatbot_context'], $_SESSION['chatbot_history'], $_SESSION['chatbot_rate']);
+        edu_chat_api_reply(['status' => 1, 'message' => 'Conversación reiniciada.', 'suggestions' => edu_chat_suggestions($actor)]);
     }
+
+    edu_chat_rate_limit();
 
     $message = trim((string)($_POST['message'] ?? ''));
     if ($message === '' || mb_strlen($message, 'UTF-8') > 500) {
@@ -115,8 +125,5 @@ try {
     ]);
 } catch (Throwable $e) {
     error_log('[chatbot_api] ' . $e->getMessage() . ' line ' . $e->getLine());
-    edu_chat_api_reply([
-        'status' => 0,
-        'message' => 'No pude procesar la consulta en este momento. Inténtalo nuevamente.'
-    ], 500);
+    edu_chat_api_reply(['status' => 0, 'message' => 'No pude procesar la consulta en este momento. Inténtalo nuevamente.'], 500);
 }
