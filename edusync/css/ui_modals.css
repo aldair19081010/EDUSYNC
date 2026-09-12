@@ -1,0 +1,387 @@
+/*
+ * EduSync Modal System
+ * Capa visual específica para formularios y contenido cargado dentro de modales.
+ * Bootstrap 4 / SB Admin 2 continúan siendo la base.
+ */
+
+:root {
+    --ed-modal-border: #e3e8f0;
+    --ed-modal-border-soft: #edf0f5;
+    --ed-modal-heading: #233b52;
+    --ed-modal-text: #344054;
+    --ed-modal-muted: #667085;
+    --ed-modal-primary: #4285f4;
+    --ed-modal-primary-soft: #eef4ff;
+    --ed-modal-surface: #ffffff;
+    --ed-modal-surface-soft: #f8fafc;
+    --ed-modal-radius: .65rem;
+    --ed-modal-radius-sm: .45rem;
+}
+
+/* --------------------------------------------------------------------------
+   Contenedor universal
+   -------------------------------------------------------------------------- */
+body[data-edusync-ui="standard-v2"] .modal.ed-modal-standard .modal-content {
+    border: 1px solid var(--ed-modal-border) !important;
+    border-radius: var(--ed-modal-radius) !important;
+    box-shadow: 0 .75rem 2rem rgba(31, 45, 61, .18) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal.ed-modal-standard .modal-header {
+    min-height: 56px;
+    padding: .85rem 1.1rem !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal.ed-modal-standard .modal-title {
+    color: var(--ed-modal-heading);
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal.ed-modal-standard .modal-body {
+    padding: 1.1rem !important;
+    color: var(--ed-modal-text);
+}
+
+/* manage_user.php históricamente genera otro .modal-body dentro del cuerpo
+   universal. Lo neutralizamos sin tocar su lógica. */
+body[data-edusync-ui="standard-v2"] .modal.ed-modal-standard .ed-modal-nested-body {
+    padding: 0 !important;
+    margin: 0 !important;
+    min-height: 0 !important;
+    background: transparent !important;
+}
+
+/* --------------------------------------------------------------------------
+   Anchos por tipo de tarea
+   -------------------------------------------------------------------------- */
+@media (min-width: 768px) {
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-user .modal-dialog,
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-concept .modal-dialog {
+        width: calc(100% - 2rem) !important;
+        max-width: 720px !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-teacher .modal-dialog,
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-fee .modal-dialog,
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-discount .modal-dialog {
+        width: calc(100% - 2rem) !important;
+        max-width: 900px !important;
+    }
+}
+
+@media (min-width: 992px) {
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-student .modal-dialog,
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-payment .modal-dialog {
+        width: calc(100% - 2rem) !important;
+        max-width: 1140px !important;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Formularios
+   -------------------------------------------------------------------------- */
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form {
+    width: 100%;
+    margin: 0;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form label {
+    margin-bottom: .35rem;
+    color: #526274;
+    font-size: .8rem;
+    font-weight: 700;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .form-group {
+    margin-bottom: .9rem;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .form-control,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .custom-select,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .custom-file-label,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .input-group-text {
+    min-height: 38px;
+    border: 1px solid #d8deea !important;
+    border-radius: var(--ed-modal-radius-sm) !important;
+    background-color: #fff;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .form-control-sm {
+    min-height: 36px;
+    height: 36px;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form textarea.form-control {
+    min-height: 76px;
+    height: auto;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .form-control:focus,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .custom-select:focus,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .custom-file-input:focus ~ .custom-file-label {
+    border-color: #9cbcf9 !important;
+    box-shadow: 0 0 0 .14rem rgba(66, 133, 244, .13) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form small.text-muted,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .form-text,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .helper-text {
+    color: var(--ed-modal-muted) !important;
+    font-size: .78rem !important;
+}
+
+/* Select2 alineado con los form-control de Bootstrap. */
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .select2-container {
+    width: 100% !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .select2-container--default .select2-selection--single,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .select2-container--bootstrap .select2-selection--single,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .select2-container--default .select2-selection--multiple {
+    min-height: 38px !important;
+    border: 1px solid #d8deea !important;
+    border-radius: var(--ed-modal-radius-sm) !important;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .select2-container--default .select2-selection--single .select2-selection__rendered {
+    line-height: 36px !important;
+    padding-left: .75rem !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .select2-container--default .select2-selection--single .select2-selection__arrow {
+    height: 36px !important;
+}
+
+/* --------------------------------------------------------------------------
+   Secciones
+   -------------------------------------------------------------------------- */
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-section {
+    margin: 0 0 1rem !important;
+    padding: 0 0 .15rem !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-section-title,
+body[data-edusync-ui="standard-v2"] .modal .form-section-title,
+body[data-edusync-ui="standard-v2"] .modal .mc-section-title,
+body[data-edusync-ui="standard-v2"] .modal .dm-title,
+body[data-edusync-ui="standard-v2"] .modal .pm-section > h6 {
+    display: flex;
+    align-items: center;
+    min-height: 34px;
+    margin: 0 0 .85rem !important;
+    padding: 0 0 .55rem !important;
+    color: var(--ed-modal-heading) !important;
+    font-size: .88rem !important;
+    font-weight: 700 !important;
+    line-height: 1.3;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--ed-modal-border-soft) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-section-title i,
+body[data-edusync-ui="standard-v2"] .modal .form-section-title i,
+body[data-edusync-ui="standard-v2"] .modal .mc-section-title i,
+body[data-edusync-ui="standard-v2"] .modal .dm-title i,
+body[data-edusync-ui="standard-v2"] .modal .pm-section > h6 i {
+    width: 1.35rem !important;
+    height: auto !important;
+    display: inline-block !important;
+    margin: 0 .4rem 0 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    color: var(--ed-modal-primary) !important;
+    border-radius: 0 !important;
+    text-align: center;
+}
+
+/* Cajas secundarias dentro de una sección (tutores, filas de pago, resumen). */
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-subsection,
+body[data-edusync-ui="standard-v2"] .modal .tutor-box,
+body[data-edusync-ui="standard-v2"] .modal .pm-row,
+body[data-edusync-ui="standard-v2"] .modal .dm-summary,
+body[data-edusync-ui="standard-v2"] .modal .dm-final-box {
+    margin-bottom: .9rem !important;
+    padding: .9rem !important;
+    background: var(--ed-modal-surface-soft) !important;
+    border: 1px solid var(--ed-modal-border) !important;
+    border-radius: .55rem !important;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .tutor-box {
+    border-left: 3px solid var(--ed-modal-primary) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .tutor-box.secondary {
+    border-left-color: #98a2b3 !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .tutor-title,
+body[data-edusync-ui="standard-v2"] .modal .tutor-title.secondary {
+    margin-bottom: .75rem !important;
+    color: var(--ed-modal-heading) !important;
+    font-size: .84rem !important;
+    font-weight: 700 !important;
+}
+
+/* Student y Teacher tenían una tarjeta con sombra dentro del propio modal.
+   El modal ya es la superficie principal, así que esa segunda superficie se
+   neutraliza para evitar el efecto de caja dentro de caja. */
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-student #manage-student > .card,
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-teacher #manage-teacher .card-lite {
+    margin: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-student #manage-student > .card > .card-body,
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-teacher #manage-teacher .card-lite > .card-body {
+    padding: 0 !important;
+}
+
+/* Concepto y descuento usaban cajas completas por sección. Se mantienen las
+   agrupaciones, pero sin competir visualmente con el contenedor del modal. */
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-concept .mc-section,
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-discount .dm-section,
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-fee .form-section,
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-payment .pm-section {
+    margin-bottom: 1rem !important;
+    padding: 0 0 .15rem !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Acciones / footer interno
+   -------------------------------------------------------------------------- */
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-inline-footer {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin: .75rem -1.1rem -1.1rem !important;
+    padding: .8rem 1.1rem !important;
+    background: var(--ed-modal-surface-soft) !important;
+    border: 0 !important;
+    border-top: 1px solid var(--ed-modal-border-soft) !important;
+    border-radius: 0 !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions.text-right {
+    text-align: initial !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions .btn,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-inline-footer .btn {
+    min-width: 96px;
+    min-height: 38px;
+    margin: 0 !important;
+    padding: .45rem .85rem;
+    border-radius: var(--ed-modal-radius-sm) !important;
+    font-size: .84rem;
+    font-weight: 600;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions .btn-light,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-inline-footer .btn-light {
+    background: #fff;
+    border: 1px solid #d8deea;
+    color: #526274;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions .btn-secondary,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-inline-footer .btn-secondary {
+    background: #fff !important;
+    border-color: #d8deea !important;
+    color: #526274 !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions .btn-primary,
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-inline-footer .btn-primary {
+    background: var(--ed-modal-primary) !important;
+    border-color: var(--ed-modal-primary) !important;
+}
+
+/* El footer sticky de descuentos se conserva funcionalmente, pero adopta la
+   misma geometría visual del resto. */
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-discount .dm-footer {
+    position: sticky;
+    bottom: -1.1rem;
+}
+
+/* --------------------------------------------------------------------------
+   Usuario: evita cuerpo/footer duplicados visibles
+   -------------------------------------------------------------------------- */
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-user #manage-user {
+    padding: 0;
+}
+
+body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-user #avatarPreviewContainer img {
+    width: 96px !important;
+    height: 96px !important;
+    border: 2px solid #d7e3fb !important;
+    box-shadow: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   Alertas e información
+   -------------------------------------------------------------------------- */
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-form .alert {
+    margin-bottom: .9rem;
+    padding: .7rem .85rem;
+    border-radius: .5rem;
+    font-size: .84rem;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .ed-modal-info-box {
+    padding: .75rem .85rem;
+    background: var(--ed-modal-primary-soft);
+    border: 1px solid #d7e3fb;
+    border-left: 3px solid var(--ed-modal-primary);
+    border-radius: .5rem;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 767.98px) {
+    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-standard .modal-dialog {
+        width: auto !important;
+        max-width: none !important;
+        margin: .65rem !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] .modal.ed-modal-standard .modal-body {
+        padding: .9rem !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions,
+    body[data-edusync-ui="standard-v2"] .modal .ed-modal-inline-footer {
+        margin: .65rem -.9rem -.9rem !important;
+        padding: .75rem .9rem !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] .modal .ed-modal-actions .btn,
+    body[data-edusync-ui="standard-v2"] .modal .ed-modal-inline-footer .btn {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+}
