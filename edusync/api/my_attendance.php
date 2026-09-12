@@ -129,18 +129,13 @@ try {
 
     $yearSelect = $hasAcademicYearId ? 'a.academic_year_id' : 'NULL AS academic_year_id';
     $where = ['a.student_id=?'];
-    $types = 'i';
-    $params = [$studentId];
-    if ($hasSchoolId) {
-        $where[] = 'a.school_id=?';
-        $types .= 'i';
-        $params[] = $schoolId;
-    }
+    if ($hasSchoolId) $where[] = 'a.school_id=?';
     if ($hasCancelled) $where[] = 'COALESCE(a.is_cancelled,0)=0';
 
     $sql = "SELECT a.fecha,a.tipo,a.hora,a.estado,$yearSelect FROM asistencia a WHERE " . implode(' AND ', $where) . " ORDER BY a.fecha DESC,a.hora DESC";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param($types, ...$params);
+    if ($hasSchoolId) $stmt->bind_param('ii', $studentId, $schoolId);
+    else $stmt->bind_param('i', $studentId);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -240,23 +235,12 @@ try {
         $summary[$year]['total_marcaciones'] += (int)$day['marcaciones'];
 
         switch ($day['estado']) {
-            case 'Presente':
-                $summary[$year]['presentes']++;
-                break;
-            case 'Tarde':
-                $summary[$year]['tardes']++;
-                break;
-            case 'Ausente':
-                $summary[$year]['ausentes']++;
-                break;
-            case 'Ausente Justificada':
-                $summary[$year]['justificadas']++;
-                break;
-            case 'Permiso':
-                $summary[$year]['permisos']++;
-                break;
-            default:
-                $summary[$year]['otros']++;
+            case 'Presente': $summary[$year]['presentes']++; break;
+            case 'Tarde': $summary[$year]['tardes']++; break;
+            case 'Ausente': $summary[$year]['ausentes']++; break;
+            case 'Ausente Justificada': $summary[$year]['justificadas']++; break;
+            case 'Permiso': $summary[$year]['permisos']++; break;
+            default: $summary[$year]['otros']++;
         }
     }
 
