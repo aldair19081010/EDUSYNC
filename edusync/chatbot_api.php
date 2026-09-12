@@ -10,6 +10,7 @@ header('X-Content-Type-Options: nosniff');
 require_once __DIR__ . '/session_config.php';
 require_once __DIR__ . '/db_connect.php';
 require_once __DIR__ . '/includes/chatbot_engine.php';
+require_once __DIR__ . '/includes/chatbot_queries.php';
 
 function edu_chat_api_reply(array $payload, int $status = 200): void {
     http_response_code($status);
@@ -104,6 +105,10 @@ try {
             'Esa consulta no está disponible para tu perfil de ' . $actor['role'] . '. Solo puedo mostrar información autorizada para tu rol.',
             edu_chat_suggestions($actor)
         );
+    } elseif ($intent === 'academic_risk') {
+        $result = edu_chat_academic_risk_current_result($conn, $actor, $entities);
+    } elseif ($intent === 'count_students' && (int)$actor['type'] === 2) {
+        $result = edu_chat_teacher_students_current_result($conn, $actor, $entities);
     } else {
         $result = edu_chat_execute($conn, $actor, $intent, $entities);
     }
