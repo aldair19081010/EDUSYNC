@@ -1,0 +1,308 @@
+/*
+ * EduSync Responsive Layer
+ * Ajustes conservadores para móvil/tablet sobre Bootstrap 4 + SB Admin 2.
+ * No altera lógica ni datos. Las hojas tipo Excel/Libro de Notas conservan
+ * su scroll horizontal propio y no reciben reglas genéricas de tabla.
+ */
+
+body[data-edusync-ui="standard-v2"] #content,
+body[data-edusync-ui="standard-v2"] #content .container-fluid,
+body[data-edusync-ui="standard-v2"] #content .main-content-area,
+body[data-edusync-ui="standard-v2"] #content .row > [class*="col-"] {
+    min-width: 0;
+}
+
+body[data-edusync-ui="standard-v2"] #content img,
+body[data-edusync-ui="standard-v2"] #content svg,
+body[data-edusync-ui="standard-v2"] #content canvas {
+    max-width: 100%;
+}
+
+body[data-edusync-ui="standard-v2"] #content .table-responsive,
+body[data-edusync-ui="standard-v2"] #content .dataTables_scrollBody {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* No interferir con Libro de Notas / hojas tipo Excel. */
+body[data-edusync-ui="standard-v2"] #content .gb-sheet-wrap,
+body[data-edusync-ui="standard-v2"] #content .gradebook,
+body[data-edusync-ui="standard-v2"] #content .spreadsheet,
+body[data-edusync-ui="standard-v2"] #content .excel-grid,
+body[data-edusync-ui="standard-v2"] #content .grade-sheet,
+body[data-edusync-ui="standard-v2"] #content .gr-book {
+    max-width: 100%;
+}
+
+@media (max-width: 991.98px) {
+    body[data-edusync-ui="standard-v2"] #content .ed-page-header,
+    body[data-edusync-ui="standard-v2"] #content .user-hero,
+    body[data-edusync-ui="standard-v2"] #content .gr-header,
+    body[data-edusync-ui="standard-v2"] #content .mc-header,
+    body[data-edusync-ui="standard-v2"] #content .gr-report-hero,
+    body[data-edusync-ui="standard-v2"] #content .pr-head,
+    body[data-edusync-ui="standard-v2"] #content .ar-header,
+    body[data-edusync-ui="standard-v2"] #content .ir-hero,
+    body[data-edusync-ui="standard-v2"] #content .dc-head,
+    body[data-edusync-ui="standard-v2"] #content .py-head,
+    body[data-edusync-ui="standard-v2"] #content .am-head,
+    body[data-edusync-ui="standard-v2"] #content .cp-head,
+    body[data-edusync-ui="standard-v2"] #content .df-head,
+    body[data-edusync-ui="standard-v2"] #content .dr-head,
+    body[data-edusync-ui="standard-v2"] #content .at-head,
+    body[data-edusync-ui="standard-v2"] #content .ar-head,
+    body[data-edusync-ui="standard-v2"] #content .ay-hero {
+        flex-wrap: wrap !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .ed-toolbar,
+    body[data-edusync-ui="standard-v2"] #content .py-panel-head,
+    body[data-edusync-ui="standard-v2"] #content .users-table-card .card-header,
+    body[data-edusync-ui="standard-v2"] #content .students-card .card-header,
+    body[data-edusync-ui="standard-v2"] #content .content-card .card-header,
+    body[data-edusync-ui="standard-v2"] #content .gr-results-card .card-header {
+        flex-wrap: wrap !important;
+        gap: .55rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .py-filters {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+}
+
+@media (max-width: 767.98px) {
+    html,
+    body {
+        max-width: 100%;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content-wrapper {
+        overflow-x: hidden !important;
+        overflow-y: visible !important;
+    }
+
+    @supports (overflow: clip) {
+        body[data-edusync-ui="standard-v2"] #content-wrapper {
+            overflow-x: clip !important;
+        }
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .container-fluid {
+        padding-left: .75rem;
+        padding-right: .75rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .ed-page-header,
+    body[data-edusync-ui="standard-v2"] #content .user-hero,
+    body[data-edusync-ui="standard-v2"] #content .gr-header,
+    body[data-edusync-ui="standard-v2"] #content .mc-header,
+    body[data-edusync-ui="standard-v2"] #content .gr-report-hero,
+    body[data-edusync-ui="standard-v2"] #content .pr-head,
+    body[data-edusync-ui="standard-v2"] #content .ar-header,
+    body[data-edusync-ui="standard-v2"] #content .ir-hero,
+    body[data-edusync-ui="standard-v2"] #content .dc-head,
+    body[data-edusync-ui="standard-v2"] #content .py-head,
+    body[data-edusync-ui="standard-v2"] #content .am-head,
+    body[data-edusync-ui="standard-v2"] #content .cp-head,
+    body[data-edusync-ui="standard-v2"] #content .df-head,
+    body[data-edusync-ui="standard-v2"] #content .dr-head,
+    body[data-edusync-ui="standard-v2"] #content .at-head,
+    body[data-edusync-ui="standard-v2"] #content .ar-head,
+    body[data-edusync-ui="standard-v2"] #content .ay-hero {
+        flex-direction: column !important;
+        align-items: stretch !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .ed-page-actions,
+    body[data-edusync-ui="standard-v2"] #content .py-actions,
+    body[data-edusync-ui="standard-v2"] #content .title-actions,
+    body[data-edusync-ui="standard-v2"] #content .action-buttons {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .ed-filter-card .row,
+    body[data-edusync-ui="standard-v2"] #content .ed-filter-form .row {
+        margin-left: -.375rem;
+        margin-right: -.375rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper > .row:first-child,
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper > .row:last-child {
+        row-gap: .6rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper .dataTables_length,
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper .dataTables_filter,
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper .dataTables_info,
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper .dataTables_paginate {
+        width: 100%;
+        max-width: 100%;
+        text-align: left !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper .dataTables_filter input {
+        width: min(100%, 320px);
+        max-width: 100%;
+        margin-top: .35rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .dataTables_wrapper .pagination {
+        justify-content: flex-start !important;
+        flex-wrap: wrap;
+        gap: .2rem;
+    }
+
+    /* Tablas administrativas: en móvil se desplazan horizontalmente en lugar
+       de comprimir columnas hasta volverlas ilegibles. */
+    body[data-edusync-ui="standard-v2"] #content #usersTable,
+    body[data-edusync-ui="standard-v2"] #content #payments-table,
+    body[data-edusync-ui="standard-v2"] #content #feesTable,
+    body[data-edusync-ui="standard-v2"] #content #cp-table,
+    body[data-edusync-ui="standard-v2"] #content #gr-table,
+    body[data-edusync-ui="standard-v2"] #content #ar-table,
+    body[data-edusync-ui="standard-v2"] #content #debt-reports-table,
+    body[data-edusync-ui="standard-v2"] #content #payments-report-table,
+    body[data-edusync-ui="standard-v2"] #content #years-table,
+    body[data-edusync-ui="standard-v2"] #content .student-table,
+    body[data-edusync-ui="standard-v2"] #content .ay-admin-table {
+        min-width: 680px;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .ed-table thead th,
+    body[data-edusync-ui="standard-v2"] #content .ed-table tbody td {
+        white-space: nowrap;
+    }
+
+    /* Pagos */
+    body[data-edusync-ui="standard-v2"][data-edusync-page="payments"] #content .py-filters {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="payments"] #content .py-panel-head > div:last-child {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #cashReportModal .form-row > [class*="col-"] {
+        flex: 0 0 100%;
+        max-width: 100%;
+        margin-bottom: .75rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #cashReportModal .form-row > .d-flex {
+        align-items: stretch !important;
+        flex-wrap: wrap;
+        gap: .5rem !important;
+    }
+
+    /* Selector Lista / Libro de notas */
+    body[data-edusync-ui="standard-v2"] #content .gr-view-switch {
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 575.98px) {
+    body[data-edusync-ui="standard-v2"] #content .container-fluid {
+        padding-left: .6rem;
+        padding-right: .6rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .ed-page-actions,
+    body[data-edusync-ui="standard-v2"] #content .py-actions,
+    body[data-edusync-ui="standard-v2"] #content .action-buttons {
+        display: grid !important;
+        grid-template-columns: 1fr;
+        gap: .5rem !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .ed-page-actions .btn,
+    body[data-edusync-ui="standard-v2"] #content .py-actions > .btn,
+    body[data-edusync-ui="standard-v2"] #content .action-buttons .btn {
+        width: 100%;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .btn-group:not(.dropdown) {
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .py-stats,
+    body[data-edusync-ui="standard-v2"] #content .py-filters {
+        grid-template-columns: 1fr !important;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="payments"] #content .py-cash-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: .25rem;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="payments"] #content .py-cash-actions .btn + .btn {
+        border-left: 0 !important;
+        border-top: 1px solid #dde3ec !important;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="payments"] #content .py-panel-head > div:last-child {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="payments"] #content .py-panel-head > div:last-child .btn {
+        width: 100%;
+    }
+
+    body[data-edusync-ui="standard-v2"] #cashReportModal .form-row > .d-flex .btn {
+        width: 100%;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .gr-view-switch {
+        width: 100%;
+        display: grid !important;
+        grid-template-columns: 1fr;
+    }
+
+    body[data-edusync-ui="standard-v2"] #content .gr-view-switch .btn {
+        width: 100%;
+    }
+
+    /* Topbar: priorizar contexto útil sin forzar una fila demasiado ancha. */
+    .edusync-topbar-context {
+        padding-left: .35rem;
+        padding-right: .35rem;
+        gap: .4rem;
+    }
+
+    .edusync-topbar-school-name {
+        max-width: 9rem;
+        font-size: .82rem;
+    }
+
+    .edusync-topbar-school-meta {
+        display: none;
+    }
+
+    .edusync-topbar-school-icon {
+        width: 2rem;
+        height: 2rem;
+        flex-basis: 2rem;
+    }
+}
+
+@media (max-width: 390px) {
+    body[data-edusync-ui="standard-v2"] #content .container-fluid {
+        padding-left: .5rem;
+        padding-right: .5rem;
+    }
+
+    .edusync-topbar-school-name {
+        max-width: 7rem;
+    }
+}
