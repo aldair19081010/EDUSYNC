@@ -11,6 +11,7 @@ require_once __DIR__ . '/session_config.php';
 require_once __DIR__ . '/db_connect.php';
 require_once __DIR__ . '/includes/chatbot_engine.php';
 require_once __DIR__ . '/includes/chatbot_queries.php';
+require_once __DIR__ . '/includes/chatbot_ai.php';
 
 function edu_chat_api_reply(array $payload, int $status = 200): void {
     http_response_code($status);
@@ -46,45 +47,7 @@ function edu_chat_rate_limit(): void {
     $_SESSION['chatbot_rate'] = ['last' => $now, 'hits' => $hits];
 }
 
-try {
-    $actor = edu_chat_resolve_actor($conn);
-    if (!$actor) edu_chat_api_reply(['status' => 0, 'message' => 'Tu sesión ha expirado.'], 401);
-
-    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
-    $action = trim((string)($_REQUEST['action'] ?? 'message'));
-
-    if ($method === 'GET' && $action === 'bootstrap') {
-        $firstName = edu_chat_first_name((string)$actor['name']);
-        $greeting = 'Hola' . ($firstName !== '' ? ', ' . $firstName : '') . '. Soy el Asistente EduSync. Puedo consultar información del sistema según los permisos de tu perfil.';
-        edu_chat_api_reply([
-            'status' => 1,
-            'greeting' => $greeting,
-            'role' => (string)$actor['role'],
-            'suggestions' => edu_chat_suggestions($actor),
-            'history' => array_values((array)($_SESSION['chatbot_history'] ?? []))
-        ]);
-    }
-
-    if ($method !== 'POST') edu_chat_api_reply(['status' => 0, 'message' => 'Método no permitido.'], 405);
-
-    $token = (string)($_POST['csrf_token'] ?? '');
-    $sessionToken = (string)($_SESSION['csrf_token'] ?? '');
-    if ($sessionToken === '' || $token === '' || !hash_equals($sessionToken, $token)) {
-        edu_chat_api_reply(['status' => 0, 'message' => 'La sesión de seguridad venció. Recarga la página.'], 403);
-    }
-
-    if ($action === 'reset') {
-        unset($_SESSION['chatbot_context'], $_SESSION['chatbot_history'], $_SESSION['chatbot_rate']);
-        edu_chat_api_reply(['status' => 1, 'message' => 'Conversación reiniciada.', 'suggestions' => edu_chat_suggestions($actor)]);
-    }
-
-    edu_chat_rate_limit();
-
-    $message = trim((string)($_POST['message'] ?? ''));
-    if ($message === '' || mb_strlen($message, 'UTF-8') > 500) {
-        edu_chat_api_reply(['status' => 0, 'message' => 'Escribe una consulta de hasta 500 caracteres.'], 422);
-    }
-
+function edu_chat_local_result(mysqli $conn, array $actor, string $message): array {
     $context = is_array($_SESSION['chatbot_context'] ?? null)
         ? $_SESSION['chatbot_context']
         : ['last_intent' => null, 'entities' => []];
@@ -94,7 +57,6 @@ try {
     $entities = (array)$parsed['entities'];
     $normalized = (string)($parsed['normalized'] ?? '');
 
-    // Evitar interpretar "2do bimestre" como "2° grado" si no se mencionó un grado explícito.
     if (!empty($entities['bimestre']) && strpos($normalized, 'grado') === false) {
         $explicitGrade = preg_match('/\b[1-6](?:ro|do|to|er|°)\s+(?:de\s+)?(?:primaria|secundaria)\b/', $normalized);
         if (!$explicitGrade) $entities['grade'] = null;
@@ -120,20 +82,88 @@ try {
         'updated_at' => time()
     ];
 
+    $result['intent'] = $intent;
+    $result['mode'] = 'local';
+    return $result;
+}
+
+try {
+    $actor = edu_chat_resolve_actor($conn);
+    if (!$actor) edu_chat_api_reply(['status' => 0, 'message' => 'Tu sesión ha expirado.'], 401);
+
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    $action = trim((string)($_REQUEST['action'] ?? 'message'));
+
+    if ($method === 'GET' && $action === 'bootstrap') {
+        $firstName = edu_chat_first_name((string)$actor['name']);
+        $aiEnabled = edu_chat_ai_enabled();
+        $greeting = 'Hola' . ($firstName !== '' ? ', ' . $firstName : '') . '. Soy el Asistente EduSync. Puedo ayudarte con dudas del sistema y consultar información según los permisos de tu perfil.';
+        edu_chat_api_reply([
+            'status' => 1,
+            'greeting' => $greeting,
+            'role' => (string)$actor['role'],
+            'assistant_mode' => $aiEnabled ? 'ai' : 'local',
+            'suggestions' => edu_chat_suggestions($actor),
+            'history' => array_values((array)($_SESSION['chatbot_history'] ?? []))
+        ]);
+    }
+
+    if ($method !== 'POST') edu_chat_api_reply(['status' => 0, 'message' => 'Método no permitido.'], 405);
+
+    $token = (string)($_POST['csrf_token'] ?? '');
+    $sessionToken = (string)($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || $token === '' || !hash_equals($sessionToken, $token)) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'La sesión de seguridad venció. Recarga la página.'], 403);
+    }
+
+    if ($action === 'reset') {
+        unset($_SESSION['chatbot_context'], $_SESSION['chatbot_history'], $_SESSION['chatbot_rate']);
+        edu_chat_api_reply([
+            'status' => 1,
+            'message' => 'Conversación reiniciada.',
+            'assistant_mode' => edu_chat_ai_enabled() ? 'ai' : 'local',
+            'suggestions' => edu_chat_suggestions($actor)
+        ]);
+    }
+
+    edu_chat_rate_limit();
+
+    $message = trim((string)($_POST['message'] ?? ''));
+    if ($message === '' || mb_strlen($message, 'UTF-8') > 500) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'Escribe una consulta de hasta 500 caracteres.'], 422);
+    }
+
+    $history = array_values((array)($_SESSION['chatbot_history'] ?? []));
+    $result = null;
+    $aiError = null;
+
+    if (edu_chat_ai_enabled()) {
+        try {
+            $result = edu_chat_ai_ask($conn, $actor, $message, $history);
+        } catch (Throwable $aiException) {
+            $aiError = $aiException->getMessage();
+            error_log('[chatbot_ai fallback] ' . $aiException->getMessage() . ' line ' . $aiException->getLine());
+        }
+    }
+
+    if (!is_array($result)) $result = edu_chat_local_result($conn, $actor, $message);
+
     edu_chat_history_add('user', $message);
-    edu_chat_history_add('assistant', (string)$result['message'], [
+    edu_chat_history_add('assistant', (string)($result['message'] ?? ''), [
         'cards' => (array)($result['cards'] ?? []),
         'actions' => (array)($result['actions'] ?? [])
     ]);
 
     edu_chat_api_reply([
         'status' => 1,
-        'message' => (string)$result['message'],
+        'message' => (string)($result['message'] ?? 'Consulta procesada.'),
         'follow_up' => (array)($result['follow_up'] ?? []),
         'cards' => (array)($result['cards'] ?? []),
         'actions' => (array)($result['actions'] ?? []),
-        'intent' => $intent,
-        'role' => (string)$actor['role']
+        'intent' => (string)($result['intent'] ?? 'ai'),
+        'role' => (string)$actor['role'],
+        'assistant_mode' => (string)($result['mode'] ?? 'local'),
+        'fallback_used' => $aiError !== null
     ]);
 } catch (Throwable $e) {
     error_log('[chatbot_api] ' . $e->getMessage() . ' line ' . $e->getLine());
