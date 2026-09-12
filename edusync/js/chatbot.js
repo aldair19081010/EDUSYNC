@@ -9,11 +9,17 @@
     var $role = $('#edu-chat-role');
     var bootstrapped = false;
     var busy = false;
+    var roleName = 'Asistente';
 
     if (!$panel.length || !$body.length || !$form.length) return;
 
     function scrollBottom(){
         if ($body.length) $body.scrollTop($body[0].scrollHeight);
+    }
+
+    function setMode(mode){
+        var suffix = mode === 'ai' ? ' · IA' : ' · Modo local';
+        $role.text(roleName + suffix);
     }
 
     function addMessage(text, role, extra){
@@ -91,7 +97,8 @@
                     addMessage(resp && resp.message ? resp.message : 'No pude iniciar el asistente.', 'assistant');
                     return;
                 }
-                $role.text(resp.role || 'Asistente');
+                roleName = resp.role || 'Asistente';
+                setMode(resp.assistant_mode || 'local');
                 var history = Array.isArray(resp.history) ? resp.history : [];
                 if (history.length) {
                     history.forEach(function(item){
@@ -134,6 +141,7 @@
                 addMessage(resp && resp.message ? resp.message : 'No pude procesar la consulta.', 'assistant');
                 return;
             }
+            setMode(resp.assistant_mode || 'local');
             addMessage(resp.message || 'Consulta procesada.', 'assistant', {cards:resp.cards || [], actions:resp.actions || []});
             renderSuggestions(resp.follow_up || []);
         }).fail(function(xhr){
@@ -157,8 +165,10 @@
         }).done(function(resp){
             bootstrapped = false;
             $body.empty();
-            if (resp && Number(resp.status) === 1) bootstrapChat(true);
-            else addMessage(resp && resp.message ? resp.message : 'No se pudo reiniciar la conversación.', 'assistant');
+            if (resp && Number(resp.status) === 1) {
+                setMode(resp.assistant_mode || 'local');
+                bootstrapChat(true);
+            } else addMessage(resp && resp.message ? resp.message : 'No se pudo reiniciar la conversación.', 'assistant');
         }).fail(function(){
             addMessage('No se pudo reiniciar la conversación.', 'assistant');
         }).always(function(){ setBusy(false); });
