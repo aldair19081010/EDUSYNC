@@ -12,6 +12,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 header('Content-Type: application/json; charset=utf-8');
 require_once '../db_connect.php';
+require_once __DIR__ . '/grade_debt_guard.php';
 
 function grades_reply($status, $message = '', $data = [], $extra = []) {
     $payload = array_merge(['status' => $status], $extra);
@@ -159,21 +160,13 @@ try {
     $studentIdsSql = implode(',', $studentIds);
     if ($studentIdsSql === '') $studentIdsSql = (string)$studentId;
 
-    if (grades_has_table($conn, 'partial_payments')) {
-        $debtQuery = $conn->query("SELECT amount, deadline FROM partial_payments WHERE student_id IN ($studentIdsSql) AND status = 'unpaid' ORDER BY deadline ASC");
-        if ($debtQuery) {
-            $unpaid = [];
-            while ($row = $debtQuery->fetch_assoc()) $unpaid[] = $row;
-            $recentUnpaid = array_slice($unpaid, -2);
-            if (count($recentUnpaid) >= 2) {
-                $pendingTotal = 0.0;
-                foreach ($recentUnpaid as $pending) $pendingTotal += (float)$pending['amount'];
-                grades_reply('error', 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).', [], [
-                    'reason' => 'debt',
-                    'total_pendiente_ultimas' => number_format($pendingTotal, 2, '.', '')
-                ]);
-            }
-        }
+    $debt = grade_debt_blocks_grades($conn, $studentId);
+    if (!empty($debt['blocked'])) {
+        grades_reply('error', 'No es posible mostrar la información de notas porque existen 2 o más deudas pendientes.', [], [
+            'reason' => 'debt',
+            'debt_count' => (int)$debt['count'],
+            'total_pendiente_ultimas' => number_format((float)$debt['total'], 2, '.', '')
+        ]);
     }
 
     $yearHasSchool = grades_has_column($conn, 'academic_year', 'school_id');
