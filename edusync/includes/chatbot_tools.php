@@ -1,0 +1,141 @@
+<?php
+
+require_once __DIR__ . '/chatbot_knowledge.php';
+
+function edu_chat_ai_function(string $name, string $description, array $properties = [], array $required = []): array {
+    return [
+        'type' => 'function',
+        'name' => $name,
+        'description' => $description,
+        'parameters' => [
+            'type' => 'object',
+            'properties' => $properties,
+            'required' => $required,
+            'additionalProperties' => false
+        ],
+        'strict' => true
+    ];
+}
+
+function edu_chat_ai_tool_definitions(array $actor): array {
+    $type = (int)($actor['type'] ?? 0);
+    $period = ['type' => 'string', 'enum' => ['today','month','year'], 'description' => 'Periodo solicitado.'];
+    $level = ['type' => ['string','null'], 'enum' => ['Inicial','Primaria','Secundaria', null], 'description' => 'Nivel educativo cuando el usuario lo especifica.'];
+    $grade = ['type' => ['string','null'], 'description' => 'Grado como número en texto, por ejemplo 4.'];
+    $section = ['type' => ['string','null'], 'description' => 'Sección, por ejemplo A o B.'];
+    $bimestre = ['type' => ['string','null'], 'enum' => ['1','2','3','4', null], 'description' => 'Bimestre.'];
+    $course = ['type' => ['string','null'], 'description' => 'Nombre del curso si el usuario lo menciona.'];
+
+    $tools = [
+        edu_chat_ai_function('get_system_help', 'Busca documentación oficial interna de EduSync para responder dudas sobre cómo funciona o dónde está una opción.', [
+            'query' => ['type' => 'string', 'description' => 'Duda o tema exacto sobre EduSync.']
+        ], ['query'])
+    ];
+
+    if ($type === 4) {
+        $tools[] = edu_chat_ai_function('explain_my_notes_access', 'Explica si el acceso del estudiante autenticado a Mis Notas está bloqueado por deudas.');
+        $tools[] = edu_chat_ai_function('get_my_debts', 'Consulta únicamente las deudas pendientes del estudiante autenticado.');
+        $tools[] = edu_chat_ai_function('get_my_payments', 'Consulta únicamente el historial/resumen de pagos confirmados vigentes del estudiante autenticado.');
+        $tools[] = edu_chat_ai_function('get_my_attendance', 'Consulta únicamente la asistencia del estudiante autenticado.', ['period' => $period], ['period']);
+        $tools[] = edu_chat_ai_function('get_my_grades', 'Consulta únicamente las notas del estudiante autenticado. Si hay bloqueo financiero, la herramienta respeta ese bloqueo.', ['course' => $course], ['course']);
+        return $tools;
+    }
+
+    if ($type === 1) {
+        $tools[] = edu_chat_ai_function('get_student_count', 'Cuenta estudiantes activos del colegio autenticado aplicando filtros opcionales.', ['level'=>$level,'grade'=>$grade,'section'=>$section], ['level','grade','section']);
+        $tools[] = edu_chat_ai_function('get_teacher_count', 'Cuenta docentes del colegio autenticado y resume activos/inactivos.');
+        $tools[] = edu_chat_ai_function('get_debt_summary', 'Resume morosidad del colegio autenticado: estudiantes con deuda, obligaciones y saldo pendiente.', ['level'=>$level,'grade'=>$grade], ['level','grade']);
+        $tools[] = edu_chat_ai_function('get_collections_summary', 'Resume cobranza confirmada del colegio autenticado.', ['period'=>$period,'level'=>$level], ['period','level']);
+        $tools[] = edu_chat_ai_function('get_attendance_summary', 'Resume asistencia del colegio autenticado por periodo y filtros opcionales.', ['period'=>$period,'level'=>$level,'grade'=>$grade], ['period','level','grade']);
+        $tools[] = edu_chat_ai_function('get_academic_risk', 'Cuenta estudiantes con registros académicos críticos del año académico actual.', ['level'=>$level,'grade'=>$grade,'bimestre'=>$bimestre,'course'=>$course], ['level','grade','bimestre','course']);
+        return $tools;
+    }
+
+    if ($type === 2) {
+        $tools[] = edu_chat_ai_function('get_my_courses', 'Consulta las asignaciones/cursos vigentes del docente autenticado.');
+        $tools[] = edu_chat_ai_function('get_my_student_count', 'Cuenta estudiantes vinculados a las asignaciones vigentes del docente autenticado.', ['level'=>$level,'grade'=>$grade], ['level','grade']);
+        $tools[] = edu_chat_ai_function('get_academic_risk', 'Cuenta estudiantes con registros críticos únicamente en asignaciones del docente y año académico actual.', ['level'=>$level,'grade'=>$grade,'bimestre'=>$bimestre,'course'=>$course], ['level','grade','bimestre','course']);
+        return $tools;
+    }
+
+    if ($type === 3) {
+        $tools[] = edu_chat_ai_function('get_student_count', 'Cuenta estudiantes activos del colegio autenticado con filtros opcionales.', ['level'=>$level,'grade'=>$grade,'section'=>$section], ['level','grade','section']);
+        $tools[] = edu_chat_ai_function('get_attendance_summary', 'Resume asistencia autorizada por periodo y filtros opcionales.', ['period'=>$period,'level'=>$level,'grade'=>$grade], ['period','level','grade']);
+    }
+
+    return $tools;
+}
+
+function edu_chat_ai_entities(array $args): array {
+    return [
+        'level' => isset($args['level']) && $args['level'] !== '' ? $args['level'] : null,
+        'grade' => isset($args['grade']) && $args['grade'] !== '' ? (string)$args['grade'] : null,
+        'section' => isset($args['section']) && $args['section'] !== '' ? strtoupper((string)$args['section']) : null,
+        'bimestre' => isset($args['bimestre']) && $args['bimestre'] !== '' ? (string)$args['bimestre'] : null,
+        'period' => isset($args['period']) && $args['period'] !== '' ? (string)$args['period'] : null,
+        'course' => isset($args['course']) && $args['course'] !== '' ? (string)$args['course'] : null
+    ];
+}
+
+function edu_chat_ai_system_help_result(string $query): array {
+    $sections = edu_chat_knowledge_search($query, 4);
+    $text = [];
+    foreach ($sections as $section) $text[] = $section['title'] . ': ' . $section['content'];
+    return edu_chat_result(implode("\n\n", $text));
+}
+
+function edu_chat_ai_run_tool(mysqli $conn, array $actor, string $name, array $args): array {
+    $type = (int)($actor['type'] ?? 0);
+    $entities = edu_chat_ai_entities($args);
+
+    switch ($name) {
+        case 'get_system_help':
+            return edu_chat_ai_system_help_result((string)($args['query'] ?? 'EduSync'));
+
+        case 'explain_my_notes_access':
+            if ($type !== 4) break;
+            return edu_chat_student_debt_result($conn, $actor, true);
+        case 'get_my_debts':
+            if ($type !== 4) break;
+            return edu_chat_student_debt_result($conn, $actor, false);
+        case 'get_my_payments':
+            if ($type !== 4) break;
+            return edu_chat_student_payment_result($conn, $actor);
+        case 'get_my_attendance':
+            if ($type !== 4) break;
+            if (empty($entities['period'])) $entities['period'] = 'month';
+            return edu_chat_student_attendance_result($conn, $actor, $entities);
+        case 'get_my_grades':
+            if ($type !== 4) break;
+            return edu_chat_student_grades_result($conn, $actor, $entities);
+
+        case 'get_student_count':
+            if (!in_array($type, [1,3], true)) break;
+            return edu_chat_count_students_result($conn, $actor, $entities);
+        case 'get_teacher_count':
+            if ($type !== 1) break;
+            return edu_chat_count_teachers_result($conn, $actor);
+        case 'get_debt_summary':
+            if ($type !== 1) break;
+            return edu_chat_debt_summary_result($conn, $actor, $entities);
+        case 'get_collections_summary':
+            if ($type !== 1) break;
+            if (empty($entities['period'])) $entities['period'] = 'month';
+            return edu_chat_collections_result($conn, $actor, $entities);
+        case 'get_attendance_summary':
+            if (!in_array($type, [1,3], true)) break;
+            if (empty($entities['period'])) $entities['period'] = 'today';
+            return edu_chat_attendance_summary_result($conn, $actor, $entities);
+        case 'get_academic_risk':
+            if (!in_array($type, [1,2], true)) break;
+            return edu_chat_academic_risk_current_result($conn, $actor, $entities);
+        case 'get_my_courses':
+            if ($type !== 2) break;
+            return edu_chat_teacher_courses_result($conn, $actor);
+        case 'get_my_student_count':
+            if ($type !== 2) break;
+            return edu_chat_teacher_students_current_result($conn, $actor, $entities);
+    }
+
+    return edu_chat_result('La herramienta solicitada no está autorizada para este perfil.');
+}
