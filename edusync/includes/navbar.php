@@ -8,6 +8,7 @@ $ui_report_tables_file = dirname(__DIR__) . '/css/ui_report_tables.css';
 $ui_grades_individual_file = dirname(__DIR__) . '/css/ui_grades_individual.css';
 $ui_modals_file = dirname(__DIR__) . '/css/ui_modals.css';
 $ui_feedback_file = dirname(__DIR__) . '/css/ui_feedback.css';
+$ui_responsive_file = dirname(__DIR__) . '/css/ui_responsive.css';
 $ui_js_file = dirname(__DIR__) . '/js/ui_consistency.js';
 $ui_modals_js_file = dirname(__DIR__) . '/js/ui_modals.js';
 $ui_feedback_js_file = dirname(__DIR__) . '/js/ui_feedback.js';
@@ -18,6 +19,7 @@ $ui_report_tables_version = @filemtime($ui_report_tables_file) ?: time();
 $ui_grades_individual_version = @filemtime($ui_grades_individual_file) ?: time();
 $ui_modals_version = @filemtime($ui_modals_file) ?: time();
 $ui_feedback_version = @filemtime($ui_feedback_file) ?: time();
+$ui_responsive_version = @filemtime($ui_responsive_file) ?: time();
 $ui_js_version = @filemtime($ui_js_file) ?: time();
 $ui_modals_js_version = @filemtime($ui_modals_js_file) ?: time();
 $ui_feedback_js_version = @filemtime($ui_feedback_js_file) ?: time();
@@ -76,6 +78,14 @@ $ui_feedback_js_version = @filemtime($ui_feedback_js_file) ?: time();
         feedback.href = 'css/ui_feedback.css?v=<?php echo rawurlencode((string)$ui_feedback_version); ?>';
         feedback.setAttribute('data-edusync-ui-feedback', '1');
         document.head.appendChild(feedback);
+    }
+
+    if (!document.querySelector('link[data-edusync-ui-responsive]')) {
+        var responsive = document.createElement('link');
+        responsive.rel = 'stylesheet';
+        responsive.href = 'css/ui_responsive.css?v=<?php echo rawurlencode((string)$ui_responsive_version); ?>';
+        responsive.setAttribute('data-edusync-ui-responsive', '1');
+        document.head.appendChild(responsive);
     }
 })();
 </script>
