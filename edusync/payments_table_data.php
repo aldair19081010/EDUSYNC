@@ -101,9 +101,27 @@ try {
     while ($payment = $result->fetch_assoc()) {
         $operationId = (int)$payment['id'];
         $badge = $payment['status'] === 'Confirmado' ? 'success' : ($payment['status'] === 'Anulado' ? 'danger' : 'secondary');
-        $actions = '<div class="btn-group"><button class="btn btn-sm btn-outline-primary" type="button" onclick="uni_modal(\'Detalle del pago\',\'view_payment.php?operation_id=' . $operationId . '\',\'modal-xl\')" title="Ver recibo" aria-label="Ver recibo"><i class="fa fa-eye"></i></button>'
-            . ($payment['status'] === 'Confirmado' && $correctionsReady ? '<button class="btn btn-sm btn-outline-warning correct-payment" data-id="' . $operationId . '" title="Corregir pago" aria-label="Corregir pago"><i class="fa fa-pen"></i></button>' : '')
-            . ($payment['status'] === 'Confirmado' ? '<button class="btn btn-sm btn-outline-danger cancel-payment" data-id="' . $operationId . '" title="Anular pago" aria-label="Anular pago"><i class="fa fa-ban"></i></button>' : '') . '</div>';
+        $hasSecondaryActions = $payment['status'] === 'Confirmado';
+
+        $actions = '<div class="ed-row-actions">'
+            . '<button class="btn btn-sm btn-outline-primary ed-action-primary" type="button" onclick="uni_modal(\'Detalle del pago\',\'view_payment.php?operation_id=' . $operationId . '\',\'modal-xl\')" title="Ver recibo" aria-label="Ver recibo"><i class="fa fa-eye"></i><span class="ed-action-label">Ver</span></button>';
+
+        if ($hasSecondaryActions) {
+            $actions .= '<div class="dropdown">'
+                . '<button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" title="Más acciones" aria-label="Más acciones"><i class="fa fa-ellipsis-v"></i></button>'
+                . '<div class="dropdown-menu dropdown-menu-right ed-action-menu">';
+
+            if ($correctionsReady) {
+                $actions .= '<button class="dropdown-item correct-payment" type="button" data-id="' . $operationId . '"><i class="fa fa-pen text-warning"></i>Corregir pago</button>';
+            }
+
+            $actions .= '<div class="dropdown-divider"></div>'
+                . '<button class="dropdown-item cancel-payment ed-action-danger" type="button" data-id="' . $operationId . '"><i class="fa fa-ban"></i>Anular pago</button>'
+                . '</div></div>';
+        }
+
+        $actions .= '</div>';
+
         $rows[] = [
             '<input class="payment-check" type="checkbox" value="' . $operationId . '">',
             date('d/m/Y H:i', strtotime($payment['payment_date'])),

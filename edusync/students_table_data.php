@@ -139,13 +139,21 @@ if ($students) {
         elseif ($row['status'] == 'Retirado') $status_badge .= 'fa-user-slash';
         else $status_badge .= 'fa-user-check';
         $status_badge .= '"></i> ' . $escape($row['status'] ?? 'Activo') . '</span>';
-        $acciones = '<div class="btn-group btn-group-sm">' .
-            '<button class="btn btn-outline-secondary btn-sm view_student" type="button" data-id="' . (int)$row['id'] . '" data-toggle="tooltip" title="Ver estudiante"><i class="fa fa-eye"></i></button>';
+
+        $acciones = '<div class="ed-row-actions">' .
+            '<button class="btn btn-outline-primary btn-sm ed-action-primary view_student" type="button" data-id="' . (int)$row['id'] . '" data-toggle="tooltip" title="Ver estudiante"><i class="fa fa-eye"></i><span class="ed-action-label">Ver</span></button>';
         if ($can_manage_students) {
-            $acciones .= '<button class="btn btn-outline-primary btn-sm edit_student" type="button" data-id="' . (int)$row['id'] . '" data-toggle="tooltip" title="Editar estudiante"><i class="fa fa-edit"></i></button>' .
-                '<button class="btn btn-outline-danger btn-sm delete_student" type="button" data-id="' . (int)$row['id'] . '" data-name="' . $escape($row['name']) . '" data-dni="' . $escape($row['id_no']) . '" data-toggle="tooltip" title="Eliminar estudiante"><i class="fa fa-trash-alt"></i></button>';
+            $acciones .= '<div class="dropdown">' .
+                '<button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" title="Más acciones"><i class="fa fa-ellipsis-v"></i></button>' .
+                '<div class="dropdown-menu dropdown-menu-right ed-action-menu">' .
+                    '<button class="dropdown-item edit_student" type="button" data-id="' . (int)$row['id'] . '"><i class="fa fa-edit text-primary"></i>Editar estudiante</button>' .
+                    '<div class="dropdown-divider"></div>' .
+                    '<button class="dropdown-item delete_student ed-action-danger" type="button" data-id="' . (int)$row['id'] . '" data-name="' . $escape($row['name']) . '" data-dni="' . $escape($row['id_no']) . '"><i class="fa fa-trash-alt"></i>Eliminar estudiante</button>' .
+                '</div>' .
+            '</div>';
         }
         $acciones .= '</div>';
+
         // Badge de género
         $genero_val = $row['genero'] ?? '';
         if ($genero_val === 'Masculino') {
