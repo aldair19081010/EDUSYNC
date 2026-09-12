@@ -17,14 +17,23 @@ function edu_chat_ai_function(string $name, string $description, array $properti
     ];
 }
 
+function edu_chat_ai_nullable_string(string $description, ?array $enum = null): array {
+    $stringSchema = ['type' => 'string'];
+    if ($enum !== null) $stringSchema['enum'] = $enum;
+    return [
+        'anyOf' => [$stringSchema, ['type' => 'null']],
+        'description' => $description
+    ];
+}
+
 function edu_chat_ai_tool_definitions(array $actor): array {
     $type = (int)($actor['type'] ?? 0);
     $period = ['type' => 'string', 'enum' => ['today','month','year'], 'description' => 'Periodo solicitado.'];
-    $level = ['type' => ['string','null'], 'enum' => ['Inicial','Primaria','Secundaria', null], 'description' => 'Nivel educativo cuando el usuario lo especifica.'];
-    $grade = ['type' => ['string','null'], 'description' => 'Grado como número en texto, por ejemplo 4.'];
-    $section = ['type' => ['string','null'], 'description' => 'Sección, por ejemplo A o B.'];
-    $bimestre = ['type' => ['string','null'], 'enum' => ['1','2','3','4', null], 'description' => 'Bimestre.'];
-    $course = ['type' => ['string','null'], 'description' => 'Nombre del curso si el usuario lo menciona.'];
+    $level = edu_chat_ai_nullable_string('Nivel educativo cuando el usuario lo especifica.', ['Inicial','Primaria','Secundaria']);
+    $grade = edu_chat_ai_nullable_string('Grado como número en texto, por ejemplo 4.');
+    $section = edu_chat_ai_nullable_string('Sección, por ejemplo A o B.');
+    $bimestre = edu_chat_ai_nullable_string('Bimestre.', ['1','2','3','4']);
+    $course = edu_chat_ai_nullable_string('Nombre del curso si el usuario lo menciona.');
 
     $tools = [
         edu_chat_ai_function('get_system_help', 'Busca documentación oficial interna de EduSync para responder dudas sobre cómo funciona o dónde está una opción.', [
