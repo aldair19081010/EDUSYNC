@@ -13,72 +13,19 @@ function grade_debt_guard_column_exists($conn, $table, $column) {
     return $q && $q->num_rows > 0;
 }
 
-function grade_debt_guard_student_ids($conn, $studentId) {
-    $studentId = (int)$studentId;
-    if ($studentId <= 0) return [];
-
-    $ids = [$studentId];
-    $stmt = $conn->prepare('SELECT school_id, id_no, name FROM student WHERE id = ? LIMIT 1');
-    if (!$stmt) return $ids;
-    $stmt->bind_param('i', $studentId);
-    if (!$stmt->execute()) {
-        $stmt->close();
-        return $ids;
-    }
-
-    $student = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if (!$student) return $ids;
-
-    $schoolId = (int)($student['school_id'] ?? 0);
-    $dni = trim((string)($student['id_no'] ?? ''));
-    $name = trim((string)($student['name'] ?? ''));
-    if ($schoolId <= 0) return $ids;
-
-    if ($dni !== '') {
-        $stmt = $conn->prepare("SELECT id FROM student WHERE school_id = ? AND (id_no = ? OR (name = ? AND (id_no IS NULL OR TRIM(id_no) = ''))) ");
-        if ($stmt) {
-            $stmt->bind_param('iss', $schoolId, $dni, $name);
-            if ($stmt->execute()) {
-                $result = $stmt->get_result();
-                while ($row = $result->fetch_assoc()) $ids[] = (int)$row['id'];
-            }
-            $stmt->close();
-        }
-    } elseif ($name !== '') {
-        $stmt = $conn->prepare('SELECT id FROM student WHERE school_id = ? AND name = ?');
-        if ($stmt) {
-            $stmt->bind_param('is', $schoolId, $name);
-            if ($stmt->execute()) {
-                $result = $stmt->get_result();
-                while ($row = $result->fetch_assoc()) $ids[] = (int)$row['id'];
-            }
-            $stmt->close();
-        }
-    }
-
-    $ids = array_values(array_unique(array_filter(array_map('intval', $ids), function ($id) {
-        return $id > 0;
-    })));
-    return $ids;
-}
-
 function grade_debt_summary($conn, $studentId) {
+    $studentId = (int)$studentId;
     $summary = [
         'available' => false,
         'count' => 0,
         'total' => 0.0,
-        'student_ids' => []
+        'student_id' => $studentId
     ];
 
+    if ($studentId <= 0) return $summary;
     if (!grade_debt_guard_table_exists($conn, 'student_ef_list') || !grade_debt_guard_table_exists($conn, 'payments')) {
         return $summary;
     }
-
-    $studentIds = grade_debt_guard_student_ids($conn, $studentId);
-    if (!$studentIds) return $summary;
-    $summary['student_ids'] = $studentIds;
-    $studentIdsSql = implode(',', $studentIds);
 
     $hasDebtStatus = grade_debt_guard_column_exists($conn, 'student_ef_list', 'debt_status');
     $hasPaymentStatus = grade_debt_guard_column_exists($conn, 'payments', 'payment_status');
@@ -90,7 +37,7 @@ function grade_debt_summary($conn, $studentId) {
 
     $debtStatusFilter = $hasDebtStatus ? " AND ef.debt_status = 'Activa'" : '';
 
-    // Mismo criterio del reporte financiero oficial:
+    // Mismo criterio del reporte financiero oficial para el registro actual del estudiante:
     // deuda activa = monto efectivo - pagos confirmados > S/ 0.009.
     $sql = "
         SELECT COUNT(*) AS debt_count, COALESCE(SUM(deuda), 0) AS total_debt
@@ -103,7 +50,7 @@ function grade_debt_summary($conn, $studentId) {
                 ) AS deuda
             FROM student_ef_list ef
             $paymentJoin
-            WHERE ef.student_id IN ($studentIdsSql)
+            WHERE ef.student_id = $studentId
             $debtStatusFilter
             GROUP BY ef.id, ef.discounted_amount, ef.total_fee
             HAVING deuda > 0.009
