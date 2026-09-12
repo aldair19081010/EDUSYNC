@@ -13,6 +13,7 @@ $ui_table_actions_file = dirname(__DIR__) . '/css/ui_table_actions.css';
 $ui_js_file = dirname(__DIR__) . '/js/ui_consistency.js';
 $ui_modals_js_file = dirname(__DIR__) . '/js/ui_modals.js';
 $ui_feedback_js_file = dirname(__DIR__) . '/js/ui_feedback.js';
+$ui_table_actions_js_file = dirname(__DIR__) . '/js/ui_table_actions.js';
 $custom_css_version = @filemtime($custom_css_file) ?: time();
 $ui_css_version = @filemtime($ui_css_file) ?: time();
 $ui_refinements_version = @filemtime($ui_refinements_file) ?: time();
@@ -25,6 +26,7 @@ $ui_table_actions_version = @filemtime($ui_table_actions_file) ?: time();
 $ui_js_version = @filemtime($ui_js_file) ?: time();
 $ui_modals_js_version = @filemtime($ui_modals_js_file) ?: time();
 $ui_feedback_js_version = @filemtime($ui_feedback_js_file) ?: time();
+$ui_table_actions_js_version = @filemtime($ui_table_actions_js_file) ?: time();
 ?>
 <script>
 (function(){
@@ -102,3 +104,4 @@ $ui_feedback_js_version = @filemtime($ui_feedback_js_file) ?: time();
 <script src="js/ui_consistency.js?v=<?php echo rawurlencode((string)$ui_js_version); ?>"></script>
 <script src="js/ui_modals.js?v=<?php echo rawurlencode((string)$ui_modals_js_version); ?>"></script>
 <script src="js/ui_feedback.js?v=<?php echo rawurlencode((string)$ui_feedback_js_version); ?>"></script>
+<script src="js/ui_table_actions.js?v=<?php echo rawurlencode((string)$ui_table_actions_js_version); ?>"></script>
