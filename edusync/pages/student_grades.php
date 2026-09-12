@@ -13,7 +13,7 @@ if (empty($_SESSION['student_id'])) {
 $student_name = (string)($_SESSION['student_name'] ?? $_SESSION['login_name'] ?? 'Estudiante');
 ?>
 
-<section id="student-grades-app" class="sg-page" data-endpoint="api/my_grades.php" aria-busy="true">
+<section id="student-grades-app" class="sg-page" data-endpoint="api/my_grades_v2.php" aria-busy="true">
     <div class="sg-hero">
         <div class="sg-identity">
             <div class="sg-avatar" aria-hidden="true"><i class="fas fa-user-graduate"></i></div>
