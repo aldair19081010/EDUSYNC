@@ -20,6 +20,12 @@ function grades_reply($status, $message = '', $data = [], $extra = []) {
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
+function grades_has_column($db, $table, $column) {
+    $tableSafe = str_replace('`', '', (string)$table);
+    $columnSafe = $db->real_escape_string((string)$column);
+    $q = $db->query("SHOW COLUMNS FROM `{$tableSafe}` LIKE '{$columnSafe}'");
+    return $q && $q->num_rows > 0;
+}
 function is_letter_grade($grade) {
     return in_array(strtoupper(trim((string)$grade)), ['AD', 'A', 'B', 'C'], true);
 }
@@ -87,22 +93,25 @@ try {
         $authMode = 'session';
         if ($sessionSchoolId > 0) {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id = ? AND school_id = ? LIMIT 1');
+            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta del estudiante.');
             $stmt->bind_param('ii', $sessionStudentId, $sessionSchoolId);
         } else {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id = ? LIMIT 1');
+            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta del estudiante.');
             $stmt->bind_param('i', $sessionStudentId);
         }
         $stmt->execute();
         $student = $stmt->get_result()->fetch_assoc();
         $stmt->close();
     } else {
-        // Compatibilidad con la app/consumidores existentes que todavía consultan por DNI.
         if ($requestedDni === '') grades_reply('error', 'DNI no recibido');
         if ($requestedSchoolId > 0) {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = ? AND school_id = ? ORDER BY id DESC LIMIT 1');
+            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta por DNI.');
             $stmt->bind_param('si', $requestedDni, $requestedSchoolId);
         } else {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = ? ORDER BY id DESC LIMIT 1');
+            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta por DNI.');
             $stmt->bind_param('s', $requestedDni);
         }
         $stmt->execute();
@@ -118,17 +127,18 @@ try {
     $studentIds = [$studentId];
     if ($studentDni !== '') {
         $stmt = $conn->prepare("SELECT id FROM student WHERE school_id = ? AND (id_no = ? OR (name = ? AND (id_no IS NULL OR TRIM(id_no) = '')))");
-        $stmt->bind_param('iss', $studentSchoolId, $studentDni, $studentName);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) $studentIds[] = (int)$row['id'];
-        $stmt->close();
+        if ($stmt) {
+            $stmt->bind_param('iss', $studentSchoolId, $studentDni, $studentName);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) $studentIds[] = (int)$row['id'];
+            $stmt->close();
+        }
     }
     $studentIds = safe_int_ids($studentIds);
     $studentIdsSql = implode(',', $studentIds);
     if ($studentIdsSql === '') $studentIdsSql = (string)$studentId;
 
-    // Mantiene la regla institucional existente de restricción por dos cuotas pendientes.
     $debtQuery = $conn->query("SELECT amount, deadline FROM partial_payments WHERE student_id IN ($studentIdsSql) AND status = 'unpaid' ORDER BY deadline ASC");
     if ($debtQuery) {
         $unpaid = [];
@@ -144,10 +154,24 @@ try {
         }
     }
 
-    $stmt = $conn->prepare('SELECT id, year, description, is_active, start_date, end_date FROM academic_year WHERE school_id = ? ORDER BY year DESC, start_date DESC');
-    $stmt->bind_param('i', $studentSchoolId);
-    $stmt->execute();
-    $yearsResult = $stmt->get_result();
+    $yearHasSchool = grades_has_column($conn, 'academic_year', 'school_id');
+    $yearHasStart = grades_has_column($conn, 'academic_year', 'start_date');
+    $yearHasEnd = grades_has_column($conn, 'academic_year', 'end_date');
+    $startSelect = $yearHasStart ? 'start_date' : 'NULL AS start_date';
+    $endSelect = $yearHasEnd ? 'end_date' : 'NULL AS end_date';
+
+    if ($yearHasSchool) {
+        $stmt = $conn->prepare("SELECT id, year, description, is_active, $startSelect, $endSelect FROM academic_year WHERE school_id = ? ORDER BY year DESC, id DESC");
+        if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta de años académicos.');
+        $stmt->bind_param('i', $studentSchoolId);
+        $stmt->execute();
+        $yearsResult = $stmt->get_result();
+    } else {
+        $stmt = null;
+        $yearsResult = $conn->query("SELECT id, year, description, is_active, $startSelect, $endSelect FROM academic_year ORDER BY year DESC, id DESC");
+        if (!$yearsResult) throw new RuntimeException('No se pudieron consultar los años académicos.');
+    }
+
     $yearsGrouped = [];
     $yearIdToLabel = [];
     while ($year = $yearsResult->fetch_assoc()) {
@@ -162,7 +186,7 @@ try {
         if (!empty($year['start_date']) && ($yearsGrouped[$label]['start_date'] === null || $year['start_date'] < $yearsGrouped[$label]['start_date'])) $yearsGrouped[$label]['start_date'] = $year['start_date'];
         if (!empty($year['end_date']) && ($yearsGrouped[$label]['end_date'] === null || $year['end_date'] > $yearsGrouped[$label]['end_date'])) $yearsGrouped[$label]['end_date'] = $year['end_date'];
     }
-    $stmt->close();
+    if ($stmt) $stmt->close();
     uksort($yearsGrouped, function ($a, $b) { return strnatcmp((string)$b, (string)$a); });
     $yearsAvailableInternal = array_values($yearsGrouped);
 
@@ -375,7 +399,7 @@ try {
     grades_reply('ok','',[
         'alumno'=>$studentName,'dni'=>$studentDni,'nivel'=>(string)($student['nivel'] ?? ''),'grado'=>(string)($student['grado'] ?? ''),'seccion'=>(string)($student['seccion'] ?? ''),
         'anio_academico_actual'=>$currentYear,'años_disponibles'=>$yearsAvailable,'años_academicos'=>$yearsWithGrades,
-        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode
+        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode,'academic_year_school_scope'=>$yearHasSchool ? 'school' : 'legacy_global'
     ]);
 } catch (Throwable $e) {
     error_log('EduSync my_grades.php: ' . $e->getMessage());
