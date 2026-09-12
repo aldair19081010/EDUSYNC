@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         alertBox.className = 'alert alert-info';
-        alertBox.innerHTML = `<i class="fas fa-info-circle mr-2"></i>Tienes <strong>${count}</strong> obligación${count === 1 ? '' : 'es'} pendiente${count === 1 ? '' : 's'} por <strong>${money(debt)}</strong>. Puedes revisar el detalle en <span class="student-payments-alert-link">Mis Deudas</span>.`;
+        alertBox.innerHTML = `<i class="fas fa-info-circle mr-2"></i>Tienes <strong>${count}</strong> obligación${count === 1 ? '' : 'es'} pendiente${count === 1 ? '' : 's'} por <strong>${money(debt)}</strong>. <a class="student-payments-alert-link" href="index.php?page=student_debts">Revisar Mis Deudas</a>.`;
     }
 
     function receiptButton(payment) {
