@@ -68,6 +68,32 @@ $nivel_alumno = $stu_first['nivel'] ?? '';
 $grado_alumno = $stu_first['grado'] ?? '';
 $seccion_alumno = $stu_first['seccion'] ?? '';
 
+// Recuperar registros históricos del mismo alumno dentro del mismo colegio.
+// En años anteriores algunos alumnos quedaron con otro ID o sin DNI, pero conservan el mismo nombre.
+if (!empty($student_name)) {
+    $name_safe = $conn->real_escape_string($student_name);
+    $school_safe = intval($student_school_id);
+    $historical_students_q = $conn->query("
+        SELECT id
+        FROM student
+        WHERE school_id = {$school_safe}
+          AND name = '$name_safe'
+    ");
+
+    if ($historical_students_q) {
+        while ($historical_student = $historical_students_q->fetch_assoc()) {
+            $historical_id = intval($historical_student['id']);
+            if ($historical_id > 0 && !in_array($historical_id, $student_ids, true)) {
+                $student_ids[] = $historical_id;
+            }
+        }
+    }
+}
+
+// Recalcular la lista después de incorporar posibles IDs históricos.
+$student_ids = array_values(array_unique(array_map('intval', $student_ids)));
+$student_ids_sql = implode(',', $student_ids);
+
 // Verificar deudas pendientes antes de devolver información de notas
 if ($student_id) {
     // Evaluar SOLO las dos últimas asignaciones (por id DESC) y verificar si AMBAS tienen deuda
