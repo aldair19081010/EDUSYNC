@@ -8,9 +8,11 @@ $student_name = (string)($_SESSION['student_name'] ?? 'Estudiante');
 $student_dni = (string)($_SESSION['student_dni'] ?? '');
 ?>
 
-<div class="student-payments-page" data-endpoint="api/my_payments.php">
-    <div class="student-payments-profile mb-3">
-        <div class="student-payments-avatar"><i class="fas fa-user-graduate"></i></div>
+<div id="student-payments-app" class="student-payments-page" data-endpoint="api/my_payments.php">
+    <div class="mb-3 d-flex align-items-center student-profile-bar">
+        <div class="avatar-circle mr-3">
+            <i class="fas fa-user-graduate"></i>
+        </div>
         <div>
             <div class="text-xs text-uppercase text-muted">Estudiante</div>
             <div class="h5 mb-0 font-weight-bold text-primary"><?php echo htmlspecialchars($student_name); ?></div>
@@ -20,42 +22,46 @@ $student_dni = (string)($_SESSION['student_dni'] ?? '');
         </div>
     </div>
 
-    <div class="student-payments-heading mb-3">
+    <div class="d-sm-flex align-items-end justify-content-between mb-3 student-payments-heading">
         <div>
-            <h1 class="h4 mb-1 text-gray-800"><i class="fas fa-money-bill-wave text-primary mr-2"></i>Mis Pagos</h1>
-            <div class="text-muted small">Historial de recibos, medios de pago y montos confirmados.</div>
+            <h1 class="h4 mb-1 text-gray-800">
+                <i class="fas fa-money-bill-wave mr-2 text-primary"></i>Mis Pagos
+            </h1>
+            <div class="text-muted small">Consulta tus pagos confirmados y comprobantes vigentes.</div>
+        </div>
+        <div class="student-payments-year mt-3 mt-sm-0">
+            <label for="student-payments-year" class="small font-weight-bold text-muted mb-1">Año académico</label>
+            <select id="student-payments-year" class="form-control form-control-sm">
+                <option value="">Cargando...</option>
+            </select>
         </div>
     </div>
 
     <div id="student-payments-alert" class="alert d-none" role="alert"></div>
 
-    <div class="row mb-3" id="student-payments-stats">
+    <div class="row mb-2" id="student-payments-stats">
         <div class="col-12 text-center py-4 text-muted">
             <i class="fas fa-spinner fa-spin mr-2"></i>Cargando resumen de pagos...
         </div>
     </div>
 
-    <div class="card shadow-sm student-payments-card mb-4">
-        <div class="card-header student-payments-card-header">
+    <div class="card shadow-sm mb-4 student-payments-card">
+        <div class="card-header py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center">
             <div>
-                <div class="font-weight-bold"><i class="fas fa-receipt mr-2"></i>Historial de pagos</div>
-                <div class="small student-payments-card-subtitle">Cada recibo se muestra como una operación. Los pagos antiguos mantienen compatibilidad individual.</div>
+                <h6 class="m-0 font-weight-bold text-gray-800">
+                    <i class="fas fa-receipt mr-2 text-primary"></i>Historial de pagos
+                </h6>
+                <div id="student-payments-caption" class="small text-muted mt-1">Cargando información...</div>
             </div>
-            <div class="student-payments-filters">
-                <select id="student-payments-year" class="form-control form-control-sm" aria-label="Filtrar por año académico">
-                    <option value="">Todos los años</option>
-                </select>
-                <select id="student-payments-status" class="form-control form-control-sm" aria-label="Filtrar por estado">
-                    <option value="">Todos los estados</option>
-                    <option value="Confirmado">Confirmados</option>
-                    <option value="Anulado">Anulados</option>
-                    <option value="Corregido">Corregidos</option>
-                </select>
+            <div class="small text-muted mt-2 mt-md-0">
+                <span class="badge badge-success">Confirmado</span>
             </div>
         </div>
         <div class="card-body p-0">
             <div id="student-payments-list" class="student-payments-list">
-                <div class="text-center py-5 text-muted"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando pagos...</div>
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-spinner fa-spin mr-2"></i>Cargando pagos...
+                </div>
             </div>
         </div>
     </div>
