@@ -12,12 +12,14 @@ $ui_responsive_file = dirname(__DIR__) . '/css/ui_responsive.css';
 $ui_table_actions_file = dirname(__DIR__) . '/css/ui_table_actions.css';
 $student_grades_css_file = dirname(__DIR__) . '/css/student_grades.css';
 $student_payments_css_file = dirname(__DIR__) . '/css/student_payments.css';
+$student_attendance_css_file = dirname(__DIR__) . '/css/student_attendance.css';
 $ui_js_file = dirname(__DIR__) . '/js/ui_consistency.js';
 $ui_modals_js_file = dirname(__DIR__) . '/js/ui_modals.js';
 $ui_feedback_js_file = dirname(__DIR__) . '/js/ui_feedback.js';
 $ui_table_actions_js_file = dirname(__DIR__) . '/js/ui_table_actions.js';
 $student_grades_js_file = dirname(__DIR__) . '/js/student_grades.js';
 $student_payments_js_file = dirname(__DIR__) . '/js/student_payments.js';
+$student_attendance_js_file = dirname(__DIR__) . '/js/student_attendance.js';
 $custom_css_version = @filemtime($custom_css_file) ?: time();
 $ui_css_version = @filemtime($ui_css_file) ?: time();
 $ui_refinements_version = @filemtime($ui_refinements_file) ?: time();
@@ -29,14 +31,17 @@ $ui_responsive_version = @filemtime($ui_responsive_file) ?: time();
 $ui_table_actions_version = @filemtime($ui_table_actions_file) ?: time();
 $student_grades_css_version = @filemtime($student_grades_css_file) ?: time();
 $student_payments_css_version = @filemtime($student_payments_css_file) ?: time();
+$student_attendance_css_version = @filemtime($student_attendance_css_file) ?: time();
 $ui_js_version = @filemtime($ui_js_file) ?: time();
 $ui_modals_js_version = @filemtime($ui_modals_js_file) ?: time();
 $ui_feedback_js_version = @filemtime($ui_feedback_js_file) ?: time();
 $ui_table_actions_js_version = @filemtime($ui_table_actions_js_file) ?: time();
 $student_grades_js_version = @filemtime($student_grades_js_file) ?: time();
 $student_payments_js_version = @filemtime($student_payments_js_file) ?: time();
+$student_attendance_js_version = @filemtime($student_attendance_js_file) ?: time();
 $is_student_grades_page = ($current_page ?? '') === 'student_grades';
 $is_student_payments_page = ($current_page ?? '') === 'student_payments';
+$is_student_attendance_page = ($current_page ?? '') === 'student_attendances';
 ?>
 <script>
 (function(){
@@ -129,6 +134,16 @@ $is_student_payments_page = ($current_page ?? '') === 'student_payments';
         document.head.appendChild(studentPayments);
     }
     <?php endif; ?>
+
+    <?php if ($is_student_attendance_page): ?>
+    if (!document.querySelector('link[data-edusync-student-attendance]')) {
+        var studentAttendance = document.createElement('link');
+        studentAttendance.rel = 'stylesheet';
+        studentAttendance.href = 'css/student_attendance.css?v=<?php echo rawurlencode((string)$student_attendance_css_version); ?>';
+        studentAttendance.setAttribute('data-edusync-student-attendance', '1');
+        document.head.appendChild(studentAttendance);
+    }
+    <?php endif; ?>
 })();
 </script>
 <script src="js/ui_consistency.js?v=<?php echo rawurlencode((string)$ui_js_version); ?>"></script>
@@ -140,4 +155,7 @@ $is_student_payments_page = ($current_page ?? '') === 'student_payments';
 <?php endif; ?>
 <?php if ($is_student_payments_page): ?>
 <script src="js/student_payments.js?v=<?php echo rawurlencode((string)$student_payments_js_version); ?>"></script>
+<?php endif; ?>
+<?php if ($is_student_attendance_page): ?>
+<script src="js/student_attendance.js?v=<?php echo rawurlencode((string)$student_attendance_js_version); ?>"></script>
 <?php endif; ?>
