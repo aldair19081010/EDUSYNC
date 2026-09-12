@@ -1,413 +1,502 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+header("Access-Control-Allow-Origin: *");
+header("Access-Control-Allow-Headers: *");
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+ob_start();
+ini_set('display_errors', 0);
 include '../db_connect.php';
 
-header('Content-Type: application/json; charset=utf-8');
-ini_set('display_errors', 0);
+// Ensure clean JSON output
+if (ob_get_length()) ob_end_clean();
+header('Content-Type: application/json');
 
-function get_grade_for_calculation($grade) {
-    if ($grade === null || $grade === '') return 0;
-    $grade = strtoupper(trim(strval($grade)));
-    if (is_letter_grade($grade)) return letter_to_numeric_for_calc($grade);
-    $numeric = floatval($grade);
-    return max(0, min(20, $numeric));
-}
-
+// Funciones para manejo de calificaciones
 function is_letter_grade($grade) {
-    return in_array(strtoupper(trim(strval($grade))), ['AD', 'A', 'B', 'C']);
+    if (empty($grade)) return false;
+    $grade = strtoupper(trim($grade));
+    return in_array($grade, ['C', 'B', 'A', 'AD']);
 }
-
 function letter_to_numeric_for_calc($grade) {
-    switch (strtoupper(trim(strval($grade)))) {
-        case 'AD': return 20;
-        case 'A': return 17;
-        case 'B': return 13;
+    if (empty($grade)) return 0;
+    $grade = strtoupper(trim($grade));
+    switch($grade) {
         case 'C': return 10;
-        default: return 0;
+        case 'B': return 13;
+        case 'A': return 17;
+        case 'AD': return 20;
+        default: return is_numeric($grade) ? floatval($grade) : 0;
     }
 }
 
-function legacy_has_table($db, $table) {
-    $safe = $db->real_escape_string((string)$table);
-    $q = $db->query("SHOW TABLES LIKE '$safe'");
-    return $q && $q->num_rows > 0;
-}
-
-function legacy_has_column($db, $table, $column) {
-    if (!legacy_has_table($db, $table)) return false;
-    $tableSafe = str_replace('`', '', (string)$table);
-    $columnSafe = $db->real_escape_string((string)$column);
-    $q = $db->query("SHOW COLUMNS FROM `$tableSafe` LIKE '$columnSafe'");
-    return $q && $q->num_rows > 0;
-}
-
-function legacy_normalize_bimester($value) {
-    $raw = strtoupper(trim((string)$value));
-    if ($raw === '') return '1';
-    $compact = preg_replace('/\s+/', '', $raw);
-    $map = [
-        '1'=>'1','I'=>'1','1RO'=>'1','1ER'=>'1','PRIMERO'=>'1','PRIMER'=>'1',
-        '2'=>'2','II'=>'2','2DO'=>'2','SEGUNDO'=>'2',
-        '3'=>'3','III'=>'3','3RO'=>'3','TERCERO'=>'3',
-        '4'=>'4','IV'=>'4','4TO'=>'4','CUARTO'=>'4'
-    ];
-    if (isset($map[$compact])) return $map[$compact];
-    if (preg_match('/(?:BIMESTRE|BIM|B)?([1-4])/', $compact, $m)) return $m[1];
-    return '1';
+function get_grade_for_calculation($grade) {
+    return is_letter_grade($grade) ? letter_to_numeric_for_calc($grade) : floatval($grade);
 }
 
 $dni = $_GET['dni'] ?? ($_POST['dni'] ?? '');
 $bimestre = $_GET['bimestre'] ?? ($_POST['bimestre'] ?? '');
-$bimestre = $bimestre !== '' ? legacy_normalize_bimester($bimestre) : '';
 $data = [];
 $debug_errors = [];
 
-try {
-    if (!$dni) {
-        echo json_encode(['status' => 'error', 'message' => 'DNI no recibido']);
-        exit;
-    }
-
-    $dni_safe = $conn->real_escape_string((string)$dni);
-    $stus_query = $conn->query("SELECT id, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = '$dni_safe'");
-    if (!$stus_query || $stus_query->num_rows == 0) {
-        echo json_encode(['status' => 'error', 'message' => 'Estudiante no encontrado']);
-        exit;
-    }
-
-    $student_ids = [];
-    while ($row = $stus_query->fetch_assoc()) $student_ids[] = (int)$row['id'];
-
-    $stu_query = $conn->query("SELECT id, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = '$dni_safe' ORDER BY id DESC LIMIT 1");
-    $stu_first = $stu_query ? $stu_query->fetch_assoc() : null;
-    $student_name = $stu_first['name'] ?? '';
-
-    if (!empty($student_name)) {
-        $name_safe = $conn->real_escape_string($student_name);
-        $stus_name_q = $conn->query("SELECT id FROM student WHERE name = '$name_safe' AND id_no != '$dni_safe'");
-        if ($stus_name_q) {
-            while ($r = $stus_name_q->fetch_assoc()) {
-                $rid = (int)$r['id'];
-                if (!in_array($rid, $student_ids, true)) $student_ids[] = $rid;
-            }
-        }
-    }
-
-    $student_ids = array_values(array_unique(array_filter(array_map('intval', $student_ids))));
-    $student_ids_sql = implode(',', $student_ids);
-    $student_id = (int)($stu_first['id'] ?? 0);
-    $student_school_id = (int)($stu_first['school_id'] ?? 1);
-    $nivel_alumno = $stu_first['nivel'] ?? '';
-    $grado_alumno = $stu_first['grado'] ?? '';
-    $seccion_alumno = $stu_first['seccion'] ?? '';
-
-    if ($student_id) {
-        // Mantener la regla antigua de bloqueo por deuda solo en instalaciones
-        // que realmente cuentan con la tabla partial_payments.
-        if (legacy_has_table($conn, 'partial_payments')) {
-            $debt_check = $conn->query("SELECT * FROM partial_payments WHERE student_id IN ($student_ids_sql) AND status = 'unpaid' ORDER BY deadline ASC");
-            $filas_consideradas = 0;
-            $ultimas_con_deuda = 0;
-            $total_pendiente_ultimas = 0;
-            if ($debt_check && $debt_check->num_rows > 0) {
-                $todos_los_pagos = [];
-                while ($row = $debt_check->fetch_assoc()) $todos_los_pagos[] = $row;
-                $pagos_recientes = array_slice($todos_los_pagos, -2);
-                foreach ($pagos_recientes as $pago) {
-                    $filas_consideradas++;
-                    if ($pago['status'] === 'unpaid') {
-                        $ultimas_con_deuda++;
-                        $total_pendiente_ultimas += floatval($pago['amount']);
-                    }
-                }
-                if ($filas_consideradas >= 2 && $ultimas_con_deuda >= 2) {
-                    echo json_encode([
-                        'status' => 'error',
-                        'reason' => 'debt',
-                        'message' => 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).',
-                        'total_pendiente_ultimas' => number_format($total_pendiente_ultimas, 2)
-                    ]);
-                    exit;
-                }
-            }
-        }
-
-        // Años académicos: conservar el contrato legacy, pero tolerar columnas opcionales.
-        $year_desc = legacy_has_column($conn, 'academic_year', 'description') ? 'description' : "'' AS description";
-        $year_active = legacy_has_column($conn, 'academic_year', 'is_active') ? 'is_active' : '0 AS is_active';
-        $year_start = legacy_has_column($conn, 'academic_year', 'start_date') ? 'start_date' : 'NULL AS start_date';
-        $year_end = legacy_has_column($conn, 'academic_year', 'end_date') ? 'end_date' : 'NULL AS end_date';
-        $years_query = $conn->query("SELECT id, year, $year_desc, $year_active, $year_start, $year_end FROM academic_year ORDER BY year DESC");
-        if (!$years_query) throw new Exception('No se pudieron consultar los años académicos: ' . $conn->error);
-
-        $años_disponibles = [];
-        $años_agrupados = [];
-        while ($y = $years_query->fetch_assoc()) {
-            $ys = $y['year'];
-            if (!isset($años_agrupados[$ys])) {
-                $años_agrupados[$ys] = [
-                    'año' => $ys,
-                    'descripcion' => $y['description'] ?? '',
-                    'es_activo' => false,
-                    'ids' => [],
-                    'start_date' => '9999-12-31',
-                    'end_date' => '0000-00-00 00:00:00'
-                ];
-                $años_disponibles[] =& $años_agrupados[$ys];
-            }
-            $años_agrupados[$ys]['ids'][] = (int)$y['id'];
-            if (!empty($y['start_date']) && $y['start_date'] < $años_agrupados[$ys]['start_date']) $años_agrupados[$ys]['start_date'] = $y['start_date'];
-            if (!empty($y['end_date']) && $y['end_date'] > $años_agrupados[$ys]['end_date']) $años_agrupados[$ys]['end_date'] = $y['end_date'];
-            if (!empty($y['is_active'])) $años_agrupados[$ys]['es_activo'] = true;
-        }
-
-        // Consulta de notas adaptable. El JSON de salida sigue siendo el de la API antigua.
-        $has_evaluations = legacy_has_table($conn, 'evaluations');
-        $has_teacher_courses = legacy_has_table($conn, 'teacher_courses');
-        $has_academic_courses = legacy_has_table($conn, 'academic_courses');
-        $has_areas = legacy_has_table($conn, 'areas');
-        $has_competencies = legacy_has_table($conn, 'general_course_competencies');
-
-        $can_join_evaluation = $has_evaluations && legacy_has_column($conn, 'evaluation_grades', 'evaluation_id');
-        $evaluation_join = $can_join_evaluation ? 'LEFT JOIN evaluations e ON e.id = eg.evaluation_id' : '';
-        $can_join_teacher_course = $can_join_evaluation && $has_teacher_courses && legacy_has_column($conn, 'evaluations', 'teacher_course_id');
-        $teacher_course_join = $can_join_teacher_course ? 'LEFT JOIN teacher_courses tc ON tc.id = e.teacher_course_id' : '';
-        $can_join_course = $can_join_teacher_course && $has_academic_courses && legacy_has_column($conn, 'teacher_courses', 'course_id');
-        $academic_course_join = $can_join_course ? 'LEFT JOIN academic_courses ac ON ac.id = tc.course_id' : '';
-        $can_join_area = $can_join_course && $has_areas && legacy_has_column($conn, 'academic_courses', 'area_id');
-        $area_join = $can_join_area ? 'LEFT JOIN areas a ON a.id = ac.area_id' : '';
-        $can_join_comp = $has_competencies && legacy_has_column($conn, 'evaluation_grades', 'competencia_id');
-        $competency_join = $can_join_comp ? 'LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id' : '';
-
-        $evaluation_id_select = legacy_has_column($conn, 'evaluation_grades', 'evaluation_id') ? 'eg.evaluation_id' : '0';
-        $title_select = $can_join_evaluation && legacy_has_column($conn, 'evaluations', 'title') ? "COALESCE(e.title, 'Evaluación')" : "'Evaluación'";
-        $obs_select = $can_join_evaluation && legacy_has_column($conn, 'evaluations', 'description') ? "COALESCE(e.description, '')" : "''";
-        $bim_select = $can_join_evaluation && legacy_has_column($conn, 'evaluations', 'bimestre') ? 'e.bimestre' : "'1'";
-        $created_select = $can_join_evaluation && legacy_has_column($conn, 'evaluations', 'created_at') ? 'e.created_at' : 'NULL';
-        $tc_year_select = $can_join_teacher_course && legacy_has_column($conn, 'teacher_courses', 'academic_year_id') ? 'tc.academic_year_id' : 'NULL';
-        $e_year_select = $can_join_evaluation && legacy_has_column($conn, 'evaluations', 'academic_year_id') ? 'e.academic_year_id' : 'NULL';
-        $course_id_select = $can_join_teacher_course && legacy_has_column($conn, 'teacher_courses', 'course_id') ? 'COALESCE(tc.course_id, 0)' : '0';
-        $course_name_select = $can_join_course && legacy_has_column($conn, 'academic_courses', 'name') ? "COALESCE(ac.name, $title_select, 'Curso')" : "COALESCE($title_select, 'Curso')";
-        $area_name_select = $can_join_area && legacy_has_column($conn, 'areas', 'name') ? "COALESCE(a.name, 'Área General')" : "'Área General'";
-        $area_color_select = $can_join_area && legacy_has_column($conn, 'areas', 'color') ? "COALESCE(a.color, '#6c757d')" : "'#6c757d'";
-        $area_description_select = $can_join_area && legacy_has_column($conn, 'areas', 'description') ? "COALESCE(a.description, '')" : "''";
-        $comp_id_select = legacy_has_column($conn, 'evaluation_grades', 'competencia_id') ? 'COALESCE(eg.competencia_id, 0)' : '0';
-        $comp_name_select = $can_join_comp && legacy_has_column($conn, 'general_course_competencies', 'name') ? "COALESCE(c.name, 'Evaluación General')" : "'Evaluación General'";
-        $percentage_select = $can_join_comp && legacy_has_column($conn, 'general_course_competencies', 'percentage') ? 'COALESCE(c.percentage, 100)' : '100';
-
-        $sql_all = "SELECT
-                $evaluation_id_select AS evaluation_id,
-                $title_select AS title,
-                eg.grade,
-                $course_name_select AS curso,
-                $obs_select AS observacion,
-                $course_id_select AS course_id,
-                $area_name_select AS area_nombre,
-                $area_color_select AS area_color,
-                $area_description_select AS area_descripcion,
-                $bim_select AS bimestre,
-                $created_select AS created_at,
-                $tc_year_select AS tc_year,
-                $e_year_select AS e_year,
-                $comp_id_select AS competencia_id,
-                $comp_name_select AS competencia_nombre,
-                $percentage_select AS porcentaje
-            FROM evaluation_grades eg
-            $evaluation_join
-            $teacher_course_join
-            $academic_course_join
-            $area_join
-            $competency_join
-            WHERE eg.student_id IN ($student_ids_sql)";
-
-        $all_grades_q = $conn->query($sql_all);
-        if (!$all_grades_q) $debug_errors[] = 'Error FATAL SQL Extraction: ' . $conn->error;
-
-        $bucket_anual = [];
-        $competencias_usadas = [];
-        if ($all_grades_q) {
-            while ($grade_row = $all_grades_q->fetch_assoc()) {
-                $pertence_a_año = null;
-                $tc_year = $grade_row['tc_year'];
-                $e_year = $grade_row['e_year'];
-                $created_dt = $grade_row['created_at'];
-
-                foreach ($años_disponibles as $año_info) {
-                    if (in_array((int)$tc_year, $año_info['ids'], true) || in_array((int)$e_year, $año_info['ids'], true)) {
-                        $pertence_a_año = $año_info['año'];
-                        break;
-                    }
-                    if ($created_dt) {
-                        $y_st = $año_info['start_date'] !== '9999-12-31' ? $año_info['start_date'] : '1970-01-01';
-                        $y_en = $año_info['end_date'] !== '0000-00-00 00:00:00' ? $año_info['end_date'] . ' 23:59:59' : '2099-12-31 23:59:59';
-                        if ($created_dt >= $y_st && $created_dt <= $y_en) {
-                            $pertence_a_año = $año_info['año'];
-                            break;
-                        }
-                    }
-                }
-                if (!$pertence_a_año && count($años_disponibles) > 0) $pertence_a_año = $años_disponibles[count($años_disponibles)-1]['año'];
-                if (!$pertence_a_año) continue;
-
-                $b_num = legacy_normalize_bimester($grade_row['bimestre'] ?? '1');
-                if ($bimestre !== '' && $b_num !== $bimestre) continue;
-
-                $c_id = (int)($grade_row['course_id'] ?? 0);
-                if ($c_id <= 0) $c_id = 'legacy_' . md5((string)($grade_row['curso'] ?? 'Curso'));
-                $comp_id = (int)($grade_row['competencia_id'] ?? 0);
-
-                if (!isset($bucket_anual[$pertence_a_año])) $bucket_anual[$pertence_a_año] = [];
-                if (!isset($bucket_anual[$pertence_a_año][$b_num])) $bucket_anual[$pertence_a_año][$b_num] = [];
-                if (!isset($bucket_anual[$pertence_a_año][$b_num][$c_id])) {
-                    $bucket_anual[$pertence_a_año][$b_num][$c_id] = [
-                        'nombre' => $grade_row['curso'],
-                        'area' => [
-                            'nombre' => $grade_row['area_nombre'],
-                            'color' => $grade_row['area_color'],
-                            'descripcion' => $grade_row['area_descripcion']
-                        ],
-                        'competencias' => []
-                    ];
-                }
-                if (!isset($bucket_anual[$pertence_a_año][$b_num][$c_id]['competencias'][$comp_id])) {
-                    $bucket_anual[$pertence_a_año][$b_num][$c_id]['competencias'][$comp_id] = [
-                        'nombre' => $grade_row['competencia_nombre'],
-                        'peso' => floatval($grade_row['porcentaje']) / 100,
-                        'notas' => []
-                    ];
-                }
-                $bucket_anual[$pertence_a_año][$b_num][$c_id]['competencias'][$comp_id]['notas'][] = [
-                    'titulo' => $grade_row['title'] ?: 'Evaluación huérfana',
-                    'nota' => $grade_row['grade'],
-                    'numeric' => get_grade_for_calculation($grade_row['grade']),
-                    'observacion' => $grade_row['observacion'] ?: ''
-                ];
-                if (!isset($competencias_usadas[$pertence_a_año])) $competencias_usadas[$pertence_a_año] = [];
-                if (!isset($competencias_usadas[$pertence_a_año][$b_num])) $competencias_usadas[$pertence_a_año][$b_num] = [];
-                $competencias_usadas[$pertence_a_año][$b_num][$comp_id] = [
-                    'nombre' => $grade_row['competencia_nombre'],
-                    'peso' => floatval($grade_row['porcentaje']) / 100
-                ];
-            }
-        }
-
-        $años_con_notas = [];
-        foreach ($años_disponibles as $año_info) {
-            $year_str = $año_info['año'];
-            if (!isset($bucket_anual[$year_str])) continue;
-            $bimestres_export = [];
-            $promedio_anual = 0;
-            $bimestres_count = 0;
-            ksort($bucket_anual[$year_str]);
-
-            foreach ($bucket_anual[$year_str] as $b_num => $cursos_data) {
-                $cursos_promedios = [];
-                $suma_promedios_cursos = 0;
-                $cantidad_cursos = 0;
-                foreach ($cursos_data as $curso_info) {
-                    $suma_ponderada_curso = 0;
-                    $competencias_con_nota = 0;
-                    $competencias_curso = [];
-                    foreach ($curso_info['competencias'] as $comp_data) {
-                        if (count($comp_data['notas']) > 0) {
-                            $suma_notas = 0;
-                            foreach ($comp_data['notas'] as $nota) $suma_notas += $nota['numeric'];
-                            $prom_comp = $suma_notas / count($comp_data['notas']);
-                            $suma_ponderada_curso += ($prom_comp * $comp_data['peso']);
-                            $competencias_con_nota++;
-                            $competencias_curso[] = [
-                                'competencia' => $comp_data['nombre'],
-                                'promedio' => strval(intval(round($prom_comp))),
-                                'notas' => $comp_data['notas']
-                            ];
-                        }
-                    }
-                    if ($competencias_con_nota > 0) {
-                        $cursos_promedios[] = [
-                            'curso' => $curso_info['nombre'],
-                            'area' => $curso_info['area'],
-                            'promedio' => strval(intval(round($suma_ponderada_curso))),
-                            'competencias' => $competencias_curso
-                        ];
-                        $suma_promedios_cursos += $suma_ponderada_curso;
-                        $cantidad_cursos++;
-                    }
-                }
-
-                if ($cantidad_cursos > 0) {
-                    $promedio_bimestre = $suma_promedios_cursos / $cantidad_cursos;
-                    $comps_bim_raw = $competencias_usadas[$year_str][$b_num] ?? [];
-                    $comps_bim = [];
-                    foreach ($comps_bim_raw as $k => $c) $comps_bim[] = ['competencia_id' => strval($k), 'nombre' => $c['nombre'], 'peso' => $c['peso']];
-                    $bimestres_export[] = [
-                        'numero' => strval($b_num),
-                        'competencias' => $comps_bim,
-                        'cursos' => $cursos_promedios,
-                        'promedio_bimestre' => strval(intval(round($promedio_bimestre)))
-                    ];
-                    $promedio_anual += $promedio_bimestre;
-                    $bimestres_count++;
-                }
-            }
-
-            $promedio_anual_final = $bimestres_count > 0 ? $promedio_anual / $bimestres_count : 0;
-            $cursos_anuales = [];
-            foreach ($bimestres_export as $bim) {
-                foreach ($bim['cursos'] as $curso) {
-                    $cn = $curso['curso'];
-                    $cp = floatval(str_replace(',', '.', $curso['promedio']));
-                    if (!isset($cursos_anuales[$cn])) $cursos_anuales[$cn] = ['area' => $curso['area'], 'promedios' => [], 'bimestres' => []];
-                    $cursos_anuales[$cn]['promedios'][] = $cp;
-                    $cursos_anuales[$cn]['bimestres'][$bim['numero']] = $cp;
-                }
-            }
-            $promedios_anuales_cursos = [];
-            foreach ($cursos_anuales as $cn => $cd) {
-                $pac = count($cd['promedios']) > 0 ? array_sum($cd['promedios']) / count($cd['promedios']) : 0;
-                $promedios_anuales_cursos[] = ['curso' => $cn, 'area' => $cd['area'], 'promedio_anual' => strval(intval(round($pac))), 'detalle_bimestres' => $cd['bimestres']];
-            }
-            if (!empty($bimestres_export)) {
-                $años_con_notas[] = [
-                    'año' => $año_info['año'],
-                    'descripcion' => $año_info['descripcion'],
-                    'es_activo' => $año_info['es_activo'],
-                    'bimestres' => $bimestres_export,
-                    'promedio_anual' => strval(intval(round($promedio_anual_final))),
-                    'promedios_por_curso' => $promedios_anuales_cursos
-                ];
-            }
-        }
-
-        $current_year = 'N/A';
-        foreach ($años_disponibles as $año_info) {
-            if (!empty($año_info['es_activo'])) {
-                $current_year = $año_info['año'];
-                break;
-            }
-        }
-
-        $data = [
-            'alumno' => $student_name,
-            'dni' => $dni,
-            'nivel' => $nivel_alumno,
-            'grado' => $grado_alumno,
-            'seccion' => $seccion_alumno,
-            'anio_academico_actual' => $current_year,
-            'años_disponibles' => $años_disponibles,
-            'años_academicos' => $años_con_notas,
-            'total_años_con_notas' => count($años_con_notas),
-            'debug_errors' => $debug_errors
-        ];
-
-        echo json_encode(['status' => 'ok', 'data' => $data]);
-        exit;
-    }
-
-    echo json_encode(['status' => 'error', 'message' => 'ID de estudiante no encontrado']);
-} catch (Throwable $e) {
-    echo json_encode([
-        'status' => 'error',
-        'message' => 'FATAL PHP EXCEPTION: ' . $e->getMessage(),
-        'line' => $e->getLine()
-    ]);
+if (!$dni) {
+    echo json_encode(['status' => 'error', 'message' => 'DNI no recibido']);
+    exit;
 }
+
+// Busca el ID, nombre, nivel, grado, sección y colegio del estudiante por su DNI
+// NOTA: Obtenemos TODOS los IDs históricos vinculados a este DNI para atrapar grados de años anteriores bajo el mismo alumno
+$stus_query = $conn->query("SELECT id, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = '$dni'");
+if ($stus_query->num_rows == 0) {
+    echo json_encode(['status' => 'error', 'message' => 'Estudiante no encontrado']);
+    exit;
+}
+
+$student_ids = [];
+while ($row = $stus_query->fetch_assoc()) {
+    $student_ids[] = $row['id'];
+}
+$student_ids_sql = implode(',', $student_ids);
+
+// Usar el primer registro para los metadatos globales
+$stu_first = $conn->query("SELECT id, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = '$dni' ORDER BY id DESC LIMIT 1")->fetch_assoc();
+$student_id = $stu_first['id'] ?? 0;
+$student_school_id = $stu_first['school_id'] ?? 1;
+$student_name = $stu_first['name'] ?? '';
+$nivel_alumno = $stu_first['nivel'] ?? '';
+$grado_alumno = $stu_first['grado'] ?? '';
+$seccion_alumno = $stu_first['seccion'] ?? '';
+
+// Verificar deudas pendientes antes de devolver información de notas
+if ($student_id) {
+    // Evaluar SOLO las dos últimas asignaciones (por id DESC) y verificar si AMBAS tienen deuda
+    $deuda_sql = "
+        SELECT
+            SUM(CASE WHEN pendiente > 0 THEN 1 ELSE 0 END) AS ultimas_con_deuda,
+            COUNT(1) AS filas_consideradas,
+            SUM(pendiente) AS total_pendiente
+        FROM (
+            SELECT
+                ef.id,
+                CASE
+                    -- Si el monto a pagar es 0, no hay deuda (beca total)
+                    WHEN (CASE WHEN ef.discounted_amount IS NOT NULL THEN ef.discounted_amount ELSE ef.total_fee END) = 0 THEN 0
+                    ELSE GREATEST(
+                        (CASE WHEN ef.discounted_amount IS NOT NULL THEN ef.discounted_amount ELSE ef.total_fee END)
+                        - COALESCE(SUM(p.amount), 0),
+                        0
+                    )
+                END AS pendiente
+            FROM student_ef_list ef
+            LEFT JOIN payments p ON p.ef_id = ef.id
+            WHERE ef.student_id = {$student_id}
+            GROUP BY ef.id, ef.discounted_amount, ef.total_fee
+            ORDER BY ef.id DESC
+            LIMIT 2
+        ) t
+    ";
+
+    $deuda_res = $conn->query($deuda_sql);
+    if ($deuda_res) {
+        $deuda = $deuda_res->fetch_assoc();
+        $ultimas_con_deuda = intval($deuda['ultimas_con_deuda'] ?? 0);
+        $filas_consideradas = intval($deuda['filas_consideradas'] ?? 0);
+        $total_pendiente_ultimas = floatval($deuda['total_pendiente'] ?? 0);
+
+        // Calcular deuda total (mismo criterio que my_debts)
+        $total_deuda_sql = "
+            SELECT SUM(deuda) AS total_deuda
+            FROM (
+                SELECT
+                    CASE
+                        WHEN (CASE WHEN ef.discounted_amount IS NOT NULL THEN ef.discounted_amount ELSE ef.total_fee END) = 0 THEN 0
+                        ELSE GREATEST(
+                            (CASE WHEN ef.discounted_amount IS NOT NULL THEN ef.discounted_amount ELSE ef.total_fee END)
+                            - COALESCE(SUM(p.amount), 0),
+                            0
+                        )
+                    END AS deuda
+                FROM student_ef_list ef
+                INNER JOIN courses c ON c.id = ef.course_id
+                INNER JOIN academic_year ay ON ay.id = c.academic_year_id
+                LEFT JOIN payments p ON p.ef_id = ef.id
+                WHERE ef.student_id = {$student_id}
+                GROUP BY ef.id, ef.discounted_amount, ef.total_fee
+            ) t2
+            WHERE deuda > 0.01
+        ";
+        $total_deuda_res = $conn->query($total_deuda_sql);
+        $total_deuda = 0;
+        if ($total_deuda_res) {
+            $total_deuda_row = $total_deuda_res->fetch_assoc();
+            $total_deuda = floatval($total_deuda_row['total_deuda'] ?? 0);
+        }
+
+        // Bloquear solo si existen al menos 2 asignaciones y ambas tienen deuda
+        if ($filas_consideradas >= 2 && $ultimas_con_deuda >= 2) {
+            echo json_encode([
+                'status' => 'error',
+                'reason' => 'debt',
+                'message' => 'No es posible mostrar la información de notas por deudas.',
+                'total_pendiente_ultimas' => number_format($total_deuda, 2, '.', ''),
+                'dni' => $dni,
+                'alumno' => $student_name
+            ]);
+            exit;
+        }
+    }
+}
+
+if ($student_id) {
+    // Filtro de bimestre (para API)
+    $filtro_bimestre_sql = "";
+    if ($bimestre !== '') {
+        $filtro_bimestre_sql = " AND e.bimestre = '".$conn->real_escape_string($bimestre)."'";
+    }
+    
+    // Obtener todos los años académicos disponibles en el sistema (Global)
+    $years_query = $conn->query("
+        SELECT id, year, description, is_active, start_date, end_date
+        FROM academic_year
+        ORDER BY year DESC
+    ");
+    
+    $años_disponibles = [];
+    $años_agrupados = [];
+    while($year_row = $years_query->fetch_assoc()) {
+        $year_str = $year_row['year'];
+        if (!isset($años_agrupados[$year_str])) {
+            $años_agrupados[$year_str] = [
+                'año' => $year_str,
+                'descripcion' => $year_row['description'],
+                'es_activo' => false,
+                'ids' => [],
+                'start_date' => '9999-12-31',
+                'end_date' => '0000-00-00 00:00:00'
+            ];
+            $años_disponibles[] =& $años_agrupados[$year_str];
+        }
+        $años_agrupados[$year_str]['ids'][] = $year_row['id'];
+        
+        // Mantener el rango de fechas dinámicamente más amplio posible para este año
+        if (!empty($year_row['start_date']) && $year_row['start_date'] < $años_agrupados[$year_str]['start_date']) {
+            $años_agrupados[$year_str]['start_date'] = $year_row['start_date'];
+        }
+        if (!empty($year_row['end_date']) && $year_row['end_date'] > $años_agrupados[$year_str]['end_date']) {
+            $años_agrupados[$year_str]['end_date'] = $year_row['end_date'];
+        }
+        
+        if ($year_row['is_active']) {
+            $años_agrupados[$year_str]['es_activo'] = true;
+        }
+    }
+    
+    $años_con_notas = [];
+    
+    // Procesar cada año académico (agrupado por nombre de año)
+    foreach ($años_disponibles as $año_info) {
+        $ids_str = implode(',', $año_info['ids']);
+        
+        // Validar que tengamos un rango de fecha legítimo (mínimo fallback)
+        $start_date = $año_info['start_date'] !== '9999-12-31' ? $año_info['start_date'] : '1970-01-01';
+        $end_date = $año_info['end_date'] !== '0000-00-00 00:00:00' ? $año_info['end_date'] . ' 23:59:59' : '2099-12-31 23:59:59';
+        
+        // Búsqueda profunda temporal (Igual a my_attendance.php)
+        $filtro_year_sql = " AND (
+            tc.academic_year_id IN ($ids_str) OR 
+            e.academic_year_id IN ($ids_str) OR 
+            (e.created_at BETWEEN '$start_date' AND '$end_date')
+        )";
+        
+        // Array para almacenar datos de los bimestres y promedios del año
+        $bimestres = [];
+        $promedio_anual = 0;
+        $bimestres_count = 0;
+    
+        // Determinar qué bimestres procesar
+        $procesar_bimestres = [];
+        if ($bimestre !== '') {
+            // Si se especificó un bimestre concreto, solo procesamos ese
+            $procesar_bimestres = [$bimestre];
+        } else {
+            // Si no, procesamos todos los bimestres (1-4)
+            $procesar_bimestres = ['1', '2', '3', '4'];
+        }
+    
+    // Procesar cada bimestre
+    foreach ($procesar_bimestres as $num_bimestre) {
+        // Filtro específico para este bimestre
+        $filtro_bimestre_actual = " AND e.bimestre = '$num_bimestre'";
+        
+        // Obtener competencias para este bimestre que tienen evaluaciones con notas para el estudiante
+        // NO filtramos por grado/nivel/sección actual porque el estudiante pudo estar en otros grados en años anteriores
+        $comp_q = $conn->query("SELECT DISTINCT 
+                COALESCE(eg.competencia_id, 0) as competencia_id, 
+                COALESCE(c.name, 'Evaluación General') as name, 
+                COALESCE(c.percentage, 100) as percentage
+            FROM evaluation_grades eg
+            INNER JOIN evaluations e ON e.id = eg.evaluation_id
+            LEFT JOIN teacher_courses tc ON tc.id = e.teacher_course_id
+            LEFT JOIN academic_courses ac ON ac.id = tc.course_id
+            LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id
+            WHERE eg.student_id IN ($student_ids_sql)
+            $filtro_year_sql
+            $filtro_bimestre_actual");
+            
+        // Si hay error en la consulta
+        if (!$comp_q) {
+            $debug_errors[] = "Error comp_q: " . $conn->error;
+            continue;
+        }
+        
+        $competencias = [];
+        $hay_competencias = false;
+        
+        while($comp = $comp_q->fetch_assoc()) {
+            $hay_competencias = true;
+            $competencias[$comp['competencia_id']] = [
+                'nombre' => $comp['name'],
+                'peso' => floatval($comp['percentage'])/100
+            ];
+        }
+        
+        // Solo procesamos el bimestre si tiene competencias con evaluaciones
+        if ($hay_competencias) {
+            // Primero obtenemos todas las evaluaciones agrupadas por curso y competencia
+            $cursos_data = [];
+            
+            foreach ($competencias as $cid => $cinfo) {
+                $evals_q = $conn->query("SELECT e.title, eg.grade, 
+                        COALESCE(ac.name, e.title) as curso, 
+                        e.description as observacion, 
+                        COALESCE(tc.course_id, 0) as course_id,
+                        COALESCE(a.name, 'Área General') as area_nombre, 
+                        COALESCE(a.color, '#6c757d') as area_color, 
+                        a.description as area_descripcion
+                    FROM evaluation_grades eg
+                    INNER JOIN evaluations e ON e.id = eg.evaluation_id
+                    LEFT JOIN teacher_courses tc ON tc.id = e.teacher_course_id
+                    LEFT JOIN academic_courses ac ON ac.id = tc.course_id
+                    LEFT JOIN areas a ON a.id = ac.area_id
+                    WHERE eg.student_id IN ($student_ids_sql) 
+                    AND COALESCE(eg.competencia_id, 0) = $cid 
+                    $filtro_year_sql
+                    $filtro_bimestre_actual");
+                    
+                if (!$evals_q) {
+                    $debug_errors[] = "Error evals_q: " . $conn->error;
+                    continue;
+                }
+                    
+                while($n = $evals_q->fetch_assoc()) {
+                    $curso_id = $n['course_id'];
+                    $curso_nombre = $n['curso'];
+                    
+                    // Inicializar estructura del curso si no existe
+                    if (!isset($cursos_data[$curso_id])) {
+                        $cursos_data[$curso_id] = [
+                            'nombre' => $curso_nombre,
+                            'area' => [
+                                'nombre' => $n['area_nombre'] ?: 'Sin área asignada',
+                                'color' => $n['area_color'] ?: '#6c757d',
+                                'descripcion' => $n['area_descripcion'] ?: ''
+                            ],
+                            'competencias' => [],
+                            'suma_ponderada' => 0
+                        ];
+                    }
+                    
+                    // Inicializar competencia si no existe para este curso
+                    if (!isset($cursos_data[$curso_id]['competencias'][$cid])) {
+                        $cursos_data[$curso_id]['competencias'][$cid] = [
+                            'nombre' => $cinfo['nombre'],
+                            'peso' => $cinfo['peso'],
+                            'notas' => [],
+                            'evaluaciones' => []
+                        ];
+                    }
+                    
+                    // Agregar nota y evaluación (mantener formato original, usar numérico para cálculos)
+                    $nota_original = $n['grade']; // Mantener el formato original
+                    $nota_para_calculo = get_grade_for_calculation($n['grade']); // Convertir para cálculos
+                    
+                    $cursos_data[$curso_id]['competencias'][$cid]['notas'][] = $nota_para_calculo;
+                    $cursos_data[$curso_id]['competencias'][$cid]['evaluaciones'][] = [
+                        'curso' => $curso_nombre,
+                        'evaluacion' => $n['title'],
+                        'nota' => $nota_original, // Mostrar el formato original
+                        'observacion' => $n['observacion']
+                    ];
+                }
+            }
+            
+            // Ahora calculamos el promedio para cada curso
+            $competencias_bimestre = [];
+            $cursos_promedios = [];
+            $suma_promedios_cursos = 0;
+            $cantidad_cursos = 0;
+            
+            // Primero agregamos todas las competencias a la lista para mostrar
+            foreach ($cursos_data as $curso_id => $curso_info) {
+                foreach ($curso_info['competencias'] as $comp_id => $comp_data) {
+                    // Calcular promedio de la competencia (simple, sin ponderar)
+                    $promedio_competencia = 0;
+                    if (count($comp_data['notas']) > 0) {
+                        $promedio_competencia = array_sum($comp_data['notas']) / count($comp_data['notas']);
+                    }
+                    
+                    // Calcular promedio ponderado (promedio × peso)
+                    $promedio_ponderado = $promedio_competencia * $comp_data['peso'];
+                    
+                    // Agregar a la lista de competencias para mostrar
+                    // Devolver ambos formatos: nuevo (nombre, peso decimal) y antiguo (competencia, peso porcentaje, ponderado)
+                    $competencias_bimestre[] = [
+                        'nombre' => $comp_data['nombre'],
+                        'competencia' => $comp_data['nombre'],  // Para compatibilidad app móvil
+                        'peso' => $comp_data['peso'] * 100,  // Porcentaje para app móvil
+                        'promedio_simple' => strval(intval(round($promedio_competencia))),
+                        'promedio' => strval(round($promedio_ponderado, 2)),
+                        'ponderado' => strval(round($promedio_ponderado, 2)),  // Para compatibilidad app móvil - DECIMAL
+                        'evaluaciones' => $comp_data['evaluaciones']
+                    ];
+                }
+            }
+            
+            // Ahora calculamos el promedio final para cada curso
+            foreach ($cursos_data as $curso_id => $curso_info) {
+                $suma_ponderada_curso = 0;
+                
+                // Preparar array de competencias para este curso
+                $competencias_curso = [];
+                
+                // Sumar todos los ponderados de todas las competencias del curso
+                foreach ($curso_info['competencias'] as $comp_id => $comp_data) {
+                    $promedio_competencia = 0;
+                    if (count($comp_data['notas']) > 0) {
+                        $promedio_competencia = array_sum($comp_data['notas']) / count($comp_data['notas']);
+                    }
+                    
+                    $ponderado_competencia = $promedio_competencia * $comp_data['peso'];
+                    $suma_ponderada_curso += $ponderado_competencia;
+                    
+                    // Agregar competencia al array del curso
+                    // Devolver ambos formatos para compatibilidad
+                    $competencias_curso[$comp_id] = [
+                        'nombre' => $comp_data['nombre'],
+                        'competencia' => $comp_data['nombre'],  // Para compatibilidad app móvil
+                        'peso' => $comp_data['peso'],  // Decimal
+                        'promedio_simple' => strval(intval(round($promedio_competencia))),
+                        'promedio' => strval(round($ponderado_competencia, 2)),
+                        'ponderado' => strval(round($ponderado_competencia, 2)),  // Para compatibilidad app móvil - DECIMAL
+                        'evaluaciones' => $comp_data['evaluaciones']
+                    ];
+                }
+                
+                // El promedio del curso es la suma de TODAS sus competencias ponderadas
+                $cursos_promedios[] = [
+                    'curso' => $curso_info['nombre'],
+                    'area' => $curso_info['area'],
+                    'promedio' => strval(intval(round($suma_ponderada_curso))),
+                    'competencias' => $competencias_curso
+                ];
+                
+                $suma_promedios_cursos += $suma_ponderada_curso;
+                $cantidad_cursos++;
+            }
+            
+            // El promedio del bimestre es el promedio de los promedios de todos los cursos
+            $promedio_bimestre = $cantidad_cursos > 0 ? $suma_promedios_cursos / $cantidad_cursos : 0;
+            
+            // Añadir información del bimestre al array de bimestres
+            $bimestres[] = [
+                'numero' => $num_bimestre,
+                'competencias' => $competencias_bimestre,
+                'cursos' => $cursos_promedios,
+                'promedio_bimestre' => strval(intval(round($promedio_bimestre)))
+            ];
+            
+            // Acumular para promedio anual
+            $promedio_anual += $promedio_bimestre;
+            $bimestres_count++;
+        }
+    }
+    
+    // Calcular promedio anual (solo si hay bimestres procesados)
+    $promedio_anual_final = $bimestres_count > 0 ? $promedio_anual / $bimestres_count : 0;
+    
+        // Calcular promedios anuales por curso para este año
+        $cursos_anuales = [];
+        foreach ($bimestres as $bimestre) {
+            if (isset($bimestre['cursos'])) {
+                foreach ($bimestre['cursos'] as $curso) {
+                    $curso_nombre = $curso['curso'];
+                    $curso_promedio = floatval(str_replace(',', '.', $curso['promedio']));
+                    
+                    if (!isset($cursos_anuales[$curso_nombre])) {
+                        $cursos_anuales[$curso_nombre] = [
+                            'area' => $curso['area'],
+                            'promedios' => [],
+                            'bimestres' => []
+                        ];
+                    }
+                    
+                    $cursos_anuales[$curso_nombre]['promedios'][] = $curso_promedio;
+                    $cursos_anuales[$curso_nombre]['bimestres'][$bimestre['numero']] = $curso_promedio;
+                }
+            }
+        }
+        
+        $promedios_anuales_cursos = [];
+        foreach ($cursos_anuales as $curso_nombre => $curso_data) {
+            $promedio_anual_curso = 0;
+            if (count($curso_data['promedios']) > 0) {
+                $promedio_anual_curso = array_sum($curso_data['promedios']) / count($curso_data['promedios']);
+            }
+            
+            $promedios_anuales_cursos[] = [
+                'curso' => $curso_nombre,
+                'area' => $curso_data['area'],
+                'promedio_anual' => strval(intval(round($promedio_anual_curso))),
+                'detalle_bimestres' => $curso_data['bimestres']
+            ];
+        }
+        
+        // Agregar datos del año académico al array de años con notas
+        if (!empty($bimestres)) {
+            $años_con_notas[] = [
+                'año' => $año_info['año'],
+                'descripcion' => $año_info['descripcion'],
+                'es_activo' => $año_info['es_activo'],
+                'bimestres' => $bimestres,
+                'promedio_anual' => strval(intval(round($promedio_anual_final))),
+                'promedios_por_curso' => $promedios_anuales_cursos
+            ];
+        }
+    }
+    
+    // Obtener información del año académico activo
+    $active_year_result = $conn->query("SELECT year, description FROM academic_year WHERE is_active = 1 LIMIT 1");
+    $active_year_info = $active_year_result->fetch_assoc();
+    $current_year = $active_year_info ? $active_year_info['year'] : 'N/A';
+    
+    // Armar objeto de respuesta
+    $data = [
+        'alumno' => $student_name,
+        'dni' => $dni,
+        'nivel' => $nivel_alumno,
+        'grado' => $grado_alumno,
+        'seccion' => $seccion_alumno,
+        'anio_academico_actual' => $current_year,
+        'años_disponibles' => $años_disponibles,
+        'años_academicos' => $años_con_notas,
+        'total_años_con_notas' => count($años_con_notas),
+        'debug_errors' => $debug_errors
+    ];
+    
+    echo json_encode(['status' => 'ok', 'data' => $data]);
+    exit;
+}
+
+echo json_encode(['status' => 'error', 'message' => 'ID de estudiante no encontrado']);
 ?>
