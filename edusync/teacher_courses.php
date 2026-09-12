@@ -65,7 +65,6 @@ if (($_GET['partial'] ?? '') === 'course_data') {
 	echo json_encode(['status'=>1,'rows'=>$rows_html,'pending_rows'=>$pending_html,'summary'=>$stats]); exit;
 }
 ?>
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
 	.page-title-wrapper {
 		margin-bottom: 16px;
@@ -632,7 +631,6 @@ if (($_GET['partial'] ?? '') === 'course_data') {
 	</div></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
     var groupingMode = 'detail';
