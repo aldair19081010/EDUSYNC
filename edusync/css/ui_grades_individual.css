@@ -1,305 +1,259 @@
 /*
  * EduSync - Ficha individual del Reporte de notas
- * Ajustes visuales específicos para evitar que las reglas globales de tablas
- * deformen la lectura de la ficha individual.
+ * Correcciones visuales aisladas para que la ficha no herede centrados,
+ * anchos ni espaciados de las tablas generales del reporte.
  */
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report {
-    width: 100% !important;
-    max-width: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    color: var(--edu-text, #344054) !important;
-    text-align: left !important;
+    width:100%!important;
+    max-width:none!important;
+    margin:0!important;
+    padding:0!important;
+    color:var(--edu-text,#344054)!important;
+    text-align:left!important;
 }
 
-/* Cabecera de la ficha: información a la izquierda y resultado compacto a la derecha. */
+/* Cabecera de la ficha */
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-heading {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto !important;
-    align-items: end !important;
-    gap: 1rem !important;
-    margin: 0 0 1rem !important;
-    padding: 0 0 1rem !important;
-    border-bottom: 1px solid var(--edu-border, #e3e6f0) !important;
-    text-align: left !important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto!important;
+    align-items:end!important;
+    gap:1rem!important;
+    margin:0 0 1rem!important;
+    padding:0 0 1rem!important;
+    border-bottom:1px solid var(--edu-border,#e3e6f0)!important;
+    text-align:left!important;
 }
 
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-heading > div:first-child {
-    min-width: 0 !important;
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-heading>div:first-child {
+    min-width:0!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report h3 {
-    margin: .2rem 0 !important;
-    color: var(--edu-heading, #233b52) !important;
-    font-size: 1.15rem !important;
-    font-weight: 700 !important;
-    line-height: 1.3 !important;
-    text-align: left !important;
+    margin:.2rem 0!important;
+    color:var(--edu-heading,#233b52)!important;
+    font-size:1.15rem!important;
+    font-weight:700!important;
+    line-height:1.3!important;
+    text-align:left!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-meta {
-    color: var(--edu-muted, #6e7891) !important;
-    font-size: .8rem !important;
-    text-align: left !important;
+    color:var(--edu-muted,#6e7891)!important;
+    font-size:.8rem!important;
+    text-align:left!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-result {
-    min-width: 150px !important;
-    padding: .65rem .9rem !important;
-    background: var(--edu-surface-soft, #f8f9fc) !important;
-    border: 1px solid var(--edu-border, #e3e6f0) !important;
-    border-radius: var(--edu-radius-sm, .42rem) !important;
-    text-align: right !important;
-    box-shadow: none !important;
+    min-width:150px!important;
+    padding:.65rem .9rem!important;
+    background:var(--edu-surface-soft,#f8f9fc)!important;
+    border:1px solid var(--edu-border,#e3e6f0)!important;
+    border-radius:var(--edu-radius-sm,.42rem)!important;
+    text-align:right!important;
+    box-shadow:none!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-result small {
-    display: block !important;
-    margin-bottom: .1rem !important;
-    color: var(--edu-muted, #6e7891) !important;
-    font-size: .72rem !important;
-    line-height: 1.2 !important;
+    display:block!important;
+    margin-bottom:.1rem!important;
+    color:var(--edu-muted,#6e7891)!important;
+    font-size:.72rem!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-result strong {
-    display: block !important;
-    color: var(--edu-primary, #4285f4) !important;
-    font-size: 1.35rem !important;
-    font-weight: 700 !important;
-    line-height: 1.15 !important;
+    display:block!important;
+    color:var(--edu-primary,#4285f4)!important;
+    font-size:1.35rem!important;
+    font-weight:700!important;
+    line-height:1.15!important;
 }
 
-/* Cada competencia es una sola tarjeta limpia, sin sensación de caja dentro de caja. */
+/* Tarjetas por competencia y cálculo */
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card {
-    width: 100% !important;
-    margin: 0 0 1rem !important;
-    overflow: hidden !important;
-    background: #fff !important;
-    border: 1px solid var(--edu-border, #e3e6f0) !important;
-    border-radius: var(--edu-radius, .6rem) !important;
-    box-shadow: none !important;
+    width:100%!important;
+    margin:0 0 1rem!important;
+    overflow:hidden!important;
+    background:#fff!important;
+    border:1px solid var(--edu-border,#e3e6f0)!important;
+    border-radius:var(--edu-radius,.6rem)!important;
+    box-shadow:none!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header {
-    min-height: 48px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: .5rem !important;
-    flex-wrap: wrap !important;
-    padding: .72rem .9rem !important;
-    background: var(--edu-surface-soft, #f8f9fc) !important;
-    border: 0 !important;
-    border-bottom: 1px solid var(--edu-border, #e3e6f0) !important;
-    text-align: left !important;
+    min-height:48px!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-start!important;
+    gap:.5rem!important;
+    flex-wrap:wrap!important;
+    padding:.72rem .9rem!important;
+    background:var(--edu-surface-soft,#f8f9fc)!important;
+    border:0!important;
+    border-bottom:1px solid var(--edu-border,#e3e6f0)!important;
+    text-align:left!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header h4 {
-    flex: 1 1 260px !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-    color: var(--edu-heading, #233b52) !important;
-    font-size: .92rem !important;
-    font-weight: 700 !important;
-    line-height: 1.3 !important;
-    text-align: left !important;
+    flex:1 1 280px!important;
+    min-width:0!important;
+    margin:0!important;
+    color:var(--edu-heading,#233b52)!important;
+    font-size:.92rem!important;
+    font-weight:700!important;
+    line-height:1.3!important;
+    text-align:left!important;
 }
 
-/* Si la cabecera tiene uno o más badges, permanecen agrupados a la derecha. */
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header h4 + * {
-    margin-left: auto !important;
+/* El primer elemento tras el título empuja todos los indicadores al extremo derecho. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header h4+* {
+    margin-left:auto!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .badge,
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .gr-status-pill {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: auto !important;
-    min-width: 0 !important;
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    padding: .28rem .55rem !important;
-    white-space: nowrap !important;
-    font-size: .72rem !important;
-    line-height: 1.2 !important;
+    display:inline-flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    width:auto!important;
+    min-width:0!important;
+    margin-top:0!important;
+    margin-bottom:0!important;
+    padding:.28rem .55rem!important;
+    white-space:nowrap!important;
+    font-size:.72rem!important;
+    line-height:1.2!important;
 }
 
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .badge + .badge,
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .badge + .gr-status-pill,
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .gr-status-pill + .badge,
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .gr-status-pill + .gr-status-pill {
-    margin-left: 0 !important;
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .badge+*,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header .gr-status-pill+* {
+    margin-left:0!important;
 }
 
-/* Tablas de la ficha: el texto nunca se centra por herencia global. */
+/* Tablas internas: el texto se alinea a la izquierda y las cifras a la derecha. */
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .table-responsive {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: 0 !important;
+    width:100%!important;
+    margin:0!important;
+    padding:0!important;
+    border:0!important;
+    overflow-x:auto!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table {
-    width: 100% !important;
-    max-width: none !important;
-    margin: 0 !important;
-    color: var(--edu-text, #344054) !important;
-    font-size: .84rem !important;
-    background: #fff !important;
-    border-collapse: collapse !important;
+    width:100%!important;
+    max-width:none!important;
+    margin:0!important;
+    table-layout:auto!important;
+    color:var(--edu-text,#344054)!important;
+    font-size:.84rem!important;
+    background:#fff!important;
+    border-collapse:collapse!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table thead th,
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tbody td,
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tfoot th,
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tfoot td {
-    text-align: left !important;
-    vertical-align: middle !important;
+    text-align:left!important;
+    vertical-align:middle!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table thead th {
-    padding: .62rem .9rem !important;
-    background: #fff !important;
-    color: #526274 !important;
-    border-top: 0 !important;
-    border-bottom: 1px solid var(--edu-border, #e3e6f0) !important;
-    font-size: .73rem !important;
-    font-weight: 700 !important;
-    white-space: nowrap !important;
+    padding:.62rem .9rem!important;
+    background:#fff!important;
+    color:#526274!important;
+    border-top:0!important;
+    border-bottom:1px solid var(--edu-border,#e3e6f0)!important;
+    font-size:.73rem!important;
+    font-weight:700!important;
+    white-space:nowrap!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tbody td {
-    padding: .7rem .9rem !important;
-    background: #fff !important;
-    border-top: 1px solid var(--edu-border-soft, #edf0f5) !important;
+    padding:.7rem .9rem!important;
+    background:#fff!important;
+    border-top:1px solid var(--edu-border-soft,#edf0f5)!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tbody tr:hover td {
-    background: var(--edu-hover, #f7faff) !important;
+    background:var(--edu-hover,#f7faff)!important;
 }
 
-/* En tablas de evaluaciones, Nota es una columna compacta pegada a la derecha. */
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card:not(:last-of-type) table.table {
-    table-layout: fixed !important;
-}
-
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card:not(:last-of-type) table.table th:last-child,
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card:not(:last-of-type) table.table td:last-child {
-    width: 170px !important;
-    text-align: right !important;
-    white-space: nowrap !important;
-}
-
+/* Todas las columnas numéricas tienen un ancho compacto y consistente. */
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-number {
-    text-align: right !important;
-    white-space: nowrap !important;
-    font-variant-numeric: tabular-nums !important;
+    width:140px!important;
+    text-align:right!important;
+    white-space:nowrap!important;
+    font-variant-numeric:tabular-nums!important;
 }
 
-/* Si existe badge/estado junto a una nota, queda en la misma línea. */
+/* Los estados asociados a una nota permanecen en la misma línea. */
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-number br {
-    display: none !important;
+    display:none!important;
 }
 
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-number .badge,
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-number .gr-status-pill {
-    display: inline-flex !important;
-    align-items: center !important;
-    width: auto !important;
-    margin: 0 0 0 .45rem !important;
-    vertical-align: middle !important;
-    white-space: nowrap !important;
+    display:inline-flex!important;
+    align-items:center!important;
+    width:auto!important;
+    margin:0 0 0 .45rem!important;
+    vertical-align:middle!important;
+    white-space:nowrap!important;
 }
 
-/* La fila de promedio se lee como resumen y no como una tercera sección centrada. */
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card:not(:last-of-type) table.table tbody tr.bg-light td {
-    background: var(--edu-surface-soft, #f8f9fc) !important;
-    border-top: 1px solid var(--edu-border, #e3e6f0) !important;
-    font-weight: 700 !important;
+/* Promedios y pie de cálculo se distinguen sin crear otra caja visual. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tbody tr.bg-light td {
+    background:var(--edu-surface-soft,#f8f9fc)!important;
+    border-top:1px solid var(--edu-border,#e3e6f0)!important;
+    font-weight:700!important;
 }
 
-/* Cálculo del promedio: competencia ocupa el espacio y las cifras usan columnas compactas. */
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table {
-    table-layout: fixed !important;
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tfoot th {
+    padding:.72rem .9rem!important;
+    background:var(--edu-surface-soft,#f8f9fc)!important;
+    border-top:1px solid var(--edu-border,#e3e6f0)!important;
+    color:var(--edu-heading,#233b52)!important;
+    font-weight:700!important;
 }
 
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table th:first-child,
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table td:first-child {
-    width: 58% !important;
-    text-align: left !important;
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table tfoot .ir-number {
+    color:var(--edu-primary,#4285f4)!important;
+    font-size:.95rem!important;
 }
 
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table th:nth-child(2),
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table td:nth-child(2) {
-    width: 14% !important;
-    text-align: right !important;
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report>p.small.text-muted {
+    margin:-.15rem 0 1rem!important;
+    color:var(--edu-muted,#6e7891)!important;
+    line-height:1.45!important;
+    text-align:left!important;
 }
 
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table th:nth-child(3),
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table td:nth-child(3) {
-    width: 13% !important;
-    text-align: right !important;
-}
-
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table th:nth-child(4),
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table td:nth-child(4) {
-    width: 15% !important;
-    text-align: right !important;
-}
-
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table tfoot th {
-    padding: .72rem .9rem !important;
-    background: var(--edu-surface-soft, #f8f9fc) !important;
-    border-top: 1px solid var(--edu-border, #e3e6f0) !important;
-    color: var(--edu-heading, #233b52) !important;
-    font-weight: 700 !important;
-}
-
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table tfoot th:last-child {
-    text-align: right !important;
-    color: var(--edu-primary, #4285f4) !important;
-    font-size: .95rem !important;
-}
-
-body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > p.small.text-muted {
-    margin: -.15rem 0 1rem !important;
-    color: var(--edu-muted, #6e7891) !important;
-    line-height: 1.45 !important;
-    text-align: left !important;
-}
-
-@media (max-width: 767.98px) {
+@media (max-width:767.98px) {
     body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-heading {
-        grid-template-columns: 1fr !important;
-        align-items: stretch !important;
+        grid-template-columns:1fr!important;
+        align-items:stretch!important;
     }
 
     body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-result {
-        width: 100% !important;
-        min-width: 0 !important;
-        text-align: left !important;
+        width:100%!important;
+        min-width:0!important;
+        text-align:left!important;
     }
 
     body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header h4 {
-        flex-basis: 100% !important;
+        flex-basis:100%!important;
     }
 
-    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header h4 + * {
-        margin-left: 0 !important;
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card-header h4+* {
+        margin-left:0!important;
     }
 
-    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card:not(:last-of-type) table.table th:last-child,
-    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-card:not(:last-of-type) table.table td:last-child {
-        width: 115px !important;
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-number {
+        width:110px!important;
     }
 
-    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type .table-responsive {
-        overflow-x: auto !important;
-    }
-
-    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report > .ir-card:last-of-type table.table {
-        min-width: 620px !important;
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report table.table {
+        font-size:.8rem!important;
     }
 }
