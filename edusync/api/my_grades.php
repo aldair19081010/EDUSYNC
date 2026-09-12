@@ -1,455 +1,401 @@
 <?php
-ini_set('display_errors', '0');
-ini_set('session.save_path', __DIR__ . '/../tmp');
-if (!is_dir(__DIR__ . '/../tmp')) @mkdir(__DIR__ . '/../tmp');
-session_name('EDUSYNCSESSID');
-session_set_cookie_params([
-    'path' => '/',
-    'httponly' => true,
-    'samesite' => 'Lax'
-]);
-if (session_status() === PHP_SESSION_NONE) session_start();
+include '../db_connect.php';
 
 header('Content-Type: application/json; charset=utf-8');
-require_once '../db_connect.php';
 
-function grades_reply($status, $message = '', $data = [], $extra = []) {
-    $payload = array_merge(['status' => $status], $extra);
-    if ($message !== '') $payload['message'] = $message;
-    if ($data !== []) $payload['data'] = $data;
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    exit;
+// Ocultar errores temporalmente de HTML (los guardaremos dinámicamente)
+ini_set('display_errors', 0);
+
+function get_grade_for_calculation($grade) {
+    if ($grade === null || $grade === '') return 0;
+    
+    $grade = strtoupper(trim(strval($grade)));
+    
+    // Si es letra, convertir a valor numérico
+    if (is_letter_grade($grade)) {
+        return letter_to_numeric_for_calc($grade);
+    }
+    
+    // Si es numérico, extraer y validar
+    $numeric = floatval($grade);
+    return max(0, min(20, $numeric)); // Asegurar que esté entre 0 y 20
 }
-function grades_is_local_request() {
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    $addr = (string)($_SERVER['SERVER_ADDR'] ?? '');
-    $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
-    return strpos($host, 'localhost') !== false
-        || strpos($host, '127.0.0.1') !== false
-        || in_array($addr, ['127.0.0.1', '::1'], true)
-        || in_array($remote, ['127.0.0.1', '::1'], true);
-}
-function grades_has_table($db, $table) {
-    $safe = $db->real_escape_string((string)$table);
-    $q = $db->query("SHOW TABLES LIKE '{$safe}'");
-    return $q && $q->num_rows > 0;
-}
-function grades_has_column($db, $table, $column) {
-    $tableSafe = str_replace('`', '', (string)$table);
-    $columnSafe = $db->real_escape_string((string)$column);
-    $q = $db->query("SHOW COLUMNS FROM `{$tableSafe}` LIKE '{$columnSafe}'");
-    return $q && $q->num_rows > 0;
-}
+
 function is_letter_grade($grade) {
-    return in_array(strtoupper(trim((string)$grade)), ['AD', 'A', 'B', 'C'], true);
+    $valid_letters = ['AD', 'A', 'B', 'C'];
+    return in_array(strtoupper(trim(strval($grade))), $valid_letters);
 }
+
 function letter_to_numeric_for_calc($grade) {
-    switch (strtoupper(trim((string)$grade))) {
-        case 'AD': return 20.0;
-        case 'A': return 17.0;
-        case 'B': return 13.0;
-        case 'C': return 10.0;
-        default: return 0.0;
+    switch (strtoupper(trim(strval($grade)))) {
+        case 'AD': return 20;
+        case 'A': return 17;
+        case 'B': return 13;
+        case 'C': return 10;
+        default: return 0;
     }
 }
-function get_grade_for_calculation($grade) {
-    if ($grade === null || trim((string)$grade) === '') return null;
-    $value = trim((string)$grade);
-    if (is_letter_grade($value)) return letter_to_numeric_for_calc($value);
-    if (!is_numeric(str_replace(',', '.', $value))) return null;
-    $numeric = (float)str_replace(',', '.', $value);
-    return max(0.0, min(20.0, $numeric));
-}
-function numeric_to_level($value) {
-    $value = (float)$value;
-    if ($value >= 18) return 'AD';
-    if ($value >= 14) return 'A';
-    if ($value >= 11) return 'B';
-    return 'C';
-}
-function normalize_bimester($value) {
-    $raw = strtoupper(trim((string)$value));
-    if ($raw === '') return '1';
-    $compact = preg_replace('/\s+/', '', $raw);
-    $map = [
-        'I' => '1', 'II' => '2', 'III' => '3', 'IV' => '4',
-        '1' => '1', '2' => '2', '3' => '3', '4' => '4',
-        '1RO' => '1', '1ER' => '1', 'PRIMERO' => '1', 'PRIMER' => '1',
-        '2DO' => '2', 'SEGUNDO' => '2', '3RO' => '3', 'TERCERO' => '3',
-        '4TO' => '4', 'CUARTO' => '4'
-    ];
-    if (isset($map[$compact])) return $map[$compact];
-    if (preg_match('/(?:BIMESTRE|BIM|B)?([1-4])/', $compact, $m)) return $m[1];
-    return '1';
-}
-function scale_type($letterCount, $numericCount) {
-    if ($letterCount > 0 && $numericCount === 0) return 'literal';
-    if ($numericCount > 0 && $letterCount === 0) return 'numerica';
-    if ($letterCount > 0 && $numericCount > 0) return 'mixta';
-    return 'sin_datos';
-}
-function safe_int_ids($ids) {
-    return array_values(array_unique(array_filter(array_map('intval', $ids), function ($id) { return $id > 0; })));
-}
+
+$dni = $_GET['dni'] ?? ($_POST['dni'] ?? '');
+$bimestre = $_GET['bimestre'] ?? ($_POST['bimestre'] ?? '');
+$data = [];
+$debug_errors = [];
 
 try {
-    foreach (['student','academic_year','evaluation_grades','evaluations','teacher_courses','academic_courses'] as $requiredTable) {
-        if (!grades_has_table($conn, $requiredTable)) {
-            throw new RuntimeException("Falta la tabla requerida: {$requiredTable}");
-        }
+    if (!$dni) {
+        echo json_encode(['status' => 'error', 'message' => 'DNI no recibido']);
+        exit;
     }
 
-    $sessionStudentId = (int)($_SESSION['student_id'] ?? 0);
-    $sessionSchoolId = (int)($_SESSION['student_school_id'] ?? ($_SESSION['login_school_id'] ?? 0));
-    $sessionIsStudent = !empty($_SESSION['student_logged_in']) || (int)($_SESSION['login_type'] ?? 0) === 4;
-    $requestedDni = trim((string)($_GET['dni'] ?? ($_POST['dni'] ?? '')));
-    $requestedSchoolId = (int)($_GET['school_id'] ?? ($_POST['school_id'] ?? 0));
-    $bimestreFilter = trim((string)($_GET['bimestre'] ?? ($_POST['bimestre'] ?? '')));
-    if ($bimestreFilter !== '') $bimestreFilter = normalize_bimester($bimestreFilter);
+// 1. Obtener TODOS los IDs del estudiante que coinciden con su DNI
+$stus_query = $conn->query("SELECT id, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = '$dni'");
+if ($stus_query->num_rows == 0) {
+    // Si no lo encuentra por DNI, intentaremos hacer un rescate broad-match en caso que hayan migrado el ID
+    echo json_encode(['status' => 'error', 'message' => 'Estudiante no encontrado']);
+    exit;
+}
 
-    $student = null;
-    $authMode = 'legacy_dni';
-    if ($sessionIsStudent && $sessionStudentId > 0) {
-        $authMode = 'session';
-        if ($sessionSchoolId > 0) {
-            $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id = ? AND school_id = ? LIMIT 1');
-            if (!$stmt) throw new RuntimeException('Consulta estudiante: ' . $conn->error);
-            $stmt->bind_param('ii', $sessionStudentId, $sessionSchoolId);
-        } else {
-            $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id = ? LIMIT 1');
-            if (!$stmt) throw new RuntimeException('Consulta estudiante: ' . $conn->error);
-            $stmt->bind_param('i', $sessionStudentId);
-        }
-        $stmt->execute();
-        $student = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-    } else {
-        if ($requestedDni === '') grades_reply('error', 'DNI no recibido');
-        if ($requestedSchoolId > 0) {
-            $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = ? AND school_id = ? ORDER BY id DESC LIMIT 1');
-            if (!$stmt) throw new RuntimeException('Consulta estudiante por DNI: ' . $conn->error);
-            $stmt->bind_param('si', $requestedDni, $requestedSchoolId);
-        } else {
-            $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = ? ORDER BY id DESC LIMIT 1');
-            if (!$stmt) throw new RuntimeException('Consulta estudiante por DNI: ' . $conn->error);
-            $stmt->bind_param('s', $requestedDni);
-        }
-        $stmt->execute();
-        $student = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-    }
-    if (!$student) grades_reply('error', 'Estudiante no encontrado');
+$student_ids = [];
+while ($row = $stus_query->fetch_assoc()) {
+    $student_ids[] = $row['id'];
+}
 
-    $studentId = (int)$student['id'];
-    $studentSchoolId = (int)$student['school_id'];
-    $studentDni = trim((string)$student['id_no']);
-    $studentName = trim((string)$student['name']);
-    $studentIds = [$studentId];
-    if ($studentDni !== '') {
-        $stmt = $conn->prepare("SELECT id FROM student WHERE school_id = ? AND (id_no = ? OR (name = ? AND (id_no IS NULL OR TRIM(id_no) = '')))");
-        if ($stmt) {
-            $stmt->bind_param('iss', $studentSchoolId, $studentDni, $studentName);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            while ($row = $res->fetch_assoc()) $studentIds[] = (int)$row['id'];
-            $stmt->close();
-        }
-    }
-    $studentIds = safe_int_ids($studentIds);
-    $studentIdsSql = implode(',', $studentIds);
-    if ($studentIdsSql === '') $studentIdsSql = (string)$studentId;
+// Rescatar por NOMBRE para atrapar posibles clones donde el administrador olvidó tipear el DNI en 2025
+$stu_first = $conn->query("SELECT id, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = '$dni' ORDER BY id DESC LIMIT 1")->fetch_assoc();
+$student_name = $stu_first['name'] ?? '';
 
-    if (grades_has_table($conn, 'partial_payments')) {
-        $debtQuery = $conn->query("SELECT amount, deadline FROM partial_payments WHERE student_id IN ($studentIdsSql) AND status = 'unpaid' ORDER BY deadline ASC");
-        if ($debtQuery) {
-            $unpaid = [];
-            while ($row = $debtQuery->fetch_assoc()) $unpaid[] = $row;
-            $recentUnpaid = array_slice($unpaid, -2);
-            if (count($recentUnpaid) >= 2) {
-                $pendingTotal = 0.0;
-                foreach ($recentUnpaid as $pending) $pendingTotal += (float)$pending['amount'];
-                grades_reply('error', 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).', [], [
-                    'reason' => 'debt',
-                    'total_pendiente_ultimas' => number_format($pendingTotal, 2, '.', '')
-                ]);
+if (!empty($student_name)) {
+    $name_safe = $conn->real_escape_string($student_name);
+    $stus_name_q = $conn->query("SELECT id FROM student WHERE name = '$name_safe' AND id_no != '$dni'");
+    if ($stus_name_q) {
+        while ($r = $stus_name_q->fetch_assoc()) {
+            if (!in_array($r['id'], $student_ids)) {
+                $student_ids[] = $r['id'];
             }
         }
     }
+}
 
-    $yearHasSchool = grades_has_column($conn, 'academic_year', 'school_id');
-    $yearHasStart = grades_has_column($conn, 'academic_year', 'start_date');
-    $yearHasEnd = grades_has_column($conn, 'academic_year', 'end_date');
-    $startSelect = $yearHasStart ? 'start_date' : 'NULL AS start_date';
-    $endSelect = $yearHasEnd ? 'end_date' : 'NULL AS end_date';
+$student_ids_sql = implode(',', $student_ids);
+$student_id = $stu_first['id'] ?? 0;
+$student_school_id = $stu_first['school_id'] ?? 1;
+$nivel_alumno = $stu_first['nivel'] ?? '';
+$grado_alumno = $stu_first['grado'] ?? '';
+$seccion_alumno = $stu_first['seccion'] ?? '';
 
-    if ($yearHasSchool) {
-        $stmt = $conn->prepare("SELECT id, year, description, is_active, $startSelect, $endSelect FROM academic_year WHERE school_id = ? ORDER BY year DESC, id DESC");
-        if (!$stmt) throw new RuntimeException('Consulta años académicos: ' . $conn->error);
-        $stmt->bind_param('i', $studentSchoolId);
-        $stmt->execute();
-        $yearsResult = $stmt->get_result();
-    } else {
-        $stmt = null;
-        $yearsResult = $conn->query("SELECT id, year, description, is_active, $startSelect, $endSelect FROM academic_year ORDER BY year DESC, id DESC");
-        if (!$yearsResult) throw new RuntimeException('Consulta años académicos: ' . $conn->error);
-    }
+if ($student_id) {
+    // Verificar si las calificaciones están bloqueadas por deuda
+    $debt_check = $conn->query("
+        SELECT * FROM partial_payments 
+        WHERE student_id IN ($student_ids_sql) AND status = 'unpaid'
+        ORDER BY deadline ASC
+    ");
+    
+    $filas_consideradas = 0;
+    $ultimas_con_deuda = 0;
+    $total_pendiente_ultimas = 0;
 
-    $yearsGrouped = [];
-    $yearIdToLabel = [];
-    while ($year = $yearsResult->fetch_assoc()) {
-        $label = (string)$year['year'];
-        if (!isset($yearsGrouped[$label])) {
-            $yearsGrouped[$label] = ['año'=>$label,'descripcion'=>(string)($year['description'] ?? ''),'es_activo'=>false,'ids'=>[],'start_date'=>null,'end_date'=>null];
+    if ($debt_check->num_rows > 0) {
+        $todos_los_pagos = [];
+        while ($row = $debt_check->fetch_assoc()) {
+            $todos_los_pagos[] = $row;
         }
-        $yearId = (int)$year['id'];
-        $yearsGrouped[$label]['ids'][] = $yearId;
-        $yearIdToLabel[$yearId] = $label;
-        if ((int)$year['is_active'] === 1) $yearsGrouped[$label]['es_activo'] = true;
-        if (!empty($year['start_date']) && ($yearsGrouped[$label]['start_date'] === null || $year['start_date'] < $yearsGrouped[$label]['start_date'])) $yearsGrouped[$label]['start_date'] = $year['start_date'];
-        if (!empty($year['end_date']) && ($yearsGrouped[$label]['end_date'] === null || $year['end_date'] > $yearsGrouped[$label]['end_date'])) $yearsGrouped[$label]['end_date'] = $year['end_date'];
-    }
-    if ($stmt) $stmt->close();
-    uksort($yearsGrouped, function ($a, $b) { return strnatcmp((string)$b, (string)$a); });
-    $yearsAvailableInternal = array_values($yearsGrouped);
-
-    $hasAreas = grades_has_table($conn, 'areas');
-    $hasCompetencies = grades_has_table($conn, 'general_course_competencies');
-    $areaJoin = $hasAreas ? 'LEFT JOIN areas a ON a.id = ac.area_id' : '';
-    $competencyJoin = $hasCompetencies ? 'LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id' : '';
-    $areaNameSelect = $hasAreas && grades_has_column($conn, 'areas', 'name') ? "COALESCE(a.name, 'Área General')" : "'Área General'";
-    $areaColorSelect = $hasAreas && grades_has_column($conn, 'areas', 'color') ? "COALESCE(a.color, '#6c757d')" : "'#6c757d'";
-    $areaDescriptionSelect = $hasAreas && grades_has_column($conn, 'areas', 'description') ? 'a.description' : "''";
-    $compNameSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'name') ? "COALESCE(c.name, 'Evaluación General')" : "'Evaluación General'";
-    $compPercentageSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'percentage') ? 'COALESCE(c.percentage, 100)' : '100';
-    $egCompSelect = grades_has_column($conn, 'evaluation_grades', 'competencia_id') ? 'COALESCE(eg.competencia_id, 0)' : '0';
-    $tcYearSelect = grades_has_column($conn, 'teacher_courses', 'academic_year_id') ? 'tc.academic_year_id' : 'NULL';
-    $eYearSelect = grades_has_column($conn, 'evaluations', 'academic_year_id') ? 'e.academic_year_id' : 'NULL';
-    $bimSelect = grades_has_column($conn, 'evaluations', 'bimestre') ? 'e.bimestre' : "'1'";
-    $createdSelect = grades_has_column($conn, 'evaluations', 'created_at') ? 'e.created_at' : 'NULL';
-    $obsSelect = grades_has_column($conn, 'evaluations', 'description') ? 'e.description' : "''";
-    $courseNameSelect = grades_has_column($conn, 'academic_courses', 'name') ? "COALESCE(ac.name, e.title, 'Curso')" : "COALESCE(e.title, 'Curso')";
-    $courseIdSelect = grades_has_column($conn, 'teacher_courses', 'course_id') ? 'COALESCE(tc.course_id, 0)' : '0';
-
-    $sql = "SELECT e.id AS evaluation_id, e.title, $obsSelect AS observacion, $bimSelect AS bimestre, $createdSelect AS created_at,
-                   eg.grade, $egCompSelect AS competencia_id,
-                   $compNameSelect AS competencia_nombre,
-                   $compPercentageSelect AS porcentaje,
-                   $courseIdSelect AS course_id,
-                   $courseNameSelect AS curso,
-                   $areaNameSelect AS area_nombre,
-                   $areaColorSelect AS area_color,
-                   $areaDescriptionSelect AS area_descripcion,
-                   $tcYearSelect AS tc_year, $eYearSelect AS e_year
-            FROM evaluation_grades eg
-            LEFT JOIN evaluations e ON e.id = eg.evaluation_id
-            LEFT JOIN teacher_courses tc ON tc.id = e.teacher_course_id
-            LEFT JOIN academic_courses ac ON ac.id = tc.course_id
-            $areaJoin
-            $competencyJoin
-            WHERE eg.student_id IN ($studentIdsSql)
-            ORDER BY e.id ASC";
-    $gradesResult = $conn->query($sql);
-    if (!$gradesResult) throw new RuntimeException('Consulta calificaciones: ' . $conn->error);
-
-    $bucket = [];
-    $usedCompetencies = [];
-    while ($row = $gradesResult->fetch_assoc()) {
-        $yearLabel = null;
-        $tcYear = (int)($row['tc_year'] ?? 0);
-        $eYear = (int)($row['e_year'] ?? 0);
-        if ($tcYear > 0 && isset($yearIdToLabel[$tcYear])) $yearLabel = $yearIdToLabel[$tcYear];
-        elseif ($eYear > 0 && isset($yearIdToLabel[$eYear])) $yearLabel = $yearIdToLabel[$eYear];
-        $createdAt = $row['created_at'] ?? null;
-        if ($yearLabel === null && $createdAt) {
-            foreach ($yearsAvailableInternal as $yearInfo) {
-                $start = $yearInfo['start_date'] ?: null;
-                $end = $yearInfo['end_date'] ?: null;
-                if ($start && $end && $createdAt >= $start . ' 00:00:00' && $createdAt <= $end . ' 23:59:59') { $yearLabel = $yearInfo['año']; break; }
-            }
-            if ($yearLabel === null) {
-                $createdYear = substr((string)$createdAt, 0, 4);
-                if (isset($yearsGrouped[$createdYear])) $yearLabel = $createdYear;
+        $pagos_recientes = array_slice($todos_los_pagos, -2);
+        
+        foreach ($pagos_recientes as $pago) {
+            $filas_consideradas++;
+            if ($pago['status'] === 'unpaid') {
+                $ultimas_con_deuda++;
+                $total_pendiente_ultimas += floatval($pago['amount']);
             }
         }
-        if ($yearLabel === null && count($yearsAvailableInternal) === 1) $yearLabel = $yearsAvailableInternal[0]['año'];
-        if ($yearLabel === null && !empty($yearsAvailableInternal)) $yearLabel = $yearsAvailableInternal[count($yearsAvailableInternal)-1]['año'];
-        if ($yearLabel === null) continue;
 
-        $bim = normalize_bimester($row['bimestre'] ?? '');
-        if ($bimestreFilter !== '' && $bim !== $bimestreFilter) continue;
-        $courseId = (int)($row['course_id'] ?? 0);
-        if ($courseId <= 0) $courseId = -1 * max(1, (int)($row['evaluation_id'] ?? 1));
-        $compId = (int)($row['competencia_id'] ?? 0);
+        if ($filas_consideradas >= 2 && $ultimas_con_deuda >= 2) {
+            echo json_encode([
+                'status' => 'error',
+                'reason' => 'debt',
+                'message' => 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).',
+                'total_pendiente_ultimas' => number_format($total_pendiente_ultimas, 2)
+            ]);
+            exit;
+        }
+    }
 
-        if (!isset($bucket[$yearLabel][$bim][$courseId])) {
-            $bucket[$yearLabel][$bim][$courseId] = [
-                'nombre'=>(string)$row['curso'],
-                'area'=>['nombre'=>(string)$row['area_nombre'],'color'=>(string)$row['area_color'],'descripcion'=>(string)($row['area_descripcion'] ?? '')],
-                'competencias'=>[]
+    // MAPEO ABSOLUTO: OBTENER TODAS LAS NOTAS, Y MAPEARLAS EN PHP LADO-MEMORIA
+    // Obtener todos los años disponibles del colegio
+    $years_query = $conn->query("
+        SELECT id, year, description, is_active, start_date, end_date
+        FROM academic_year
+        ORDER BY year DESC
+    ");
+    
+    $años_disponibles = [];
+    $años_agrupados = [];
+    
+    while($y = $years_query->fetch_assoc()) {
+        $ys = $y['year'];
+        if (!isset($años_agrupados[$ys])) {
+            $años_agrupados[$ys] = [
+                'año' => $ys,
+                'descripcion' => $y['description'],
+                'es_activo' => false,
+                'ids' => [],
+                'start_date' => '9999-12-31',
+                'end_date' => '0000-00-00 00:00:00'
             ];
+            $años_disponibles[] =& $años_agrupados[$ys];
         }
-        if (!isset($bucket[$yearLabel][$bim][$courseId]['competencias'][$compId])) {
-            $bucket[$yearLabel][$bim][$courseId]['competencias'][$compId] = [
-                'nombre'=>(string)$row['competencia_nombre'],
-                'peso'=>max(0.0, (float)$row['porcentaje']/100.0),
-                'notas'=>[]
-            ];
-        }
-        $rawGrade = trim((string)$row['grade']);
-        $numericGrade = get_grade_for_calculation($rawGrade);
-        if ($numericGrade === null) continue;
-        $gradeType = is_letter_grade($rawGrade) ? 'literal' : 'numerica';
-        $evaluation = [
-            'evaluacion'=>(string)($row['title'] ?: 'Evaluación'),
-            'titulo'=>(string)($row['title'] ?: 'Evaluación'),
-            'nota'=>$rawGrade,
-            'numeric'=>$numericGrade,
-            'tipo'=>$gradeType,
-            'observacion'=>(string)($row['observacion'] ?? '')
-        ];
-        $bucket[$yearLabel][$bim][$courseId]['competencias'][$compId]['notas'][] = $evaluation;
-        if (!isset($usedCompetencies[$yearLabel][$bim][$compId])) {
-            $usedCompetencies[$yearLabel][$bim][$compId] = ['nombre'=>(string)$row['competencia_nombre'],'peso'=>max(0.0,(float)$row['porcentaje']/100.0)];
-        }
+        $años_agrupados[$ys]['ids'][] = $y['id'];
+        if (!empty($y['start_date']) && $y['start_date'] < $años_agrupados[$ys]['start_date']) $años_agrupados[$ys]['start_date'] = $y['start_date'];
+        if (!empty($y['end_date']) && $y['end_date'] > $años_agrupados[$ys]['end_date']) $años_agrupados[$ys]['end_date'] = $y['end_date'];
+        if ($y['is_active']) $años_agrupados[$ys]['es_activo'] = true;
     }
 
-    $yearsWithGrades = [];
-    foreach ($yearsAvailableInternal as $yearInfo) {
-        $yearLabel = $yearInfo['año'];
-        if (empty($bucket[$yearLabel])) continue;
-        ksort($bucket[$yearLabel], SORT_NATURAL);
-        $bimestersExport = [];
-        $yearBimSum = 0.0;
-        $yearBimCount = 0;
+    // EXTRAER EL MÁXIMO BUCKET DE CALIFICACIONES SIN FILTROS DE WHERE DESTRUCTIVOS
+    $sql_all = "SELECT e.title, eg.grade, 
+            COALESCE(ac.name, e.title) as curso, 
+            e.description as observacion, 
+            COALESCE(tc.course_id, 0) as course_id,
+            COALESCE(a.name, 'Área General') as area_nombre, 
+            COALESCE(a.color, '#6c757d') as area_color, 
+            a.description as area_descripcion,
+            e.bimestre,
+            e.created_at,
+            tc.academic_year_id as tc_year,
+            e.academic_year_id as e_year,
+            COALESCE(eg.competencia_id, 0) as competencia_id,
+            COALESCE(c.name, 'Evaluación General') as competencia_nombre,
+            COALESCE(c.percentage, 100) as porcentaje
+        FROM evaluation_grades eg
+        LEFT JOIN evaluations e ON e.id = eg.evaluation_id
+        LEFT JOIN teacher_courses tc ON tc.id = e.teacher_course_id
+        LEFT JOIN academic_courses ac ON ac.id = tc.course_id
+        LEFT JOIN areas a ON a.id = ac.area_id
+        LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id
+        WHERE eg.student_id IN ($student_ids_sql)";
+        
+    $all_grades_q = $conn->query($sql_all);
+    if (!$all_grades_q) {
+        $debug_errors[] = "Error FATAL SQL Extraction: " . $conn->error;
+    }
 
-        foreach ($bucket[$yearLabel] as $bimNumber => $coursesData) {
-            $coursesExport = [];
-            $bimCourseSum = 0.0;
-            $bimCourseCount = 0;
-            $bimLetterCount = 0;
-            $bimNumericCount = 0;
-
-            foreach ($coursesData as $courseInfo) {
-                $competenciesExport = [];
-                $weightedSum = 0.0;
-                $evaluatedWeight = 0.0;
-                $fallbackSum = 0.0;
-                $fallbackCount = 0;
-                $courseLetterCount = 0;
-                $courseNumericCount = 0;
-
-                foreach ($courseInfo['competencias'] as $compData) {
-                    if (empty($compData['notas'])) continue;
-                    $sum = 0.0; $count = 0; $compLetterCount = 0; $compNumericCount = 0;
-                    foreach ($compData['notas'] as $note) {
-                        $sum += (float)$note['numeric']; $count++;
-                        if (($note['tipo'] ?? '') === 'literal') $compLetterCount++; else $compNumericCount++;
-                    }
-                    if ($count === 0) continue;
-                    $compAverage = $sum/$count;
-                    $weight = (float)$compData['peso'];
-                    if ($weight > 0) { $weightedSum += $compAverage*$weight; $evaluatedWeight += $weight; }
-                    $fallbackSum += $compAverage; $fallbackCount++;
-                    $courseLetterCount += $compLetterCount; $courseNumericCount += $compNumericCount;
-                    $compScale = scale_type($compLetterCount,$compNumericCount);
-                    $competenciesExport[] = [
-                        'competencia'=>$compData['nombre'],'nombre'=>$compData['nombre'],'peso'=>$weight,
-                        'promedio'=>(string)(int)round($compAverage),'promedio_simple'=>(string)(int)round($compAverage),
-                        'nivel_logro'=>numeric_to_level($compAverage),
-                        'resultado'=>$compScale === 'literal' ? numeric_to_level($compAverage) : (string)(int)round($compAverage),
-                        'escala'=>$compScale,'notas'=>$compData['notas'],'evaluaciones'=>$compData['notas']
-                    ];
+    // Contenedor dinámico estructurado: $bucket_anual[año][bimestre][curso_id] -> nota
+    $bucket_anual = [];
+    $competencias_usadas = [];
+    
+    if ($all_grades_q) {
+        while ($grade_row = $all_grades_q->fetch_assoc()) {
+            
+            // Inferir a qué año pertenece
+            $pertence_a_año = null;
+            $tc_year = $grade_row['tc_year'];
+            $e_year = $grade_row['e_year'];
+            $created_dt = $grade_row['created_at'];
+            
+            foreach ($años_disponibles as $año_info) {
+                if (in_array($tc_year, $año_info['ids']) || in_array($e_year, $año_info['ids'])) {
+                    $pertence_a_año = $año_info['año'];
+                    break;
                 }
-                if ($fallbackCount === 0) continue;
-                $courseAverage = $evaluatedWeight > 0 ? ($weightedSum/$evaluatedWeight) : ($fallbackSum/$fallbackCount);
-                $courseScale = scale_type($courseLetterCount,$courseNumericCount);
-                $courseLevel = numeric_to_level($courseAverage);
-                $coursesExport[] = [
-                    'curso'=>$courseInfo['nombre'],'area'=>$courseInfo['area'],'promedio'=>(string)(int)round($courseAverage),
-                    'nivel_logro'=>$courseLevel,'resultado'=>$courseScale === 'literal' ? $courseLevel : (string)(int)round($courseAverage),
-                    'escala'=>$courseScale,'peso_evaluado'=>round($evaluatedWeight*100,2),'competencias'=>$competenciesExport
+                if ($created_dt) {
+                    $y_st = $año_info['start_date'] !== '9999-12-31' ? $año_info['start_date'] : '1970-01-01';
+                    $y_en = $año_info['end_date'] !== '0000-00-00 00:00:00' ? $año_info['end_date'] . ' 23:59:59' : '2099-12-31 23:59:59';
+                    if ($created_dt >= $y_st && $created_dt <= $y_en) {
+                        $pertence_a_año = $año_info['año'];
+                        break;
+                    }
+                }
+            }
+            
+            // Forzar orphans al 2025 si hay un solo año disponible o si queremos agrupar
+            if (!$pertence_a_año && count($años_disponibles) > 0) {
+                 $pertence_a_año = $años_disponibles[count($años_disponibles)-1]['año'];
+            }
+            if (!$pertence_a_año) continue;
+            
+            // Identificar Bimestre
+            $b_num = trim($grade_row['bimestre']);
+            // Si el bimestre de la BD no dice 1, 2, 3 o 4 (ejemplo I, II, o fue borrado), lo encajamos en 1
+            if (empty($b_num) || !in_array($b_num, ['1','2','3','4'])) {
+                $b_num = '1';
+            }
+            
+            // Si el filtro UI requirió un bimestre
+            if ($bimestre !== '' && $b_num !== $bimestre) continue;
+            
+            $c_id = $grade_row['course_id'];
+            $comp_id = $grade_row['competencia_id'];
+            
+            if (!isset($bucket_anual[$pertence_a_año])) $bucket_anual[$pertence_a_año] = [];
+            if (!isset($bucket_anual[$pertence_a_año][$b_num])) $bucket_anual[$pertence_a_año][$b_num] = [];
+            if (!isset($bucket_anual[$pertence_a_año][$b_num][$c_id])) {
+                $bucket_anual[$pertence_a_año][$b_num][$c_id] = [
+                    'nombre' => $grade_row['curso'],
+                    'area' => [
+                        'nombre' => $grade_row['area_nombre'],
+                        'color' => $grade_row['area_color'],
+                        'descripcion' => $grade_row['area_descripcion']
+                    ],
+                    'competencias' => []
                 ];
-                $bimCourseSum += $courseAverage; $bimCourseCount++;
-                $bimLetterCount += $courseLetterCount; $bimNumericCount += $courseNumericCount;
             }
-            if ($bimCourseCount === 0) continue;
-            usort($coursesExport,function($a,$b){return strcasecmp($a['curso'],$b['curso']);});
-            $bimAverage = $bimCourseSum/$bimCourseCount;
-            $bimScale = scale_type($bimLetterCount,$bimNumericCount);
-            $attentionCount = 0;
-            foreach ($coursesExport as $course) if (in_array($course['nivel_logro'],['B','C'],true)) $attentionCount++;
-            $compsExport = [];
-            foreach (($usedCompetencies[$yearLabel][$bimNumber] ?? []) as $id=>$comp) $compsExport[] = ['competencia_id'=>(string)$id,'nombre'=>$comp['nombre'],'peso'=>$comp['peso']];
-            $bimestersExport[] = [
-                'numero'=>(string)$bimNumber,'publicado'=>true,'competencias'=>$compsExport,'cursos'=>$coursesExport,
-                'promedio_bimestre'=>(string)(int)round($bimAverage),'nivel_logro'=>numeric_to_level($bimAverage),
-                'resultado'=>$bimScale === 'literal' ? numeric_to_level($bimAverage) : (string)(int)round($bimAverage),
-                'escala'=>$bimScale,'cursos_evaluados'=>$bimCourseCount,'cursos_por_reforzar'=>$attentionCount
+            
+            if (!isset($bucket_anual[$pertence_a_año][$b_num][$c_id]['competencias'][$comp_id])) {
+                $bucket_anual[$pertence_a_año][$b_num][$c_id]['competencias'][$comp_id] = [
+                    'nombre' => $grade_row['competencia_nombre'],
+                    'peso' => floatval($grade_row['porcentaje'])/100,
+                    'notas' => []
+                ];
+            }
+            
+            $bucket_anual[$pertence_a_año][$b_num][$c_id]['competencias'][$comp_id]['notas'][] = [
+                'titulo' => $grade_row['title'] ?: 'Evaluación huérfana',
+                'nota' => $grade_row['grade'],
+                'numeric' => get_grade_for_calculation($grade_row['grade']),
+                'observacion' => $grade_row['observacion'] ?: ''
             ];
-            $yearBimSum += $bimAverage; $yearBimCount++;
-        }
-        if ($yearBimCount === 0) continue;
-        usort($bimestersExport,function($a,$b){return (int)$a['numero']<=>(int)$b['numero'];});
-        $yearAverage = $yearBimSum/$yearBimCount;
-
-        $annualCoursesMap = [];
-        foreach ($bimestersExport as $bim) {
-            foreach ($bim['cursos'] as $course) {
-                $name = $course['curso'];
-                if (!isset($annualCoursesMap[$name])) $annualCoursesMap[$name] = ['area'=>$course['area'],'promedios'=>[],'bimestres'=>[],'niveles'=>[],'escalas'=>[]];
-                $numeric = (float)$course['promedio'];
-                $annualCoursesMap[$name]['promedios'][] = $numeric;
-                $annualCoursesMap[$name]['bimestres'][$bim['numero']] = $numeric;
-                $annualCoursesMap[$name]['niveles'][$bim['numero']] = $course['nivel_logro'];
-                $annualCoursesMap[$name]['escalas'][$bim['numero']] = $course['escala'];
-            }
-        }
-        $annualCourses = [];
-        foreach ($annualCoursesMap as $name=>$courseData) {
-            $avg = count($courseData['promedios']) ? array_sum($courseData['promedios'])/count($courseData['promedios']) : 0;
-            $bims = $courseData['bimestres']; ksort($bims,SORT_NATURAL); $values = array_values($bims);
-            $trend = 'sin_datos';
-            if (count($values)>=2) { $diff=$values[count($values)-1]-$values[count($values)-2]; $trend=$diff>.5?'sube':($diff<-.5?'baja':'estable'); }
-            $scales = array_values(array_unique($courseData['escalas']));
-            $annualScale = count($scales)===1?$scales[0]:'mixta';
-            $annualCourses[] = [
-                'curso'=>$name,'area'=>$courseData['area'],'promedio_anual'=>(string)(int)round($avg),'nivel_logro'=>numeric_to_level($avg),
-                'resultado'=>$annualScale==='literal'?numeric_to_level($avg):(string)(int)round($avg),'escala'=>$annualScale,
-                'detalle_bimestres'=>$bims,'detalle_niveles'=>$courseData['niveles'],'tendencia'=>$trend
+            
+            if (!isset($competencias_usadas[$pertence_a_año])) $competencias_usadas[$pertence_a_año] = [];
+            if (!isset($competencias_usadas[$pertence_a_año][$b_num])) $competencias_usadas[$pertence_a_año][$b_num] = [];
+            $competencias_usadas[$pertence_a_año][$b_num][$comp_id] = [
+                'nombre' => $grade_row['competencia_nombre'],
+                'peso' => floatval($grade_row['porcentaje'])/100
             ];
         }
-        usort($annualCourses,function($a,$b){return strcasecmp($a['curso'],$b['curso']);});
-        $yearScales = [];
-        foreach ($bimestersExport as $bim) $yearScales[] = $bim['escala'];
-        $yearScales = array_values(array_unique($yearScales));
-        $yearScale = count($yearScales)===1?$yearScales[0]:'mixta';
-        $yearsWithGrades[] = [
-            'año'=>$yearInfo['año'],'descripcion'=>$yearInfo['descripcion'],'es_activo'=>$yearInfo['es_activo'],'bimestres'=>$bimestersExport,
-            'promedio_anual'=>(string)(int)round($yearAverage),'nivel_logro'=>numeric_to_level($yearAverage),
-            'resultado'=>$yearScale==='literal'?numeric_to_level($yearAverage):(string)(int)round($yearAverage),
-            'escala'=>$yearScale,'promedios_por_curso'=>$annualCourses
-        ];
     }
 
-    $yearsAvailable = [];
-    $currentYear = 'N/A';
-    foreach ($yearsAvailableInternal as $yearInfo) {
-        $yearsAvailable[] = ['año'=>$yearInfo['año'],'descripcion'=>$yearInfo['descripcion'],'es_activo'=>$yearInfo['es_activo']];
-        if ($yearInfo['es_activo'] && $currentYear === 'N/A') $currentYear = $yearInfo['año'];
+    $años_con_notas = [];
+    
+    foreach ($años_disponibles as $año_info) {
+        $year_str = $año_info['año'];
+        if (!isset($bucket_anual[$year_str])) continue;
+        
+        $bimestres_export = [];
+        $promedio_anual = 0;
+        $bimestres_count = 0;
+        
+        // ORDENAR LAS CLAVES DE BIMESTRE DE MENOR A MAYOR ('1' primero)
+        ksort($bucket_anual[$year_str]);
+        
+        foreach ($bucket_anual[$year_str] as $b_num => $cursos_data) {
+            $cursos_promedios = [];
+            $suma_promedios_cursos = 0;
+            $cantidad_cursos = 0;
+            
+            foreach ($cursos_data as $c_id => $curso_info) {
+                $suma_ponderada_curso = 0;
+                $competencias_con_nota = 0;
+                $competencias_curso = [];
+                
+                foreach ($curso_info['competencias'] as $comp_id => $comp_data) {
+                    if (count($comp_data['notas']) > 0) {
+                        $suma_notas = 0;
+                        foreach ($comp_data['notas'] as $nota) {
+                            $suma_notas += $nota['numeric'];
+                        }
+                        $prom_comp = $suma_notas / count($comp_data['notas']);
+                        $suma_ponderada_curso += ($prom_comp * $comp_data['peso']);
+                        $competencias_con_nota++;
+                        
+                        $competencias_curso[] = [
+                            'competencia' => $comp_data['nombre'],
+                            'promedio' => strval(intval(round($prom_comp))),
+                            'notas' => $comp_data['notas']
+                        ];
+                    }
+                }
+                
+                if ($competencias_con_nota > 0) {
+                    $cursos_promedios[] = [
+                        'curso' => $curso_info['nombre'],
+                        'area' => $curso_info['area'],
+                        'promedio' => strval(intval(round($suma_ponderada_curso))),
+                        'competencias' => $competencias_curso
+                    ];
+                    $suma_promedios_cursos += $suma_ponderada_curso;
+                    $cantidad_cursos++;
+                }
+            }
+            
+            if ($cantidad_cursos > 0) {
+                $promedio_bimestre = $suma_promedios_cursos / $cantidad_cursos;
+                
+                $comps_bim_raw = $competencias_usadas[$year_str][$b_num] ?? [];
+                $comps_bim = [];
+                foreach ($comps_bim_raw as $k => $c) {
+                    $comps_bim[] = ['competencia_id' => strval($k), 'nombre' => $c['nombre'], 'peso' => $c['peso']];
+                }
+                
+                $bimestres_export[] = [
+                    'numero' => strval($b_num),
+                    'competencias' => $comps_bim,
+                    'cursos' => $cursos_promedios,
+                    'promedio_bimestre' => strval(intval(round($promedio_bimestre)))
+                ];
+                
+                $promedio_anual += $promedio_bimestre;
+                $bimestres_count++;
+            }
+        }
+        
+        $promedio_anual_final = $bimestres_count > 0 ? $promedio_anual / $bimestres_count : 0;
+        
+        $cursos_anuales = [];
+        foreach ($bimestres_export as $bim) {
+            foreach ($bim['cursos'] as $curso) {
+                $cn = $curso['curso'];
+                $cp = floatval(str_replace(',', '.', $curso['promedio']));
+                if (!isset($cursos_anuales[$cn])) $cursos_anuales[$cn] = ['area' => $curso['area'], 'promedios' => [], 'bimestres' => []];
+                $cursos_anuales[$cn]['promedios'][] = $cp;
+                $cursos_anuales[$cn]['bimestres'][$bim['numero']] = $cp;
+            }
+        }
+        
+        $promedios_anuales_cursos = [];
+        foreach ($cursos_anuales as $cn => $cd) {
+            $pac = count($cd['promedios']) > 0 ? array_sum($cd['promedios'])/count($cd['promedios']) : 0;
+            $promedios_anuales_cursos[] = ['curso' => $cn, 'area' => $cd['area'], 'promedio_anual' => strval(intval(round($pac))), 'detalle_bimestres' => $cd['bimestres']];
+        }
+        
+        if (!empty($bimestres_export)) {
+            $años_con_notas[] = [
+                'año' => $año_info['año'],
+                'descripcion' => $año_info['descripcion'],
+                'es_activo' => $año_info['es_activo'],
+                'bimestres' => $bimestres_export,
+                'promedio_anual' => strval(intval(round($promedio_anual_final))),
+                'promedios_por_curso' => $promedios_anuales_cursos
+            ];
+        }
     }
-    grades_reply('ok','',[
-        'alumno'=>$studentName,'dni'=>$studentDni,'nivel'=>(string)($student['nivel'] ?? ''),'grado'=>(string)($student['grado'] ?? ''),'seccion'=>(string)($student['seccion'] ?? ''),
-        'anio_academico_actual'=>$currentYear,'años_disponibles'=>$yearsAvailable,'años_academicos'=>$yearsWithGrades,
-        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode
-    ]);
+    
+    $active_year_result = $conn->query("SELECT year, description FROM academic_year WHERE is_active = 1 LIMIT 1");
+    $active_year_info = $active_year_result->fetch_assoc();
+    $current_year = $active_year_info ? $active_year_info['year'] : 'N/A';
+    
+    $data = [
+        'alumno' => $student_name,
+        'dni' => $dni,
+        'nivel' => $nivel_alumno,
+        'grado' => $grado_alumno,
+        'seccion' => $seccion_alumno,
+        'anio_academico_actual' => $current_year,
+        'años_disponibles' => $años_disponibles,
+        'años_academicos' => $años_con_notas,
+        'total_años_con_notas' => count($años_con_notas),
+        'debug_errors' => $debug_errors
+    ];
+    
+    echo json_encode(['status' => 'ok', 'data' => $data]);
+    exit;
+}
+
+echo json_encode(['status' => 'error', 'message' => 'ID de estudiante no encontrado']);
 } catch (Throwable $e) {
-    error_log('EduSync my_grades.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
-    http_response_code(500);
-    $extra = [];
-    if (grades_is_local_request()) {
-        $extra['detail'] = $e->getMessage();
-        $extra['line'] = $e->getLine();
-    }
-    grades_reply('error', 'No se pudieron cargar las calificaciones. Intenta nuevamente.', [], $extra);
+    echo json_encode([
+        'status' => 'error', 
+        'message' => 'FATAL PHP EXCEPTION: ' . $e->getMessage(),
+        'line' => $e->getLine()
+    ]);
 }
 ?>
