@@ -20,6 +20,20 @@ function grades_reply($status, $message = '', $data = [], $extra = []) {
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
+function grades_is_local_request() {
+    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
+    $addr = (string)($_SERVER['SERVER_ADDR'] ?? '');
+    $remote = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+    return strpos($host, 'localhost') !== false
+        || strpos($host, '127.0.0.1') !== false
+        || in_array($addr, ['127.0.0.1', '::1'], true)
+        || in_array($remote, ['127.0.0.1', '::1'], true);
+}
+function grades_has_table($db, $table) {
+    $safe = $db->real_escape_string((string)$table);
+    $q = $db->query("SHOW TABLES LIKE '{$safe}'");
+    return $q && $q->num_rows > 0;
+}
 function grades_has_column($db, $table, $column) {
     $tableSafe = str_replace('`', '', (string)$table);
     $columnSafe = $db->real_escape_string((string)$column);
@@ -79,6 +93,12 @@ function safe_int_ids($ids) {
 }
 
 try {
+    foreach (['student','academic_year','evaluation_grades','evaluations','teacher_courses','academic_courses'] as $requiredTable) {
+        if (!grades_has_table($conn, $requiredTable)) {
+            throw new RuntimeException("Falta la tabla requerida: {$requiredTable}");
+        }
+    }
+
     $sessionStudentId = (int)($_SESSION['student_id'] ?? 0);
     $sessionSchoolId = (int)($_SESSION['student_school_id'] ?? ($_SESSION['login_school_id'] ?? 0));
     $sessionIsStudent = !empty($_SESSION['student_logged_in']) || (int)($_SESSION['login_type'] ?? 0) === 4;
@@ -93,11 +113,11 @@ try {
         $authMode = 'session';
         if ($sessionSchoolId > 0) {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id = ? AND school_id = ? LIMIT 1');
-            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta del estudiante.');
+            if (!$stmt) throw new RuntimeException('Consulta estudiante: ' . $conn->error);
             $stmt->bind_param('ii', $sessionStudentId, $sessionSchoolId);
         } else {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id = ? LIMIT 1');
-            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta del estudiante.');
+            if (!$stmt) throw new RuntimeException('Consulta estudiante: ' . $conn->error);
             $stmt->bind_param('i', $sessionStudentId);
         }
         $stmt->execute();
@@ -107,11 +127,11 @@ try {
         if ($requestedDni === '') grades_reply('error', 'DNI no recibido');
         if ($requestedSchoolId > 0) {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = ? AND school_id = ? ORDER BY id DESC LIMIT 1');
-            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta por DNI.');
+            if (!$stmt) throw new RuntimeException('Consulta estudiante por DNI: ' . $conn->error);
             $stmt->bind_param('si', $requestedDni, $requestedSchoolId);
         } else {
             $stmt = $conn->prepare('SELECT id, id_no, name, nivel, grado, seccion, status, school_id FROM student WHERE id_no = ? ORDER BY id DESC LIMIT 1');
-            if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta por DNI.');
+            if (!$stmt) throw new RuntimeException('Consulta estudiante por DNI: ' . $conn->error);
             $stmt->bind_param('s', $requestedDni);
         }
         $stmt->execute();
@@ -139,18 +159,20 @@ try {
     $studentIdsSql = implode(',', $studentIds);
     if ($studentIdsSql === '') $studentIdsSql = (string)$studentId;
 
-    $debtQuery = $conn->query("SELECT amount, deadline FROM partial_payments WHERE student_id IN ($studentIdsSql) AND status = 'unpaid' ORDER BY deadline ASC");
-    if ($debtQuery) {
-        $unpaid = [];
-        while ($row = $debtQuery->fetch_assoc()) $unpaid[] = $row;
-        $recentUnpaid = array_slice($unpaid, -2);
-        if (count($recentUnpaid) >= 2) {
-            $pendingTotal = 0.0;
-            foreach ($recentUnpaid as $pending) $pendingTotal += (float)$pending['amount'];
-            grades_reply('error', 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).', [], [
-                'reason' => 'debt',
-                'total_pendiente_ultimas' => number_format($pendingTotal, 2, '.', '')
-            ]);
+    if (grades_has_table($conn, 'partial_payments')) {
+        $debtQuery = $conn->query("SELECT amount, deadline FROM partial_payments WHERE student_id IN ($studentIdsSql) AND status = 'unpaid' ORDER BY deadline ASC");
+        if ($debtQuery) {
+            $unpaid = [];
+            while ($row = $debtQuery->fetch_assoc()) $unpaid[] = $row;
+            $recentUnpaid = array_slice($unpaid, -2);
+            if (count($recentUnpaid) >= 2) {
+                $pendingTotal = 0.0;
+                foreach ($recentUnpaid as $pending) $pendingTotal += (float)$pending['amount'];
+                grades_reply('error', 'No es posible mostrar la información de notas por deuda (2 o más cuotas pendientes).', [], [
+                    'reason' => 'debt',
+                    'total_pendiente_ultimas' => number_format($pendingTotal, 2, '.', '')
+                ]);
+            }
         }
     }
 
@@ -162,14 +184,14 @@ try {
 
     if ($yearHasSchool) {
         $stmt = $conn->prepare("SELECT id, year, description, is_active, $startSelect, $endSelect FROM academic_year WHERE school_id = ? ORDER BY year DESC, id DESC");
-        if (!$stmt) throw new RuntimeException('No se pudo preparar la consulta de años académicos.');
+        if (!$stmt) throw new RuntimeException('Consulta años académicos: ' . $conn->error);
         $stmt->bind_param('i', $studentSchoolId);
         $stmt->execute();
         $yearsResult = $stmt->get_result();
     } else {
         $stmt = null;
         $yearsResult = $conn->query("SELECT id, year, description, is_active, $startSelect, $endSelect FROM academic_year ORDER BY year DESC, id DESC");
-        if (!$yearsResult) throw new RuntimeException('No se pudieron consultar los años académicos.');
+        if (!$yearsResult) throw new RuntimeException('Consulta años académicos: ' . $conn->error);
     }
 
     $yearsGrouped = [];
@@ -190,26 +212,44 @@ try {
     uksort($yearsGrouped, function ($a, $b) { return strnatcmp((string)$b, (string)$a); });
     $yearsAvailableInternal = array_values($yearsGrouped);
 
-    $sql = "SELECT e.id AS evaluation_id, e.title, e.description AS observacion, e.bimestre, e.created_at,
-                   eg.grade, COALESCE(eg.competencia_id, 0) AS competencia_id,
-                   COALESCE(c.name, 'Evaluación General') AS competencia_nombre,
-                   COALESCE(c.percentage, 100) AS porcentaje,
-                   COALESCE(tc.course_id, 0) AS course_id,
-                   COALESCE(ac.name, e.title, 'Curso') AS curso,
-                   COALESCE(a.name, 'Área General') AS area_nombre,
-                   COALESCE(a.color, '#6c757d') AS area_color,
-                   a.description AS area_descripcion,
-                   tc.academic_year_id AS tc_year, e.academic_year_id AS e_year
+    $hasAreas = grades_has_table($conn, 'areas');
+    $hasCompetencies = grades_has_table($conn, 'general_course_competencies');
+    $areaJoin = $hasAreas ? 'LEFT JOIN areas a ON a.id = ac.area_id' : '';
+    $competencyJoin = $hasCompetencies ? 'LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id' : '';
+    $areaNameSelect = $hasAreas && grades_has_column($conn, 'areas', 'name') ? "COALESCE(a.name, 'Área General')" : "'Área General'";
+    $areaColorSelect = $hasAreas && grades_has_column($conn, 'areas', 'color') ? "COALESCE(a.color, '#6c757d')" : "'#6c757d'";
+    $areaDescriptionSelect = $hasAreas && grades_has_column($conn, 'areas', 'description') ? 'a.description' : "''";
+    $compNameSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'name') ? "COALESCE(c.name, 'Evaluación General')" : "'Evaluación General'";
+    $compPercentageSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'percentage') ? 'COALESCE(c.percentage, 100)' : '100';
+    $egCompSelect = grades_has_column($conn, 'evaluation_grades', 'competencia_id') ? 'COALESCE(eg.competencia_id, 0)' : '0';
+    $tcYearSelect = grades_has_column($conn, 'teacher_courses', 'academic_year_id') ? 'tc.academic_year_id' : 'NULL';
+    $eYearSelect = grades_has_column($conn, 'evaluations', 'academic_year_id') ? 'e.academic_year_id' : 'NULL';
+    $bimSelect = grades_has_column($conn, 'evaluations', 'bimestre') ? 'e.bimestre' : "'1'";
+    $createdSelect = grades_has_column($conn, 'evaluations', 'created_at') ? 'e.created_at' : 'NULL';
+    $obsSelect = grades_has_column($conn, 'evaluations', 'description') ? 'e.description' : "''";
+    $courseNameSelect = grades_has_column($conn, 'academic_courses', 'name') ? "COALESCE(ac.name, e.title, 'Curso')" : "COALESCE(e.title, 'Curso')";
+    $courseIdSelect = grades_has_column($conn, 'teacher_courses', 'course_id') ? 'COALESCE(tc.course_id, 0)' : '0';
+
+    $sql = "SELECT e.id AS evaluation_id, e.title, $obsSelect AS observacion, $bimSelect AS bimestre, $createdSelect AS created_at,
+                   eg.grade, $egCompSelect AS competencia_id,
+                   $compNameSelect AS competencia_nombre,
+                   $compPercentageSelect AS porcentaje,
+                   $courseIdSelect AS course_id,
+                   $courseNameSelect AS curso,
+                   $areaNameSelect AS area_nombre,
+                   $areaColorSelect AS area_color,
+                   $areaDescriptionSelect AS area_descripcion,
+                   $tcYearSelect AS tc_year, $eYearSelect AS e_year
             FROM evaluation_grades eg
             LEFT JOIN evaluations e ON e.id = eg.evaluation_id
             LEFT JOIN teacher_courses tc ON tc.id = e.teacher_course_id
             LEFT JOIN academic_courses ac ON ac.id = tc.course_id
-            LEFT JOIN areas a ON a.id = ac.area_id
-            LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id
+            $areaJoin
+            $competencyJoin
             WHERE eg.student_id IN ($studentIdsSql)
-            ORDER BY e.created_at ASC, e.id ASC";
+            ORDER BY e.id ASC";
     $gradesResult = $conn->query($sql);
-    if (!$gradesResult) throw new RuntimeException('No se pudieron consultar las calificaciones.');
+    if (!$gradesResult) throw new RuntimeException('Consulta calificaciones: ' . $conn->error);
 
     $bucket = [];
     $usedCompetencies = [];
@@ -232,6 +272,7 @@ try {
             }
         }
         if ($yearLabel === null && count($yearsAvailableInternal) === 1) $yearLabel = $yearsAvailableInternal[0]['año'];
+        if ($yearLabel === null && !empty($yearsAvailableInternal)) $yearLabel = $yearsAvailableInternal[count($yearsAvailableInternal)-1]['año'];
         if ($yearLabel === null) continue;
 
         $bim = normalize_bimester($row['bimestre'] ?? '');
@@ -399,11 +440,16 @@ try {
     grades_reply('ok','',[
         'alumno'=>$studentName,'dni'=>$studentDni,'nivel'=>(string)($student['nivel'] ?? ''),'grado'=>(string)($student['grado'] ?? ''),'seccion'=>(string)($student['seccion'] ?? ''),
         'anio_academico_actual'=>$currentYear,'años_disponibles'=>$yearsAvailable,'años_academicos'=>$yearsWithGrades,
-        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode,'academic_year_school_scope'=>$yearHasSchool ? 'school' : 'legacy_global'
+        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode
     ]);
 } catch (Throwable $e) {
-    error_log('EduSync my_grades.php: ' . $e->getMessage());
+    error_log('EduSync my_grades.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     http_response_code(500);
-    grades_reply('error', 'No se pudieron cargar las calificaciones. Intenta nuevamente.');
+    $extra = [];
+    if (grades_is_local_request()) {
+        $extra['detail'] = $e->getMessage();
+        $extra['line'] = $e->getLine();
+    }
+    grades_reply('error', 'No se pudieron cargar las calificaciones. Intenta nuevamente.', [], $extra);
 }
 ?>
