@@ -1,0 +1,140 @@
+/*
+ * EduSync - ajustes de tablas de Reporte de notas
+ * Mantiene la misma lectura visual que las tablas administrativas del sistema.
+ * Solo presentación: no cambia datos, paginación ni lógica del reporte.
+ */
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table {
+    text-align: left !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .table-responsive {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    table-layout: auto !important;
+    color: #49566a !important;
+    font-size: .86rem !important;
+    background: #fff !important;
+}
+
+/* En este reporte los textos deben leerse igual que en Estudiantes, Docentes,
+   Usuarios, Pagos y los demás listados: alineación izquierda por defecto.
+   Solo respetamos centrado/derecha cuando la propia celda lo solicita. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table thead th:not(.text-center):not(.text-right),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table tbody td:not(.text-center):not(.text-right),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table tfoot th:not(.text-center):not(.text-right),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table tfoot td:not(.text-center):not(.text-right) {
+    text-align: left !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table thead th {
+    padding: .72rem .75rem !important;
+    background: var(--edu-surface-soft, #f8f9fc) !important;
+    color: #526274 !important;
+    border-top: 0 !important;
+    border-bottom: 1px solid var(--edu-border, #e3e6f0) !important;
+    font-size: .75rem !important;
+    font-weight: 700 !important;
+    line-height: 1.25 !important;
+    vertical-align: middle !important;
+    white-space: nowrap;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table tbody td {
+    padding: .68rem .75rem !important;
+    border-top: 1px solid var(--edu-border-soft, #edf0f5) !important;
+    vertical-align: middle !important;
+    background: transparent !important;
+}
+
+/* El detalle antiguo todavía llega como table-bordered + table-striped.
+   Visualmente lo normalizamos al mismo patrón de las tablas administrativas. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table-bordered,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table-bordered th,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table-bordered td {
+    border-left: 0 !important;
+    border-right: 0 !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table-striped tbody tr:nth-of-type(odd) {
+    background-color: transparent !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table tbody tr:hover {
+    background: var(--edu-hover, #f7faff) !important;
+}
+
+/* Tabla Detalle: texto descriptivo a la izquierda y solo datos compactos
+   centrados. Esto evita la sensación de que todo el reporte está centrado. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(1),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(1),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(6),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(6),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(7),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(7),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(9),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(9),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(10),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(10) {
+    text-align: center !important;
+    white-space: nowrap;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(2),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(2),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(3),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(3),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(4),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(4),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(5),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(5),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData th:nth-child(8),
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #gradesReportData td:nth-child(8) {
+    text-align: left !important;
+}
+
+/* DataTables: mismas posiciones que el resto del sistema. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_wrapper {
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_wrapper > .row {
+    width: auto !important;
+    margin-left: -.375rem !important;
+    margin-right: -.375rem !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_length,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_info {
+    text-align: left !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_filter,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_paginate {
+    text-align: right !important;
+}
+
+/* La ficha individual conserva la alineación numérica intencional. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .individual-report .ir-number {
+    text-align: right !important;
+}
+
+@media (max-width: 767.98px) {
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_filter,
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_paginate {
+        text-align: left !important;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table.table {
+        font-size: .82rem !important;
+    }
+}

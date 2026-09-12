@@ -1,0 +1,325 @@
+/*
+ * EduSync UI refinements
+ * Ajustes de consistencia para excepciones de layout y modales Bootstrap.
+ * Capa exclusivamente visual: no modifica lógica, datos ni permisos.
+ */
+
+/* ========================================================================== 
+   Reporte de notas
+   El módulo ya vive dentro del container-fluid global de index.php. Evitamos
+   el efecto de contenedor/tarjeta duplicado y lo alineamos con los demás
+   reportes administrativos.
+   ========================================================================== */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-report-shell {
+    width: 100% !important;
+    max-width: none !important;
+    padding: .25rem 0 0 !important;
+    margin: 0 !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-report-hero {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* El filtro es una sola superficie. No debe comportarse a la vez como
+   ed-filter-card y ed-content-card con padding/borde duplicados. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-filter-card {
+    width: 100% !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: var(--edu-surface, #fff) !important;
+    border: 1px solid var(--edu-border, #e3e6f0) !important;
+    border-radius: var(--edu-radius, .6rem) !important;
+    box-shadow: var(--edu-shadow, 0 .125rem .5rem rgba(31,45,61,.06)) !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-filter-card > .card-header {
+    min-height: 48px !important;
+    padding: .75rem 1rem !important;
+    margin: 0 !important;
+    background: #fff !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--edu-border-soft, #edf0f5) !important;
+    border-radius: var(--edu-radius, .6rem) var(--edu-radius, .6rem) 0 0 !important;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-filter-card > .card-body {
+    padding: .9rem 1rem .35rem !important;
+    margin: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-filter-card form,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-filter-card .row {
+    width: auto !important;
+    max-width: none !important;
+}
+
+/* Las vistas del reporte se presentan como toolbar, no como otra caja. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-tabs {
+    justify-content: flex-start !important;
+    width: 100% !important;
+    margin: 0 0 1rem !important;
+    padding: 0 0 .7rem !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--edu-border, #e3e6f0) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-results-card {
+    width: 100% !important;
+    max-width: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-results-card > .card-body {
+    padding: 1rem !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table > .table-responsive,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_wrapper,
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table table {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_wrapper > .row {
+    margin-left: -.375rem !important;
+    margin-right: -.375rem !important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content #grades-report-table .dataTables_wrapper > .row > [class*="col-"] {
+    padding-left: .375rem !important;
+    padding-right: .375rem !important;
+}
+
+@media (max-width: 767.98px) {
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-report-shell {
+        padding-top: 0 !important;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-filter-card > .card-body,
+    body[data-edusync-ui="standard-v2"][data-edusync-page="grades_report"] #content .gr-results-card > .card-body {
+        padding: .8rem !important;
+    }
+}
+
+/* ========================================================================== 
+   Modales EduSync
+   Bootstrap 4 sigue siendo la base. Esta capa elimina cabeceras, radios,
+   sombras y formularios distintos entre módulos.
+   ========================================================================== */
+body[data-edusync-ui="standard-v2"] .modal .modal-dialog {
+    margin-top: 1.75rem;
+    margin-bottom: 1.75rem;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-content {
+    overflow: hidden;
+    background: var(--edu-surface, #fff);
+    border: 1px solid var(--edu-border, #e3e6f0) !important;
+    border-radius: .65rem !important;
+    box-shadow: 0 .65rem 2rem rgba(31,45,61,.20) !important;
+}
+
+/* Las cabeceras ordinarias son blancas. Esto también neutraliza antiguos
+   degradados inline. Las cabeceras semánticas conservan su color Bootstrap. */
+body[data-edusync-ui="standard-v2"] .modal .modal-header:not(.bg-primary):not(.bg-success):not(.bg-info):not(.bg-warning):not(.bg-danger):not(.bg-secondary):not(.bg-dark) {
+    background: #fff !important;
+    color: var(--edu-heading, #233b52) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-header {
+    min-height: 54px;
+    display: flex;
+    align-items: center;
+    padding: .85rem 1rem !important;
+    border-bottom: 1px solid var(--edu-border-soft, #edf0f5) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-title {
+    margin: 0;
+    color: inherit;
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    line-height: 1.3;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-title i {
+    width: 1.25rem;
+    margin-right: .4rem !important;
+    text-align: center;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-header .close {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: -.35rem -.35rem -.35rem auto !important;
+    padding: 0 !important;
+    border-radius: .45rem;
+    color: inherit;
+    font-size: 1.35rem;
+    line-height: 1;
+    opacity: .62;
+    text-shadow: none;
+    transition: background-color .15s ease, opacity .15s ease;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-header .close:hover,
+body[data-edusync-ui="standard-v2"] .modal .modal-header .close:focus {
+    background: rgba(90,92,105,.08);
+    color: inherit;
+    opacity: 1;
+    outline: 0;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-header.bg-primary,
+body[data-edusync-ui="standard-v2"] .modal .modal-header.bg-success,
+body[data-edusync-ui="standard-v2"] .modal .modal-header.bg-info,
+body[data-edusync-ui="standard-v2"] .modal .modal-header.bg-danger,
+body[data-edusync-ui="standard-v2"] .modal .modal-header.bg-dark,
+body[data-edusync-ui="standard-v2"] .modal .modal-header.bg-secondary {
+    color: #fff !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-header.bg-warning {
+    color: #5a4b00 !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-body {
+    padding: 1rem !important;
+    color: var(--edu-text, #344054);
+    background: #fff;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .45rem;
+    padding: .75rem 1rem !important;
+    background: var(--edu-surface-soft, #f8f9fc) !important;
+    border-top: 1px solid var(--edu-border-soft, #edf0f5) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .modal-footer > :not(:first-child),
+body[data-edusync-ui="standard-v2"] .modal .modal-footer > :not(:last-child) {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* Formularios dentro de modal */
+body[data-edusync-ui="standard-v2"] .modal .form-group {
+    margin-bottom: .9rem;
+}
+
+body[data-edusync-ui="standard-v2"] .modal label,
+body[data-edusync-ui="standard-v2"] .modal .col-form-label {
+    margin-bottom: .3rem;
+    color: #526274;
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .form-control,
+body[data-edusync-ui="standard-v2"] .modal .custom-select,
+body[data-edusync-ui="standard-v2"] .modal .custom-file-label,
+body[data-edusync-ui="standard-v2"] .modal .input-group-text {
+    border-color: #d8deea !important;
+    border-radius: var(--edu-radius-sm, .42rem) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .form-control:focus,
+body[data-edusync-ui="standard-v2"] .modal .custom-select:focus,
+body[data-edusync-ui="standard-v2"] .modal .custom-file-input:focus ~ .custom-file-label {
+    border-color: #9cbcf9 !important;
+    box-shadow: 0 0 0 .14rem rgba(66,133,244,.13) !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal textarea.form-control {
+    min-height: 90px;
+    height: auto;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .select2-container {
+    width: 100% !important;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .select2-container--default .select2-selection--single,
+body[data-edusync-ui="standard-v2"] .modal .select2-container--bootstrap .select2-selection--single {
+    min-height: 38px;
+    border-color: #d8deea !important;
+    border-radius: var(--edu-radius-sm, .42rem) !important;
+}
+
+/* Tablas y bloques informativos dentro de modal */
+body[data-edusync-ui="standard-v2"] .modal .table {
+    margin-bottom: .75rem;
+    font-size: .86rem;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .table thead th {
+    background: var(--edu-surface-soft, #f8f9fc) !important;
+    color: #526274 !important;
+    border-bottom: 1px solid var(--edu-border, #e3e6f0) !important;
+    font-size: .75rem;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .table td,
+body[data-edusync-ui="standard-v2"] .modal .table th {
+    vertical-align: middle;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .alert,
+body[data-edusync-ui="standard-v2"] .modal .card,
+body[data-edusync-ui="standard-v2"] .modal .list-group-item {
+    border-radius: var(--edu-radius-sm, .42rem);
+}
+
+/* Botones de modal: misma geometría del sistema. No se cambia su semántica. */
+body[data-edusync-ui="standard-v2"] .modal .btn:not(.btn-circle):not(.btn-icon-split) {
+    border-radius: var(--edu-radius-sm, .42rem);
+    font-weight: 600;
+}
+
+body[data-edusync-ui="standard-v2"] .modal .btn-light,
+body[data-edusync-ui="standard-v2"] .modal .btn-secondary {
+    box-shadow: none;
+}
+
+/* Universal modal y confirmación comparten exactamente el mismo patrón. */
+body[data-edusync-ui="standard-v2"] #uni_modal .modal-body,
+body[data-edusync-ui="standard-v2"] #confirm_modal .modal-body {
+    min-height: 0;
+}
+
+@media (max-width: 575.98px) {
+    body[data-edusync-ui="standard-v2"] .modal .modal-dialog {
+        margin: .65rem;
+    }
+
+    body[data-edusync-ui="standard-v2"] .modal .modal-header,
+    body[data-edusync-ui="standard-v2"] .modal .modal-body,
+    body[data-edusync-ui="standard-v2"] .modal .modal-footer {
+        padding-left: .85rem !important;
+        padding-right: .85rem !important;
+    }
+
+    body[data-edusync-ui="standard-v2"] .modal .modal-footer {
+        flex-wrap: wrap;
+    }
+}
