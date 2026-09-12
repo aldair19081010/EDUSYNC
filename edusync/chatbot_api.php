@@ -91,6 +91,13 @@ try {
     $parsed = edu_chat_interpret($conn, $actor, $message, $context);
     $intent = (string)$parsed['intent'];
     $entities = (array)$parsed['entities'];
+    $normalized = (string)($parsed['normalized'] ?? '');
+
+    // Evitar interpretar "2do bimestre" como "2° grado" si no se mencionó un grado explícito.
+    if (!empty($entities['bimestre']) && strpos($normalized, 'grado') === false) {
+        $explicitGrade = preg_match('/\b[1-6](?:ro|do|to|er|°)\s+(?:de\s+)?(?:primaria|secundaria)\b/', $normalized);
+        if (!$explicitGrade) $entities['grade'] = null;
+    }
 
     if (!edu_chat_allowed($actor, $intent) && $intent !== 'unknown') {
         $result = edu_chat_result(
