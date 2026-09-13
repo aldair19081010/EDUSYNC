@@ -18,7 +18,9 @@
     }
 
     function setMode(mode){
-        var suffix = mode === 'ai' ? ' · IA' : ' · Modo local';
+        var suffix = ' · Modo local';
+        if (mode === 'ai_local') suffix = ' · IA local';
+        else if (mode === 'ai') suffix = ' · IA';
         $role.text(roleName + suffix);
     }
 
