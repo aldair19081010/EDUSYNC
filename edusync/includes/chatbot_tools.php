@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/chatbot_knowledge.php';
 require_once __DIR__ . '/chatbot_analytics.php';
+require_once __DIR__ . '/chatbot_totals.php';
 
 function edu_chat_ai_function(string $name, string $description, array $properties = [], array $required = []): array {
     return [
@@ -131,8 +132,8 @@ function edu_chat_ai_run_tool(mysqli $conn, array $actor, string $name, array $a
         case 'get_my_attendance': if($type!==4)break; if(empty($entities['period']))$entities['period']='month'; return edu_chat_student_attendance_result($conn,$actor,$entities);
         case 'get_my_grades': if($type!==4)break; return edu_chat_student_grades_result($conn,$actor,$entities);
 
-        case 'get_school_overview': if($type!==1)break; return edu_chat_ai_combine_results([edu_chat_count_students_result($conn,$actor,[]),edu_chat_count_teachers_result($conn,$actor),edu_chat_debt_summary_result($conn,$actor,[]),edu_chat_collections_result($conn,$actor,['period'=>'month']),edu_chat_attendance_summary_result($conn,$actor,['period'=>'today']),edu_chat_academic_risk_current_result($conn,$actor,[])]);
-        case 'get_student_count': if(!in_array($type,[1,3],true))break; return edu_chat_count_students_result($conn,$actor,$entities);
+        case 'get_school_overview': if($type!==1)break; return edu_chat_ai_combine_results([edu_chat_student_total_result($conn,$actor,[]),edu_chat_count_teachers_result($conn,$actor),edu_chat_debt_summary_result($conn,$actor,[]),edu_chat_collections_result($conn,$actor,['period'=>'month']),edu_chat_attendance_summary_result($conn,$actor,['period'=>'today']),edu_chat_academic_risk_current_result($conn,$actor,[])]);
+        case 'get_student_count': if(!in_array($type,[1,3],true))break; return edu_chat_student_total_result($conn,$actor,$entities);
         case 'get_student_distribution': if(!in_array($type,[1,2,3],true))break; return edu_chat_student_distribution_result($conn,$actor,$entities,(string)($args['group_by']??'grade_section'));
         case 'get_student_roster': if(!in_array($type,[1,2,3],true))break; return edu_chat_student_roster_result($conn,$actor,$entities,(string)($args['name_search']??''),(int)($args['limit']??20));
         case 'get_teacher_count': if($type!==1)break; return edu_chat_count_teachers_result($conn,$actor);
@@ -145,10 +146,10 @@ function edu_chat_ai_run_tool(mysqli $conn, array $actor, string $name, array $a
         case 'get_academic_risk': if(!in_array($type,[1,2],true))break; return edu_chat_academic_risk_current_result($conn,$actor,$entities);
         case 'get_academic_risk_distribution': if(!in_array($type,[1,2],true))break; return edu_chat_academic_risk_distribution_result($conn,$actor,$entities,(string)($args['group_by']??'grade_section'));
 
-        case 'get_teacher_overview': if($type!==2)break; return edu_chat_ai_combine_results([edu_chat_teacher_courses_result($conn,$actor),edu_chat_teacher_students_current_result($conn,$actor,[]),edu_chat_academic_risk_current_result($conn,$actor,[])]);
+        case 'get_teacher_overview': if($type!==2)break; return edu_chat_ai_combine_results([edu_chat_teacher_courses_result($conn,$actor),edu_chat_student_total_result($conn,$actor,[]),edu_chat_academic_risk_current_result($conn,$actor,[])]);
         case 'get_my_courses': if($type!==2)break; return edu_chat_teacher_courses_result($conn,$actor);
-        case 'get_my_student_count': if($type!==2)break; return edu_chat_teacher_students_current_result($conn,$actor,$entities);
-        case 'get_auxiliary_overview': if($type!==3)break; return edu_chat_ai_combine_results([edu_chat_count_students_result($conn,$actor,[]),edu_chat_attendance_summary_result($conn,$actor,['period'=>'today'])]);
+        case 'get_my_student_count': if($type!==2)break; return edu_chat_student_total_result($conn,$actor,$entities);
+        case 'get_auxiliary_overview': if($type!==3)break; return edu_chat_ai_combine_results([edu_chat_student_total_result($conn,$actor,[]),edu_chat_attendance_summary_result($conn,$actor,['period'=>'today'])]);
     }
     return edu_chat_result('La herramienta solicitada no está autorizada para este perfil.');
 }
