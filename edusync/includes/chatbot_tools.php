@@ -3,6 +3,7 @@
 require_once __DIR__ . '/chatbot_knowledge.php';
 require_once __DIR__ . '/chatbot_analytics.php';
 require_once __DIR__ . '/chatbot_totals.php';
+require_once __DIR__ . '/chatbot_finance_filters.php';
 
 function edu_chat_ai_function(string $name, string $description, array $properties = [], array $required = []): array {
     return [
@@ -33,8 +34,12 @@ function edu_chat_ai_tool_definitions(array $actor): array {
     $course = edu_chat_ai_optional_string('Nombre del curso si el usuario lo menciona.');
     $groupBy = ['type'=>'string','enum'=>['level','grade','section','grade_section'],'description'=>'Cómo agrupar. Usa grade_section para preguntas como "cada sección", "por aula", "por grado y sección" o "cuántos hay en cada sección".'];
     $riskGroupBy = ['type'=>'string','enum'=>['level','grade','section','grade_section','course'],'description'=>'Cómo agrupar el riesgo académico. Usa course para desglose por curso y grade_section para aulas/secciones.'];
+    $debtGroupBy = ['type'=>'string','enum'=>['none','level','grade','section','grade_section'],'description'=>'Cómo organizar el listado nominal de deudores. Usa grade_section para nivel, grado y sección.'];
+    $debtSortBy = ['type'=>'string','enum'=>['obligations','debt','name','location'],'description'=>'Orden del listado: cantidad de deudas, monto, nombre o ubicación académica.'];
+    $debtCount = ['type'=>'integer','minimum'=>1,'maximum'=>100,'description'=>'Cantidad de obligaciones/deudas pendientes usada como filtro.'];
     $limit20 = ['type'=>'integer','minimum'=>1,'maximum'=>20,'description'=>'Cantidad de estudiantes a listar. Si no se especifica, usa 10.'];
     $limit50 = ['type'=>'integer','minimum'=>1,'maximum'=>50,'description'=>'Cantidad máxima de estudiantes a listar. Si no se especifica, usa 20.'];
+    $limit200 = ['type'=>'integer','minimum'=>1,'maximum'=>200,'description'=>'Cantidad máxima de coincidencias a listar. Si no se especifica, usa 100.'];
     $nameSearch = ['type'=>'string','description'=>'Nombre o parte del nombre del estudiante a buscar, solo si el usuario lo especifica.'];
 
     $tools = [
@@ -62,6 +67,12 @@ function edu_chat_ai_tool_definitions(array $actor): array {
         $tools[] = edu_chat_ai_function('get_debt_summary', 'Devuelve un único resumen total de morosidad. Para deuda por nivel, grado o sección usa get_debt_distribution.', ['level'=>$level,'grade'=>$grade]);
         $tools[] = edu_chat_ai_function('get_debt_distribution', 'Desglosa deuda pendiente por nivel, grado, sección o aula, con estudiantes, obligaciones y monto real por grupo.', ['group_by'=>$groupBy,'level'=>$level,'grade'=>$grade,'section'=>$section]);
         $tools[] = edu_chat_ai_function('get_top_debtors', 'Lista y ordena de mayor a menor a los estudiantes con más deuda pendiente. Úsala para top morosos, quiénes deben más o mayores deudores.', ['limit'=>$limit20,'level'=>$level,'grade'=>$grade]);
+        $tools[] = edu_chat_ai_function(
+            'get_students_by_debt_count',
+            'Lista NOMBRES de estudiantes según la cantidad de deudas u obligaciones pendientes. Úsala para frases como más de 3 deudas, 4 o más, al menos 2, exactamente 3, menos de 5 o entre 2 y 4. Puede filtrar por nivel, grado y sección y organizar por aula.',
+            ['min_obligations'=>$debtCount,'max_obligations'=>$debtCount,'limit'=>$limit200,'group_by'=>$debtGroupBy,'sort_by'=>$debtSortBy,'level'=>$level,'grade'=>$grade,'section'=>$section],
+            ['min_obligations']
+        );
         $tools[] = edu_chat_ai_function('get_collections_summary', 'Resume cobranza confirmada del colegio autenticado.', ['period'=>$period,'level'=>$level]);
         $tools[] = edu_chat_ai_function('get_attendance_summary', 'Devuelve un único resumen de asistencia. Para asistencia por aula, grado, sección o nivel usa get_attendance_distribution.', ['period'=>$period,'level'=>$level,'grade'=>$grade]);
         $tools[] = edu_chat_ai_function('get_attendance_distribution', 'Desglosa asistencia REAL por nivel, grado, sección o aula, mostrando presentes, tardanzas, ausencias y porcentaje por grupo.', ['group_by'=>$groupBy,'period'=>$period,'level'=>$level,'grade'=>$grade,'section'=>$section]);
@@ -140,6 +151,7 @@ function edu_chat_ai_run_tool(mysqli $conn, array $actor, string $name, array $a
         case 'get_debt_summary': if($type!==1)break; return edu_chat_debt_summary_result($conn,$actor,$entities);
         case 'get_debt_distribution': if($type!==1)break; return edu_chat_debt_distribution_result($conn,$actor,$entities,(string)($args['group_by']??'grade_section'));
         case 'get_top_debtors': if($type!==1)break; return edu_chat_top_debtors_result($conn,$actor,$entities,(int)($args['limit']??10));
+        case 'get_students_by_debt_count': if($type!==1)break; return edu_chat_students_by_debt_count_result($conn,$actor,$entities,(int)($args['min_obligations']??1),isset($args['max_obligations'])?(int)$args['max_obligations']:null,(int)($args['limit']??100),(string)($args['group_by']??'grade_section'),(string)($args['sort_by']??'obligations'));
         case 'get_collections_summary': if($type!==1)break; if(empty($entities['period']))$entities['period']='month'; return edu_chat_collections_result($conn,$actor,$entities);
         case 'get_attendance_summary': if(!in_array($type,[1,3],true))break; if(empty($entities['period']))$entities['period']='today'; return edu_chat_attendance_summary_result($conn,$actor,$entities);
         case 'get_attendance_distribution': if(!in_array($type,[1,3],true))break; if(empty($entities['period']))$entities['period']='today'; return edu_chat_attendance_distribution_result($conn,$actor,$entities,(string)($args['group_by']??'grade_section'));
