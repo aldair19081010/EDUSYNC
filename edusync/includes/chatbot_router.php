@@ -1,5 +1,18 @@
 <?php
 
+function edu_chat_router_explicit_grade(string $text): ?string {
+    $patterns = [
+        '/\b(?:grado\s*)?([1-6])\s*(?:ro|do|to|er|°)\b/',
+        '/\bgrado\s+([1-6])\b/',
+        '/\b([1-6])\s+grado\b/',
+        '/\b(?:de|del)\s+([1-6])\s+(?:de\s+)?(?:primaria|secundaria)\b/'
+    ];
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $text, $m)) return (string)$m[1];
+    }
+    return null;
+}
+
 /**
  * Enrutamiento determinista para preguntas de datos donde un modelo pequeño
  * puede escoger una herramienta demasiado general. Solo decide QUÉ herramienta
@@ -14,7 +27,7 @@ function edu_chat_ai_forced_route(array $actor, string $message): ?array {
     if ($text === '') return null;
 
     $level = edu_chat_extract_level($text);
-    $grade = edu_chat_extract_grade($text);
+    $grade = edu_chat_router_explicit_grade($text);
     $section = edu_chat_extract_section($text);
     $period = edu_chat_extract_period($text);
 
@@ -30,19 +43,19 @@ function edu_chat_ai_forced_route(array $actor, string $message): ?array {
     $isRiskTopic = edu_chat_has($text, ['riesgo','riesgos','critico','criticos','critica','criticas','nota baja','notas bajas','desaprobado','desaprobados','reprobado','reprobados']);
 
     $wantsBreakdown = edu_chat_has($text, [
-        'cada seccion','cada sección','por seccion','por sección','por aula','cada aula',
-        'por grado','cada grado','por nivel','cada nivel','distribucion','distribución',
-        'desglose','desglosado','desglosada','secciones','aulas'
+        'cada seccion','por seccion','por aula','cada aula','por grado','cada grado',
+        'por nivel','cada nivel','distribucion','desglose','desglosado','desglosada',
+        'secciones','aulas'
     ]);
 
     $groupBy = 'grade_section';
     if (edu_chat_has($text, ['por nivel','cada nivel'])) $groupBy = 'level';
-    elseif (edu_chat_has($text, ['por grado','cada grado']) && !edu_chat_has($text, ['seccion','sección','aula'])) $groupBy = 'grade';
-    elseif (edu_chat_has($text, ['por seccion','por sección']) && !$grade) $groupBy = 'grade_section';
+    elseif (edu_chat_has($text, ['por grado','cada grado']) && !edu_chat_has($text, ['seccion','aula'])) $groupBy = 'grade';
     $args['group_by'] = $groupBy;
 
-    // Ranking de deudores: admin/director solamente.
-    if ($type === 1 && $isDebtTopic && edu_chat_has($text, ['mas deben','más deben','mayor deuda','mayores deudores','top ','ranking','morosos con mas','morosos con más'])) {
+    // Ranking de deudores: admin/director solamente. La cantidad del ranking
+    // no se interpreta como grado; solo se filtra grado cuando fue explícito.
+    if ($type === 1 && $isDebtTopic && edu_chat_has($text, ['mas deben','mayor deuda','mayores deudores','top ','ranking','morosos con mas'])) {
         $limit = 10;
         if (preg_match('/\b([1-9]|1[0-9]|20)\b/', $text, $m)) $limit = (int)$m[1];
         $debtArgs = $args;
@@ -58,20 +71,20 @@ function edu_chat_ai_forced_route(array $actor, string $message): ?array {
             return ['name'=>'get_attendance_distribution','arguments'=>$args];
         }
         if (in_array($type, [1,2], true) && $isRiskTopic) {
-            if (edu_chat_has($text, ['por curso','cada curso','por area','por área'])) $args['group_by'] = 'course';
+            if (edu_chat_has($text, ['por curso','cada curso','por area'])) $args['group_by'] = 'course';
             return ['name'=>'get_academic_risk_distribution','arguments'=>$args];
         }
         if ($isStudentTopic) return ['name'=>'get_student_distribution','arguments'=>$args];
     }
 
-    // "Cuántos hay en cada sección" a veces no incluye literalmente estudiante/alumno.
-    if ($wantsBreakdown && edu_chat_has($text, ['cuantos','cuántos','cantidad','hay']) && !$isDebtTopic && !$isAttendanceTopic && !$isRiskTopic) {
+    // "Cuántos hay en cada sección" a veces omite estudiante/alumno.
+    if ($wantsBreakdown && edu_chat_has($text, ['cuantos','cantidad','hay']) && !$isDebtTopic && !$isAttendanceTopic && !$isRiskTopic) {
         return ['name'=>'get_student_distribution','arguments'=>$args];
     }
 
-    // Listados nominales. No forzar cuando la pregunta es solo un conteo.
-    $wantsRoster = edu_chat_has($text, ['lista','listar','listame','lístame','quienes son','quiénes son','nombres de','muestrame los alumnos','muéstrame los alumnos','dime los alumnos','busca al estudiante','buscar estudiante']);
-    if ($isStudentTopic && $wantsRoster && !edu_chat_has($text, ['cuantos','cuántos','cantidad'])) {
+    // Listados nominales. La cantidad solicitada tampoco se interpreta como grado.
+    $wantsRoster = edu_chat_has($text, ['lista','listar','listame','quienes son','nombres de','muestrame los alumnos','dime los alumnos','busca al estudiante','buscar estudiante']);
+    if ($isStudentTopic && $wantsRoster && !edu_chat_has($text, ['cuantos','cantidad'])) {
         $rosterArgs = $args;
         unset($rosterArgs['group_by'], $rosterArgs['period']);
         $rosterArgs['limit'] = 20;
