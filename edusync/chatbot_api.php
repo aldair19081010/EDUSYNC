@@ -102,7 +102,7 @@ try {
             'status' => 1,
             'greeting' => $greeting,
             'role' => (string)$actor['role'],
-            'assistant_mode' => $aiEnabled ? 'ai' : 'local',
+            'assistant_mode' => $aiEnabled ? edu_chat_ai_mode() : 'local',
             'suggestions' => edu_chat_suggestions($actor),
             'history' => array_values((array)($_SESSION['chatbot_history'] ?? []))
         ]);
@@ -121,7 +121,7 @@ try {
         edu_chat_api_reply([
             'status' => 1,
             'message' => 'Conversación reiniciada.',
-            'assistant_mode' => edu_chat_ai_enabled() ? 'ai' : 'local',
+            'assistant_mode' => edu_chat_ai_enabled() ? edu_chat_ai_mode() : 'local',
             'suggestions' => edu_chat_suggestions($actor)
         ]);
     }
