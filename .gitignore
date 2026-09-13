@@ -14,6 +14,11 @@
 /edusync/curl_output_test.txt
 /edusync/api/debug_log.txt
 
+# Artefactos de machine learning generados localmente
+/storage/*.csv
+/edusync/storage/ai_models/*.json
+!/edusync/storage/ai_models/.gitkeep
+
 # Certificados y llaves privadas
 *.p12
 *.pfx
