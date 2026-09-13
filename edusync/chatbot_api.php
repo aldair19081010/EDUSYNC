@@ -13,6 +13,7 @@ require_once __DIR__ . '/includes/chatbot_engine.php';
 require_once __DIR__ . '/includes/chatbot_queries.php';
 require_once __DIR__ . '/includes/chatbot_ai.php';
 require_once __DIR__ . '/includes/chatbot_advanced_assistant.php';
+require_once __DIR__ . '/includes/predictive_risk_router.php';
 
 function edu_chat_api_reply(array $payload, int $status = 200): void {
     http_response_code($status);
@@ -140,17 +141,32 @@ try {
     $result = null;
     $aiError = null;
 
-    // Las consultas administrativas inequívocas se resuelven de forma determinista
-    // para conservar nombres, montos, porcentajes y filtros exactamente como salen de MySQL.
+    // La alerta temprana predictiva se ejecuta antes de Groq. El cálculo y la
+    // explicación provienen del modelo entrenado; el LLM no altera probabilidades.
     try {
-        $result = edu_chat_advanced_try($conn, $actor, $effectiveMessage, $queryState);
+        $result = edu_predictive_try($conn, $actor, $effectiveMessage, $queryState, $history);
         if (is_array($result)) {
             $result['mode'] = edu_chat_ai_enabled() ? edu_chat_ai_mode() : 'local';
-            $result['intent'] = 'advanced';
+            $result['intent'] = 'predictive_risk';
         }
-    } catch (Throwable $advancedException) {
-        error_log('[chatbot_advanced fallback] ' . $advancedException->getMessage() . ' line ' . $advancedException->getLine());
+    } catch (Throwable $predictiveException) {
+        error_log('[chatbot_predictive fallback] ' . $predictiveException->getMessage() . ' line ' . $predictiveException->getLine());
         $result = null;
+    }
+
+    // Las consultas administrativas inequívocas se resuelven de forma determinista
+    // para conservar nombres, montos, porcentajes y filtros exactamente como salen de MySQL.
+    if (!is_array($result)) {
+        try {
+            $result = edu_chat_advanced_try($conn, $actor, $effectiveMessage, $queryState);
+            if (is_array($result)) {
+                $result['mode'] = edu_chat_ai_enabled() ? edu_chat_ai_mode() : 'local';
+                $result['intent'] = 'advanced';
+            }
+        } catch (Throwable $advancedException) {
+            error_log('[chatbot_advanced fallback] ' . $advancedException->getMessage() . ' line ' . $advancedException->getLine());
+            $result = null;
+        }
     }
 
     if (!is_array($result) && edu_chat_ai_enabled()) {
