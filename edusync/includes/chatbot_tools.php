@@ -9,31 +9,29 @@ function edu_chat_ai_function(string $name, string $description, array $properti
         'description' => $description,
         'parameters' => [
             'type' => 'object',
-            'properties' => $properties,
-            'required' => $required,
-            'additionalProperties' => false
-        ],
-        'strict' => true
+            'properties' => $properties ?: new stdClass(),
+            'required' => array_values($required)
+        ]
     ];
 }
 
-function edu_chat_ai_nullable_string(string $description, ?array $enum = null): array {
-    $stringSchema = ['type' => 'string'];
-    if ($enum !== null) $stringSchema['enum'] = $enum;
-    return [
-        'anyOf' => [$stringSchema, ['type' => 'null']],
+function edu_chat_ai_optional_string(string $description, ?array $enum = null): array {
+    $schema = [
+        'type' => 'string',
         'description' => $description
     ];
+    if ($enum !== null) $schema['enum'] = $enum;
+    return $schema;
 }
 
 function edu_chat_ai_tool_definitions(array $actor): array {
     $type = (int)($actor['type'] ?? 0);
-    $period = ['type' => 'string', 'enum' => ['today','month','year'], 'description' => 'Periodo solicitado.'];
-    $level = edu_chat_ai_nullable_string('Nivel educativo cuando el usuario lo especifica.', ['Inicial','Primaria','Secundaria']);
-    $grade = edu_chat_ai_nullable_string('Grado como número en texto, por ejemplo 4.');
-    $section = edu_chat_ai_nullable_string('Sección, por ejemplo A o B.');
-    $bimestre = edu_chat_ai_nullable_string('Bimestre.', ['1','2','3','4']);
-    $course = edu_chat_ai_nullable_string('Nombre del curso si el usuario lo menciona.');
+    $period = ['type' => 'string', 'enum' => ['today','month','year'], 'description' => 'Periodo solicitado. Si no se especifica, la herramienta usa su periodo predeterminado.'];
+    $level = edu_chat_ai_optional_string('Nivel educativo cuando el usuario lo especifica.', ['Inicial','Primaria','Secundaria']);
+    $grade = edu_chat_ai_optional_string('Grado como número en texto, por ejemplo 4.');
+    $section = edu_chat_ai_optional_string('Sección, por ejemplo A o B.');
+    $bimestre = edu_chat_ai_optional_string('Bimestre.', ['1','2','3','4']);
+    $course = edu_chat_ai_optional_string('Nombre del curso si el usuario lo menciona.');
 
     $tools = [
         edu_chat_ai_function('get_system_help', 'Busca documentación oficial interna de EduSync para responder dudas sobre cómo funciona o dónde está una opción.', [
@@ -46,34 +44,34 @@ function edu_chat_ai_tool_definitions(array $actor): array {
         $tools[] = edu_chat_ai_function('explain_my_notes_access', 'Explica si el acceso del estudiante autenticado a Mis Notas está bloqueado por deudas.');
         $tools[] = edu_chat_ai_function('get_my_debts', 'Consulta únicamente las deudas pendientes del estudiante autenticado.');
         $tools[] = edu_chat_ai_function('get_my_payments', 'Consulta únicamente el historial/resumen de pagos confirmados vigentes del estudiante autenticado.');
-        $tools[] = edu_chat_ai_function('get_my_attendance', 'Consulta únicamente la asistencia del estudiante autenticado.', ['period' => $period], ['period']);
-        $tools[] = edu_chat_ai_function('get_my_grades', 'Consulta únicamente las notas del estudiante autenticado. Si hay bloqueo financiero, la herramienta respeta ese bloqueo.', ['course' => $course], ['course']);
+        $tools[] = edu_chat_ai_function('get_my_attendance', 'Consulta únicamente la asistencia del estudiante autenticado.', ['period' => $period]);
+        $tools[] = edu_chat_ai_function('get_my_grades', 'Consulta únicamente las notas del estudiante autenticado. Si hay bloqueo financiero, la herramienta respeta ese bloqueo.', ['course' => $course]);
         return $tools;
     }
 
     if ($type === 1) {
         $tools[] = edu_chat_ai_function('get_school_overview', 'Obtiene un resumen integral del colegio autenticado con estudiantes, docentes, deuda, cobranza del mes, asistencia de hoy y riesgo académico. Úsalo para preguntas abiertas como dame un resumen del colegio o cómo estamos.');
-        $tools[] = edu_chat_ai_function('get_student_count', 'Cuenta estudiantes activos del colegio autenticado aplicando filtros opcionales.', ['level'=>$level,'grade'=>$grade,'section'=>$section], ['level','grade','section']);
+        $tools[] = edu_chat_ai_function('get_student_count', 'Cuenta estudiantes activos del colegio autenticado aplicando filtros opcionales.', ['level'=>$level,'grade'=>$grade,'section'=>$section]);
         $tools[] = edu_chat_ai_function('get_teacher_count', 'Cuenta docentes del colegio autenticado y resume activos/inactivos.');
-        $tools[] = edu_chat_ai_function('get_debt_summary', 'Resume morosidad del colegio autenticado: estudiantes con deuda, obligaciones y saldo pendiente.', ['level'=>$level,'grade'=>$grade], ['level','grade']);
-        $tools[] = edu_chat_ai_function('get_collections_summary', 'Resume cobranza confirmada del colegio autenticado.', ['period'=>$period,'level'=>$level], ['period','level']);
-        $tools[] = edu_chat_ai_function('get_attendance_summary', 'Resume asistencia del colegio autenticado por periodo y filtros opcionales.', ['period'=>$period,'level'=>$level,'grade'=>$grade], ['period','level','grade']);
-        $tools[] = edu_chat_ai_function('get_academic_risk', 'Cuenta estudiantes con registros académicos críticos del año académico actual.', ['level'=>$level,'grade'=>$grade,'bimestre'=>$bimestre,'course'=>$course], ['level','grade','bimestre','course']);
+        $tools[] = edu_chat_ai_function('get_debt_summary', 'Resume morosidad del colegio autenticado: estudiantes con deuda, obligaciones y saldo pendiente.', ['level'=>$level,'grade'=>$grade]);
+        $tools[] = edu_chat_ai_function('get_collections_summary', 'Resume cobranza confirmada del colegio autenticado.', ['period'=>$period,'level'=>$level]);
+        $tools[] = edu_chat_ai_function('get_attendance_summary', 'Resume asistencia del colegio autenticado por periodo y filtros opcionales.', ['period'=>$period,'level'=>$level,'grade'=>$grade]);
+        $tools[] = edu_chat_ai_function('get_academic_risk', 'Cuenta estudiantes con registros académicos críticos del año académico actual.', ['level'=>$level,'grade'=>$grade,'bimestre'=>$bimestre,'course'=>$course]);
         return $tools;
     }
 
     if ($type === 2) {
         $tools[] = edu_chat_ai_function('get_teacher_overview', 'Obtiene un resumen del docente autenticado con asignaciones, estudiantes vinculados y riesgo académico del año actual.');
         $tools[] = edu_chat_ai_function('get_my_courses', 'Consulta las asignaciones/cursos vigentes del docente autenticado.');
-        $tools[] = edu_chat_ai_function('get_my_student_count', 'Cuenta estudiantes vinculados a las asignaciones vigentes del docente autenticado.', ['level'=>$level,'grade'=>$grade], ['level','grade']);
-        $tools[] = edu_chat_ai_function('get_academic_risk', 'Cuenta estudiantes con registros críticos únicamente en asignaciones del docente y año académico actual.', ['level'=>$level,'grade'=>$grade,'bimestre'=>$bimestre,'course'=>$course], ['level','grade','bimestre','course']);
+        $tools[] = edu_chat_ai_function('get_my_student_count', 'Cuenta estudiantes vinculados a las asignaciones vigentes del docente autenticado.', ['level'=>$level,'grade'=>$grade]);
+        $tools[] = edu_chat_ai_function('get_academic_risk', 'Cuenta estudiantes con registros críticos únicamente en asignaciones del docente y año académico actual.', ['level'=>$level,'grade'=>$grade,'bimestre'=>$bimestre,'course'=>$course]);
         return $tools;
     }
 
     if ($type === 3) {
         $tools[] = edu_chat_ai_function('get_auxiliary_overview', 'Obtiene un resumen operativo para el auxiliar autenticado con estudiantes activos y asistencia de hoy.');
-        $tools[] = edu_chat_ai_function('get_student_count', 'Cuenta estudiantes activos del colegio autenticado con filtros opcionales.', ['level'=>$level,'grade'=>$grade,'section'=>$section], ['level','grade','section']);
-        $tools[] = edu_chat_ai_function('get_attendance_summary', 'Resume asistencia autorizada por periodo y filtros opcionales.', ['period'=>$period,'level'=>$level,'grade'=>$grade], ['period','level','grade']);
+        $tools[] = edu_chat_ai_function('get_student_count', 'Cuenta estudiantes activos del colegio autenticado con filtros opcionales.', ['level'=>$level,'grade'=>$grade,'section'=>$section]);
+        $tools[] = edu_chat_ai_function('get_attendance_summary', 'Resume asistencia autorizada por periodo y filtros opcionales.', ['period'=>$period,'level'=>$level,'grade'=>$grade]);
     }
 
     return $tools;
