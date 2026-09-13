@@ -1,116 +1,172 @@
 # Validación previa a `main` y producción — Alerta Temprana Inteligente
 
-Este procedimiento se ejecuta **solo en la rama de desarrollo** `tesis-intervenciones-contrafactual-dashboard` hasta que la validación con datos reales sea satisfactoria. No fusionar a `main` ni desplegar a producción antes de completar esta revisión.
+Este procedimiento se ejecuta **solo en la rama de desarrollo** `tesis-intervenciones-contrafactual-dashboard`. No fusionar a `main` ni desplegar a producción hasta completar la validación con datos reales.
 
-## 1. Criterio de riesgo académico
+## 1. Definición del riesgo
 
-La variable objetivo se define como: **al menos un curso crítico en el bimestre siguiente**.
+La variable objetivo es: **al menos un curso crítico en el bimestre siguiente ya cerrado**.
 
-Criterio de registro crítico:
+Un registro es crítico cuando:
 
-- letra `C`; o
-- nota numérica `< 10.5`.
+- la letra es `C`; o
+- la nota numérica es `< 10.5`.
 
-Con notas enteras, `<10.5` equivale a 0–10 y mantiene coherencia con la escala C=0–10, B=11–13, A=14–17 y AD=18–20.
+Las deudas, pagos o morosidad no forman parte del modelo predictivo.
 
-Las deudas, pagos o morosidad **no forman parte del modelo predictivo**.
+## 2. Política temporal v3
 
-## 2. Tratamiento de asistencia faltante
+La inferencia en vivo y el entrenamiento histórico cumplen reglas distintas:
 
-Si no existen registros de asistencia en la ventana de 30 días:
+- **Inferencia en vivo:** último bimestre cerrado `N` → riesgo estimado en `N+1`, aunque `N+1` esté actualmente en proceso.
+- **Entrenamiento histórico:** una fila `N → N+1` solo se crea cuando ambos bimestres están cerrados.
+- Las notas parciales del bimestre en proceso no se usan como resultado histórico.
+- La asistencia se corta en la fecha segura del cierre del bimestre base, no en la fecha actual.
+
+Ejemplo con I y II cerrados y III en proceso:
+
+- base de la alerta: II;
+- objetivo de la alerta: III;
+- `II → III` no entra todavía al entrenamiento hasta que III cierre.
+
+El modelo actual usa `schema_version = 3`. Cualquier `risk_model.json` anterior debe reentrenarse.
+
+## 3. Asistencia faltante
+
+Si no existen registros suficientes en la ventana de 30 días:
 
 - no se interpreta como `0 %`;
 - no se interpreta como `100 %`;
-- los campos de asistencia se exportan vacíos;
-- durante el entrenamiento se imputan con la mediana aprendida en los datos de entrenamiento;
-- esos valores imputados no se presentan al usuario como factores observados;
-- los escenarios contrafactuales no proponen mejoras de asistencia si no existe asistencia observada.
+- se exporta como dato faltante;
+- se imputa con la mediana aprendida únicamente en entrenamiento;
+- no se presenta al usuario como factor observado;
+- los escenarios contrafactuales no proponen mejoras de asistencia si no existen datos observados.
 
-El modelo generado con esta política usa `schema_version = 2`. Un artefacto anterior debe reentrenarse.
+## 4. Verificar cierres académicos
 
-## 3. Exportar nuevamente el dataset real
+Antes de exportar:
 
-Desde la raíz del proyecto:
+```powershell
+C:\xampp\php\php.exe tools\predictive_period_status.php --school=ID_COLEGIO
+```
+
+Debe identificar correctamente qué bimestres están cerrados y cuál es la base válida para la alerta en vivo.
+
+## 5. Exportar dataset histórico
 
 ```powershell
 C:\xampp\php\php.exe tools\export_risk_dataset.php --school=ID_COLEGIO --output=storage\risk_dataset.csv
 ```
 
-Para la validación final **no usar** `--allow-estimated-cutoffs=1` salvo una prueba exploratoria. El reporte debe usar cierres o fechas reales para reducir fuga temporal.
+Para la validación final no usar cutoffs estimados.
 
-El exportador mostrará:
+El dataset incluye, entre otros campos:
 
-- filas;
-- positivos y negativos;
-- filas sin asistencia suficiente;
-- criterio crítico;
-- bimestres omitidos por falta de cutoff confiable;
-- observaciones omitidas por falta del bimestre siguiente.
+- `academic_year_id`;
+- `student_id`;
+- `bimester`;
+- `target_bimester`;
+- `cutoff_date`;
+- `cutoff_source`;
+- variables académicas y de asistencia;
+- `target_next_bimester_risk`.
 
-## 4. Reentrenar el modelo v2
+## 6. Entrenar modelo v3
 
 ```powershell
 python ml\train_risk_model.py --input storage\risk_dataset.csv --output edusync\storage\ai_models\risk_model.json
 ```
 
-El artefacto incluye:
+El modelo desplegable sigue siendo regresión logística para que la inferencia y las contribuciones sean reproducibles en PHP. Random Forest se mantiene únicamente como benchmark.
 
-- Precision;
-- Recall;
-- F1;
-- Balanced Accuracy;
-- ROC-AUC;
-- PR-AUC;
-- matriz de confusión;
-- balance de clases;
-- tasa de datos faltantes;
-- fuentes de cutoff;
-- mediana usada para imputación;
-- benchmark Random Forest.
-
-La regresión logística sigue siendo el modelo desplegable porque puede reproducirse exactamente en PHP y permite explicar contribuciones. Random Forest permanece como benchmark.
-
-## 5. Ejecutar auditoría repetida
+## 7. Auditoría completa
 
 ```powershell
 python ml\validate_risk_model.py --input storage\risk_dataset.csv --model edusync\storage\ai_models\risk_model.json --output storage\risk_validation_report.json --splits 10
 ```
 
-El script repite separaciones por `student_id`, de modo que un mismo estudiante no aparezca simultáneamente en entrenamiento y prueba.
+El script ejecuta dos validaciones complementarias.
 
-Estados posibles:
+### A. Validación agrupada por estudiante
 
-- `NO_APTO_PARA_MAIN`: existe al menos un bloqueador metodológico.
-- `REVISAR`: no hay bloqueador duro, pero existen advertencias.
-- `APTO_PARA_PILOTO`: supera las comprobaciones automáticas; todavía requiere revisión humana y prueba funcional local.
+Usa `Repeated GroupShuffleSplit` por `student_id` para impedir que el mismo estudiante aparezca simultáneamente en entrenamiento y prueba dentro de cada split.
 
-## 6. Comprobaciones automáticas
+Sirve principalmente para medir **generalización a estudiantes no vistos**.
 
-El reporte revisa, entre otras cosas:
+Reporta:
 
-- cantidad de filas y estudiantes distintos;
-- balance de la variable objetivo;
-- faltantes por variable;
-- presencia de `estimated_quarter`;
-- estabilidad de Recall, Precision, F1, Balanced Accuracy, ROC-AUC y PR-AUC en varios splits;
-- compatibilidad del `risk_model.json` con esquema v2;
-- coherencia del umbral crítico `<10.5`;
-- falsos positivos y falsos negativos de un split de referencia.
+- Recall;
+- Precision;
+- F1;
+- Balanced Accuracy;
+- ROC-AUC;
+- PR-AUC;
+- matriz de confusión;
+- media y desviación entre splits.
 
-Los umbrales de advertencia incluidos en el script son criterios operativos provisionales, no estándares universales. Deben justificarse en la tesis según el objetivo de detección temprana del colegio.
+### B. Validación temporal walk-forward
 
-## 7. Revisión manual de errores
+Ordena los periodos por `cutoff_date`. Para evaluar un periodo, entrena exclusivamente con filas cuya fecha de corte es anterior.
 
-El JSON de validación incluye ejemplos identificados solo por `student_id`, año y bimestre para revisar localmente:
+Ejemplo conceptual:
 
-- **falso positivo:** el modelo alertó riesgo, pero el siguiente bimestre no tuvo curso crítico;
-- **falso negativo:** el modelo no alertó, pero el siguiente bimestre sí tuvo curso crítico.
+```text
+I→II y II→III históricos
+          ↓ entrenar
+III→IV posterior
+          ↓ probar
+```
 
-Para una alerta temprana suele ser especialmente importante revisar los falsos negativos, porque representan estudiantes en riesgo que el sistema no detectó.
+Esto se aproxima más al uso real: **el modelo nunca aprende con información posterior al periodo que está intentando predecir**.
 
-## 8. Control funcional local antes del PR
+El último periodo temporal válido se reporta como `latest_holdout` y debe revisarse especialmente.
 
-Ejecutar:
+El solapamiento de estudiantes entre train y test temporal es esperable, porque simula predecir un periodo futuro de estudiantes que ya estaban matriculados. Por eso esta validación responde una pregunta distinta a la agrupada por estudiante.
+
+## 8. Baseline trivial
+
+Para el último holdout temporal, el informe calcula qué ocurriría si simplemente se marcara **a todos los estudiantes como riesgo**.
+
+Esto es importante cuando la prevalencia de riesgo es alta. Un clasificador trivial puede conseguir una accuracy aparente elevada, pero su `balanced_accuracy` será aproximadamente `0.5`.
+
+El modelo debe superar claramente ese comportamiento trivial.
+
+## 9. Auditoría TP / TN / FP / FN
+
+El reporte clasifica casos en:
+
+- verdadero positivo;
+- verdadero negativo;
+- falso positivo;
+- falso negativo.
+
+Los falsos negativos tienen prioridad de revisión porque representan estudiantes que realmente entraron en riesgo y no fueron alertados.
+
+Además se resumen errores por:
+
+- bimestre `N → N+1`;
+- nivel educativo;
+- disponibilidad de asistencia;
+- medias de las variables predictoras.
+
+Los estudiantes se guardan por defecto con una clave anónima `student_key`.
+
+Para una auditoría estrictamente local donde necesites ubicar al estudiante real:
+
+```powershell
+python ml\validate_risk_model.py --input storage\risk_dataset.csv --model edusync\storage\ai_models\risk_model.json --output storage\risk_validation_report.json --splits 10 --include-student-id
+```
+
+No usar identificadores reales de menores en tablas o anexos públicos de la tesis.
+
+## 10. Estados del validador
+
+- `NO_APTO_PARA_MAIN`: existe un bloqueador metodológico.
+- `REVISAR`: no existe bloqueador duro, pero hay advertencias.
+- `APTO_PARA_PILOTO`: supera las comprobaciones automáticas, pero todavía requiere revisión humana y prueba funcional local.
+
+`APTO_PARA_PILOTO` no significa automáticamente `APTO_PARA_PRODUCCIÓN`.
+
+## 11. Validación funcional local
 
 ```powershell
 C:\xampp\php\php.exe -l edusync\includes\predictive_risk.php
@@ -118,34 +174,27 @@ C:\xampp\php\php.exe -l edusync\includes\predictive_interventions.php
 C:\xampp\php\php.exe -l edusync\includes\predictive_risk_router.php
 C:\xampp\php\php.exe -l edusync\risk_dashboard_api.php
 C:\xampp\php\php.exe -l edusync\pages\risk_dashboard.php
+C:\xampp\php\php.exe -l tools\export_risk_dataset.php
+C:\xampp\php\php.exe -l tools\predictive_period_status.php
 python -m py_compile ml\train_risk_model.py
 python -m py_compile ml\validate_risk_model.py
 ```
 
-Luego probar localmente al menos 5–10 estudiantes con perfiles distintos:
+Después probar dashboard, chatbot, contrafactuales e intervenciones con estudiantes de distintos perfiles.
 
-1. riesgo alto con asistencia disponible;
-2. riesgo alto sin asistencia disponible;
-3. riesgo medio;
-4. riesgo bajo;
-5. estudiante sin datos suficientes;
-6. explicación de factores;
-7. escenario contrafactual;
-8. registro y cierre de intervención.
+## 12. Criterio antes de fusionar
 
-## 9. Criterio de decisión antes de fusionar
+No fusionar el PR solo porque las métricas agrupadas sean altas. Antes deben cumplirse estas condiciones:
 
-No fusionar el PR solo porque el dashboard “se vea bien”. Antes deben cumplirse estas condiciones:
-
-- sin bloqueadores en `risk_validation_report.json`;
-- sin cutoffs estimados en el dataset final;
-- modelo v2 reentrenado con datos reales;
-- ambas clases presentes en entrenamiento y validación;
-- varios splits válidos;
-- métricas revisadas, priorizando Recall, F1 y PR-AUC;
-- falsos positivos y falsos negativos revisados manualmente;
+- política temporal v3 verificada;
+- sin cutoffs estimados;
+- `risk_model.json` v3 reentrenado;
+- validación agrupada estable;
+- validación temporal walk-forward revisada;
+- último holdout temporal con desempeño razonable frente al baseline trivial;
+- falsos positivos y, especialmente, falsos negativos auditados;
 - asistencia faltante tratada como desconocida;
-- prueba local completa de dashboard, chatbot e intervenciones;
-- alcance limitado a administración durante el piloto.
+- pruebas locales de dashboard, chatbot e intervenciones completadas;
+- primera exposición limitada a administración durante el piloto.
 
-Solo después de esta revisión se debe decidir si el PR está listo para `main` y posteriormente para un piloto controlado en producción.
+Solo después se decide si el PR está listo para `main` y posteriormente para un piloto controlado en producción.
