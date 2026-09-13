@@ -1,20 +1,11 @@
 <?php
 /**
- * Exporta un dataset histórico temporalmente consistente.
+ * Exporta dataset histórico EduSync v4 temporalmente consistente.
  *
- * Cada fila representa:
- *   información disponible al CIERRE del bimestre N
- *                       -> resultado observado al CIERRE del bimestre N+1.
- *
- * Un bimestre con notas parciales no sirve ni como base cerrada ni como target
- * histórico completo. Esto evita etiquetar como resultado final un periodo que
- * todavía está en proceso.
- *
- * Uso:
- *   php tools/export_risk_dataset.php --school=1 --output=storage/risk_dataset.csv
- *   php tools/export_risk_dataset.php --school=1 --year=3 --output=storage/risk_dataset.csv
+ * Cada fila representa información al cierre del bimestre N y resultado
+ * observado al cierre de N+1. Se agrega previous_bimester_available para
+ * distinguir ausencia de historial de una tendencia realmente estable.
  */
-
 if (PHP_SAPI !== 'cli') { fwrite(STDERR,"Este script solo puede ejecutarse por CLI.\n"); exit(1); }
 
 require_once __DIR__ . '/../edusync/db_connect.php';
@@ -50,11 +41,7 @@ function risk_export_students(mysqli $conn,int $schoolId,int $yearId,int $bimest
     $stmt=$conn->prepare($sql);if(!$stmt)return[];edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$stmt->close();return$rows;
 }
 
-function risk_export_nullable_number($value,int $precision=6){
-    if($value===null||$value==='')return'';
-    return round((float)$value,$precision);
-}
-
+function risk_export_nullable_number($value,int $precision=6){if($value===null||$value==='')return'';return round((float)$value,$precision);}
 function risk_export_estimated_cutoff(array $year,int $bimester): ?string {
     $start=strtotime((string)($year['start_date']??''));$end=strtotime((string)($year['end_date']??''));
     if(!$start||!$end||$end<=$start)return null;
@@ -63,20 +50,23 @@ function risk_export_estimated_cutoff(array $year,int $bimester): ?string {
 
 $years=risk_export_years($conn,$schoolId,$yearOption);
 if(!$years){fwrite(STDERR,"No se encontraron años académicos para ese colegio.\n");exit(1);}
-
 $dir=dirname($output);if(!is_dir($dir)&&!mkdir($dir,0775,true)&&!is_dir($dir)){fwrite(STDERR,"No pude crear el directorio de salida.\n");exit(1);}
 $fh=fopen($output,'wb');if(!$fh){fwrite(STDERR,"No pude crear $output.\n");exit(1);}
 
-$headers=['school_id','academic_year_id','student_id','nivel','grado','seccion','bimester','target_bimester','cutoff_date','cutoff_source','grade_mean_current','grade_mean_previous','grade_trend','grade_records_current','critical_records_current','critical_courses_current','attendance_rate_30d','late_30d','absent_30d','attendance_records_30d','target_next_bimester_risk'];
+$headers=[
+    'school_id','academic_year_id','student_id','nivel','grado','seccion','bimester','target_bimester','cutoff_date','cutoff_source',
+    'grade_mean_current','grade_mean_previous_observed','grade_trend','previous_bimester_available','grade_records_current',
+    'critical_records_current','critical_courses_current','attendance_rate_30d','late_30d','absent_30d','attendance_records_30d',
+    'target_next_bimester_risk'
+];
 fputcsv($fh,$headers);
 
-$written=0;$skippedBaseOpen=0;$skippedTargetOpen=0;$skippedCutoff=0;$skippedTargetData=0;$missingAttendance=0;$positive=0;$negative=0;$pairCounts=[];
+$written=0;$skippedBaseOpen=0;$skippedTargetOpen=0;$skippedCutoff=0;$skippedTargetData=0;$missingAttendance=0;$positive=0;$negative=0;$pairCounts=[];$withoutPrevious=0;
 foreach($years as $year){
     $yearId=(int)$year['id'];
     foreach([1,2,3] as $bimester){
         $baseClosure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$bimester);
         if(empty($baseClosure['closed'])){$skippedBaseOpen++;continue;}
-
         $targetClosure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$bimester+1);
         if(empty($targetClosure['closed'])){$skippedTargetOpen++;continue;}
 
@@ -85,19 +75,20 @@ foreach($years as $year){
         if(!$cutoffDate&&$allowEstimated){$cutoffDate=risk_export_estimated_cutoff($year,$bimester);if($cutoffDate)$cutoffSource='estimated_quarter_after_confirmed_closure';}
         if(!$cutoffDate){$skippedCutoff++;continue;}
 
-        $students=risk_export_students($conn,$schoolId,$yearId,$bimester);
-        foreach($students as $student){
+        foreach(risk_export_students($conn,$schoolId,$yearId,$bimester) as $student){
             $studentId=(int)$student['id'];
             $target=edu_predictive_target_next_bimester($conn,$studentId,$schoolId,$yearId,$bimester);
             if($target===null){$skippedTargetData++;continue;}
             $f=edu_predictive_feature_vector($conn,$studentId,$schoolId,$yearId,$bimester,(string)$cutoffDate,$attendanceWindow);
             if((int)$f['_grade_records_current']===0)continue;
             if((int)$f['_attendance_records']===0)$missingAttendance++;
+            if((float)$f['previous_bimester_available']<0.5)$withoutPrevious++;
             if($target===1)$positive++;else$negative++;
             $pair=edu_predictive_bimester_label($bimester).'→'.edu_predictive_bimester_label($bimester+1);$pairCounts[$pair]=($pairCounts[$pair]??0)+1;
             fputcsv($fh,[
                 $schoolId,$yearId,$studentId,(string)$student['nivel'],(string)$student['grado'],(string)$student['seccion'],$bimester,$bimester+1,(string)$cutoffDate,$cutoffSource,
-                round((float)$f['grade_mean_current'],6),round((float)$f['grade_mean_previous'],6),round((float)$f['grade_trend'],6),(int)$f['_grade_records_current'],(int)$f['critical_records_current'],(int)$f['critical_courses_current'],risk_export_nullable_number($f['attendance_rate_30d']),risk_export_nullable_number($f['late_30d']),risk_export_nullable_number($f['absent_30d']),(int)$f['_attendance_records'],$target
+                round((float)$f['grade_mean_current'],6),risk_export_nullable_number($f['_grade_mean_previous_observed']??null),round((float)$f['grade_trend'],6),(int)$f['previous_bimester_available'],
+                (int)$f['_grade_records_current'],(int)$f['critical_records_current'],(int)$f['critical_courses_current'],risk_export_nullable_number($f['attendance_rate_30d']),risk_export_nullable_number($f['late_30d']),risk_export_nullable_number($f['absent_30d']),(int)$f['_attendance_records'],$target
             ]);
             $written++;
         }
@@ -106,9 +97,11 @@ foreach($years as $year){
 fclose($fh);
 
 echo "Dataset creado: $output\n";
+echo "Esquema de variables: v4\n";
 echo "Filas: $written\n";
 echo "Objetivo positivo: $positive | negativo: $negative\n";
 echo "Pares cerrados utilizados: ".($pairCounts?implode(' | ',array_map(static fn($k,$v)=>$k.': '.$v,array_keys($pairCounts),array_values($pairCounts))):'ninguno')."\n";
+echo "Filas sin bimestre previo disponible: $withoutPrevious\n";
 echo "Ventana de asistencia: $attendanceWindow días previos al cierre del bimestre base\n";
 echo "Filas sin asistencia suficiente: $missingAttendance\n";
 echo "Criterio crítico numérico: nota < ".edu_predictive_critical_threshold()." (o letra C)\n";
@@ -116,6 +109,6 @@ echo "Bimestres base omitidos por no estar cerrados: $skippedBaseOpen\n";
 echo "Pares omitidos porque el bimestre siguiente aún no está cerrado: $skippedTargetOpen\n";
 echo "Pares omitidos por falta de fecha de corte segura: $skippedCutoff\n";
 echo "Filas omitidas por falta de notas en el bimestre siguiente ya cerrado: $skippedTargetData\n";
-if($allowEstimated)echo "ADVERTENCIA: se permitieron fechas de corte estimadas SOLO después de confirmar que el bimestre base estaba cerrado. Para la tesis final es preferible una fecha real.\n";
-if($written<40)echo "ADVERTENCIA: el conjunto es pequeño; no entrenes ni reportes métricas concluyentes hasta reunir más observaciones históricas cerradas.\n";
-if($written>0&&$missingAttendance/$written>0.5)echo "ADVERTENCIA: más del 50% de las filas no tienen asistencia; el modelo dependerá principalmente de variables académicas.\n";
+if($allowEstimated)echo "ADVERTENCIA: se permitieron fechas de corte estimadas tras confirmar cierre. Para tesis final es preferible fecha real.\n";
+if($written<40)echo "ADVERTENCIA: el conjunto es pequeño.\n";
+if($written>0&&$missingAttendance/$written>0.5)echo "ADVERTENCIA: más del 50% de filas no tiene asistencia; el modelo dependerá principalmente de variables académicas.\n";
