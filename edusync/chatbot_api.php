@@ -12,6 +12,7 @@ require_once __DIR__ . '/db_connect.php';
 require_once __DIR__ . '/includes/chatbot_engine.php';
 require_once __DIR__ . '/includes/chatbot_queries.php';
 require_once __DIR__ . '/includes/chatbot_ai.php';
+require_once __DIR__ . '/includes/chatbot_advanced_assistant.php';
 
 function edu_chat_api_reply(array $payload, int $status = 200): void {
     http_response_code($status);
@@ -117,7 +118,7 @@ try {
     }
 
     if ($action === 'reset') {
-        unset($_SESSION['chatbot_context'], $_SESSION['chatbot_history'], $_SESSION['chatbot_rate']);
+        unset($_SESSION['chatbot_context'], $_SESSION['chatbot_query_state'], $_SESSION['chatbot_history'], $_SESSION['chatbot_rate']);
         edu_chat_api_reply([
             'status' => 1,
             'message' => 'Conversación reiniciada.',
@@ -134,19 +135,36 @@ try {
     }
 
     $history = array_values((array)($_SESSION['chatbot_history'] ?? []));
+    $queryState = is_array($_SESSION['chatbot_query_state'] ?? null) ? $_SESSION['chatbot_query_state'] : [];
+    $effectiveMessage = edu_chat_contextualize_message($message, $queryState);
     $result = null;
     $aiError = null;
 
-    if (edu_chat_ai_enabled()) {
+    // Las consultas administrativas inequívocas se resuelven de forma determinista
+    // para conservar nombres, montos, porcentajes y filtros exactamente como salen de MySQL.
+    try {
+        $result = edu_chat_advanced_try($conn, $actor, $effectiveMessage, $queryState);
+        if (is_array($result)) {
+            $result['mode'] = edu_chat_ai_enabled() ? edu_chat_ai_mode() : 'local';
+            $result['intent'] = 'advanced';
+        }
+    } catch (Throwable $advancedException) {
+        error_log('[chatbot_advanced fallback] ' . $advancedException->getMessage() . ' line ' . $advancedException->getLine());
+        $result = null;
+    }
+
+    if (!is_array($result) && edu_chat_ai_enabled()) {
         try {
-            $result = edu_chat_ai_ask($conn, $actor, $message, $history);
+            $result = edu_chat_ai_ask($conn, $actor, $effectiveMessage, $history);
         } catch (Throwable $aiException) {
             $aiError = $aiException->getMessage();
             error_log('[chatbot_ai fallback] ' . $aiException->getMessage() . ' line ' . $aiException->getLine());
         }
     }
 
-    if (!is_array($result)) $result = edu_chat_local_result($conn, $actor, $message);
+    if (!is_array($result)) $result = edu_chat_local_result($conn, $actor, $effectiveMessage);
+
+    $_SESSION['chatbot_query_state'] = edu_chat_context_update_state($message, $result, $queryState);
 
     edu_chat_history_add('user', $message);
     edu_chat_history_add('assistant', (string)($result['message'] ?? ''), [
