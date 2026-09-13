@@ -59,7 +59,8 @@ function edu_risk_counterfactual_change_items(array $base, array $scenario): arr
     $items = [];
     foreach ($labels as $feature => $label) {
         if (!array_key_exists($feature, $scenario)) continue;
-        $before = (float)($base[$feature] ?? 0); $after = (float)$scenario[$feature];
+        if (!array_key_exists($feature, $base) || $base[$feature] === null || $base[$feature] === '') continue;
+        $before = (float)$base[$feature]; $after = (float)$scenario[$feature];
         if (abs($before - $after) < 0.001) continue;
         $items[] = ['feature'=>$feature,'label'=>$label,'before'=>$before,'after'=>$after];
     }
@@ -72,14 +73,19 @@ function edu_risk_counterfactual_scenarios(array $prediction): array {
     $medium = (float)($model['risk_thresholds']['medium'] ?? 0.40); $high = (float)($model['risk_thresholds']['high'] ?? 0.70);
     $target = $prediction['level'] === 'Alto' ? $high : $medium;
     $mean=(float)($base['grade_mean_current']??0); $criticalRecords=(float)($base['critical_records_current']??0); $criticalCourses=(float)($base['critical_courses_current']??0);
-    $attendance=(float)($base['attendance_rate_30d']??100); $late=(float)($base['late_30d']??0); $absent=(float)($base['absent_30d']??0);
+    $attendanceAvailable=!empty($prediction['data_quality']['attendance_available']);
     $templates = [
-        ['name'=>'Mejora de asistencia','effort'=>1,'changes'=>['attendance_rate_30d'=>max($attendance,90.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2)]],
         ['name'=>'Refuerzo académico focalizado','effort'=>2,'changes'=>['grade_mean_current'=>min(20.0,$mean+1.5),'critical_records_current'=>max(0.0,$criticalRecords-2),'critical_courses_current'=>max(0.0,$criticalCourses-1)]],
-        ['name'=>'Asistencia sostenida','effort'=>3,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0]],
-        ['name'=>'Plan combinado moderado','effort'=>4,'changes'=>['attendance_rate_30d'=>max($attendance,92.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2),'grade_mean_current'=>min(20.0,$mean+1.5),'critical_records_current'=>max(0.0,$criticalRecords-2),'critical_courses_current'=>max(0.0,$criticalCourses-1)]],
-        ['name'=>'Plan combinado intensivo','effort'=>5,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0,'grade_mean_current'=>min(20.0,$mean+2.5),'critical_records_current'=>max(0.0,$criticalRecords-4),'critical_courses_current'=>max(0.0,$criticalCourses-2)]]
     ];
+    if($attendanceAvailable){
+        $attendance=(float)$base['attendance_rate_30d']; $late=(float)$base['late_30d']; $absent=(float)$base['absent_30d'];
+        array_unshift($templates,['name'=>'Mejora de asistencia','effort'=>1,'changes'=>['attendance_rate_30d'=>max($attendance,90.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2)]]);
+        $templates[]=['name'=>'Asistencia sostenida','effort'=>3,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0]];
+        $templates[]=['name'=>'Plan combinado moderado','effort'=>4,'changes'=>['attendance_rate_30d'=>max($attendance,92.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2),'grade_mean_current'=>min(20.0,$mean+1.5),'critical_records_current'=>max(0.0,$criticalRecords-2),'critical_courses_current'=>max(0.0,$criticalCourses-1)]];
+        $templates[]=['name'=>'Plan combinado intensivo','effort'=>5,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0,'grade_mean_current'=>min(20.0,$mean+2.5),'critical_records_current'=>max(0.0,$criticalRecords-4),'critical_courses_current'=>max(0.0,$criticalCourses-2)]];
+    } else {
+        $templates[]=['name'=>'Refuerzo académico intensivo','effort'=>4,'changes'=>['grade_mean_current'=>min(20.0,$mean+2.5),'critical_records_current'=>max(0.0,$criticalRecords-4),'critical_courses_current'=>max(0.0,$criticalCourses-2)]];
+    }
     $rows = [];
     foreach ($templates as $template) {
         $features = edu_risk_counterfactual_apply($base, $template['changes']);
@@ -187,20 +193,21 @@ function edu_risk_open_counts_by_student(mysqli $conn,array $actor): array {
 function edu_risk_dashboard_data(mysqli $conn,array $actor,array $entities=[]): array {
     if((int)($actor['type']??0)!==1)return ['ok'=>false,'message'=>'Este panel está disponible únicamente para administración.'];
     $model=edu_predictive_model_load(); $students=edu_predictive_students($conn,$actor,$entities,'',200); $openMap=edu_risk_open_counts_by_student($conn,$actor);
-    $summary=['Alto'=>0,'Medio'=>0,'Bajo'=>0]; $predictions=[]; $factorCounts=[]; $evaluated=0;
+    $summary=['Alto'=>0,'Medio'=>0,'Bajo'=>0]; $predictions=[]; $factorCounts=[]; $evaluated=0;$missingAttendance=0;
     if(!empty($model['available'])){
         foreach($students as $student){
             $prediction=edu_predictive_student_prediction($conn,$actor,(int)$student['id'],!empty($entities['bimestre'])?(int)$entities['bimestre']:null);
             if(empty($prediction['available']))continue; $evaluated++; $summary[$prediction['level']]++;
+            if(empty($prediction['data_quality']['attendance_available']))$missingAttendance++;
             foreach(array_slice((array)($prediction['explanation']['raises']??[]),0,3) as $factor){$label=(string)($factor['label']??$factor['feature']??'Factor');$factorCounts[$label]=($factorCounts[$label]??0)+1;}
-            $predictions[]=['student'=>$student,'probability'=>(float)$prediction['probability'],'level'=>$prediction['level'],'bimester'=>$prediction['bimester'],'target_bimester'=>$prediction['target_bimester'],'factors'=>array_slice((array)($prediction['explanation']['raises']??[]),0,3),'open_interventions'=>$openMap[(int)$student['id']]??0,'suggested'=>edu_risk_suggest_intervention($prediction)];
+            $predictions[]=['student'=>$student,'probability'=>(float)$prediction['probability'],'level'=>$prediction['level'],'bimester'=>$prediction['bimester'],'target_bimester'=>$prediction['target_bimester'],'factors'=>array_slice((array)($prediction['explanation']['raises']??[]),0,3),'attendance_available'=>!empty($prediction['data_quality']['attendance_available']),'attendance_records'=>(int)($prediction['data_quality']['attendance_records']??0),'open_interventions'=>$openMap[(int)$student['id']]??0,'suggested'=>edu_risk_suggest_intervention($prediction)];
         }
         usort($predictions,static fn($a,$b)=>$b['probability']<=>$a['probability']); $predictions=array_slice($predictions,0,50);
     }
     arsort($factorCounts); $factors=[]; foreach(array_slice($factorCounts,0,8,true) as $label=>$count)$factors[]=['label'=>$label,'count'=>$count];
     $interventions=edu_risk_list_interventions($conn,$actor,$entities,100); $intSummary=['Pendiente'=>0,'En proceso'=>0,'Completada'=>0,'Cancelada'=>0,'Seguimientos vencidos'=>0]; $improved=0; $measured=0; $deltaSum=0.0; $today=date('Y-m-d');
     foreach($interventions as $row){$status=(string)$row['status'];if(isset($intSummary[$status]))$intSummary[$status]++;if(in_array($status,['Pendiente','En proceso'],true)&&!empty($row['followup_date'])&&$row['followup_date']<$today)$intSummary['Seguimientos vencidos']++;if($status==='Completada'&&$row['risk_probability']!==null&&$row['post_risk_probability']!==null){$delta=(float)$row['risk_probability']-(float)$row['post_risk_probability'];$deltaSum+=$delta;$measured++;if($delta>0)$improved++;}}
-    return ['ok'=>true,'model'=>['available'=>!empty($model['available']),'reason'=>$model['reason']??null,'created_at'=>$model['created_at']??null,'metrics'=>(array)($model['metrics']['holdout']??[]),'training'=>$model['training']??[]],'summary'=>['evaluated'=>$evaluated,'high'=>$summary['Alto'],'medium'=>$summary['Medio'],'low'=>$summary['Bajo'],'students_considered'=>count($students)],'predictions'=>$predictions,'factors'=>$factors,'interventions'=>$interventions,'intervention_summary'=>$intSummary,'effectiveness'=>['measured'=>$measured,'improved'=>$improved,'average_probability_reduction'=>$measured>0?$deltaSum/$measured:null],'migration_ready'=>edu_risk_interventions_ready($conn)];
+    return ['ok'=>true,'model'=>['available'=>!empty($model['available']),'reason'=>$model['reason']??null,'created_at'=>$model['created_at']??null,'metrics'=>(array)($model['metrics']['holdout']??[]),'training'=>$model['training']??[]],'summary'=>['evaluated'=>$evaluated,'high'=>$summary['Alto'],'medium'=>$summary['Medio'],'low'=>$summary['Bajo'],'students_considered'=>count($students),'attendance_missing'=>$missingAttendance],'predictions'=>$predictions,'factors'=>$factors,'interventions'=>$interventions,'intervention_summary'=>$intSummary,'effectiveness'=>['measured'=>$measured,'improved'=>$improved,'average_probability_reduction'=>$measured>0?$deltaSum/$measured:null],'migration_ready'=>edu_risk_interventions_ready($conn)];
 }
 
 function edu_risk_counterfactual_chat_result(mysqli $conn,array $actor,string $name,array $entities=[]): array {
@@ -209,6 +216,7 @@ function edu_risk_counterfactual_chat_result(mysqli $conn,array $actor,string $n
     if(count($students)>1){$lines=[];foreach($students as $i=>$student)$lines[]=($i+1).'. '.$student['name'].' — '.$student['nivel'].' · '.$student['grado'].'° '.$student['seccion'];return edu_chat_result("Encontré varias coincidencias. Especifica el nombre completo o el aula:\n".implode("\n",$lines));}
     $cf=edu_risk_counterfactual_for_student($conn,$actor,(int)$students[0]['id'],!empty($entities['bimestre'])?(int)$entities['bimestre']:null); if(empty($cf['available']))return edu_chat_result('No hay datos suficientes para simular cambios de riesgo para ese estudiante.');
     $prediction=$cf['prediction']; $lines=[$cf['student']['name'].' — riesgo actual '.$prediction['level'].' ('.number_format($prediction['probability']*100,1).'%).'];
+    if(empty($prediction['data_quality']['attendance_available']))$lines[]='Observación: no hay registros suficientes de asistencia en la ventana analizada; la simulación no propondrá cambios de asistencia.';
     if(empty($cf['recommended']))$lines[]='El estudiante ya está en riesgo bajo o el modelo no encontró un escenario simulado que reduzca la probabilidad.';
     else{$scenario=$cf['recommended'];$lines[]='Escenario simulado: '.$scenario['name'].'.';foreach($scenario['changes'] as $change){$before=$change['feature']==='attendance_rate_30d'?number_format($change['before'],1).'%':number_format($change['before'],1);$after=$change['feature']==='attendance_rate_30d'?number_format($change['after'],1).'%':number_format($change['after'],1);$lines[]='• '.$change['label'].': '.$before.' → '.$after.'.';}$lines[]='Riesgo estimado bajo ese escenario: '.$scenario['level'].' ('.number_format($scenario['probability']*100,1).'%).';}
     $lines[]='Es una simulación del modelo para apoyar decisiones; no demuestra causalidad ni garantiza ese resultado.';
