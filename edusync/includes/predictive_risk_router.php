@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/predictive_risk.php';
+require_once __DIR__ . '/predictive_interventions.php';
 
 function edu_predictive_is_query(string $message): bool {
     $n = function_exists('edu_chat_normalize') ? edu_chat_normalize($message) : strtolower(trim($message));
@@ -39,6 +40,22 @@ function edu_predictive_requested_name(string $message, array $history = []): st
     return '';
 }
 
+function edu_predictive_action_name(string $message,array $history=[]): string {
+    $n=function_exists('edu_chat_normalize')?edu_chat_normalize($message):strtolower(trim($message));
+    $patterns=[
+        '/\b(?:tendria que mejorar|deberia mejorar|puede mejorar|mejorar)\s+(.+?)(?:\s+para\b|\s+si\b|$)/',
+        '/\b(?:bajar|reducir|disminuir)\s+(?:el\s+)?riesgo\s+(?:de|del)\s+(.+?)(?:\s+para\b|\s+si\b|$)/',
+        '/\b(?:simula|simular|escenario)\b.*?\briesgo\s+(?:de|del)\s+(.+?)(?:\s+para\b|\s+si\b|$)/',
+        '/\b(?:intervenciones|intervencion|seguimiento)\s+(?:de|del|para)\s+(.+?)$/',
+    ];
+    foreach($patterns as $pattern){
+        if(!preg_match($pattern,$n,$m))continue;
+        $name=trim((string)$m[1]," .,:;?¿!¡\t\n\r\0\x0B");
+        if($name!==''&&!in_array($name,['alto','medio','bajo','el primero','la primera'],true))return $name;
+    }
+    return edu_predictive_requested_name($message,$history);
+}
+
 function edu_predictive_model_report_result(): array {
     $model=edu_predictive_model_load();
     if(empty($model['available']))return edu_chat_result(edu_predictive_model_unavailable_message($model));
@@ -59,6 +76,18 @@ function edu_predictive_model_report_result(): array {
 function edu_predictive_try(mysqli $conn,array $actor,string $message,array $state=[],array $history=[]): ?array {
     $n=function_exists('edu_chat_normalize')?edu_chat_normalize($message):strtolower(trim($message));
     if((int)($actor['type']??0)!==1)return null;
+    $entities=function_exists('edu_chat_adv_entities')?edu_chat_adv_entities($n,$state):[];
+
+    $isCounterfactual=edu_chat_has($n,['tendria que mejorar','deberia mejorar','bajar el riesgo','reducir el riesgo','disminuir el riesgo','simula el riesgo','simular el riesgo','escenario de mejora','escenario para bajar']);
+    if($isCounterfactual){
+        $name=edu_predictive_action_name($message,$history);
+        return edu_risk_counterfactual_chat_result($conn,$actor,$name,$entities);
+    }
+
+    if(edu_chat_has($n,['intervencion','intervenciones','seguimiento de riesgo','seguimiento del riesgo'])){
+        $name=edu_predictive_action_name($message,$history);
+        return edu_risk_interventions_chat_result($conn,$actor,$name,$entities);
+    }
 
     if((strpos($n,'modelo predictivo')!==false||strpos($n,'precision del modelo')!==false||strpos($n,'metricas del modelo')!==false||strpos($n,'rendimiento del modelo')!==false)
        && (strpos($n,'precision')!==false||strpos($n,'metrica')!==false||strpos($n,'rendimiento')!==false||strpos($n,'modelo predictivo')!==false)){
@@ -66,7 +95,6 @@ function edu_predictive_try(mysqli $conn,array $actor,string $message,array $sta
     }
 
     if(!edu_predictive_is_query($message))return null;
-    $entities=function_exists('edu_chat_adv_entities')?edu_chat_adv_entities($n,$state):[];
     $name=edu_predictive_requested_name($message,$history);
     $limit=30;
     if(preg_match('/\b(?:top|primeros|primeras|dame|muestrame|lista)\s+(?:los\s+|las\s+)?([1-9]|[1-4][0-9]|50)\b/',$n,$m))$limit=(int)$m[1];
