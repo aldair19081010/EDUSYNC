@@ -1,233 +1,57 @@
 <?php
+require_once __DIR__.'/predictive_risk.php';
 
-require_once __DIR__ . '/predictive_risk.php';
+/** Intervenciones y simulaciones contrafactuales para la alerta temprana. */
+function edu_risk_interventions_ready(mysqli $conn): bool{return edu_predictive_table_exists($conn,'student_risk_interventions');}
+function edu_risk_actor_user_id(array $actor): int{$id=(int)($actor['user_id']??$actor['id']??0);if($id<=0&&isset($_SESSION['login_id']))$id=(int)$_SESSION['login_id'];return$id;}
+function edu_risk_student_by_id(mysqli $conn,array $actor,int $studentId): ?array{$schoolId=(int)($actor['school_id']??0);if($schoolId<=0||$studentId<=0)return null;$stmt=$conn->prepare("SELECT id,name,nivel,grado,COALESCE(NULLIF(TRIM(seccion),''),'Sin sección') seccion FROM student WHERE id=? AND school_id=? AND LOWER(TRIM(COALESCE(status,'Activo'))) IN ('activo','active') LIMIT 1");if(!$stmt)return null;$stmt->bind_param('ii',$studentId,$schoolId);$stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();return$row?:null;}
+function edu_risk_intervention_types(): array{return['Reforzamiento académico','Tutoría académica','Seguimiento de asistencia','Plan de puntualidad','Comunicación con apoderado','Acompañamiento socioeducativo','Seguimiento tutorial'];}
+function edu_risk_statuses(): array{return['Pendiente','En proceso','Completada','Cancelada'];}
+function edu_risk_outcomes(): array{return['Mejoró','Sin cambio','Empeoró','No evaluado'];}
 
-/**
- * Intervenciones y simulaciones contrafactuales para la alerta temprana.
- * Una simulación describe el comportamiento del modelo ante cambios hipotéticos;
- * no representa causalidad ni garantiza un resultado real.
- */
+function edu_risk_counterfactual_apply(array $base,array $changes): array{$features=$base;foreach($changes as $feature=>$value)$features[$feature]=$value;if(isset($changes['grade_mean_current'])){$previous=(float)($features['grade_mean_previous']??$features['grade_mean_current']);$features['grade_trend']=(float)$features['grade_mean_current']-$previous;}return$features;}
+function edu_risk_counterfactual_change_items(array $base,array $scenario): array{$labels=['grade_mean_current'=>'promedio académico','critical_records_current'=>'registros críticos','critical_courses_current'=>'cursos críticos','attendance_rate_30d'=>'asistencia de 30 días','late_30d'=>'tardanzas de 30 días','absent_30d'=>'ausencias de 30 días'];$items=[];foreach($labels as $feature=>$label){if(!array_key_exists($feature,$scenario)||!array_key_exists($feature,$base)||$base[$feature]===null||$base[$feature]==='')continue;$before=(float)$base[$feature];$after=(float)$scenario[$feature];if(abs($before-$after)<0.001)continue;$items[]=['feature'=>$feature,'label'=>$label,'before'=>$before,'after'=>$after];}return$items;}
+function edu_risk_counterfactual_scenarios(array $prediction): array{
+    if(empty($prediction['available'])||empty($prediction['model'])||($prediction['level']??'')==='Bajo')return[];
+    $base=(array)$prediction['features'];$model=(array)$prediction['model'];$current=(float)$prediction['probability'];$medium=(float)($model['risk_thresholds']['medium']??0.40);$high=(float)($model['risk_thresholds']['high']??0.70);$target=$prediction['level']==='Alto'?$high:$medium;
+    $mean=(float)($base['grade_mean_current']??0);$criticalRecords=(float)($base['critical_records_current']??0);$criticalCourses=(float)($base['critical_courses_current']??0);$attendanceAvailable=!empty($prediction['data_quality']['attendance_available']);
+    $templates=[['name'=>'Refuerzo académico focalizado','effort'=>2,'changes'=>['grade_mean_current'=>min(20.0,$mean+1.5),'critical_records_current'=>max(0.0,$criticalRecords-2),'critical_courses_current'=>max(0.0,$criticalCourses-1)]]];
+    if($attendanceAvailable){$attendance=(float)$base['attendance_rate_30d'];$late=(float)$base['late_30d'];$absent=(float)$base['absent_30d'];array_unshift($templates,['name'=>'Mejora de asistencia','effort'=>1,'changes'=>['attendance_rate_30d'=>max($attendance,90.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2)]]);$templates[]=['name'=>'Asistencia sostenida','effort'=>3,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0]];$templates[]=['name'=>'Plan combinado moderado','effort'=>4,'changes'=>['attendance_rate_30d'=>max($attendance,92.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2),'grade_mean_current'=>min(20.0,$mean+1.5),'critical_records_current'=>max(0.0,$criticalRecords-2),'critical_courses_current'=>max(0.0,$criticalCourses-1)]];$templates[]=['name'=>'Plan combinado intensivo','effort'=>5,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0,'grade_mean_current'=>min(20.0,$mean+2.5),'critical_records_current'=>max(0.0,$criticalRecords-4),'critical_courses_current'=>max(0.0,$criticalCourses-2)]];}else{$templates[]=['name'=>'Refuerzo académico intensivo','effort'=>4,'changes'=>['grade_mean_current'=>min(20.0,$mean+2.5),'critical_records_current'=>max(0.0,$criticalRecords-4),'critical_courses_current'=>max(0.0,$criticalCourses-2)]];}
+    $rows=[];foreach($templates as $template){$features=edu_risk_counterfactual_apply($base,$template['changes']);$score=edu_predictive_score($features,$model);$after=(float)$score['probability'];if($after>=$current-0.0001)continue;$rows[]=['name'=>$template['name'],'effort'=>$template['effort'],'probability'=>$after,'level'=>$score['level'],'reduction'=>$current-$after,'crosses_target'=>$after<$target,'features'=>$features,'changes'=>edu_risk_counterfactual_change_items($base,$features)];}
+    usort($rows,static function($a,$b){if($a['crosses_target']!==$b['crosses_target'])return$a['crosses_target']?-1:1;if($a['crosses_target']&&$a['effort']!==$b['effort'])return$a['effort']<=>$b['effort'];return$a['probability']<=>$b['probability'];});return$rows;
+}
+function edu_risk_counterfactual_for_student(mysqli $conn,array $actor,int $studentId,?int $bimester=null): array{$student=edu_risk_student_by_id($conn,$actor,$studentId);if(!$student)return['available'=>false,'reason'=>'student'];$prediction=edu_predictive_student_prediction($conn,$actor,$studentId,$bimester);if(empty($prediction['available']))return['available'=>false,'reason'=>$prediction['reason']??'prediction','prediction'=>$prediction,'student'=>$student];$scenarios=edu_risk_counterfactual_scenarios($prediction);return['available'=>true,'student'=>$student,'prediction'=>$prediction,'scenarios'=>$scenarios,'recommended'=>$scenarios[0]??null];}
+function edu_risk_suggest_intervention(array $prediction): array{$features=[];foreach((array)($prediction['explanation']['raises']??[]) as $item)$features[(string)($item['feature']??'')]=true;if(isset($features['absent_30d'])||isset($features['attendance_rate_30d']))return['type'=>'Seguimiento de asistencia','title'=>'Plan de recuperación de asistencia'];if(isset($features['late_30d']))return['type'=>'Plan de puntualidad','title'=>'Plan de mejora de puntualidad'];if(isset($features['critical_courses_current'])||isset($features['critical_records_current']))return['type'=>'Reforzamiento académico','title'=>'Reforzamiento en cursos con registros críticos'];if(isset($features['grade_trend'])||isset($features['grade_mean_current']))return['type'=>'Tutoría académica','title'=>'Tutoría por tendencia de rendimiento'];return['type'=>'Seguimiento tutorial','title'=>'Seguimiento preventivo de riesgo académico'];}
 
-function edu_risk_interventions_ready(mysqli $conn): bool {
-    return edu_predictive_table_exists($conn, 'student_risk_interventions');
+function edu_risk_log(mysqli $conn,int $interventionId,int $schoolId,int $studentId,int $userId,string $action,array $details=[]): void{if(!edu_predictive_table_exists($conn,'student_risk_intervention_log'))return;$json=json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);$stmt=$conn->prepare('INSERT INTO student_risk_intervention_log (intervention_id,school_id,student_id,user_id,action,details) VALUES (?,?,?,?,?,?)');if(!$stmt)return;$stmt->bind_param('iiiiss',$interventionId,$schoolId,$studentId,$userId,$action,$json);$stmt->execute();$stmt->close();}
+
+function edu_risk_create_intervention(mysqli $conn,array $actor,array $data): array{
+    if((int)($actor['type']??0)!==1)return['ok'=>false,'message'=>'Solo administración puede registrar intervenciones.'];if(!edu_risk_interventions_ready($conn))return['ok'=>false,'message'=>'Falta ejecutar la migración de intervenciones predictivas.'];
+    $schoolId=(int)($actor['school_id']??0);$studentId=(int)($data['student_id']??0);$student=edu_risk_student_by_id($conn,$actor,$studentId);if(!$student)return['ok'=>false,'message'=>'El estudiante no pertenece al colegio autenticado o no está activo.'];$type=trim((string)($data['intervention_type']??''));if(!in_array($type,edu_risk_intervention_types(),true))return['ok'=>false,'message'=>'Tipo de intervención no válido.'];$title=trim((string)($data['title']??''));if($title===''||mb_strlen($title,'UTF-8')>160)return['ok'=>false,'message'=>'Escribe un título de hasta 160 caracteres.'];$notes=trim((string)($data['notes']??''));if(mb_strlen($notes,'UTF-8')>1000)return['ok'=>false,'message'=>'Las observaciones no pueden superar 1000 caracteres.'];$planned=trim((string)($data['planned_date']??''));$followup=trim((string)($data['followup_date']??''));foreach([$planned,$followup] as $date)if($date!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))return['ok'=>false,'message'=>'La fecha indicada no tiene un formato válido.'];$planned=$planned!==''?$planned:null;$followup=$followup!==''?$followup:null;
+    $prediction=edu_predictive_student_prediction($conn,$actor,$studentId,null);$year=edu_predictive_academic_year($conn,$schoolId,null);$yearId=(int)($year['id']??0);$source=null;$target=null;$probability=null;$level=null;if(!empty($prediction['available'])){$source=(int)$prediction['bimester'];$target=(int)$prediction['target_bimester'];$probability=(float)$prediction['probability'];$level=(string)$prediction['level'];}
+    $userId=edu_risk_actor_user_id($actor);$sql="INSERT INTO student_risk_interventions (school_id,academic_year_id,student_id,source_bimester,target_bimester,risk_probability,risk_level,intervention_type,title,notes,status,planned_date,followup_date,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,'Pendiente',?,?,?,?)";$stmt=$conn->prepare($sql);if(!$stmt)return['ok'=>false,'message'=>'No pude preparar el registro de la intervención.'];$types='iiiiidssssssii';$params=[$schoolId,$yearId,$studentId,$source,$target,$probability,$level,$type,$title,$notes,$planned,$followup,$userId,$userId];edu_predictive_bind($stmt,$types,$params);if(!$stmt->execute()){$stmt->close();return['ok'=>false,'message'=>'No pude registrar la intervención.'];}$id=(int)$stmt->insert_id;$stmt->close();edu_risk_log($conn,$id,$schoolId,$studentId,$userId,'create',['type'=>$type,'title'=>$title,'risk_probability'=>$probability,'risk_level'=>$level,'source_bimester'=>$source,'target_bimester'=>$target]);return['ok'=>true,'id'=>$id,'message'=>'Intervención registrada correctamente.'];
 }
 
-function edu_risk_actor_user_id(array $actor): int {
-    $id = (int)($actor['user_id'] ?? $actor['id'] ?? 0);
-    if ($id <= 0 && isset($_SESSION['login_id'])) $id = (int)$_SESSION['login_id'];
-    return $id;
-}
-
-function edu_risk_student_by_id(mysqli $conn, array $actor, int $studentId): ?array {
-    $schoolId = (int)($actor['school_id'] ?? 0);
-    if ($schoolId <= 0 || $studentId <= 0) return null;
-    $stmt = $conn->prepare("SELECT id,name,nivel,grado,COALESCE(NULLIF(TRIM(seccion),''),'Sin sección') seccion FROM student WHERE id=? AND school_id=? AND LOWER(TRIM(COALESCE(status,'Activo'))) IN ('activo','active') LIMIT 1");
-    if (!$stmt) return null;
-    $stmt->bind_param('ii', $studentId, $schoolId);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    return $row ?: null;
-}
-
-function edu_risk_intervention_types(): array {
-    return ['Reforzamiento académico','Tutoría académica','Seguimiento de asistencia','Plan de puntualidad','Comunicación con apoderado','Acompañamiento socioeducativo','Seguimiento tutorial'];
-}
-
-function edu_risk_statuses(): array { return ['Pendiente','En proceso','Completada','Cancelada']; }
-function edu_risk_outcomes(): array { return ['Mejoró','Sin cambio','Empeoró','No evaluado']; }
-
-function edu_risk_counterfactual_apply(array $base, array $changes): array {
-    $features = $base;
-    foreach ($changes as $feature => $value) $features[$feature] = $value;
-    if (isset($changes['grade_mean_current'])) {
-        $previous = (float)($features['grade_mean_previous'] ?? $features['grade_mean_current']);
-        $features['grade_trend'] = (float)$features['grade_mean_current'] - $previous;
+function edu_risk_update_intervention(mysqli $conn,array $actor,int $id,array $data): array{
+    if((int)($actor['type']??0)!==1)return['ok'=>false,'message'=>'Solo administración puede actualizar intervenciones.'];if(!edu_risk_interventions_ready($conn))return['ok'=>false,'message'=>'El módulo de intervenciones no está instalado.'];$schoolId=(int)($actor['school_id']??0);$stmt=$conn->prepare('SELECT * FROM student_risk_interventions WHERE id=? AND school_id=? LIMIT 1');if(!$stmt)return['ok'=>false,'message'=>'No pude consultar la intervención.'];$stmt->bind_param('ii',$id,$schoolId);$stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$row)return['ok'=>false,'message'=>'No encontré la intervención solicitada.'];
+    $status=trim((string)($data['status']??$row['status']));if(!in_array($status,edu_risk_statuses(),true))return['ok'=>false,'message'=>'Estado no válido.'];$outcome=trim((string)($data['outcome']??($row['outcome']??'')));if($outcome!==''&&!in_array($outcome,edu_risk_outcomes(),true))return['ok'=>false,'message'=>'Resultado no válido.'];$notes=trim((string)($data['notes']??($row['notes']??'')));if(mb_strlen($notes,'UTF-8')>1000)return['ok'=>false,'message'=>'Las observaciones no pueden superar 1000 caracteres.'];$followup=trim((string)($data['followup_date']??($row['followup_date']??'')));if($followup!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$followup))return['ok'=>false,'message'=>'Fecha de seguimiento no válida.'];$followup=$followup!==''?$followup:null;$outcome=$outcome!==''?$outcome:null;$completed=$row['completed_at']??null;$post=$row['post_risk_probability']!==null?(float)$row['post_risk_probability']:null;$measurementPending=false;
+    if($status==='Completada'){
+        $completed=date('Y-m-d H:i:s');if($outcome===null)$outcome='No evaluado';$source=(int)($row['source_bimester']??0);$yearId=(int)($row['academic_year_id']??0);$latest=$yearId>0?edu_predictive_latest_closed_bimester($conn,$schoolId,$yearId):null;
+        if($latest!==null&&$latest>$source&&$latest<4){$prediction=edu_predictive_student_prediction($conn,$actor,(int)$row['student_id'],$latest);if(!empty($prediction['available']))$post=(float)$prediction['probability'];else{$post=null;$measurementPending=true;}}else{$post=null;$measurementPending=true;}
     }
-    return $features;
+    $userId=edu_risk_actor_user_id($actor);$sql='UPDATE student_risk_interventions SET status=?,outcome=?,notes=?,followup_date=?,completed_at=?,post_risk_probability=?,updated_by=? WHERE id=? AND school_id=?';$stmt=$conn->prepare($sql);if(!$stmt)return['ok'=>false,'message'=>'No pude preparar la actualización.'];$types='sssssdiii';$params=[$status,$outcome,$notes,$followup,$completed,$post,$userId,$id,$schoolId];edu_predictive_bind($stmt,$types,$params);if(!$stmt->execute()){$stmt->close();return['ok'=>false,'message'=>'No pude actualizar la intervención.'];}$stmt->close();edu_risk_log($conn,$id,$schoolId,(int)$row['student_id'],$userId,'update',['status'=>$status,'outcome'=>$outcome,'post_risk_probability'=>$post,'measurement_pending'=>$measurementPending]);$message='Intervención actualizada correctamente.';if($measurementPending)$message.=' La medición predictiva posterior queda pendiente hasta disponer de un nuevo bimestre cerrado.';return['ok'=>true,'message'=>$message,'measurement_pending'=>$measurementPending];
 }
 
-function edu_risk_counterfactual_change_items(array $base, array $scenario): array {
-    $labels = [
-        'grade_mean_current'=>'promedio académico',
-        'critical_records_current'=>'registros críticos',
-        'critical_courses_current'=>'cursos críticos',
-        'attendance_rate_30d'=>'asistencia de 30 días',
-        'late_30d'=>'tardanzas de 30 días',
-        'absent_30d'=>'ausencias de 30 días'
-    ];
-    $items = [];
-    foreach ($labels as $feature => $label) {
-        if (!array_key_exists($feature, $scenario)) continue;
-        if (!array_key_exists($feature, $base) || $base[$feature] === null || $base[$feature] === '') continue;
-        $before = (float)$base[$feature]; $after = (float)$scenario[$feature];
-        if (abs($before - $after) < 0.001) continue;
-        $items[] = ['feature'=>$feature,'label'=>$label,'before'=>$before,'after'=>$after];
-    }
-    return $items;
+function edu_risk_list_interventions(mysqli $conn,array $actor,array $filters=[],int $limit=100): array{if(!edu_risk_interventions_ready($conn))return[];$schoolId=(int)($actor['school_id']??0);$limit=max(1,min(300,$limit));$where=['ri.school_id=?'];$types='i';$params=[$schoolId];if(!empty($filters['student_id'])){$where[]='ri.student_id=?';$types.='i';$params[]=(int)$filters['student_id'];}if(!empty($filters['status'])&&in_array($filters['status'],edu_risk_statuses(),true)){$where[]='ri.status=?';$types.='s';$params[]=$filters['status'];}if(!empty($filters['level'])){$where[]='LOWER(TRIM(s.nivel))=LOWER(TRIM(?))';$types.='s';$params[]=(string)$filters['level'];}if(!empty($filters['grade'])){$where[]='CAST(s.grado AS UNSIGNED)=?';$types.='i';$params[]=(int)$filters['grade'];}if(!empty($filters['section'])){$where[]='UPPER(TRIM(s.seccion))=UPPER(TRIM(?))';$types.='s';$params[]=(string)$filters['section'];}$sql="SELECT ri.*,s.name student_name,s.nivel,s.grado,COALESCE(NULLIF(TRIM(s.seccion),''),'Sin sección') seccion FROM student_risk_interventions ri INNER JOIN student s ON s.id=ri.student_id AND s.school_id=ri.school_id WHERE ".implode(' AND ',$where)." ORDER BY CASE ri.status WHEN 'En proceso' THEN 1 WHEN 'Pendiente' THEN 2 WHEN 'Completada' THEN 3 ELSE 4 END,COALESCE(ri.followup_date,'9999-12-31'),ri.created_at DESC LIMIT $limit";$stmt=$conn->prepare($sql);if(!$stmt)return[];edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$stmt->close();return$rows;}
+function edu_risk_open_counts_by_student(mysqli $conn,array $actor): array{if(!edu_risk_interventions_ready($conn))return[];$schoolId=(int)($actor['school_id']??0);$stmt=$conn->prepare("SELECT student_id,COUNT(*) total FROM student_risk_interventions WHERE school_id=? AND status IN ('Pendiente','En proceso') GROUP BY student_id");if(!$stmt)return[];$stmt->bind_param('i',$schoolId);$stmt->execute();$res=$stmt->get_result();$map=[];while($r=$res->fetch_assoc())$map[(int)$r['student_id']]=(int)$r['total'];$stmt->close();return$map;}
+
+function edu_risk_dashboard_data(mysqli $conn,array $actor,array $entities=[]): array{
+    if((int)($actor['type']??0)!==1)return['ok'=>false,'message'=>'Este panel está disponible únicamente para administración.'];$model=edu_predictive_model_load();$students=edu_predictive_students($conn,$actor,$entities,'',200);$openMap=edu_risk_open_counts_by_student($conn,$actor);$summary=['Alto'=>0,'Medio'=>0,'Bajo'=>0];$predictions=[];$factorCounts=[];$evaluated=0;$missingAttendance=0;
+    if(!empty($model['available']))foreach($students as $student){$prediction=edu_predictive_student_prediction($conn,$actor,(int)$student['id'],!empty($entities['bimestre'])?(int)$entities['bimestre']:null);if(empty($prediction['available']))continue;$evaluated++;$summary[$prediction['level']]++;if(empty($prediction['data_quality']['attendance_available']))$missingAttendance++;foreach(array_slice((array)($prediction['explanation']['raises']??[]),0,3) as $factor){$label=(string)($factor['label']??$factor['feature']??'Factor');$factorCounts[$label]=($factorCounts[$label]??0)+1;}$predictions[]=['student'=>$student,'probability'=>(float)$prediction['probability'],'level'=>$prediction['level'],'bimester'=>$prediction['bimester'],'bimester_label'=>$prediction['bimester_label']??edu_predictive_bimester_label((int)$prediction['bimester']),'target_bimester'=>$prediction['target_bimester'],'target_bimester_label'=>$prediction['target_bimester_label']??edu_predictive_bimester_label((int)$prediction['target_bimester']),'base_closed_at'=>$prediction['base_closed_at']??null,'factors'=>array_slice((array)($prediction['explanation']['raises']??[]),0,3),'attendance_available'=>!empty($prediction['data_quality']['attendance_available']),'attendance_records'=>(int)($prediction['data_quality']['attendance_records']??0),'open_interventions'=>$openMap[(int)$student['id']]??0,'suggested'=>edu_risk_suggest_intervention($prediction)];}if($predictions){usort($predictions,static fn($a,$b)=>$b['probability']<=>$a['probability']);$predictions=array_slice($predictions,0,50);}arsort($factorCounts);$factors=[];foreach(array_slice($factorCounts,0,8,true) as $label=>$count)$factors[]=['label'=>$label,'count'=>$count];
+    $interventions=edu_risk_list_interventions($conn,$actor,$entities,100);$intSummary=['Pendiente'=>0,'En proceso'=>0,'Completada'=>0,'Cancelada'=>0,'Seguimientos vencidos'=>0];$improved=0;$measured=0;$deltaSum=0.0;$today=date('Y-m-d');foreach($interventions as $row){$status=(string)$row['status'];if(isset($intSummary[$status]))$intSummary[$status]++;if(in_array($status,['Pendiente','En proceso'],true)&&!empty($row['followup_date'])&&$row['followup_date']<$today)$intSummary['Seguimientos vencidos']++;if($status==='Completada'&&$row['risk_probability']!==null&&$row['post_risk_probability']!==null){$delta=(float)$row['risk_probability']-(float)$row['post_risk_probability'];$deltaSum+=$delta;$measured++;if($delta>0)$improved++;}}
+    return['ok'=>true,'model'=>['available'=>!empty($model['available']),'reason'=>$model['reason']??null,'created_at'=>$model['created_at']??null,'metrics'=>(array)($model['metrics']['holdout']??[]),'training'=>$model['training']??[]],'summary'=>['evaluated'=>$evaluated,'high'=>$summary['Alto'],'medium'=>$summary['Medio'],'low'=>$summary['Bajo'],'students_considered'=>count($students),'attendance_missing'=>$missingAttendance],'predictions'=>$predictions,'factors'=>$factors,'interventions'=>$interventions,'intervention_summary'=>$intSummary,'effectiveness'=>['measured'=>$measured,'improved'=>$improved,'average_probability_reduction'=>$measured>0?$deltaSum/$measured:null],'migration_ready'=>edu_risk_interventions_ready($conn)];
 }
 
-function edu_risk_counterfactual_scenarios(array $prediction): array {
-    if (empty($prediction['available']) || empty($prediction['model']) || ($prediction['level'] ?? '') === 'Bajo') return [];
-    $base = (array)$prediction['features']; $model = (array)$prediction['model']; $current = (float)$prediction['probability'];
-    $medium = (float)($model['risk_thresholds']['medium'] ?? 0.40); $high = (float)($model['risk_thresholds']['high'] ?? 0.70);
-    $target = $prediction['level'] === 'Alto' ? $high : $medium;
-    $mean=(float)($base['grade_mean_current']??0); $criticalRecords=(float)($base['critical_records_current']??0); $criticalCourses=(float)($base['critical_courses_current']??0);
-    $attendanceAvailable=!empty($prediction['data_quality']['attendance_available']);
-    $templates = [
-        ['name'=>'Refuerzo académico focalizado','effort'=>2,'changes'=>['grade_mean_current'=>min(20.0,$mean+1.5),'critical_records_current'=>max(0.0,$criticalRecords-2),'critical_courses_current'=>max(0.0,$criticalCourses-1)]],
-    ];
-    if($attendanceAvailable){
-        $attendance=(float)$base['attendance_rate_30d']; $late=(float)$base['late_30d']; $absent=(float)$base['absent_30d'];
-        array_unshift($templates,['name'=>'Mejora de asistencia','effort'=>1,'changes'=>['attendance_rate_30d'=>max($attendance,90.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2)]]);
-        $templates[]=['name'=>'Asistencia sostenida','effort'=>3,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0]];
-        $templates[]=['name'=>'Plan combinado moderado','effort'=>4,'changes'=>['attendance_rate_30d'=>max($attendance,92.0),'late_30d'=>floor($late/2),'absent_30d'=>floor($absent/2),'grade_mean_current'=>min(20.0,$mean+1.5),'critical_records_current'=>max(0.0,$criticalRecords-2),'critical_courses_current'=>max(0.0,$criticalCourses-1)]];
-        $templates[]=['name'=>'Plan combinado intensivo','effort'=>5,'changes'=>['attendance_rate_30d'=>max($attendance,95.0),'late_30d'=>0.0,'absent_30d'=>0.0,'grade_mean_current'=>min(20.0,$mean+2.5),'critical_records_current'=>max(0.0,$criticalRecords-4),'critical_courses_current'=>max(0.0,$criticalCourses-2)]];
-    } else {
-        $templates[]=['name'=>'Refuerzo académico intensivo','effort'=>4,'changes'=>['grade_mean_current'=>min(20.0,$mean+2.5),'critical_records_current'=>max(0.0,$criticalRecords-4),'critical_courses_current'=>max(0.0,$criticalCourses-2)]];
-    }
-    $rows = [];
-    foreach ($templates as $template) {
-        $features = edu_risk_counterfactual_apply($base, $template['changes']);
-        $score = edu_predictive_score($features, $model); $after = (float)$score['probability'];
-        if ($after >= $current - 0.0001) continue;
-        $rows[] = ['name'=>$template['name'],'effort'=>$template['effort'],'probability'=>$after,'level'=>$score['level'],'reduction'=>$current-$after,'crosses_target'=>$after<$target,'features'=>$features,'changes'=>edu_risk_counterfactual_change_items($base,$features)];
-    }
-    usort($rows, static function($a,$b){
-        if ($a['crosses_target'] !== $b['crosses_target']) return $a['crosses_target'] ? -1 : 1;
-        if ($a['crosses_target'] && $a['effort'] !== $b['effort']) return $a['effort'] <=> $b['effort'];
-        return $a['probability'] <=> $b['probability'];
-    });
-    return $rows;
-}
+function edu_risk_counterfactual_chat_result(mysqli $conn,array $actor,string $name,array $entities=[]): array{$name=trim($name);if($name==='')return edu_chat_result('Indica el nombre del estudiante para simular un escenario de mejora.');$students=edu_predictive_students($conn,$actor,$entities,$name,8);if(!$students)return edu_chat_result('No encontré un estudiante activo que coincida con ese nombre.');if(count($students)>1){$lines=[];foreach($students as $i=>$student)$lines[]=($i+1).'. '.$student['name'].' — '.$student['nivel'].' · '.$student['grado'].'° '.$student['seccion'];return edu_chat_result("Encontré varias coincidencias. Especifica el nombre completo o el aula:\n".implode("\n",$lines));}$cf=edu_risk_counterfactual_for_student($conn,$actor,(int)$students[0]['id'],!empty($entities['bimestre'])?(int)$entities['bimestre']:null);if(empty($cf['available']))return edu_chat_result('No hay datos suficientes o el bimestre solicitado no está cerrado para simular cambios de riesgo.');$prediction=$cf['prediction'];$lines=[$cf['student']['name'].' — riesgo estimado en el '.($prediction['target_bimester_label']??$prediction['target_bimester']).' bimestre: '.$prediction['level'].' ('.number_format($prediction['probability']*100,1).'%).','Base: cierre del '.($prediction['bimester_label']??$prediction['bimester']).' bimestre, '.($prediction['base_closed_at']??'sin fecha').'.'];if(empty($prediction['data_quality']['attendance_available']))$lines[]='Observación: no hay registros suficientes de asistencia en la ventana previa al cierre; la simulación no propondrá cambios de asistencia.';if(empty($cf['recommended']))$lines[]='El estudiante ya está en riesgo bajo o el modelo no encontró un escenario simulado que reduzca la probabilidad.';else{$scenario=$cf['recommended'];$lines[]='Escenario simulado: '.$scenario['name'].'.';foreach($scenario['changes'] as $change){$before=$change['feature']==='attendance_rate_30d'?number_format($change['before'],1).'%':number_format($change['before'],1);$after=$change['feature']==='attendance_rate_30d'?number_format($change['after'],1).'%':number_format($change['after'],1);$lines[]='• '.$change['label'].': '.$before.' → '.$after.'.';}$lines[]='Riesgo estimado bajo ese escenario: '.$scenario['level'].' ('.number_format($scenario['probability']*100,1).'%).';}$lines[]='Es una simulación del modelo; no demuestra causalidad ni garantiza el resultado.';$result=edu_chat_result(implode("\n",$lines),['Ver sus intervenciones','Abrir panel de alertas'],[],[edu_chat_action('Abrir Alertas e Intervenciones','risk_dashboard','fa-brain')]);$result['tools_used']=['predictive_counterfactual'];return$result;}
 
-function edu_risk_counterfactual_for_student(mysqli $conn, array $actor, int $studentId, ?int $bimester=null): array {
-    $student = edu_risk_student_by_id($conn,$actor,$studentId);
-    if (!$student) return ['available'=>false,'reason'=>'student'];
-    $prediction = edu_predictive_student_prediction($conn,$actor,$studentId,$bimester);
-    if (empty($prediction['available'])) return ['available'=>false,'reason'=>$prediction['reason']??'prediction','prediction'=>$prediction,'student'=>$student];
-    $scenarios = edu_risk_counterfactual_scenarios($prediction);
-    return ['available'=>true,'student'=>$student,'prediction'=>$prediction,'scenarios'=>$scenarios,'recommended'=>$scenarios[0]??null];
-}
-
-function edu_risk_suggest_intervention(array $prediction): array {
-    $features=[]; foreach((array)($prediction['explanation']['raises']??[]) as $item) $features[(string)($item['feature']??'')]=true;
-    if(isset($features['absent_30d'])||isset($features['attendance_rate_30d']))return ['type'=>'Seguimiento de asistencia','title'=>'Plan de recuperación de asistencia'];
-    if(isset($features['late_30d']))return ['type'=>'Plan de puntualidad','title'=>'Plan de mejora de puntualidad'];
-    if(isset($features['critical_courses_current'])||isset($features['critical_records_current']))return ['type'=>'Reforzamiento académico','title'=>'Reforzamiento en cursos con registros críticos'];
-    if(isset($features['grade_trend'])||isset($features['grade_mean_current']))return ['type'=>'Tutoría académica','title'=>'Tutoría por tendencia de rendimiento'];
-    return ['type'=>'Seguimiento tutorial','title'=>'Seguimiento preventivo de riesgo académico'];
-}
-
-function edu_risk_log(mysqli $conn,int $interventionId,int $schoolId,int $studentId,int $userId,string $action,array $details=[]): void {
-    if(!edu_predictive_table_exists($conn,'student_risk_intervention_log'))return;
-    $json=json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-    $stmt=$conn->prepare('INSERT INTO student_risk_intervention_log (intervention_id,school_id,student_id,user_id,action,details) VALUES (?,?,?,?,?,?)');
-    if(!$stmt)return; $stmt->bind_param('iiiiss',$interventionId,$schoolId,$studentId,$userId,$action,$json); $stmt->execute(); $stmt->close();
-}
-
-function edu_risk_create_intervention(mysqli $conn,array $actor,array $data): array {
-    if((int)($actor['type']??0)!==1)return ['ok'=>false,'message'=>'Solo administración puede registrar intervenciones.'];
-    if(!edu_risk_interventions_ready($conn))return ['ok'=>false,'message'=>'Falta ejecutar la migración de intervenciones predictivas.'];
-    $schoolId=(int)($actor['school_id']??0); $studentId=(int)($data['student_id']??0); $student=edu_risk_student_by_id($conn,$actor,$studentId);
-    if(!$student)return ['ok'=>false,'message'=>'El estudiante no pertenece al colegio autenticado o no está activo.'];
-    $type=trim((string)($data['intervention_type']??'')); if(!in_array($type,edu_risk_intervention_types(),true))return ['ok'=>false,'message'=>'Tipo de intervención no válido.'];
-    $title=trim((string)($data['title']??'')); if($title===''||mb_strlen($title,'UTF-8')>160)return ['ok'=>false,'message'=>'Escribe un título de hasta 160 caracteres.'];
-    $notes=trim((string)($data['notes']??'')); if(mb_strlen($notes,'UTF-8')>1000)return ['ok'=>false,'message'=>'Las observaciones no pueden superar 1000 caracteres.'];
-    $planned=trim((string)($data['planned_date']??'')); $followup=trim((string)($data['followup_date']??''));
-    foreach([$planned,$followup] as $date) if($date!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date))return ['ok'=>false,'message'=>'La fecha indicada no tiene un formato válido.'];
-    $planned=$planned!==''?$planned:null; $followup=$followup!==''?$followup:null;
-    $prediction=edu_predictive_student_prediction($conn,$actor,$studentId,null); $year=edu_predictive_academic_year($conn,$schoolId,null);
-    $yearId=(int)($year['id']??0); $source=null; $target=null; $probability=null; $level=null;
-    if(!empty($prediction['available'])){$source=(int)$prediction['bimester'];$target=(int)$prediction['target_bimester'];$probability=(float)$prediction['probability'];$level=(string)$prediction['level'];}
-    $userId=edu_risk_actor_user_id($actor);
-    $sql="INSERT INTO student_risk_interventions (school_id,academic_year_id,student_id,source_bimester,target_bimester,risk_probability,risk_level,intervention_type,title,notes,status,planned_date,followup_date,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,'Pendiente',?,?,?,?)";
-    $stmt=$conn->prepare($sql); if(!$stmt)return ['ok'=>false,'message'=>'No pude preparar el registro de la intervención.'];
-    $types='iiiiidssssssii'; $params=[$schoolId,$yearId,$studentId,$source,$target,$probability,$level,$type,$title,$notes,$planned,$followup,$userId,$userId]; edu_predictive_bind($stmt,$types,$params);
-    if(!$stmt->execute()){$stmt->close();return ['ok'=>false,'message'=>'No pude registrar la intervención.'];}
-    $id=(int)$stmt->insert_id; $stmt->close();
-    edu_risk_log($conn,$id,$schoolId,$studentId,$userId,'create',['type'=>$type,'title'=>$title,'risk_probability'=>$probability,'risk_level'=>$level]);
-    return ['ok'=>true,'id'=>$id,'message'=>'Intervención registrada correctamente.'];
-}
-
-function edu_risk_update_intervention(mysqli $conn,array $actor,int $id,array $data): array {
-    if((int)($actor['type']??0)!==1)return ['ok'=>false,'message'=>'Solo administración puede actualizar intervenciones.'];
-    if(!edu_risk_interventions_ready($conn))return ['ok'=>false,'message'=>'El módulo de intervenciones no está instalado.'];
-    $schoolId=(int)($actor['school_id']??0);
-    $stmt=$conn->prepare('SELECT * FROM student_risk_interventions WHERE id=? AND school_id=? LIMIT 1'); if(!$stmt)return ['ok'=>false,'message'=>'No pude consultar la intervención.'];
-    $stmt->bind_param('ii',$id,$schoolId); $stmt->execute(); $row=$stmt->get_result()->fetch_assoc(); $stmt->close();
-    if(!$row)return ['ok'=>false,'message'=>'No encontré la intervención solicitada.'];
-    $status=trim((string)($data['status']??$row['status'])); if(!in_array($status,edu_risk_statuses(),true))return ['ok'=>false,'message'=>'Estado no válido.'];
-    $outcome=trim((string)($data['outcome']??($row['outcome']??''))); if($outcome!==''&&!in_array($outcome,edu_risk_outcomes(),true))return ['ok'=>false,'message'=>'Resultado no válido.'];
-    $notes=trim((string)($data['notes']??($row['notes']??''))); if(mb_strlen($notes,'UTF-8')>1000)return ['ok'=>false,'message'=>'Las observaciones no pueden superar 1000 caracteres.'];
-    $followup=trim((string)($data['followup_date']??($row['followup_date']??''))); if($followup!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$followup))return ['ok'=>false,'message'=>'Fecha de seguimiento no válida.'];
-    $followup=$followup!==''?$followup:null; $outcome=$outcome!==''?$outcome:null; $completed=$row['completed_at']??null; $post=$row['post_risk_probability']!==null?(float)$row['post_risk_probability']:null;
-    if($status==='Completada'){$completed=date('Y-m-d H:i:s');$prediction=edu_predictive_student_prediction($conn,$actor,(int)$row['student_id'],null);if(!empty($prediction['available']))$post=(float)$prediction['probability'];if($outcome===null)$outcome='No evaluado';}
-    $userId=edu_risk_actor_user_id($actor);
-    $sql='UPDATE student_risk_interventions SET status=?,outcome=?,notes=?,followup_date=?,completed_at=?,post_risk_probability=?,updated_by=? WHERE id=? AND school_id=?';
-    $stmt=$conn->prepare($sql); if(!$stmt)return ['ok'=>false,'message'=>'No pude preparar la actualización.'];
-    $types='sssssdiii'; $params=[$status,$outcome,$notes,$followup,$completed,$post,$userId,$id,$schoolId]; edu_predictive_bind($stmt,$types,$params);
-    if(!$stmt->execute()){$stmt->close();return ['ok'=>false,'message'=>'No pude actualizar la intervención.'];} $stmt->close();
-    edu_risk_log($conn,$id,$schoolId,(int)$row['student_id'],$userId,'update',['status'=>$status,'outcome'=>$outcome,'post_risk_probability'=>$post]);
-    return ['ok'=>true,'message'=>'Intervención actualizada correctamente.'];
-}
-
-function edu_risk_list_interventions(mysqli $conn,array $actor,array $filters=[],int $limit=100): array {
-    if(!edu_risk_interventions_ready($conn))return [];
-    $schoolId=(int)($actor['school_id']??0); $limit=max(1,min(300,$limit)); $where=['ri.school_id=?']; $types='i'; $params=[$schoolId];
-    if(!empty($filters['student_id'])){$where[]='ri.student_id=?';$types.='i';$params[]=(int)$filters['student_id'];}
-    if(!empty($filters['status'])&&in_array($filters['status'],edu_risk_statuses(),true)){$where[]='ri.status=?';$types.='s';$params[]=$filters['status'];}
-    if(!empty($filters['level'])){$where[]='LOWER(TRIM(s.nivel))=LOWER(TRIM(?))';$types.='s';$params[]=(string)$filters['level'];}
-    if(!empty($filters['grade'])){$where[]='CAST(s.grado AS UNSIGNED)=?';$types.='i';$params[]=(int)$filters['grade'];}
-    if(!empty($filters['section'])){$where[]='UPPER(TRIM(s.seccion))=UPPER(TRIM(?))';$types.='s';$params[]=(string)$filters['section'];}
-    $sql="SELECT ri.*,s.name student_name,s.nivel,s.grado,COALESCE(NULLIF(TRIM(s.seccion),''),'Sin sección') seccion FROM student_risk_interventions ri INNER JOIN student s ON s.id=ri.student_id AND s.school_id=ri.school_id WHERE ".implode(' AND ',$where)." ORDER BY CASE ri.status WHEN 'En proceso' THEN 1 WHEN 'Pendiente' THEN 2 WHEN 'Completada' THEN 3 ELSE 4 END,COALESCE(ri.followup_date,'9999-12-31'),ri.created_at DESC LIMIT $limit";
-    $stmt=$conn->prepare($sql); if(!$stmt)return []; edu_predictive_bind($stmt,$types,$params); $stmt->execute(); $res=$stmt->get_result(); $rows=[]; while($r=$res->fetch_assoc())$rows[]=$r; $stmt->close(); return $rows;
-}
-
-function edu_risk_open_counts_by_student(mysqli $conn,array $actor): array {
-    if(!edu_risk_interventions_ready($conn))return [];
-    $schoolId=(int)($actor['school_id']??0); $stmt=$conn->prepare("SELECT student_id,COUNT(*) total FROM student_risk_interventions WHERE school_id=? AND status IN ('Pendiente','En proceso') GROUP BY student_id");
-    if(!$stmt)return []; $stmt->bind_param('i',$schoolId); $stmt->execute(); $res=$stmt->get_result(); $map=[]; while($r=$res->fetch_assoc())$map[(int)$r['student_id']]=(int)$r['total']; $stmt->close(); return $map;
-}
-
-function edu_risk_dashboard_data(mysqli $conn,array $actor,array $entities=[]): array {
-    if((int)($actor['type']??0)!==1)return ['ok'=>false,'message'=>'Este panel está disponible únicamente para administración.'];
-    $model=edu_predictive_model_load(); $students=edu_predictive_students($conn,$actor,$entities,'',200); $openMap=edu_risk_open_counts_by_student($conn,$actor);
-    $summary=['Alto'=>0,'Medio'=>0,'Bajo'=>0]; $predictions=[]; $factorCounts=[]; $evaluated=0;$missingAttendance=0;
-    if(!empty($model['available'])){
-        foreach($students as $student){
-            $prediction=edu_predictive_student_prediction($conn,$actor,(int)$student['id'],!empty($entities['bimestre'])?(int)$entities['bimestre']:null);
-            if(empty($prediction['available']))continue; $evaluated++; $summary[$prediction['level']]++;
-            if(empty($prediction['data_quality']['attendance_available']))$missingAttendance++;
-            foreach(array_slice((array)($prediction['explanation']['raises']??[]),0,3) as $factor){$label=(string)($factor['label']??$factor['feature']??'Factor');$factorCounts[$label]=($factorCounts[$label]??0)+1;}
-            $predictions[]=['student'=>$student,'probability'=>(float)$prediction['probability'],'level'=>$prediction['level'],'bimester'=>$prediction['bimester'],'target_bimester'=>$prediction['target_bimester'],'factors'=>array_slice((array)($prediction['explanation']['raises']??[]),0,3),'attendance_available'=>!empty($prediction['data_quality']['attendance_available']),'attendance_records'=>(int)($prediction['data_quality']['attendance_records']??0),'open_interventions'=>$openMap[(int)$student['id']]??0,'suggested'=>edu_risk_suggest_intervention($prediction)];
-        }
-        usort($predictions,static fn($a,$b)=>$b['probability']<=>$a['probability']); $predictions=array_slice($predictions,0,50);
-    }
-    arsort($factorCounts); $factors=[]; foreach(array_slice($factorCounts,0,8,true) as $label=>$count)$factors[]=['label'=>$label,'count'=>$count];
-    $interventions=edu_risk_list_interventions($conn,$actor,$entities,100); $intSummary=['Pendiente'=>0,'En proceso'=>0,'Completada'=>0,'Cancelada'=>0,'Seguimientos vencidos'=>0]; $improved=0; $measured=0; $deltaSum=0.0; $today=date('Y-m-d');
-    foreach($interventions as $row){$status=(string)$row['status'];if(isset($intSummary[$status]))$intSummary[$status]++;if(in_array($status,['Pendiente','En proceso'],true)&&!empty($row['followup_date'])&&$row['followup_date']<$today)$intSummary['Seguimientos vencidos']++;if($status==='Completada'&&$row['risk_probability']!==null&&$row['post_risk_probability']!==null){$delta=(float)$row['risk_probability']-(float)$row['post_risk_probability'];$deltaSum+=$delta;$measured++;if($delta>0)$improved++;}}
-    return ['ok'=>true,'model'=>['available'=>!empty($model['available']),'reason'=>$model['reason']??null,'created_at'=>$model['created_at']??null,'metrics'=>(array)($model['metrics']['holdout']??[]),'training'=>$model['training']??[]],'summary'=>['evaluated'=>$evaluated,'high'=>$summary['Alto'],'medium'=>$summary['Medio'],'low'=>$summary['Bajo'],'students_considered'=>count($students),'attendance_missing'=>$missingAttendance],'predictions'=>$predictions,'factors'=>$factors,'interventions'=>$interventions,'intervention_summary'=>$intSummary,'effectiveness'=>['measured'=>$measured,'improved'=>$improved,'average_probability_reduction'=>$measured>0?$deltaSum/$measured:null],'migration_ready'=>edu_risk_interventions_ready($conn)];
-}
-
-function edu_risk_counterfactual_chat_result(mysqli $conn,array $actor,string $name,array $entities=[]): array {
-    $name=trim($name); if($name==='')return edu_chat_result('Indica el nombre del estudiante para simular un escenario de mejora.');
-    $students=edu_predictive_students($conn,$actor,$entities,$name,8); if(!$students)return edu_chat_result('No encontré un estudiante activo que coincida con ese nombre.');
-    if(count($students)>1){$lines=[];foreach($students as $i=>$student)$lines[]=($i+1).'. '.$student['name'].' — '.$student['nivel'].' · '.$student['grado'].'° '.$student['seccion'];return edu_chat_result("Encontré varias coincidencias. Especifica el nombre completo o el aula:\n".implode("\n",$lines));}
-    $cf=edu_risk_counterfactual_for_student($conn,$actor,(int)$students[0]['id'],!empty($entities['bimestre'])?(int)$entities['bimestre']:null); if(empty($cf['available']))return edu_chat_result('No hay datos suficientes para simular cambios de riesgo para ese estudiante.');
-    $prediction=$cf['prediction']; $lines=[$cf['student']['name'].' — riesgo actual '.$prediction['level'].' ('.number_format($prediction['probability']*100,1).'%).'];
-    if(empty($prediction['data_quality']['attendance_available']))$lines[]='Observación: no hay registros suficientes de asistencia en la ventana analizada; la simulación no propondrá cambios de asistencia.';
-    if(empty($cf['recommended']))$lines[]='El estudiante ya está en riesgo bajo o el modelo no encontró un escenario simulado que reduzca la probabilidad.';
-    else{$scenario=$cf['recommended'];$lines[]='Escenario simulado: '.$scenario['name'].'.';foreach($scenario['changes'] as $change){$before=$change['feature']==='attendance_rate_30d'?number_format($change['before'],1).'%':number_format($change['before'],1);$after=$change['feature']==='attendance_rate_30d'?number_format($change['after'],1).'%':number_format($change['after'],1);$lines[]='• '.$change['label'].': '.$before.' → '.$after.'.';}$lines[]='Riesgo estimado bajo ese escenario: '.$scenario['level'].' ('.number_format($scenario['probability']*100,1).'%).';}
-    $lines[]='Es una simulación del modelo para apoyar decisiones; no demuestra causalidad ni garantiza ese resultado.';
-    $result=edu_chat_result(implode("\n",$lines),['Ver sus intervenciones','Abrir panel de alertas'],[],[edu_chat_action('Abrir Alertas e Intervenciones','risk_dashboard','fa-brain')]); $result['tools_used']=['predictive_counterfactual']; return $result;
-}
-
-function edu_risk_interventions_chat_result(mysqli $conn,array $actor,string $name='',array $entities=[]): array {
-    if(!edu_risk_interventions_ready($conn)){$result=edu_chat_result('El seguimiento de intervenciones aún no está habilitado en esta base de datos.');$result['tools_used']=['predictive_interventions'];return $result;}
-    $filters=$entities; $student=null;
-    if(trim($name)!==''){$matches=edu_predictive_students($conn,$actor,$entities,$name,8);if(!$matches)return edu_chat_result('No encontré un estudiante activo que coincida con ese nombre.');if(count($matches)>1){$lines=[];foreach($matches as $i=>$match)$lines[]=($i+1).'. '.$match['name'].' — '.$match['nivel'].' · '.$match['grado'].'° '.$match['seccion'];return edu_chat_result("Encontré varias coincidencias. Especifica el nombre completo o el aula:\n".implode("\n",$lines));}$student=$matches[0];$filters['student_id']=(int)$student['id'];}
-    $rows=edu_risk_list_interventions($conn,$actor,$filters,30); if(!$rows){$message=$student?'No hay intervenciones registradas para '.$student['name'].'.':'No hay intervenciones registradas con esos filtros.';$result=edu_chat_result($message,[],[],[edu_chat_action('Abrir Alertas e Intervenciones','risk_dashboard','fa-brain')]);$result['tools_used']=['predictive_interventions'];return $result;}
-    $lines=[]; foreach($rows as $i=>$row)$lines[]=($i+1).'. '.$row['student_name'].' — '.$row['intervention_type'].' · '.$row['status'].(!empty($row['followup_date'])?' · seguimiento '.$row['followup_date']:'');
-    $result=edu_chat_result("Intervenciones registradas:\n".implode("\n",$lines),[],[['label'=>'Intervenciones','value'=>(string)count($rows),'tone'=>'primary']],[edu_chat_action('Abrir Alertas e Intervenciones','risk_dashboard','fa-brain')]); $result['tools_used']=['predictive_interventions']; return $result;
-}
+function edu_risk_interventions_chat_result(mysqli $conn,array $actor,string $name='',array $entities=[]): array{if(!edu_risk_interventions_ready($conn)){$result=edu_chat_result('El seguimiento de intervenciones aún no está habilitado en esta base de datos.');$result['tools_used']=['predictive_interventions'];return$result;}$filters=$entities;$student=null;if(trim($name)!==''){$matches=edu_predictive_students($conn,$actor,$entities,$name,8);if(!$matches)return edu_chat_result('No encontré un estudiante activo que coincida con ese nombre.');if(count($matches)>1){$lines=[];foreach($matches as $i=>$match)$lines[]=($i+1).'. '.$match['name'].' — '.$match['nivel'].' · '.$match['grado'].'° '.$match['seccion'];return edu_chat_result("Encontré varias coincidencias. Especifica el nombre completo o el aula:\n".implode("\n",$lines));}$student=$matches[0];$filters['student_id']=(int)$student['id'];}$rows=edu_risk_list_interventions($conn,$actor,$filters,30);if(!$rows){$message=$student?'No hay intervenciones registradas para '.$student['name'].'.':'No hay intervenciones registradas con esos filtros.';$result=edu_chat_result($message,[],[],[edu_chat_action('Abrir Alertas e Intervenciones','risk_dashboard','fa-brain')]);$result['tools_used']=['predictive_interventions'];return$result;}$lines=[];foreach($rows as $i=>$row)$lines[]=($i+1).'. '.$row['student_name'].' — '.$row['intervention_type'].' · '.$row['status'].(!empty($row['followup_date'])?' · seguimiento '.$row['followup_date']:'').(($row['status']==='Completada'&&$row['post_risk_probability']===null)?' · medición posterior pendiente':'');$result=edu_chat_result("Intervenciones registradas:\n".implode("\n",$lines),[],[['label'=>'Intervenciones','value'=>(string)count($rows),'tone'=>'primary']],[edu_chat_action('Abrir Alertas e Intervenciones','risk_dashboard','fa-brain')]);$result['tools_used']=['predictive_interventions'];return$result;}
