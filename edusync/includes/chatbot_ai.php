@@ -11,23 +11,34 @@ function edu_chat_ai_provider(): string {
 function edu_chat_ai_enabled(): bool {
     $flag = strtolower(trim((string)getenv('EDUSYNC_AI_ENABLED')));
     if (!in_array($flag, ['1','true','on','yes'], true)) return false;
-    if (edu_chat_ai_provider() === 'off') return false;
-    if (edu_chat_ai_provider() === 'openai') return trim((string)getenv('OPENAI_API_KEY')) !== '';
+
+    $provider = edu_chat_ai_provider();
+    if ($provider === 'off') return false;
+    if ($provider === 'openai') return trim((string)getenv('OPENAI_API_KEY')) !== '';
+    if ($provider === 'groq') {
+        return trim((string)getenv('GROQ_API_KEY')) !== ''
+            || trim((string)getenv('EDUSYNC_AI_API_KEY')) !== '';
+    }
     return true;
 }
 
 function edu_chat_ai_api_style(): string {
     $style = strtolower(trim((string)getenv('EDUSYNC_AI_API_STYLE')));
     if (in_array($style, ['responses','chat_completions'], true)) return $style;
-    return edu_chat_ai_provider() === 'ollama' ? 'chat_completions' : 'responses';
+
+    $provider = edu_chat_ai_provider();
+    if (in_array($provider, ['ollama','groq'], true)) return 'chat_completions';
+    return 'responses';
 }
 
 function edu_chat_ai_model(): string {
     $model = trim((string)getenv('EDUSYNC_AI_MODEL'));
     if ($model !== '') return $model;
+
     $provider = edu_chat_ai_provider();
     if ($provider === 'ollama' || $provider === 'local') return 'qwen3:4b';
     if ($provider === 'vllm') return 'Qwen/Qwen3-8B';
+    if ($provider === 'groq') return 'openai/gpt-oss-20b';
     if ($provider === 'openai') return 'gpt-5.6-luna';
     return 'local-model';
 }
@@ -39,14 +50,21 @@ function edu_chat_ai_endpoint(): string {
     $style = edu_chat_ai_api_style();
     $provider = edu_chat_ai_provider();
     $path = $style === 'chat_completions' ? '/v1/chat/completions' : '/v1/responses';
+
     if ($provider === 'ollama' || $provider === 'local') return 'http://127.0.0.1:11434' . $path;
     if ($provider === 'vllm') return 'http://127.0.0.1:8000' . $path;
+    if ($provider === 'groq') return 'https://api.groq.com/openai' . $path;
     if ($provider === 'openai') return 'https://api.openai.com' . $path;
     return 'http://127.0.0.1:8000' . $path;
 }
 
 function edu_chat_ai_api_key(): string {
-    if (edu_chat_ai_provider() === 'openai') return trim((string)getenv('OPENAI_API_KEY'));
+    $provider = edu_chat_ai_provider();
+    if ($provider === 'openai') return trim((string)getenv('OPENAI_API_KEY'));
+    if ($provider === 'groq') {
+        $key = trim((string)getenv('GROQ_API_KEY'));
+        return $key !== '' ? $key : trim((string)getenv('EDUSYNC_AI_API_KEY'));
+    }
     return trim((string)getenv('EDUSYNC_AI_API_KEY'));
 }
 
@@ -217,7 +235,7 @@ function edu_chat_ai_merge_visuals(array &$cards, array &$actions, array &$follo
 
 function edu_chat_ai_first_payload(array $actor, string $input, array $tools): array {
     if (edu_chat_ai_api_style() === 'chat_completions') {
-        return [
+        $payload = [
             'model'=>edu_chat_ai_model(),
             'messages'=>[
                 ['role'=>'system','content'=>edu_chat_ai_instructions($actor)],
@@ -226,9 +244,15 @@ function edu_chat_ai_first_payload(array $actor, string $input, array $tools): a
             'tools'=>edu_chat_ai_chat_tools($tools),
             'tool_choice'=>'auto',
             'temperature'=>0.1,
-            'max_tokens'=>edu_chat_ai_max_tokens(),
             'stream'=>false
         ];
+        if (edu_chat_ai_provider() === 'groq') {
+            $payload['max_completion_tokens'] = edu_chat_ai_max_tokens();
+            $payload['parallel_tool_calls'] = false;
+        } else {
+            $payload['max_tokens'] = edu_chat_ai_max_tokens();
+        }
+        return $payload;
     }
     return [
         'model'=>edu_chat_ai_model(),
@@ -243,16 +267,21 @@ function edu_chat_ai_first_payload(array $actor, string $input, array $tools): a
 
 function edu_chat_ai_final_payload(array $actor, string $prompt): array {
     if (edu_chat_ai_api_style() === 'chat_completions') {
-        return [
+        $payload = [
             'model'=>edu_chat_ai_model(),
             'messages'=>[
                 ['role'=>'system','content'=>edu_chat_ai_instructions($actor)],
                 ['role'=>'user','content'=>$prompt]
             ],
             'temperature'=>0.1,
-            'max_tokens'=>edu_chat_ai_max_tokens(),
             'stream'=>false
         ];
+        if (edu_chat_ai_provider() === 'groq') {
+            $payload['max_completion_tokens'] = edu_chat_ai_max_tokens();
+        } else {
+            $payload['max_tokens'] = edu_chat_ai_max_tokens();
+        }
+        return $payload;
     }
     return [
         'model'=>edu_chat_ai_model(),
@@ -271,7 +300,7 @@ function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $his
     $input = ($historyText !== '' ? "Conversación reciente:\n{$historyText}\n\n" : '') . 'Consulta actual del usuario: ' . $message;
 
     // Para consultas analíticas inequívocas, PHP elige la herramienta correcta.
-    // Qwen sigue redactando la respuesta final, pero ya no puede sustituir un
+    // La IA sigue redactando la respuesta final, pero ya no puede sustituir un
     // desglose por un total general ni inventar grupos inexistentes.
     $forcedRoute = function_exists('edu_chat_ai_forced_route') ? edu_chat_ai_forced_route($actor, $message) : null;
     if (is_array($forcedRoute) && !empty($forcedRoute['name'])) {
