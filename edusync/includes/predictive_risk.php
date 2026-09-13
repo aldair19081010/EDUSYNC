@@ -39,6 +39,20 @@ function edu_predictive_bind(mysqli_stmt $stmt, string $types, array &$params): 
     call_user_func_array([$stmt, 'bind_param'], $refs);
 }
 
+/**
+ * Umbral operativo usado por EduSync para notas numéricas.
+ * Con notas enteras, <10.5 equivale a 0-10 (C) y mantiene coherencia con la
+ * escala C=0-10, B=11-13, A=14-17, AD=18-20.
+ */
+function edu_predictive_critical_threshold(): float {
+    $configured = trim((string)getenv('EDUSYNC_RISK_CRITICAL_THRESHOLD'));
+    if ($configured !== '' && is_numeric(str_replace(',', '.', $configured))) {
+        $value = (float)str_replace(',', '.', $configured);
+        if ($value > 0 && $value < 20) return $value;
+    }
+    return 10.5;
+}
+
 function edu_predictive_model_path(): string {
     $custom = trim((string)getenv('EDUSYNC_RISK_MODEL_PATH'));
     if ($custom !== '') return $custom;
@@ -53,6 +67,9 @@ function edu_predictive_model_load(): array {
     $raw = file_get_contents($path);
     $model = json_decode((string)$raw, true);
     if (!is_array($model)) return ['available'=>false,'reason'=>'model_invalid','path'=>$path];
+    if ((int)($model['schema_version'] ?? 0) < 2) {
+        return ['available'=>false,'reason'=>'model_outdated','path'=>$path];
+    }
     $features = (array)($model['features'] ?? []);
     $coefficients = (array)($model['coefficients'] ?? []);
     $mean = (array)($model['scaler']['mean'] ?? []);
@@ -81,7 +98,9 @@ function edu_predictive_grade_value($grade): ?float {
 function edu_predictive_grade_is_critical($grade): bool {
     $value = strtoupper(trim((string)$grade));
     if ($value === 'C') return true;
-    if ($value !== '' && is_numeric(str_replace(',', '.', $value))) return (float)str_replace(',', '.', $value) <= 10.0;
+    if ($value !== '' && is_numeric(str_replace(',', '.', $value))) {
+        return (float)str_replace(',', '.', $value) < edu_predictive_critical_threshold();
+    }
     return false;
 }
 
@@ -171,8 +190,13 @@ function edu_predictive_latest_bimester(mysqli $conn, int $studentId, int $schoo
     $b=(int)($row['b']??0); return $b>=1&&$b<=4?$b:null;
 }
 
+/**
+ * Devuelve null para variables de asistencia cuando no existen registros.
+ * La ausencia de información NO equivale a 0% ni 100% de asistencia.
+ * El modelo v2 imputa esos valores con la mediana aprendida en entrenamiento.
+ */
 function edu_predictive_attendance_features(mysqli $conn, int $studentId, string $cutoffDate, int $windowDays = 30): array {
-    $out = ['attendance_rate_30d'=>100.0,'late_30d'=>0.0,'absent_30d'=>0.0,'attendance_records_30d'=>0];
+    $out = ['attendance_rate_30d'=>null,'late_30d'=>null,'absent_30d'=>null,'attendance_records_30d'=>0];
     if (!edu_predictive_table_exists($conn,'asistencia')) return $out;
     $windowDays = max(7,min(120,$windowDays));
     $end = date('Y-m-d', strtotime($cutoffDate));
@@ -200,9 +224,11 @@ function edu_predictive_attendance_features(mysqli $conn, int $studentId, string
     }
     $stmt->close();
     $out['attendance_records_30d']=$records;
-    $out['late_30d']=(float)$late;
-    $out['absent_30d']=(float)$absent;
-    $out['attendance_rate_30d']=$records>0?(($present+$late)/$records)*100.0:100.0;
+    if ($records > 0) {
+        $out['late_30d']=(float)$late;
+        $out['absent_30d']=(float)$absent;
+        $out['attendance_rate_30d']=(($present+$late)/$records)*100.0;
+    }
     return $out;
 }
 
@@ -219,9 +245,9 @@ function edu_predictive_feature_vector(mysqli $conn, int $studentId, int $school
         'grade_trend'=>$currentMean-$previousMean,
         'critical_records_current'=>(float)$current['critical_records'],
         'critical_courses_current'=>(float)$current['critical_courses'],
-        'attendance_rate_30d'=>(float)$attendance['attendance_rate_30d'],
-        'late_30d'=>(float)$attendance['late_30d'],
-        'absent_30d'=>(float)$attendance['absent_30d'],
+        'attendance_rate_30d'=>$attendance['attendance_rate_30d']===null?null:(float)$attendance['attendance_rate_30d'],
+        'late_30d'=>$attendance['late_30d']===null?null:(float)$attendance['late_30d'],
+        'absent_30d'=>$attendance['absent_30d']===null?null:(float)$attendance['absent_30d'],
         '_grade_records_current'=>(int)$current['grade_records'],
         '_critical_course_names'=>(array)$current['critical_course_names'],
         '_attendance_records'=>(int)$attendance['attendance_records_30d']
@@ -244,15 +270,18 @@ function edu_predictive_sigmoid(float $z): float {
 function edu_predictive_score(array $features, array $model): array {
     $z=(float)$model['intercept'];
     $contributions=[];
+    $imputer=(array)($model['imputer']['fill']??[]);
     foreach((array)$model['features'] as $feature){
-        $x=(float)($features[$feature]??0.0);
+        $raw=$features[$feature]??null;
+        $missing=$raw===null || $raw==='' || !is_numeric($raw);
         $mean=(float)($model['scaler']['mean'][$feature]??0.0);
+        $x=$missing?(float)($imputer[$feature]??$mean):(float)$raw;
         $scale=(float)($model['scaler']['scale'][$feature]??1.0); if(abs($scale)<1e-12)$scale=1.0;
         $standardized=($x-$mean)/$scale;
         $coef=(float)($model['coefficients'][$feature]??0.0);
         $contribution=$coef*$standardized;
         $z+=$contribution;
-        $contributions[$feature]=['raw'=>$x,'standardized'=>$standardized,'coefficient'=>$coef,'contribution'=>$contribution];
+        $contributions[$feature]=['raw'=>$x,'missing'=>$missing,'standardized'=>$standardized,'coefficient'=>$coef,'contribution'=>$contribution];
     }
     $probability=edu_predictive_sigmoid($z);
     $medium=(float)($model['risk_thresholds']['medium']??0.40);
@@ -279,6 +308,7 @@ function edu_predictive_feature_label(string $feature): string {
 function edu_predictive_explanation(array $score,int $maxFactors=4): array {
     $up=[];$down=[];
     foreach($score['contributions'] as $feature=>$info){
+        if (!empty($info['missing'])) continue;
         $value=(float)$info['contribution'];
         if(abs($value)<0.05)continue;
         $item=['feature'=>$feature,'label'=>edu_predictive_feature_label($feature),'value'=>(float)$info['raw'],'impact'=>$value];
@@ -306,6 +336,10 @@ function edu_predictive_student_prediction(mysqli $conn,array $actor,int $studen
         'bimester'=>$bimester,
         'target_bimester'=>$bimester+1,
         'features'=>$features,
+        'data_quality'=>[
+            'attendance_available'=>(int)$features['_attendance_records']>0,
+            'attendance_records'=>(int)$features['_attendance_records']
+        ],
         'probability'=>$score['probability'],
         'level'=>$score['level'],
         'explanation'=>edu_predictive_explanation($score),
@@ -339,6 +373,7 @@ function edu_predictive_format_factor(array $factor): string {
 function edu_predictive_model_unavailable_message(array $model): string {
     $reason=(string)($model['reason']??'model_missing');
     if($reason==='model_missing')return 'El módulo predictivo ya está instalado, pero todavía no existe un modelo entrenado. Primero exporta el dataset histórico y entrena el modelo; después sube risk_model.json al servidor.';
+    if($reason==='model_outdated')return 'El modelo predictivo fue generado con una versión anterior. Vuelve a exportar el dataset y reentrena el modelo para aplicar el tratamiento correcto de asistencia sin datos.';
     if($reason==='model_schema'||$reason==='model_invalid')return 'El archivo del modelo predictivo existe, pero no tiene un formato válido. Vuelve a generarlo con el script oficial de entrenamiento.';
     return 'El modelo predictivo no está disponible en este momento.';
 }
@@ -364,19 +399,22 @@ function edu_predictive_chat_result(mysqli $conn,array $actor,array $entities=[]
     if(!$predictions){$result=edu_chat_result('No hay suficientes datos académicos actuales para calcular riesgo predictivo con esos filtros.');$result['tools_used']=['predictive_risk'];return$result;}
     usort($predictions,static fn($a,$b)=>$b['prediction']['probability']<=>$a['prediction']['probability']);
     $predictions=array_slice($predictions,0,max(1,min(50,$limit)));
-    $lines=[];$high=0;$medium=0;$low=0;
+    $lines=[];$high=0;$medium=0;$low=0;$missingAttendance=0;
     foreach($predictions as $i=>$item){
         $s=$item['student'];$p=$item['prediction'];$pct=$p['probability']*100.0;
         if($p['level']==='Alto')$high++;elseif($p['level']==='Medio')$medium++;else$low++;
+        if(empty($p['data_quality']['attendance_available']))$missingAttendance++;
         $line=($i+1).'. '.$s['name'].' — riesgo '.$p['level'].' ('.number_format($pct,1).'%) · '.$s['nivel'].' · '.$s['grado'].'° '.$s['seccion'];
         $factors=[];foreach(array_slice($p['explanation']['raises'],0,3) as $factor)$factors[]=edu_predictive_format_factor($factor);
         if($factors)$line.=' · factores: '.implode('; ',$factors);
+        if(empty($p['data_quality']['attendance_available']))$line.=' · asistencia: sin datos suficientes';
         $lines[]=$line;
     }
     $modelMetrics=(array)($model['metrics']['holdout']??[]);
     $metricNote='';
     if(isset($modelMetrics['roc_auc']))$metricNote="\nModelo evaluado en holdout: ROC-AUC ".number_format((float)$modelMetrics['roc_auc'],3).'. Esta probabilidad es una alerta de apoyo y no una decisión automática.';
     else $metricNote="\nLa predicción es una alerta de apoyo y no una decisión automática.";
+    if($missingAttendance>0)$metricNote.="\nObservación: {$missingAttendance} estudiante(s) no tienen registros suficientes de asistencia en la ventana analizada; esos valores se tratan como faltantes y no como 0% o 100%.";
     $message='Riesgo estimado para el siguiente bimestre:'."\n".implode("\n",$lines).$metricNote;
     $cards=[['label'=>'Riesgo alto','value'=>(string)$high,'tone'=>'danger'],['label'=>'Riesgo medio','value'=>(string)$medium,'tone'=>'warning'],['label'=>'Riesgo bajo','value'=>(string)$low,'tone'=>'success']];
     $actions=[];if(function_exists('edu_chat_action'))$actions[] = edu_chat_action('Ver Reporte de Notas','grades_report','fa-chart-bar');
