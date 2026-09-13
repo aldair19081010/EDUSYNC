@@ -83,15 +83,20 @@ function risk_export_students(mysqli $conn,int $schoolId,int $yearId,int $bimest
     $stmt=$conn->prepare($sql);if(!$stmt)return[];edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$stmt->close();return$rows;
 }
 
+function risk_export_nullable_number($value, int $precision=6) {
+    if($value===null || $value==='') return '';
+    return round((float)$value,$precision);
+}
+
 $years=risk_export_years($conn,$schoolId,$yearOption);
 if(!$years){fwrite(STDERR,"No se encontraron años académicos para ese colegio.\n");exit(1);}
 
 $dir=dirname($output);if(!is_dir($dir)&&!mkdir($dir,0775,true)&&!is_dir($dir)){fwrite(STDERR,"No pude crear el directorio de salida.\n");exit(1);}
 $fh=fopen($output,'wb');if(!$fh){fwrite(STDERR,"No pude crear $output.\n");exit(1);}
-$headers=['school_id','academic_year_id','student_id','nivel','grado','seccion','bimester','cutoff_date','cutoff_source','grade_mean_current','grade_mean_previous','grade_trend','critical_records_current','critical_courses_current','attendance_rate_30d','late_30d','absent_30d','target_next_bimester_risk'];
+$headers=['school_id','academic_year_id','student_id','nivel','grado','seccion','bimester','cutoff_date','cutoff_source','grade_mean_current','grade_mean_previous','grade_trend','grade_records_current','critical_records_current','critical_courses_current','attendance_rate_30d','late_30d','absent_30d','attendance_records_30d','target_next_bimester_risk'];
 fputcsv($fh,$headers);
 
-$written=0;$skippedCutoff=0;$skippedTarget=0;
+$written=0;$skippedCutoff=0;$skippedTarget=0;$missingAttendance=0;$positive=0;$negative=0;
 foreach($years as $year){
     $yearId=(int)$year['id'];
     foreach([1,2,3] as $bimester){
@@ -104,9 +109,11 @@ foreach($years as $year){
             if($target===null){$skippedTarget++;continue;}
             $f=edu_predictive_feature_vector($conn,$studentId,$schoolId,$yearId,$bimester,(string)$cutoff['date'],$attendanceWindow);
             if((int)$f['_grade_records_current']===0)continue;
+            if((int)$f['_attendance_records']===0)$missingAttendance++;
+            if($target===1)$positive++;else$negative++;
             fputcsv($fh,[
                 $schoolId,$yearId,$studentId,(string)$student['nivel'],(string)$student['grado'],(string)$student['seccion'],$bimester,(string)$cutoff['date'],(string)$cutoff['source'],
-                round((float)$f['grade_mean_current'],6),round((float)$f['grade_mean_previous'],6),round((float)$f['grade_trend'],6),(int)$f['critical_records_current'],(int)$f['critical_courses_current'],round((float)$f['attendance_rate_30d'],6),(int)$f['late_30d'],(int)$f['absent_30d'],$target
+                round((float)$f['grade_mean_current'],6),round((float)$f['grade_mean_previous'],6),round((float)$f['grade_trend'],6),(int)$f['_grade_records_current'],(int)$f['critical_records_current'],(int)$f['critical_courses_current'],risk_export_nullable_number($f['attendance_rate_30d']),risk_export_nullable_number($f['late_30d']),risk_export_nullable_number($f['absent_30d']),(int)$f['_attendance_records'],$target
             ]);
             $written++;
         }
@@ -116,8 +123,12 @@ fclose($fh);
 
 echo "Dataset creado: $output\n";
 echo "Filas: $written\n";
+echo "Objetivo positivo: $positive | negativo: $negative\n";
 echo "Ventana de asistencia: $attendanceWindow días\n";
+echo "Filas sin asistencia suficiente: $missingAttendance\n";
+echo "Criterio crítico numérico: nota < ".edu_predictive_critical_threshold()." (o letra C)\n";
 echo "Bimestres omitidos por falta de cutoff confiable: $skippedCutoff\n";
 echo "Filas omitidas por falta de datos en el bimestre siguiente: $skippedTarget\n";
 if($allowEstimated)echo "ADVERTENCIA: se permitieron cutoffs estimados. Para la tesis final conviene usar cierres/fechas reales.\n";
 if($written<40)echo "ADVERTENCIA: el conjunto es pequeño; no entrenes ni reportes métricas concluyentes hasta reunir más observaciones.\n";
+if($written>0 && $missingAttendance/$written>0.5)echo "ADVERTENCIA: más del 50% de las filas no tienen asistencia; el modelo dependerá principalmente de variables académicas.\n";
