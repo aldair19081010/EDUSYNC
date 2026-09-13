@@ -1,292 +1,171 @@
 <?php
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
+error_reporting(E_ALL);
+date_default_timezone_set('America/Lima');
+
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
 
-if (session_status() === PHP_SESSION_NONE) {
-    ini_set('session.save_path', __DIR__ . '/tmp');
-    session_name('EDUSYNCSESSID');
-    session_start();
-}
+require_once __DIR__ . '/session_config.php';
+require_once __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/chatbot_engine.php';
+require_once __DIR__ . '/includes/chatbot_queries.php';
+require_once __DIR__ . '/includes/chatbot_ai.php';
 
-if (empty($_SESSION['login_id'])) {
-    http_response_code(401);
-    echo json_encode(['status' => 0, 'message' => 'Tu sesión ha expirado.']);
+function edu_chat_api_reply(array $payload, int $status = 200): void {
+    http_response_code($status);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-$token = $_POST['csrf_token'] ?? '';
-if (empty($_SESSION['csrf_token']) || empty($token) || !hash_equals($_SESSION['csrf_token'], $token)) {
-    http_response_code(403);
-    echo json_encode(['status' => 0, 'message' => 'Solicitud no autorizada.']);
-    exit;
+function edu_chat_first_name(string $name): string {
+    $name = trim(preg_replace('/\s+/', ' ', $name));
+    if ($name === '') return '';
+    $parts = explode(' ', $name);
+    return (string)($parts[0] ?? $name);
 }
 
-$message = trim((string)($_POST['message'] ?? ''));
-if ($message === '' || mb_strlen($message) > 500) {
-    echo json_encode(['status' => 0, 'message' => 'Escribe una consulta de hasta 500 caracteres.']);
-    exit;
+function edu_chat_history_add(string $role, string $text, array $extra = []): void {
+    if (!isset($_SESSION['chatbot_history']) || !is_array($_SESSION['chatbot_history'])) $_SESSION['chatbot_history'] = [];
+    $_SESSION['chatbot_history'][] = array_merge(['role' => $role, 'text' => $text], $extra);
+    if (count($_SESSION['chatbot_history']) > 16) $_SESSION['chatbot_history'] = array_slice($_SESSION['chatbot_history'], -16);
 }
 
-include_once 'db_connect.php';
-$school_id = (int)($_SESSION['login_school_id'] ?? 0);
-$user_type = (int)($_SESSION['login_type'] ?? 0);
-$chat_context = $_SESSION['chatbot_context'] ?? ['last_intent' => null, 'last_topic' => null, 'last_question' => null];
-$normalized = function_exists('iconv') ? iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $message) : $message;
-$normalized = mb_strtolower((string)$normalized, 'UTF-8');
-$normalized = preg_replace('/[^a-z0-9\s]/', ' ', $normalized);
-$normalized = preg_replace('/\s+/', ' ', $normalized);
-$normalized = trim($normalized);
-
-$has_any = static function ($text, array $words): bool {
-    foreach ($words as $word) {
-        if ($word === '' || $word === ' ') continue;
-        if (strpos($text, $word) !== false) return true;
+function edu_chat_rate_limit(): void {
+    $now = microtime(true);
+    $state = is_array($_SESSION['chatbot_rate'] ?? null) ? $_SESSION['chatbot_rate'] : ['last' => 0.0, 'hits' => []];
+    $last = (float)($state['last'] ?? 0);
+    if ($last > 0 && ($now - $last) < 0.45) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'Espera un momento antes de enviar otra consulta.'], 429);
     }
-    return false;
-};
-
-$intents = [
-    'register_student' => [
-        'must' => ['estudiante', 'alumno', 'matricula'],
-        'any' => ['registrar', 'crear', 'agregar', 'nuevo', 'matricular', 'inscribir'],
-        'response' => 'Ve a Estudiantes, selecciona Nuevo Estudiante, completa los datos y presiona Guardar.',
-        'follow_up' => ['¿Cómo subo un Excel?', '¿Cuántos estudiantes hay?', '¿Cómo registro asistencia?']
-    ],
-    'import_excel' => [
-        'must' => ['excel', 'plantilla', 'archivo'],
-        'any' => ['subir', 'cargar', 'importar', 'adjuntar'],
-        'response' => 'En Estudiantes selecciona Agregar, luego Subir Excel. Descarga primero la plantilla y elige el año académico.',
-        'follow_up' => ['¿Cómo registro un estudiante?', '¿Cuántos estudiantes hay?', '¿Cómo registro asistencia?']
-    ],
-    'disable_teacher' => [
-        'must' => ['docente', 'profesor', 'maestro'],
-        'any' => ['desactivar', 'activar', 'inactivar', 'reactivar', 'estado'],
-        'response' => 'En Docentes usa el botón rojo para desactivar o el botón verde para reactivar. La información histórica se conserva.',
-        'follow_up' => ['¿Cómo registro un estudiante?', '¿Cómo subo un Excel?', '¿Cuántos docentes hay?']
-    ],
-    'attendance' => [
-        'must' => ['asistencia', 'tardanza', 'ausencia'],
-        'any' => ['registrar', 'marcar', 'tomar', 'poner'],
-        'response' => 'La asistencia se registra desde Asistencia. Las entradas se clasifican según las reglas horarias configuradas por la institución.',
-        'follow_up' => ['¿Cómo registro un estudiante?', '¿Cómo subo un Excel?', '¿Cuántos estudiantes hay?']
-    ],
-    'count_students' => [
-        'must' => ['estudiante', 'alumno'],
-        'any' => ['cuantos', 'cuantas', 'cantidad', 'total', 'hay'],
-        'response' => null,
-        'follow_up' => ['¿Cómo registro un estudiante?', '¿Cómo subo un Excel?', '¿Cómo registro asistencia?']
-    ],
-    'count_teachers' => [
-        'must' => ['docente', 'profesor', 'maestro'],
-        'any' => ['cuantos', 'cuantas', 'cantidad', 'total', 'hay'],
-        'response' => null,
-        'follow_up' => ['¿Cómo desactivo un docente?', '¿Cómo registro un estudiante?', '¿Cómo subo un Excel?']
-    ],
-    'academic_count' => [
-        'must' => ['bimestre', 'primaria', 'secundaria', 'inicial', 'critico', 'crítico', 'riesgo', 'nota baja'],
-        'any' => ['cuantos', 'cuantas', 'cantidad', 'total', 'hay', 'dime'],
-        'response' => null,
-        'follow_up' => ['¿Cuántos estudiantes hay en secundaria?', '¿Cuántos están en riesgo en el primer bimestre?', '¿Cómo registro asistencia?']
-    ],
-    'help' => [
-        'must' => ['ayuda', 'opciones'],
-        'any' => ['puedo', 'que puedes', 'que haces', 'que puedes hacer'],
-        'response' => 'Puedo explicar procesos de estudiantes, docentes, Excel, asistencia y consultas académicas por nivel y bimestre. Ejemplo: “¿Cuántos estudiantes de primaria están críticos en el primer y segundo bimestre?”',
-        'follow_up' => ['¿Cómo registro un estudiante?', '¿Cómo subo un Excel?', '¿Cómo registro asistencia?']
-    ]
-];
-
-$contextual_followup = static function ($text, $last_intent) {
-    if (!$last_intent) return false;
-    $triggers = ['ademas', 'tambien', 'ahora', 'y ahora', 'siguiente', 'eso mismo', 'igual', 'tambien necesito', 'ademas necesito', 'y luego'];
-    foreach ($triggers as $trigger) {
-        if (strpos($text, $trigger) !== false) return true;
+    $hits = array_values(array_filter((array)($state['hits'] ?? []), static fn($ts) => ($now - (float)$ts) <= 600));
+    if (count($hits) >= 60) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'Has realizado muchas consultas seguidas. Inténtalo nuevamente más tarde.'], 429);
     }
-    return false;
-};
+    $hits[] = $now;
+    $_SESSION['chatbot_rate'] = ['last' => $now, 'hits' => $hits];
+}
 
-$extractLevel = static function ($text) {
-    $map = [
-        'primaria' => 'Primaria',
-        'secundaria' => 'Secundaria',
-        'inicial' => 'Inicial',
-        'preescolar' => 'Inicial'
-    ];
-    foreach ($map as $key => $value) {
-        if (strpos($text, $key) !== false) return $value;
+function edu_chat_local_result(mysqli $conn, array $actor, string $message): array {
+    $context = is_array($_SESSION['chatbot_context'] ?? null)
+        ? $_SESSION['chatbot_context']
+        : ['last_intent' => null, 'entities' => []];
+
+    $parsed = edu_chat_interpret($conn, $actor, $message, $context);
+    $intent = (string)$parsed['intent'];
+    $entities = (array)$parsed['entities'];
+    $normalized = (string)($parsed['normalized'] ?? '');
+
+    if (!empty($entities['bimestre']) && strpos($normalized, 'grado') === false) {
+        $explicitGrade = preg_match('/\b[1-6](?:ro|do|to|er|°)\s+(?:de\s+)?(?:primaria|secundaria)\b/', $normalized);
+        if (!$explicitGrade) $entities['grade'] = null;
     }
-    return null;
-};
 
-$extractBimestres = static function ($text) {
-    $bimestres = [];
-    $patterns = [
-        'primer' => '1',
-        'primero' => '1',
-        '1er' => '1',
-        '1ro' => '1',
-        'segundo' => '2',
-        '2do' => '2',
-        '2do' => '2',
-        '2do' => '2',
-        'tercer' => '3',
-        'tercero' => '3',
-        '3ro' => '3',
-        'cuarto' => '4',
-        '4to' => '4'
+    if (!edu_chat_allowed($actor, $intent) && $intent !== 'unknown') {
+        $result = edu_chat_result(
+            'Esa consulta no está disponible para tu perfil de ' . $actor['role'] . '. Solo puedo mostrar información autorizada para tu rol.',
+            edu_chat_suggestions($actor)
+        );
+    } elseif ($intent === 'academic_risk') {
+        $result = edu_chat_academic_risk_current_result($conn, $actor, $entities);
+    } elseif ($intent === 'count_students' && (int)$actor['type'] === 2) {
+        $result = edu_chat_teacher_students_current_result($conn, $actor, $entities);
+    } else {
+        $result = edu_chat_execute($conn, $actor, $intent, $entities);
+    }
+
+    $_SESSION['chatbot_context'] = [
+        'last_intent' => $intent !== 'unknown' ? $intent : ($context['last_intent'] ?? null),
+        'entities' => $intent !== 'unknown' ? $entities : ($context['entities'] ?? []),
+        'last_question' => $message,
+        'updated_at' => time()
     ];
 
-    foreach ($patterns as $token => $value) {
-        if (strpos($text, $token) !== false && !in_array($value, $bimestres, true)) {
-            $bimestres[] = $value;
+    $result['intent'] = $intent;
+    $result['mode'] = 'local';
+    return $result;
+}
+
+try {
+    $actor = edu_chat_resolve_actor($conn);
+    if (!$actor) edu_chat_api_reply(['status' => 0, 'message' => 'Tu sesión ha expirado.'], 401);
+
+    $method = strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+    $action = trim((string)($_REQUEST['action'] ?? 'message'));
+
+    if ($method === 'GET' && $action === 'bootstrap') {
+        $firstName = edu_chat_first_name((string)$actor['name']);
+        $aiEnabled = edu_chat_ai_enabled();
+        $greeting = 'Hola' . ($firstName !== '' ? ', ' . $firstName : '') . '. Soy el Asistente EduSync. Puedo ayudarte con dudas del sistema y consultar información según los permisos de tu perfil.';
+        edu_chat_api_reply([
+            'status' => 1,
+            'greeting' => $greeting,
+            'role' => (string)$actor['role'],
+            'assistant_mode' => $aiEnabled ? edu_chat_ai_mode() : 'local',
+            'suggestions' => edu_chat_suggestions($actor),
+            'history' => array_values((array)($_SESSION['chatbot_history'] ?? []))
+        ]);
+    }
+
+    if ($method !== 'POST') edu_chat_api_reply(['status' => 0, 'message' => 'Método no permitido.'], 405);
+
+    $token = (string)($_POST['csrf_token'] ?? '');
+    $sessionToken = (string)($_SESSION['csrf_token'] ?? '');
+    if ($sessionToken === '' || $token === '' || !hash_equals($sessionToken, $token)) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'La sesión de seguridad venció. Recarga la página.'], 403);
+    }
+
+    if ($action === 'reset') {
+        unset($_SESSION['chatbot_context'], $_SESSION['chatbot_history'], $_SESSION['chatbot_rate']);
+        edu_chat_api_reply([
+            'status' => 1,
+            'message' => 'Conversación reiniciada.',
+            'assistant_mode' => edu_chat_ai_enabled() ? edu_chat_ai_mode() : 'local',
+            'suggestions' => edu_chat_suggestions($actor)
+        ]);
+    }
+
+    edu_chat_rate_limit();
+
+    $message = trim((string)($_POST['message'] ?? ''));
+    if ($message === '' || mb_strlen($message, 'UTF-8') > 500) {
+        edu_chat_api_reply(['status' => 0, 'message' => 'Escribe una consulta de hasta 500 caracteres.'], 422);
+    }
+
+    $history = array_values((array)($_SESSION['chatbot_history'] ?? []));
+    $result = null;
+    $aiError = null;
+
+    if (edu_chat_ai_enabled()) {
+        try {
+            $result = edu_chat_ai_ask($conn, $actor, $message, $history);
+        } catch (Throwable $aiException) {
+            $aiError = $aiException->getMessage();
+            error_log('[chatbot_ai fallback] ' . $aiException->getMessage() . ' line ' . $aiException->getLine());
         }
     }
 
-    if (empty($bimestres) && preg_match('/\b([1-4])\b/', $text, $matches)) {
-        foreach ($matches as $m) {
-            if ($m !== '0' && !in_array((string)$m, $bimestres, true)) {
-                $bimestres[] = (string)$m;
-            }
-        }
-    }
+    if (!is_array($result)) $result = edu_chat_local_result($conn, $actor, $message);
 
-    sort($bimestres, SORT_NUMERIC);
-    return $bimestres;
-};
+    edu_chat_history_add('user', $message);
+    edu_chat_history_add('assistant', (string)($result['message'] ?? ''), [
+        'cards' => (array)($result['cards'] ?? []),
+        'actions' => (array)($result['actions'] ?? [])
+    ]);
 
-$extractRisk = static function ($text) {
-    $critical = ['critico', 'critica', 'criticos', 'criticas', 'crítico', 'crítica', 'críticos', 'críticas', 'riesgo', 'riesgos', 'baja', 'bajo', 'deficiente', 'reprobado', 'reprobada'];
-    if (preg_match('/\b(?:' . implode('|', $critical) . ')\b/', $text)) {
-        return 'critico';
-    }
-    return null;
-};
-
-$academicQuery = null;
-if (preg_match('/\b(?:cuantos|cuantas|cantidad|total|dime)\b/', $normalized) && preg_match('/\b(?:estudiante|alumno)\b/', $normalized)) {
-    $academicQuery = [
-        'level' => $extractLevel($normalized),
-        'bimestres' => $extractBimestres($normalized),
-        'risk' => $extractRisk($normalized),
-    ];
+    edu_chat_api_reply([
+        'status' => 1,
+        'message' => (string)($result['message'] ?? 'Consulta procesada.'),
+        'follow_up' => (array)($result['follow_up'] ?? []),
+        'cards' => (array)($result['cards'] ?? []),
+        'actions' => (array)($result['actions'] ?? []),
+        'intent' => (string)($result['intent'] ?? 'ai'),
+        'role' => (string)$actor['role'],
+        'assistant_mode' => (string)($result['mode'] ?? 'local'),
+        'fallback_used' => $aiError !== null
+    ]);
+} catch (Throwable $e) {
+    error_log('[chatbot_api] ' . $e->getMessage() . ' line ' . $e->getLine());
+    edu_chat_api_reply(['status' => 0, 'message' => 'No pude procesar la consulta en este momento. Inténtalo nuevamente.'], 500);
 }
-
-$scores = [];
-foreach ($intents as $key => $config) {
-    $score = 0;
-    foreach ($config['must'] as $word) {
-        if (strpos($normalized, $word) !== false) $score += 4;
-    }
-    foreach ($config['any'] as $word) {
-        if (strpos($normalized, $word) !== false) $score += 2;
-    }
-    if ($score > 0) {
-        $scores[$key] = $score;
-    }
-}
-
-if ($academicQuery !== null) {
-    $scores['academic_count'] = ($scores['academic_count'] ?? 0) + 12;
-}
-
-$bestIntent = null;
-if (!empty($scores)) {
-    arsort($scores);
-    $bestIntent = array_key_first($scores);
-}
-
-if ($contextual_followup($normalized, $chat_context['last_intent'] ?? null) && !empty($chat_context['last_intent'])) {
-    $bestIntent = $chat_context['last_intent'];
-}
-
-$response = null;
-$follow_up = [];
-
-if ($bestIntent === 'register_student') {
-    $response = $intents['register_student']['response'];
-    $follow_up = $intents['register_student']['follow_up'];
-} elseif ($bestIntent === 'import_excel') {
-    $response = $intents['import_excel']['response'];
-    $follow_up = $intents['import_excel']['follow_up'];
-} elseif ($bestIntent === 'disable_teacher') {
-    $response = $intents['disable_teacher']['response'];
-    $follow_up = $intents['disable_teacher']['follow_up'];
-} elseif ($bestIntent === 'attendance') {
-    $response = $intents['attendance']['response'];
-    $follow_up = $intents['attendance']['follow_up'];
-} elseif ($bestIntent === 'academic_count') {
-    $level = $academicQuery['level'] ?? $extractLevel($normalized);
-    $bimestres = $academicQuery['bimestres'] ?? $extractBimestres($normalized);
-    $risk = $academicQuery['risk'] ?? $extractRisk($normalized);
-
-    if ($school_id <= 0) {
-        $response = 'No se pudo identificar tu institución.';
-    } else {
-        $where = ["s.school_id = {$school_id}", "s.status = 'Activo'", "eg.grade REGEXP '^[0-9]+([.][0-9]+)?$'"];
-        if ($level) {
-            $where[] = "s.nivel = '" . $conn->real_escape_string($level) . "'";
-        }
-        if (!empty($bimestres)) {
-            $quoted = array_map(static fn($v) => "'" . $conn->real_escape_string((string)$v) . "'", $bimestres);
-            $where[] = 'e.bimestre IN (' . implode(',', $quoted) . ')';
-        }
-        if ($risk === 'critico') {
-            $where[] = 'CAST(eg.grade AS DECIMAL(10,2)) <= 10';
-        }
-
-        $sql = 'SELECT COUNT(DISTINCT s.id) AS total FROM student s INNER JOIN evaluation_grades eg ON eg.student_id = s.id INNER JOIN evaluations e ON e.id = eg.evaluation_id WHERE ' . implode(' AND ', $where);
-        $result = $conn->query($sql);
-        $total = 0;
-        if ($result && $result->num_rows > 0) {
-            $row = $result->fetch_assoc();
-            $total = (int)($row['total'] ?? 0);
-        }
-
-        $levelText = $level ? strtolower($level) : 'general';
-        $periodText = !empty($bimestres) ? ' en el ' . implode(' y ', array_map(static fn($v) => $v . '° bimestre', $bimestres)) : '';
-        $riskText = $risk === 'critico' ? 'están críticos' : 'tienen registros académicos';
-        $response = sprintf('Hay %d estudiantes de %s %s%s.', $total, $levelText, $riskText, $periodText);
-    }
-    $follow_up = ['¿Cuántos estudiantes hay en secundaria?', '¿Cuántos docentes hay?', '¿Cómo registro asistencia?'];
-} elseif ($bestIntent === 'count_students') {
-    if ($school_id <= 0) {
-        $response = 'No se pudo identificar tu institución.';
-    } else {
-        $stmt = $conn->prepare("SELECT COUNT(*) AS total, SUM(status = 'Activo') AS activos, SUM(status = 'Retirado') AS retirados, SUM(status = 'Egresado') AS egresados FROM student WHERE school_id = ?");
-        $stmt->bind_param('i', $school_id);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        $response = sprintf('Hay %d estudiantes: %d activos, %d retirados y %d egresados.', (int)$row['total'], (int)$row['activos'], (int)$row['retirados'], (int)$row['egresados']);
-    }
-    $follow_up = $intents['count_students']['follow_up'];
-} elseif ($bestIntent === 'count_teachers') {
-    if ($school_id <= 0) {
-        $response = 'No se pudo identificar tu institución.';
-    } elseif (!in_array($user_type, [1, 3], true)) {
-        $response = 'No tienes permisos para consultar esa información.';
-    } else {
-        $stmt = $conn->prepare("SELECT COUNT(*) AS total, SUM(status = 'Activo') AS activos, SUM(status = 'Inactivo') AS inactivos FROM teacher WHERE school_id = ?");
-        $stmt->bind_param('i', $school_id);
-        $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        $response = sprintf('Hay %d docentes: %d activos y %d inactivos.', (int)$row['total'], (int)$row['activos'], (int)$row['inactivos']);
-    }
-    $follow_up = $intents['count_teachers']['follow_up'];
-} elseif ($bestIntent === 'help') {
-    $response = $intents['help']['response'];
-    $follow_up = $intents['help']['follow_up'];
-} else {
-    $response = 'Puedo ayudarte con procesos de estudiantes, docentes, Excel, asistencia y consultas académicas por nivel y bimestre. Prueba preguntando: “¿Cómo registro un estudiante?”, “¿Cómo subo un Excel?” o “¿Cuántos estudiantes de primaria están críticos en el primer y segundo bimestre?”';
-    $follow_up = ['¿Cómo registro un estudiante?', '¿Cómo subo un Excel?', '¿Cuántos estudiantes de primaria están críticos?'];
-    error_log('CHATBOT_FALLBACK: ' . json_encode(['message' => $message, 'normalized' => $normalized, 'scores' => $scores]));
-}
-
-$_SESSION['chatbot_context'] = [
-    'last_intent' => $bestIntent ?: ($chat_context['last_intent'] ?? null),
-    'last_topic' => $bestIntent ?: ($chat_context['last_topic'] ?? null),
-    'last_question' => $message,
-    'last_response' => $response,
-];
-
-echo json_encode(['status' => 1, 'message' => $response, 'follow_up' => $follow_up, 'intent' => $bestIntent ?: 'unknown'], JSON_UNESCAPED_UNICODE);
