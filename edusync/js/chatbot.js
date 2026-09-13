@@ -13,6 +13,10 @@
 
     if (!$panel.length || !$body.length || !$form.length) return;
 
+    function normalizeDegreeSymbols(value){
+        return String(value == null ? '' : value).replace(/°{2,}/g, '°');
+    }
+
     function scrollBottom(){
         if ($body.length) $body.scrollTop($body[0].scrollHeight);
     }
@@ -26,7 +30,7 @@
 
     function addMessage(text, role, extra){
         var $row = $('<div>').addClass('edu-chat-message-row ' + (role === 'user' ? 'user' : 'bot'));
-        var $msg = $('<div>').addClass('edu-chat-message ' + (role === 'user' ? 'user' : 'bot')).text(text || '');
+        var $msg = $('<div>').addClass('edu-chat-message ' + (role === 'user' ? 'user' : 'bot')).text(normalizeDegreeSymbols(text));
         $row.append($msg).appendTo($body);
         if (extra) {
             renderCards(extra.cards || []);
@@ -40,8 +44,8 @@
         var $grid = $('<div>').addClass('edu-chat-card-grid');
         cards.forEach(function(card){
             var $card = $('<div>').addClass('edu-chat-card').attr('data-tone', card && card.tone ? card.tone : 'primary');
-            $('<div>').addClass('edu-chat-card-label').text(card && card.label ? card.label : '').appendTo($card);
-            $('<div>').addClass('edu-chat-card-value').text(card && card.value != null ? String(card.value) : '').appendTo($card);
+            $('<div>').addClass('edu-chat-card-label').text(normalizeDegreeSymbols(card && card.label ? card.label : '')).appendTo($card);
+            $('<div>').addClass('edu-chat-card-value').text(normalizeDegreeSymbols(card && card.value != null ? card.value : '')).appendTo($card);
             $grid.append($card);
         });
         $body.append($grid);
@@ -54,7 +58,7 @@
             if (!action || !action.url || !/^index\.php\?page=/.test(action.url)) return;
             var $a = $('<a>').addClass('edu-chat-action').attr('href', action.url);
             $('<i>').addClass('fas ' + (action.icon || 'fa-arrow-right')).appendTo($a);
-            $('<span>').text(action.label || 'Abrir').appendTo($a);
+            $('<span>').text(normalizeDegreeSymbols(action.label || 'Abrir')).appendTo($a);
             $wrap.append($a);
         });
         if ($wrap.children().length) $body.append($wrap);
@@ -65,7 +69,7 @@
         var $wrap = $('<div>').addClass('edu-chat-suggestions');
         items.forEach(function(item){
             if (!item) return;
-            $('<button>', {type:'button', class:'edu-chat-suggestion', text:item})
+            $('<button>', {type:'button', class:'edu-chat-suggestion', text:normalizeDegreeSymbols(item)})
                 .on('click', function(){ sendMessage(item); })
                 .appendTo($wrap);
         });
