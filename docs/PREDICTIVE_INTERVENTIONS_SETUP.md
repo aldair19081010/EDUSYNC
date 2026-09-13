@@ -2,52 +2,91 @@
 
 ## Objetivo
 
-Esta fase transforma la alerta predictiva en un sistema de apoyo a decisiones. EduSync no solo estima riesgo académico para el bimestre siguiente, sino que permite:
+Este módulo convierte la predicción académica en un sistema de apoyo a decisiones. EduSync permite:
 
-1. visualizar estudiantes priorizados y factores que elevan el riesgo;
-2. simular escenarios contrafactuales dentro del modelo;
-3. registrar una intervención decidida por una persona responsable;
-4. hacer seguimiento de la intervención;
-5. volver a calcular el riesgo al completarla y conservar una comparación antes/después.
+1. priorizar estudiantes por riesgo académico estimado;
+2. explicar los factores del modelo;
+3. simular escenarios contrafactuales;
+4. registrar una intervención decidida por una persona responsable;
+5. hacer seguimiento de la intervención;
+6. medir un riesgo posterior cuando exista un nuevo bimestre cerrado y comparable.
 
-La predicción y las simulaciones no ejecutan decisiones automáticas sobre estudiantes.
+La predicción no ejecuta decisiones automáticas sobre estudiantes.
+
+## Política temporal
+
+La alerta en vivo siempre parte del **último bimestre cerrado** y estima riesgo en el bimestre siguiente.
+
+Ejemplo:
+
+```text
+I cerrado
+II cerrado
+III en proceso
+
+Base de la alerta: II
+Objetivo: riesgo académico en III
+```
+
+Las notas parciales del III no convierten al III en bimestre base.
+
+Para entrenamiento histórico solo se usan pares `N -> N+1` cuando ambos bimestres están cerrados.
+
+## Modelo v4
+
+El modelo v4 utiliza:
+
+- promedio académico actual;
+- tendencia académica cuando existe un bimestre anterior;
+- indicador `previous_bimester_available`;
+- registros críticos actuales;
+- cursos críticos actuales;
+- asistencia, tardanzas y ausencias de los 30 días previos al cierre.
+
+`grade_mean_previous` ya no es predictor para evitar redundancia exacta. El promedio previo observado se conserva únicamente como dato diagnóstico cuando existe.
+
+Las probabilidades se calibran mediante Platt scaling aprendido sobre predicciones fuera de muestra agrupadas por estudiante. Los niveles Alto/Medio/Bajo se calculan sobre la probabilidad calibrada.
+
+Las deudas, pagos y morosidad no intervienen en el riesgo académico.
 
 ## Arquitectura
 
 ```text
-Datos académicos + asistencia
-          ↓
-Modelo predictivo explicable
-          ↓
-Probabilidad y nivel de riesgo
-          ↓
+Datos hasta cierre de N
+        ↓
+Modelo logístico explicable
+        ↓
+Calibración probabilística
+        ↓
+Probabilidad y nivel de riesgo en N+1
+        ↓
 Factores del modelo
-          ↓
+        ↓
 Simulación contrafactual
-          ↓
+        ↓
 Decisión humana
-          ↓
-Intervención registrada
-          ↓
-Seguimiento y resultado observado
-          ↓
-Nuevo cálculo de riesgo
+        ↓
+Intervención
+        ↓
+Seguimiento
+        ↓
+Nuevo cierre académico
+        ↓
+Medición posterior disponible
 ```
 
-Groq no calcula probabilidades, no modifica coeficientes y no registra intervenciones. El chatbot solo consulta y presenta resultados deterministas del módulo.
+Groq no calcula probabilidades, coeficientes ni contrafactuales. El chatbot presenta resultados producidos por el motor predictivo.
 
 ## Migración requerida
 
-Ejecutar una sola vez:
+Ejecutar una sola vez antes de utilizar intervenciones:
 
 `sql/predictive_interventions_upgrade.sql`
 
 Crea:
 
-- `student_risk_interventions`: línea base, intervención, estado, seguimiento y riesgo posterior.
-- `student_risk_intervention_log`: trazabilidad de creación y actualización.
-
-No ejecutar esta migración más de una vez manualmente; utiliza `CREATE TABLE IF NOT EXISTS` para instalaciones compatibles.
+- `student_risk_interventions`;
+- `student_risk_intervention_log`.
 
 ## Dashboard
 
@@ -55,35 +94,34 @@ Administración accede desde:
 
 `index.php?page=risk_dashboard`
 
-El panel incluye:
+Incluye:
 
-- conteo de riesgo Alto / Medio / Bajo;
-- estudiantes ordenados por probabilidad;
-- filtros por nivel, grado, sección y bimestre base;
+- riesgo Alto / Medio / Bajo;
+- ranking de estudiantes;
+- filtros por nivel, grado, sección y bimestre base cerrado;
 - factores predominantes;
 - escenarios simulados;
-- intervención sugerida según factores predominantes;
-- alta y actualización de intervenciones;
-- seguimiento vencido;
-- comparación entre riesgo inicial y riesgo al completar la intervención.
+- alta y seguimiento de intervenciones;
+- medición descriptiva antes/después cuando existe un nuevo cierre válido.
 
 ## Simulación contrafactual
 
-Los escenarios modifican exclusivamente variables que ya forman parte del modelo desplegado. Se prueban escenarios de asistencia, refuerzo académico y combinaciones de ambos. Cada escenario se vuelve a puntuar con los mismos coeficientes, escalado y umbrales del `risk_model.json`.
+Los escenarios modifican variables del mismo modelo y vuelven a puntuar el vector con el mismo escalado, coeficientes y calibración.
 
 Ejemplo conceptual:
 
 ```text
-Riesgo actual: Alto 78.0 %
-Escenario: Plan combinado moderado
-- asistencia: 82 % → 92 %
-- ausencias: 5 → 2
-- promedio: 11.5 → 13.0
-- cursos críticos: 2 → 1
-Riesgo estimado en el escenario: Medio 54.0 %
+Riesgo calibrado actual: Alto 78 %
+Escenario simulado:
+- promedio 11.5 -> 13.0
+- cursos críticos 2 -> 1
+- asistencia 82 % -> 92 %
+Riesgo calibrado bajo ese perfil: Medio 54 %
 ```
 
-Esto significa únicamente: **si el vector de variables tomara esos valores, el modelo produciría esa probabilidad**. No significa que realizar una acción cause necesariamente esa reducción. La interfaz y el chatbot muestran explícitamente esta limitación.
+Esto significa únicamente que **un perfil con esos valores recibe una probabilidad menor según el modelo**. No demuestra que la intervención cause exactamente esa reducción.
+
+Si el estudiante no tiene asistencia observada, el sistema no inventa cambios hipotéticos de asistencia.
 
 ## Intervenciones
 
@@ -104,50 +142,46 @@ Estados:
 - Completada
 - Cancelada
 
-Al crear una intervención, el servidor calcula y almacena la probabilidad y nivel de riesgo existentes en ese momento. Al marcarla como `Completada`, vuelve a calcular el riesgo disponible y almacena `post_risk_probability`.
+Al crear una intervención se conserva la probabilidad calibrada y el nivel de riesgo como línea base.
 
-La comparación antes/después puede servir para análisis descriptivo, pero por sí sola **no demuestra causalidad**. Para una tesis que quiera medir impacto causal se requeriría un diseño experimental o cuasi-experimental adicional.
+Una intervención puede marcarse como `Completada` mientras el bimestre objetivo continúa abierto. En ese caso, **no se inventa una probabilidad posterior con notas parciales**: `post_risk_probability` permanece pendiente hasta que exista un nuevo bimestre cerrado que permita una nueva predicción temporalmente válida.
+
+La comparación antes/después es descriptiva y no prueba causalidad.
 
 ## Seguridad
 
-- dashboard limitado inicialmente a tipo de usuario 1 (administración/dirección);
-- colegio determinado por la sesión autenticada;
-- cada estudiante se vuelve a validar contra `school_id`;
-- mutaciones mediante POST y token CSRF;
-- valores de tipo, estado y resultado trabajan con listas permitidas;
+- primera versión limitada a administración/dirección;
+- colegio tomado de la sesión autenticada;
+- estudiantes validados nuevamente por `school_id`;
+- mutaciones mediante POST y CSRF;
 - consultas preparadas;
-- el chatbot permanece de solo lectura respecto de intervenciones.
+- tipos, estados y resultados limitados a listas permitidas;
+- chatbot de solo lectura respecto de intervenciones.
 
-## Consultas del chatbot
+## Validación antes de `main`
 
-Ejemplos:
+Antes de fusionar el PR deben completarse:
 
-- `¿Qué tendría que mejorar Juan Pérez para bajar su riesgo?`
-- `Simula cómo reducir el riesgo de Juan Pérez.`
-- `Muéstrame las intervenciones de Juan Pérez.`
-- `¿Qué precisión tiene el modelo predictivo?`
-- `¿Qué estudiantes tienen mayor riesgo el próximo bimestre?`
+1. dataset v4 con cierres reales;
+2. `risk_model.json` schema v4;
+3. validación agrupada por estudiante;
+4. validación temporal walk-forward;
+5. revisión de Recall, Precision, F1, Balanced Accuracy, ROC-AUC y PR-AUC;
+6. revisión de Brier Score y ECE;
+7. comparación del Brier con el baseline de prevalencia histórica;
+8. auditoría de falsos negativos;
+9. smoke test PHP;
+10. prueba funcional del dashboard, chatbot, contrafactuales e intervenciones.
 
-## Indicadores para la tesis
+`APTO_PARA_PILOTO` no significa automáticamente `APTO_PARA_PRODUCCIÓN`.
 
-Además de ROC-AUC, F1, recall y demás métricas del modelo predictivo, esta fase permite medir indicadores de uso del sistema:
+## Despliegue posterior
 
-- número de alertas revisadas;
-- número de intervenciones registradas;
-- porcentaje de intervenciones completadas;
-- seguimientos vencidos;
-- intervenciones con medición antes/después;
-- proporción de casos con menor probabilidad posterior;
-- variación media de probabilidad en casos medidos.
+Cuando se autorice un piloto, el servidor necesitará:
 
-Estos indicadores deben presentarse como resultados descriptivos salvo que el diseño de investigación permita inferencias causales.
+- archivos PHP del módulo;
+- `risk_model.json` v4 entrenado y validado;
+- migración de intervenciones ejecutada;
+- permisos MySQL correspondientes.
 
-## Despliegue
-
-Además de los archivos PHP del módulo, producción necesita:
-
-1. el `risk_model.json` entrenado y validado;
-2. ejecutar `sql/predictive_interventions_upgrade.sql` en la base productiva;
-3. mantener permisos de escritura sobre las tablas de intervención para la cuenta MySQL usada por EduSync.
-
-Python y scikit-learn continúan siendo necesarios solo para entrenamiento/reentrenamiento, no para la inferencia en producción.
+Python y scikit-learn son necesarios para entrenamiento y validación, no para inferencia PHP.
