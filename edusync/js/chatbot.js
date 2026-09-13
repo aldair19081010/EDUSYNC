@@ -17,6 +17,33 @@
         return String(value == null ? '' : value).replace(/°{2,}/g, '°');
     }
 
+    function formatAssistantText(value){
+        var text = normalizeDegreeSymbols(value).replace(/\r\n?/g, '\n').trim();
+        if (!text) return '';
+
+        // El chat muestra texto plano. Quitamos restos de Markdown para que la
+        // respuesta se vea natural incluso si el modelo ignora una regla de estilo.
+        text = text
+            .replace(/\*\*([^*]+)\*\*/g, '$1')
+            .replace(/__([^_]+)__/g, '$1')
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/(^|\n)\s*#{1,6}\s*/g, '$1');
+
+        // Uniforma listas y evita que varios elementos queden pegados en una línea.
+        text = text
+            .replace(/(^|\n)\s*[-*]\s+/g, '$1• ')
+            .replace(/([^\n])\s+•\s+/g, '$1\n• ')
+            .replace(/([^\n])\s+(\d{1,2}[.)]\s+[A-ZÁÉÍÓÚÑ])/g, '$1\n$2');
+
+        // Da aire a secciones comunes sin inventar contenido nuevo.
+        ['Resultado:', 'Detalle:', 'Observación:', 'Resumen:', 'Importante:'].forEach(function(label){
+            var escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            text = text.replace(new RegExp('([^\\n])\\s+(' + escaped + ')', 'g'), '$1\n\n$2');
+        });
+
+        return text.replace(/\n{3,}/g, '\n\n').trim();
+    }
+
     function scrollBottom(){
         if ($body.length) $body.scrollTop($body[0].scrollHeight);
     }
@@ -30,7 +57,8 @@
 
     function addMessage(text, role, extra){
         var $row = $('<div>').addClass('edu-chat-message-row ' + (role === 'user' ? 'user' : 'bot'));
-        var $msg = $('<div>').addClass('edu-chat-message ' + (role === 'user' ? 'user' : 'bot')).text(normalizeDegreeSymbols(text));
+        var visibleText = role === 'user' ? normalizeDegreeSymbols(text) : formatAssistantText(text);
+        var $msg = $('<div>').addClass('edu-chat-message ' + (role === 'user' ? 'user' : 'bot')).text(visibleText);
         $row.append($msg).appendTo($body);
         if (extra) {
             renderCards(extra.cards || []);
