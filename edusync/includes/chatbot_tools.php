@@ -32,6 +32,7 @@ function edu_chat_ai_tool_definitions(array $actor): array {
     $section = edu_chat_ai_optional_string('Sección, por ejemplo A o B.');
     $bimestre = edu_chat_ai_optional_string('Bimestre.', ['1','2','3','4']);
     $course = edu_chat_ai_optional_string('Nombre del curso si el usuario lo menciona.');
+    $limit = ['type' => 'integer', 'minimum' => 1, 'maximum' => 20, 'description' => 'Cantidad de estudiantes a listar. Si no se especifica, usa 10.'];
 
     $tools = [
         edu_chat_ai_function('get_system_help', 'Busca documentación oficial interna de EduSync para responder dudas sobre cómo funciona o dónde está una opción.', [
@@ -54,6 +55,7 @@ function edu_chat_ai_tool_definitions(array $actor): array {
         $tools[] = edu_chat_ai_function('get_student_count', 'Cuenta estudiantes activos del colegio autenticado aplicando filtros opcionales.', ['level'=>$level,'grade'=>$grade,'section'=>$section]);
         $tools[] = edu_chat_ai_function('get_teacher_count', 'Cuenta docentes del colegio autenticado y resume activos/inactivos.');
         $tools[] = edu_chat_ai_function('get_debt_summary', 'Resume morosidad del colegio autenticado: estudiantes con deuda, obligaciones y saldo pendiente.', ['level'=>$level,'grade'=>$grade]);
+        $tools[] = edu_chat_ai_function('get_top_debtors', 'Lista y ordena de mayor a menor a los estudiantes con más deuda pendiente, mostrando nombre, saldo, cantidad de obligaciones y grado. Úsala para preguntas como los 10 que más deben, top morosos, quiénes deben más o mayores deudores.', ['limit'=>$limit,'level'=>$level,'grade'=>$grade]);
         $tools[] = edu_chat_ai_function('get_collections_summary', 'Resume cobranza confirmada del colegio autenticado.', ['period'=>$period,'level'=>$level]);
         $tools[] = edu_chat_ai_function('get_attendance_summary', 'Resume asistencia del colegio autenticado por periodo y filtros opcionales.', ['period'=>$period,'level'=>$level,'grade'=>$grade]);
         $tools[] = edu_chat_ai_function('get_academic_risk', 'Cuenta estudiantes con registros académicos críticos del año académico actual.', ['level'=>$level,'grade'=>$grade,'bimestre'=>$bimestre,'course'=>$course]);
@@ -174,6 +176,10 @@ function edu_chat_ai_run_tool(mysqli $conn, array $actor, string $name, array $a
         case 'get_debt_summary':
             if ($type !== 1) break;
             return edu_chat_debt_summary_result($conn, $actor, $entities);
+        case 'get_top_debtors':
+            if ($type !== 1) break;
+            $limit = isset($args['limit']) ? (int)$args['limit'] : 10;
+            return edu_chat_top_debtors_result($conn, $actor, $entities, $limit);
         case 'get_collections_summary':
             if ($type !== 1) break;
             if (empty($entities['period'])) $entities['period'] = 'month';
