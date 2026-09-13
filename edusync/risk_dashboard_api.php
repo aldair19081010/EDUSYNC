@@ -16,6 +16,44 @@ function risk_api_reply(array $payload,int $status=200): void {
     exit;
 }
 
+/**
+ * La BD histórica puede contener el grado como "3" o "3°". Las vistas de
+ * EduSync agregan el símbolo al presentar el aula, por lo que la API entrega
+ * siempre el valor base sin símbolos para evitar salidas como "3°°".
+ */
+function risk_api_grade_base($value): string {
+    $grade=trim((string)$value);
+    if($grade==='')return '';
+    $grade=preg_replace('/(?:\s*°)+\s*$/u','',$grade);
+    return trim((string)$grade);
+}
+
+function risk_api_normalize_student_grade(array $student): array {
+    if(array_key_exists('grado',$student))$student['grado']=risk_api_grade_base($student['grado']);
+    return $student;
+}
+
+function risk_api_normalize_interventions(array $rows): array {
+    foreach($rows as $i=>$row){
+        if(is_array($row)&&array_key_exists('grado',$row))$rows[$i]['grado']=risk_api_grade_base($row['grado']);
+    }
+    return $rows;
+}
+
+function risk_api_normalize_dashboard(array $data): array {
+    if(isset($data['predictions'])&&is_array($data['predictions'])){
+        foreach($data['predictions'] as $i=>$prediction){
+            if(isset($prediction['student'])&&is_array($prediction['student'])){
+                $data['predictions'][$i]['student']=risk_api_normalize_student_grade($prediction['student']);
+            }
+        }
+    }
+    if(isset($data['interventions'])&&is_array($data['interventions'])){
+        $data['interventions']=risk_api_normalize_interventions($data['interventions']);
+    }
+    return $data;
+}
+
 try {
     $actor=edu_chat_resolve_actor($conn);
     if(!$actor)risk_api_reply(['ok'=>false,'message'=>'Tu sesión ha expirado.'],401);
@@ -30,17 +68,25 @@ try {
     }
 
     if($method==='GET'){
-        if($action==='dashboard')risk_api_reply(edu_risk_dashboard_data($conn,$actor,$entities));
+        if($action==='dashboard'){
+            risk_api_reply(risk_api_normalize_dashboard(edu_risk_dashboard_data($conn,$actor,$entities)));
+        }
         if($action==='student'){
             $studentId=(int)($_GET['student_id']??0);
             $student=edu_risk_student_by_id($conn,$actor,$studentId);
             if(!$student)risk_api_reply(['ok'=>false,'message'=>'No encontré al estudiante solicitado.'],404);
+            $student=risk_api_normalize_student_grade($student);
             $prediction=edu_predictive_student_prediction($conn,$actor,$studentId,!empty($entities['bimestre'])?(int)$entities['bimestre']:null);
             $counterfactual=edu_risk_counterfactual_for_student($conn,$actor,$studentId,!empty($entities['bimestre'])?(int)$entities['bimestre']:null);
-            $interventions=edu_risk_list_interventions($conn,$actor,['student_id'=>$studentId],100);
+            if(isset($counterfactual['student'])&&is_array($counterfactual['student'])){
+                $counterfactual['student']=risk_api_normalize_student_grade($counterfactual['student']);
+            }
+            $interventions=risk_api_normalize_interventions(edu_risk_list_interventions($conn,$actor,['student_id'=>$studentId],100));
             risk_api_reply(['ok'=>true,'student'=>$student,'prediction'=>$prediction,'counterfactual'=>$counterfactual,'interventions'=>$interventions,'types'=>edu_risk_intervention_types(),'statuses'=>edu_risk_statuses(),'outcomes'=>edu_risk_outcomes(),'migration_ready'=>edu_risk_interventions_ready($conn)]);
         }
-        if($action==='interventions')risk_api_reply(['ok'=>true,'rows'=>edu_risk_list_interventions($conn,$actor,$entities,200),'statuses'=>edu_risk_statuses(),'outcomes'=>edu_risk_outcomes()]);
+        if($action==='interventions'){
+            risk_api_reply(['ok'=>true,'rows'=>risk_api_normalize_interventions(edu_risk_list_interventions($conn,$actor,$entities,200)),'statuses'=>edu_risk_statuses(),'outcomes'=>edu_risk_outcomes()]);
+        }
         risk_api_reply(['ok'=>false,'message'=>'Acción no válida.'],404);
     }
 
