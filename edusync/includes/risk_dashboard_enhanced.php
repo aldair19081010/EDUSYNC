@@ -28,8 +28,8 @@ function edu_risk_dashboard_data_enhanced(mysqli $conn,array $actor,array $filte
     if(!empty($model['available'])){
         foreach($students as $student){
             $prediction=edu_predictive_student_prediction($conn,$actor,(int)$student['id'],$requestedBimester);if(empty($prediction['available']))continue;
-            $evaluatedBeforeRiskFilter++;if($riskLevel!==''&&$prediction['level']!==$riskLevel)continue;
-            $summary[$prediction['level']]++;if(empty($prediction['data_quality']['attendance_available']))$missingAttendance++;
+            $evaluatedBeforeRiskFilter++;$summary[$prediction['level']]++;if(empty($prediction['data_quality']['attendance_available']))$missingAttendance++;
+            if($riskLevel!==''&&$prediction['level']!==$riskLevel)continue;
             foreach(array_slice((array)($prediction['explanation']['raises']??[]),0,3) as $factor){$label=(string)($factor['label']??$factor['feature']??'Factor');$factorCounts[$label]=($factorCounts[$label]??0)+1;}
             $predictions[]=[
                 'student'=>$student,'probability'=>(float)$prediction['probability'],'level'=>$prediction['level'],
@@ -54,7 +54,9 @@ function edu_risk_dashboard_data_enhanced(mysqli $conn,array $actor,array $filte
     arsort($factorCounts);$factors=[];foreach(array_slice($factorCounts,0,8,true) as $label=>$count)$factors[]=['label'=>$label,'count'=>$count];
 
     $interventionFilters=$academicFilters;if(!empty($filters['intervention_status']))$interventionFilters['status']=$filters['intervention_status'];
-    $interventions=edu_risk_list_interventions($conn,$actor,$interventionFilters,100);$intSummary=['Pendiente'=>0,'En proceso'=>0,'Completada'=>0,'Cancelada'=>0,'Seguimientos vencidos'=>0];
+    $interventions=edu_risk_list_interventions($conn,$actor,$interventionFilters,100);
+    if($nameSearch!=='')$interventions=array_values(array_filter($interventions,static fn($row)=>stripos((string)($row['student_name']??''),$nameSearch)!==false));
+    $intSummary=['Pendiente'=>0,'En proceso'=>0,'Completada'=>0,'Cancelada'=>0,'Seguimientos vencidos'=>0];
     $improved=0;$measured=0;$deltaSum=0.0;$today=date('Y-m-d');foreach($interventions as $row){$status=(string)$row['status'];if(isset($intSummary[$status]))$intSummary[$status]++;if(in_array($status,['Pendiente','En proceso'],true)&&!empty($row['followup_date'])&&$row['followup_date']<$today)$intSummary['Seguimientos vencidos']++;if($status==='Completada'&&$row['risk_probability']!==null&&$row['post_risk_probability']!==null){$delta=(float)$row['risk_probability']-(float)$row['post_risk_probability'];$deltaSum+=$delta;$measured++;if($delta>0)$improved++;}}
 
     $first=$predictions[0]??null;$thresholds=(array)($model['risk_thresholds']??[]);
@@ -64,7 +66,7 @@ function edu_risk_dashboard_data_enhanced(mysqli $conn,array $actor,array $filte
         'period'=>['base'=>$first['bimester_label']??null,'target'=>$first['target_bimester_label']??null,'cutoff'=>$first['base_closed_at']??null],
         'filters'=>edu_risk_dashboard_filter_options($conn,$actor),
         'active_filters'=>['search'=>$nameSearch,'level'=>$filters['level']??'','grade'=>$filters['grade']??'','section'=>$filters['section']??'','risk_level'=>$riskLevel,'bimestre'=>$requestedBimester,'intervention_status'=>$filters['intervention_status']??''],
-        'summary'=>['evaluated'=>$totalMatched,'evaluated_before_risk_filter'=>$evaluatedBeforeRiskFilter,'high'=>$summary['Alto'],'medium'=>$summary['Medio'],'low'=>$summary['Bajo'],'students_considered'=>count($students),'attendance_missing'=>$missingAttendance],
+        'summary'=>['evaluated'=>$evaluatedBeforeRiskFilter,'matched'=>$totalMatched,'high'=>$summary['Alto'],'medium'=>$summary['Medio'],'low'=>$summary['Bajo'],'students_considered'=>count($students),'attendance_missing'=>$missingAttendance],
         'predictions'=>$predictions,'factors'=>$factors,'interventions'=>$interventions,'intervention_summary'=>$intSummary,
         'effectiveness'=>['measured'=>$measured,'improved'=>$improved,'average_probability_reduction'=>$measured>0?$deltaSum/$measured:null],
         'migration_ready'=>edu_risk_interventions_ready($conn),
