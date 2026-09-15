@@ -16,6 +16,10 @@
 
 # Artefactos de machine learning generados localmente
 /storage/*.csv
+/storage/risk_validation_report.json
+/storage/risk_validation_v5_comparison.json
+/storage/risk_validation_v51_comparison.json
+/storage/course_risk_validation_report.json
 /edusync/storage/ai_models/*.json
 !/edusync/storage/ai_models/.gitkeep
 

@@ -31,7 +31,7 @@ $allowed_pages = [
     'competencias',
     'concepts', 'fees', 'payments', 'discounts',
     'asistencia', 'attendance_rules_page',
-    'grades',
+    'grades', 'risk_dashboard',
     'payments_report', 'grades_report', 'attendance_report', 'debt_reports', 'fichas_reportes',
     'users',
     // Facturación Electrónica

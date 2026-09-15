@@ -1,6 +1,22 @@
 <?php
 require __DIR__ . '/navbar_view.php';
-
+?>
+<?php if (($login_type ?? 0) === 1): ?>
+<script>
+(function(){
+    var sidebar=document.getElementById('accordionSidebar');
+    if(!sidebar||sidebar.querySelector('[data-edusync-risk-nav]'))return;
+    var finalDivider=sidebar.querySelector('hr.sidebar-divider.d-none.d-md-block');
+    if(!finalDivider)return;
+    var divider=document.createElement('hr');divider.className='sidebar-divider my-0';divider.setAttribute('data-edusync-risk-nav','1');
+    var heading=document.createElement('div');heading.className='sidebar-heading';heading.textContent='IA y Alertas';heading.setAttribute('data-edusync-risk-nav','1');
+    var item=document.createElement('li');item.className='nav-item<?php echo (($current_page ?? '') === 'risk_dashboard') ? ' active' : ''; ?>';item.setAttribute('data-edusync-risk-nav','1');
+    item.innerHTML='<a class="nav-link" href="index.php?page=risk_dashboard"><i class="fas fa-fw fa-brain"></i><span>Alerta Temprana IA</span></a>';
+    sidebar.insertBefore(divider,finalDivider);sidebar.insertBefore(heading,finalDivider);sidebar.insertBefore(item,finalDivider);
+})();
+</script>
+<?php endif; ?>
+<?php
 $custom_css_file = dirname(__DIR__) . '/css/custom.css';
 $ui_css_file = dirname(__DIR__) . '/css/ui_consistency.css';
 $ui_refinements_file = dirname(__DIR__) . '/css/ui_refinements.css';
