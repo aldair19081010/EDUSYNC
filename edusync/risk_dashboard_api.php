@@ -8,7 +8,7 @@ header('X-Content-Type-Options: nosniff');
 require_once __DIR__ . '/session_config.php';
 require_once __DIR__ . '/db_connect.php';
 require_once __DIR__ . '/includes/chatbot_engine.php';
-require_once __DIR__ . '/includes/predictive_interventions.php';
+require_once __DIR__ . '/includes/risk_dashboard_enhanced.php';
 
 function risk_api_reply(array $payload,int $status=200): void {
     http_response_code($status);
@@ -62,14 +62,14 @@ try {
     $method=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'));
     $action=trim((string)($_REQUEST['action']??'dashboard'));
     $entities=[];
-    foreach(['level','grade','section','bimestre'] as $key){
+    foreach(['level','grade','section','bimestre','search','risk_level','intervention_status'] as $key){
         $value=trim((string)($_REQUEST[$key]??''));
         if($value!=='')$entities[$key]=$value;
     }
 
     if($method==='GET'){
         if($action==='dashboard'){
-            risk_api_reply(risk_api_normalize_dashboard(edu_risk_dashboard_data($conn,$actor,$entities)));
+            risk_api_reply(risk_api_normalize_dashboard(edu_risk_dashboard_data_enhanced($conn,$actor,$entities)));
         }
         if($action==='student'){
             $studentId=(int)($_GET['student_id']??0);
@@ -85,7 +85,9 @@ try {
             risk_api_reply(['ok'=>true,'student'=>$student,'prediction'=>$prediction,'counterfactual'=>$counterfactual,'interventions'=>$interventions,'types'=>edu_risk_intervention_types(),'statuses'=>edu_risk_statuses(),'outcomes'=>edu_risk_outcomes(),'migration_ready'=>edu_risk_interventions_ready($conn)]);
         }
         if($action==='interventions'){
-            risk_api_reply(['ok'=>true,'rows'=>risk_api_normalize_interventions(edu_risk_list_interventions($conn,$actor,$entities,200)),'statuses'=>edu_risk_statuses(),'outcomes'=>edu_risk_outcomes()]);
+            $filters=[];foreach(['level','grade','section'] as $key)if(!empty($entities[$key]))$filters[$key]=$entities[$key];
+            if(!empty($entities['intervention_status']))$filters['status']=$entities['intervention_status'];
+            risk_api_reply(['ok'=>true,'rows'=>risk_api_normalize_interventions(edu_risk_list_interventions($conn,$actor,$filters,200)),'statuses'=>edu_risk_statuses(),'outcomes'=>edu_risk_outcomes()]);
         }
         risk_api_reply(['ok'=>false,'message'=>'Acción no válida.'],404);
     }
@@ -107,5 +109,5 @@ try {
     risk_api_reply(['ok'=>false,'message'=>'Acción no válida.'],404);
 } catch(Throwable $e){
     error_log('[risk_dashboard_api] '.$e->getMessage().' line '.$e->getLine());
-    risk_api_reply(['ok'=>false,'message'=>'No pude procesar la solicitud del panel de riesgo.'],500);
+    risk_api_reply(['ok'=>false,'message'=>'No pude procesar la solicitud del panel de alerta temprana.'],500);
 }
