@@ -1,11 +1,14 @@
--- Seguimiento de intervenciones de alerta temprana EduSync.
--- Ejecutar MANUALMENTE una sola vez en cada base de datos antes de habilitar el dashboard.
+-- Seguimiento de intervenciones de Alerta Temprana Inteligente EduSync.
+-- Ejecutar MANUALMENTE una sola vez en una base donde la tabla aún NO exista.
+-- Si la tabla ya existe desde la versión anterior, usar sql/predictive_course_risk_upgrade.sql.
 
 CREATE TABLE IF NOT EXISTS student_risk_interventions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     school_id INT NOT NULL,
     academic_year_id INT NULL,
     student_id INT NOT NULL,
+    course_id INT NULL,
+    course_name VARCHAR(160) NULL,
     source_bimester TINYINT NULL,
     target_bimester TINYINT NULL,
     risk_probability DECIMAL(8,6) NULL,
@@ -25,6 +28,7 @@ CREATE TABLE IF NOT EXISTS student_risk_interventions (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_risk_intervention_school_status (school_id,status,created_at),
     INDEX idx_risk_intervention_student (school_id,student_id,created_at),
+    INDEX idx_risk_intervention_student_course (school_id,student_id,course_id,created_at),
     INDEX idx_risk_intervention_followup (school_id,followup_date,status),
     INDEX idx_risk_intervention_year (school_id,academic_year_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
