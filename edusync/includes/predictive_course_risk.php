@@ -28,7 +28,7 @@ function edu_course_risk_model_load(): array {
     if(!is_file($path)||!is_readable($path))return['available'=>false,'reason'=>'model_missing','path'=>$path];
     $model=json_decode((string)file_get_contents($path),true);
     if(!is_array($model))return['available'=>false,'reason'=>'model_invalid','path'=>$path];
-    if((int)($model['schema_version']??0)!==6||($model['model_variant']??'')!=='student_course_next_bimester_v6')return['available'=>false,'reason'=>'model_outdated','path'=>$path];
+    $schema=(int)($model['schema_version']??0);$variant=(string)($model['model_variant']??'');if(!(($schema===6&&$variant==='student_course_next_bimester_v6')||($schema===7&&$variant==='student_course_longitudinal_v7')))return['available'=>false,'reason'=>'model_outdated','path'=>$path];
     $features=(array)($model['features']??[]);$coefs=(array)($model['coefficients']??[]);$mean=(array)($model['scaler']['mean']??[]);$scale=(array)($model['scaler']['scale']??[]);
     if(($model['model_type']??'')!=='logistic_regression'||!$features||!isset($model['intercept']))return['available'=>false,'reason'=>'model_schema','path'=>$path];
     foreach($features as $f)if(!array_key_exists($f,$coefs)||!array_key_exists($f,$mean)||!array_key_exists($f,$scale))return['available'=>false,'reason'=>'model_schema','path'=>$path];
@@ -42,7 +42,7 @@ function edu_course_risk_grade_score($grade): ?float {
     $v=strtoupper(trim((string)$grade));if($v==='')return null;
     $numeric=str_replace(',','.',$v);
     if(is_numeric($numeric))return max(0.0,min(20.0,(float)$numeric));
-    $map=['C'=>10.0,'B'=>12.0,'A'=>15.5,'AD'=>19.0];
+    $map=['C'=>10.0,'B'=>13.0,'A'=>17.0,'AD'=>20.0];
     return$map[$v]??null;
 }
 function edu_course_risk_grade_low($grade): bool {
@@ -99,7 +99,7 @@ function edu_course_risk_expected_cells(mysqli $conn,array $teacherCourseIds,int
     $dateColumn=edu_course_risk_evaluation_date_column($conn);$dateSelect=$dateColumn!==null?"DATE(e.`$dateColumn`) evaluation_date":"NULL evaluation_date";
     $statusWhere=edu_predictive_column_exists($conn,'evaluations','status')?" AND COALESCE(e.status,'Activa')<>'Anulada'":'';
     $yearWhere=edu_predictive_column_exists($conn,'evaluations','academic_year_id')?' AND e.academic_year_id=?':'';$types=$yearWhere!==''?'iii':'ii';$params=$yearWhere!==''?[$studentId,$bimester,$yearId]:[$studentId,$bimester];
-    $sql="SELECT e.id evaluation_id,e.title,$dateSelect,ec.competencia_id,eg.grade FROM evaluations e INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.competencia_id=ec.competencia_id AND eg.student_id=? WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=?$yearWhere$statusWhere ORDER BY e.id,ec.competencia_id";
+    $sql="SELECT e.id evaluation_id,e.title,$dateSelect,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,eg.grade FROM evaluations e INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.competencia_id=ec.competencia_id AND eg.student_id=? WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=?$yearWhere$statusWhere ORDER BY COALESCE($dateSelect,e.id),e.id,ec.competencia_id";
     $stmt=$conn->prepare($sql);if(!$stmt)return[];edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$stmt->close();return$rows;
 }
 
@@ -122,10 +122,26 @@ function edu_course_risk_class_metrics(mysqli $conn,array $teacherCourseIds,int 
     return$out;
 }
 
+function edu_course_risk_std(array $values): ?float {
+    $v=array_values(array_filter($values,static fn($x)=>$x!==null&&is_numeric($x)));$n=count($v);if(!$n)return null;$m=array_sum($v)/$n;$ss=0.0;foreach($v as $x)$ss+=((float)$x-$m)**2;return sqrt($ss/$n);
+}
 function edu_course_risk_period_metrics(mysqli $conn,int $studentId,int $schoolId,int $yearId,int $bimester,array $context,?string $cutoffDate=null,int $attendanceWindow=30): array {
-    $cells=edu_course_risk_expected_cells($conn,(array)($context['teacher_course_ids']??[]),$yearId,$bimester,$studentId);$scores=[];$low=0;$missing=0;$evalIds=[];$missingEvalDates=[];$grades=[];
-    foreach($cells as $cell){$evalIds[(int)$cell['evaluation_id']]=true;$grade=trim((string)($cell['grade']??''));if($grade===''){$missing++;if(!empty($cell['evaluation_date']))$missingEvalDates[]=(string)$cell['evaluation_date'];continue;}$score=edu_course_risk_grade_score($grade);if($score===null)continue;$scores[]=$score;$grades[]=$grade;if(edu_course_risk_grade_low($grade))$low++;}
-    $expected=count($cells);$graded=count($scores);$mean=$graded?array_sum($scores)/$graded:null;$attendance=$cutoffDate?edu_predictive_attendance_features($conn,$studentId,$cutoffDate,$attendanceWindow):['attendance_rate_30d'=>null,'late_30d'=>null,'absent_30d'=>null,'attendance_records_30d'=>0];
+    $cells=edu_course_risk_expected_cells($conn,(array)($context['teacher_course_ids']??[]),$yearId,$bimester,$studentId);
+    $scores=[];$low=0;$missing=0;$evalIds=[];$missingEvalDates=[];$grades=[];$byComp=[];$weights=[];$byEval=[];$evalOrder=[];
+    foreach($cells as $cell){
+        $eid=(int)$cell['evaluation_id'];$cid=(int)$cell['competencia_id'];$evalIds[$eid]=true;$weights[$cid]=max(0.0,(float)($cell['competencia_percentage']??100)/100.0);
+        if(!isset($evalOrder[$eid]))$evalOrder[$eid]=['date'=>(string)($cell['evaluation_date']??''),'id'=>$eid];
+        $grade=trim((string)($cell['grade']??''));if($grade===''){$missing++;if(!empty($cell['evaluation_date']))$missingEvalDates[]=(string)$cell['evaluation_date'];continue;}
+        $score=edu_course_risk_grade_score($grade);if($score===null)continue;$scores[]=$score;$grades[]=$grade;$byComp[$cid][]=$score;$byEval[$eid][]=$score;if(edu_course_risk_grade_low($grade))$low++;
+    }
+    $expected=count($cells);$graded=count($scores);$mean=null;
+    if($byComp){$sum=0.0;$used=0;foreach($byComp as $cid=>$vals){if(!$vals)continue;$sum+=(array_sum($vals)/count($vals))*(float)($weights[$cid]??1.0);$used++;}if($used)$mean=$sum;}
+    $evalMeans=[];foreach($byEval as $eid=>$vals)if($vals)$evalMeans[]=['id'=>(int)$eid,'date'=>$evalOrder[$eid]['date']??'','mean'=>array_sum($vals)/count($vals)];
+    usort($evalMeans,static function($a,$b){$ad=(string)$a['date'];$bd=(string)$b['date'];if($ad!==''&&$bd!==''&&$ad!==$bd)return strcmp($ad,$bd);return(int)$a['id']<=>(int)$b['id'];});
+    $evalValues=array_map(static fn($x)=>(float)$x['mean'],$evalMeans);$lastEval=$evalValues?end($evalValues):null;$recent=$evalValues?array_slice($evalValues,-3):[];
+    $evalLow=0;$evalTrailing=0;foreach($evalValues as $v)if($v<edu_predictive_critical_threshold())$evalLow++;for($i=count($evalValues)-1;$i>=0;$i--){if($evalValues[$i]<edu_predictive_critical_threshold())$evalTrailing++;else break;}
+    $compMeans=[];$criticalComp=0;$criticalWeight=0.0;$usedWeight=0.0;foreach($byComp as $cid=>$vals){if(!$vals)continue;$cm=array_sum($vals)/count($vals);$compMeans[]=$cm;$w=(float)($weights[$cid]??1.0);$usedWeight+=$w;if($cm<edu_predictive_critical_threshold()){$criticalComp++;$criticalWeight+=$w;}}
+    $attendance=$cutoffDate?edu_predictive_attendance_features($conn,$studentId,$cutoffDate,$attendanceWindow):['attendance_rate_30d'=>null,'late_30d'=>null,'absent_30d'=>null,'attendance_records_30d'=>0];
     $dateStatuses=edu_course_risk_attendance_status_on_dates($conn,$studentId,$missingEvalDates);$overlap=0;foreach($missingEvalDates as $d)if(($dateStatuses[$d]??'')==='Ausente')$overlap++;
     $class=edu_course_risk_class_metrics($conn,(array)($context['teacher_course_ids']??[]),$yearId,$bimester);
     return array_merge([
@@ -134,29 +150,56 @@ function edu_course_risk_period_metrics(mysqli $conn,int $studentId,int $schoolI
         'graded_cells'=>$graded,'expected_cells'=>$expected,'missing_grade_cells'=>$missing,'low_grade_cells'=>$low,
         'low_grade_rate_current'=>$graded>0?$low/$graded:null,'missing_grade_rate_current'=>$expected>0?$missing/$expected:null,
         'evaluations_count_current'=>count($evalIds),'grades'=>$grades,
+        'evaluation_mean_last'=>$lastEval,'evaluation_mean_recent3'=>$recent?array_sum($recent)/count($recent):null,
+        'evaluation_trend_current'=>edu_course_risk_slope($evalValues),'evaluation_std_current'=>edu_course_risk_std($evalValues),
+        'low_evaluation_rate_current'=>$evalValues?$evalLow/count($evalValues):null,'consecutive_low_evaluations_current'=>(float)$evalTrailing,
+        'competencies_graded_current'=>(float)count($compMeans),'critical_competency_count_current'=>(float)$criticalComp,
+        'critical_competency_rate_current'=>$compMeans?$criticalComp/count($compMeans):null,
+        'critical_competency_weight_rate_current'=>$usedWeight>0?$criticalWeight/$usedWeight:null,
+        'min_competency_mean_current'=>$compMeans?min($compMeans):null,'competency_std_current'=>edu_course_risk_std($compMeans),
         'missing_eval_absence_overlap'=>$missingEvalDates?$overlap:null,'evaluation_date_available'=>edu_course_risk_evaluation_date_column($conn)!==null,
         'attendance_rate_30d'=>$attendance['attendance_rate_30d'],'late_30d'=>$attendance['late_30d'],'absent_30d'=>$attendance['absent_30d'],'attendance_records_30d'=>$attendance['attendance_records_30d'],
     ],$class);
 }
+
+function edu_course_risk_same_year_history
 
 function edu_course_risk_same_year_history(mysqli $conn,int $studentId,int $schoolId,int $yearId,int $sourceBimester,int $courseId,int $attendanceWindow=30): array {
     $periods=[];for($b=1;$b<=$sourceBimester;$b++){$closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($closure['closed']))continue;$ctx=edu_course_risk_context_for_course($conn,$studentId,$schoolId,$yearId,$b,$courseId);if(!$ctx)continue;$m=edu_course_risk_period_metrics($conn,$studentId,$schoolId,$yearId,$b,$ctx,$closure['date']??null,$attendanceWindow);if($m['course_mean_current']!==null)$periods[]=$m;}return$periods;
 }
 function edu_course_risk_slope(array $values): ?float {$values=array_values(array_filter($values,static fn($v)=>$v!==null&&is_numeric($v)));$n=count($values);if($n<2)return null;$mx=($n-1)/2;$my=array_sum($values)/$n;$num=0;$den=0;foreach($values as $i=>$v){$dx=$i-$mx;$num+=$dx*((float)$v-$my);$den+=$dx*$dx;}return$den>0?$num/$den:null;}
 
+function edu_course_risk_prior_year_features(mysqli $conn,int $studentId,int $schoolId,int $currentYearId,string $courseName,int $sourceBimester,int $maxYears=3): array {
+    $empty=['prior_years_periods_available'=>0.0,'prior_years_mean'=>null,'prior_years_last_mean'=>null,'prior_years_slope'=>null,'prior_years_critical_rate'=>null,'prior_years_last_critical'=>null,'prior_years_same_bimester_mean'=>null,'prior_years_persistence_after_critical_rate'=>null];
+    $stmt=$conn->prepare('SELECT start_date FROM academic_year WHERE id=? AND school_id=? LIMIT 1');if(!$stmt)return$empty;$stmt->bind_param('ii',$currentYearId,$schoolId);$stmt->execute();$cur=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$cur||empty($cur['start_date']))return$empty;
+    $ids=[$studentId];$stmt=$conn->prepare('SELECT id_no,name FROM student WHERE id=? AND school_id=? LIMIT 1');if($stmt){$stmt->bind_param('ii',$studentId,$schoolId);$stmt->execute();$s=$stmt->get_result()->fetch_assoc();$stmt->close();if($s){$dni=trim((string)($s['id_no']??''));$name=trim((string)($s['name']??''));if($dni!==''){$q=$conn->prepare('SELECT id FROM student WHERE school_id=? AND id_no=?');if($q){$q->bind_param('is',$schoolId,$dni);$q->execute();$rr=$q->get_result();while($x=$rr->fetch_assoc())$ids[]=(int)$x['id'];$q->close();}}elseif($name!==''){$q=$conn->prepare("SELECT id FROM student WHERE school_id=? AND name=? AND (id_no IS NULL OR TRIM(id_no)='')");if($q){$q->bind_param('is',$schoolId,$name);$q->execute();$rr=$q->get_result();while($x=$rr->fetch_assoc())$ids[]=(int)$x['id'];$q->close();}}}}
+    $ids=array_values(array_unique(array_filter(array_map('intval',$ids))));$stmt=$conn->prepare('SELECT id,year,start_date FROM academic_year WHERE school_id=? AND start_date<? ORDER BY start_date DESC,id DESC LIMIT ?');if(!$stmt)return$empty;$stmt->bind_param('isi',$schoolId,$cur['start_date'],$maxYears);$stmt->execute();$res=$stmt->get_result();$years=[];while($y=$res->fetch_assoc())$years[]=$y;$stmt->close();$years=array_reverse($years);if(!$years)return$empty;
+    $needle=edu_course_risk_norm($courseName);$entries=[];$same=null;
+    foreach($years as $y){$yearId=(int)$y['id'];for($b=1;$b<=4;$b++){foreach($ids as $sid){$ctx=null;foreach(edu_course_risk_contexts_from_grades($conn,$sid,$schoolId,$yearId,$b) as $candidate){if(edu_course_risk_norm((string)$candidate['course_name'])===$needle){$ctx=$candidate;break;}}if(!$ctx)continue;$closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($closure['closed']))continue;$m=edu_course_risk_period_metrics($conn,$sid,$schoolId,$yearId,$b,$ctx,$closure['date']??null,30);if($m['course_mean_current']===null)continue;$entries[]=['year'=>$yearId,'bimester'=>$b,'mean'=>(float)$m['course_mean_current']];if($b===$sourceBimester)$same=(float)$m['course_mean_current'];break;}}}
+    if(!$entries)return$empty;$means=array_map(static fn($x)=>(float)$x['mean'],$entries);$critical=0;$critTransitions=0;$critStayed=0;foreach($entries as $e)if($e['mean']<edu_predictive_critical_threshold())$critical++;for($i=0;$i<count($entries)-1;$i++){if($entries[$i]['mean']>=edu_predictive_critical_threshold())continue;$critTransitions++;if($entries[$i+1]['mean']<edu_predictive_critical_threshold())$critStayed++;}
+    $last=end($entries);
+    return['prior_years_periods_available'=>(float)count($entries),'prior_years_mean'=>array_sum($means)/count($means),'prior_years_last_mean'=>(float)$last['mean'],'prior_years_slope'=>edu_course_risk_slope($means),'prior_years_critical_rate'=>$critical/count($entries),'prior_years_last_critical'=>$last['mean']<edu_predictive_critical_threshold()?1.0:0.0,'prior_years_same_bimester_mean'=>$same,'prior_years_persistence_after_critical_rate'=>$critTransitions?$critStayed/$critTransitions:null];
+}
+
 function edu_course_risk_feature_vector(mysqli $conn,int $studentId,int $schoolId,int $yearId,int $bimester,array $context,string $cutoffDate,int $attendanceWindow=30): array {
-    $current=edu_course_risk_period_metrics($conn,$studentId,$schoolId,$yearId,$bimester,$context,$cutoffDate,$attendanceWindow);$history=edu_course_risk_same_year_history($conn,$studentId,$schoolId,$yearId,$bimester,(int)$context['course_id'],$attendanceWindow);$means=array_map(static fn($p)=>$p['course_mean_current'],$history);$previous=count($history)>=2?$history[count($history)-2]:null;$currentMean=$current['course_mean_current'];$previousMean=$previous['course_mean_current']??null;
-    $attendancePrevious=$previous['attendance_rate_30d']??null;
+    $current=edu_course_risk_period_metrics($conn,$studentId,$schoolId,$yearId,$bimester,$context,$cutoffDate,$attendanceWindow);$history=edu_course_risk_same_year_history($conn,$studentId,$schoolId,$yearId,$bimester,(int)$context['course_id'],$attendanceWindow);$means=array_map(static fn($p)=>$p['course_mean_current'],$history);$previous=count($history)>=2?$history[count($history)-2]:null;$currentMean=$current['course_mean_current'];$previousMean=$previous['course_mean_current']??null;$attendancePrevious=$previous['attendance_rate_30d']??null;
+    $criticalPeriods=0;$trailing=0;foreach($means as $m)if($m!==null&&(float)$m<edu_predictive_critical_threshold())$criticalPeriods++;for($i=count($means)-1;$i>=0;$i--){if($means[$i]!==null&&(float)$means[$i]<edu_predictive_critical_threshold())$trailing++;else break;}
+    $prior=edu_course_risk_prior_year_features($conn,$studentId,$schoolId,$yearId,(string)($context['course_name']??'Curso'),$bimester,3);
     return array_merge($current,[
         'course_trend'=>($currentMean!==null&&$previousMean!==null)?$currentMean-$previousMean:0.0,
-        'previous_course_available'=>$previousMean!==null?1.0:0.0,
-        'same_year_course_slope'=>edu_course_risk_slope($means),
-        'same_year_periods_available'=>(float)count($history),
+        'previous_course_available'=>$previousMean!==null?1.0:0.0,'previous_course_mean'=>$previousMean,
+        'previous_course_critical'=>$previousMean!==null&&$previousMean<edu_predictive_critical_threshold()?1.0:0.0,
+        'current_course_critical'=>$currentMean!==null&&$currentMean<edu_predictive_critical_threshold()?1.0:0.0,
+        'consecutive_critical_periods'=>(float)$trailing,'critical_period_rate_same_year'=>$means?$criticalPeriods/count($means):null,
+        'same_year_mean'=>$means?array_sum($means)/count($means):null,'same_year_min_mean'=>$means?min($means):null,
+        'same_year_course_slope'=>edu_course_risk_slope($means),'same_year_periods_available'=>(float)count($history),
         'attendance_trend_same_year'=>($current['attendance_rate_30d']!==null&&$attendancePrevious!==null)?(float)$current['attendance_rate_30d']-(float)$attendancePrevious:null,
         'student_vs_class_mean'=>($currentMean!==null&&$current['class_course_mean_current']!==null)?$currentMean-(float)$current['class_course_mean_current']:null,
         '_history'=>$history,
-    ]);
+    ],$prior);
 }
+
+function edu_course_risk_target_next
 
 function edu_course_risk_target_next(mysqli $conn,int $studentId,int $schoolId,int $yearId,int $sourceBimester,int $courseId): ?int {
     if($sourceBimester<1||$sourceBimester>=4)return null;$target=$sourceBimester+1;$closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$target);if(empty($closure['closed']))return null;$ctx=edu_course_risk_context_for_course($conn,$studentId,$schoolId,$yearId,$target,$courseId);if(!$ctx)return null;$m=edu_course_risk_period_metrics($conn,$studentId,$schoolId,$yearId,$target,$ctx,$closure['date']??null,30);if($m['course_mean_current']===null)return null;return(float)$m['course_mean_current']<edu_predictive_critical_threshold()?1:0;
