@@ -179,3 +179,90 @@ function edu_course_dashboard_data_fast(mysqli $conn,array $actor,array $filters
     $migrationReady=edu_risk_interventions_ready($conn)&&edu_predictive_column_exists($conn,'student_risk_interventions','course_id')&&edu_predictive_column_exists($conn,'student_risk_interventions','course_name');
     return ['ok'=>true,'model'=>['available'=>true,'reason'=>null,'created_at'=>$model['created_at']??null,'schema_version'=>$model['schema_version']??null,'variant'=>$model['model_variant']??null,'thresholds'=>$model['risk_thresholds']??[]],'period'=>['base'=>edu_predictive_bimester_label($b),'target'=>edu_predictive_bimester_label($b+1),'cutoff'=>$closure['date']],'filters'=>edu_course_dashboard_filter_options($conn,$actor),'summary'=>['evaluated'=>count($coursesByStudent),'high'=>$summary['Alto'],'medium'=>$summary['Medio'],'low'=>$summary['Bajo'],'attention_courses'=>$summary['attention_courses'],'high_courses'=>$summary['high_courses'],'matched'=>count($items)],'students'=>array_slice($items,0,120),'course_patterns'=>$patterns,'interventions'=>$interventions,'migration_ready'=>$migrationReady,'engine'=>'bulk_v6'];
 }
+
+
+/**
+ * Detalle rápido de un estudiante.
+ * Reutiliza la carga por bloques del dashboard para evitar consultas N+1.
+ * El historial mostrado aquí corresponde al año académico actual; el historial
+ * multianual pesado queda fuera de la apertura inicial del modal.
+ */
+function edu_course_dashboard_student_detail_fast(mysqli $conn,array $actor,int $studentId,?int $bimester=null): array {
+    if((int)($actor['type']??0)!==1||$studentId<=0)return['ok'=>false,'message'=>'Estudiante no válido.'];
+    $schoolId=(int)($actor['school_id']??0);$model=edu_course_risk_model_load();
+    if(empty($model['available']))return['ok'=>false,'message'=>'No hay modelo v6 disponible.','reason'=>$model['reason']??'model_missing'];
+    $year=edu_predictive_academic_year($conn,$schoolId,null);if(!$year)return['ok'=>false,'message'=>'No hay año académico activo.'];
+    $yearId=(int)$year['id'];$b=$bimester??edu_predictive_latest_closed_bimester($conn,$schoolId,$yearId);
+    if(!$b||$b<1||$b>3)return['ok'=>false,'message'=>'No hay un bimestre cerrado disponible.'];
+    $closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);
+    if(empty($closure['closed'])||empty($closure['date']))return['ok'=>false,'message'=>'El bimestre seleccionado no tiene un cierre seguro.'];
+
+    $periods=[];
+    for($p=1;$p<=$b;$p++){
+        $cl=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$p);
+        if(empty($cl['closed'])||empty($cl['date']))continue;
+        $periods[$p]=crf_load_period($conn,$schoolId,$yearId,$p,(string)$cl['date']);
+    }
+    if(empty($periods[$b]))return['ok'=>false,'message'=>'No hay datos suficientes en el bimestre base.'];
+    $meta=$periods[$b]['student_meta'][$studentId]??null;
+    if(!$meta)return['ok'=>false,'message'=>'No encontré calificaciones del estudiante en el bimestre seleccionado.'];
+
+    $courses=[];
+    foreach($periods[$b]['metrics'] as $key=>$m){
+        if((int)($m['student_id']??0)!==$studentId)continue;
+        $means=[];$prev=null;$attPrev=null;$history=[];
+        for($p=1;$p<=$b;$p++){
+            $pm=$periods[$p]['metrics'][$key]??null;if(!$pm)continue;
+            $means[]=$pm['course_mean_current'];
+            $history[]=[
+                'bimester'=>$p,
+                'label'=>edu_predictive_bimester_label($p),
+                'course_mean_current'=>$pm['course_mean_current'],
+                'mean'=>$pm['course_mean_current'],
+                'low_rate'=>$pm['low_grade_rate_current']
+            ];
+            if($p<$b){$prev=$pm['course_mean_current'];$attPrev=$pm['attendance_rate_30d'];}
+        }
+        $f=$m;
+        $f['course_trend']=$prev!==null?(float)$m['course_mean_current']-(float)$prev:0.0;
+        $f['previous_course_available']=$prev!==null?1.0:0.0;
+        $f['same_year_course_slope']=crf_slope($means);
+        $f['same_year_periods_available']=(float)count($history);
+        $f['attendance_trend_same_year']=($m['attendance_rate_30d']!==null&&$attPrev!==null)?(float)$m['attendance_rate_30d']-(float)$attPrev:null;
+        $score=edu_course_risk_score($f,$model);
+        $courses[]=[
+            'course_id'=>(int)$m['course_id'],
+            'course_name'=>(string)$m['course_name'],
+            'probability'=>$score['probability'],
+            'level'=>$score['level'],
+            'features'=>$f,
+            'reasons'=>edu_course_risk_reason_labels($f),
+            'history_same_year'=>$history,
+            'history_across_years'=>[[
+                'academic_year_id'=>$yearId,
+                'year'=>(string)($year['year']??$yearId),
+                'periods'=>$history
+            ]],
+            'history_summary'=>count($means)>=2
+                ? ((($s=crf_slope($means))!==null&&$s<=-.5)?'Tendencia descendente en el año.':(($s!==null&&$s>=.5)?'Tendencia de recuperación/mejora en el año.':'Tendencia estable en el año.'))
+                : 'Sin historial suficiente para definir tendencia.'
+        ];
+    }
+    if(!$courses)return['ok'=>false,'message'=>'No hay cursos evaluables para este estudiante.'];
+    usort($courses,static fn($a,$b)=>$b['probability']<=>$a['probability']);
+    $prediction=[
+        'available'=>true,
+        'student'=>$meta,
+        'academic_year_id'=>$yearId,
+        'academic_year_label'=>$year['year']??null,
+        'source_bimester'=>$b,
+        'source_bimester_label'=>edu_predictive_bimester_label($b),
+        'target_bimester'=>$b+1,
+        'target_bimester_label'=>edu_predictive_bimester_label($b+1),
+        'base_closed_at'=>$closure['date'],
+        'courses'=>$courses,
+        'general'=>edu_course_risk_general_priority($courses),
+        'model'=>$model
+    ];
+    return['ok'=>true,'prediction'=>$prediction,'history_scope'=>'current_academic_year'];
+}
