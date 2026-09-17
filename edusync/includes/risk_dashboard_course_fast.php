@@ -1,6 +1,6 @@
 <?php
 /**
- * Dashboard v6 rápido.
+ * Dashboard predictivo rápido (compatible con v6/v7).
  * Calcula todas las filas estudiante+curso de un bimestre en bloques, evitando
  * el patrón N+1 del detalle individual. El detalle de un alumno sigue usando
  * risk_dashboard_course.php porque allí el volumen es pequeño.
