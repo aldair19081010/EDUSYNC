@@ -27,9 +27,12 @@ def active(X):
 
 def predict_split(X,y,g,tr,te,seed,folds,threshold):
  if len(np.unique(y[tr]))<2 or len(np.unique(y[te]))<2:return None
- try:imp,sc,m,cc,ci,_,_,_=core.fit_calibrated(X[tr],y[tr],g[tr],seed,folds)
+ usable=np.any(np.isfinite(X[tr]),axis=0)
+ if not usable.any():return None
+ Xtr=X[tr][:,usable];Xte=X[te][:,usable]
+ try:imp,sc,m,cc,ci,_,_,_=core.fit_calibrated(Xtr,y[tr],g[tr],seed,folds)
  except SystemExit:return None
- p=core.sigmoid(ci+cc*core.decision(X[te],imp,sc,m))
+ p=core.sigmoid(ci+cc*core.decision(Xte,imp,sc,m))
  met=core.metrics(y[te],p,threshold);pred=(p>=threshold).astype(int)
  return {'metrics':met,'prob':p,'pred':pred,'actual':y[te]}
 
@@ -99,8 +102,16 @@ def main():
   if latest['roc_auc'] is not None and latest['roc_auc']<0.70:warnings.append('ROC-AUC temporal v7 < 0.70.')
   sg=latest.get('persistent_critical_subgroup',{})
   if sg.get('rows',0)>=20 and sg.get('gap') is not None and sg['gap']<-.15:warnings.append('v7 subestima en más de 15 puntos el subgrupo con dos periodos críticos consecutivos.')
+ persistent_periods=[p['persistent_critical_subgroup'] for p in temporal if (p.get('persistent_critical_subgroup') or {}).get('rows',0)>0]
+ persistent_summary={'rows':0,'observed_critical_rate':None,'mean_predicted_probability':None,'gap':None}
+ if persistent_periods:
+  total=sum(p['rows'] for p in persistent_periods)
+  obs=sum(p['rows']*p['observed_critical_rate'] for p in persistent_periods)/total
+  pred=sum(p['rows']*p['mean_predicted_probability'] for p in persistent_periods)/total
+  persistent_summary={'rows':total,'observed_critical_rate':obs,'mean_predicted_probability':pred,'gap':pred-obs}
+  if total>=20 and pred-obs<-.15:warnings.append('v7 subestima en más de 15 puntos el subgrupo persistente agregado en los holdouts temporales disponibles.')
  status='NO_APTO' if blockers else ('REVISAR' if warnings or not latest else 'APTO_PARA_PILOTO')
- report={'status':status,'target':'mismo curso con rendimiento crítico en N+1','rows':len(y),'students':len(np.unique(g)),'positive_rate':float(y.mean()),'features':features,'grouped':{'valid_splits':len(splits),'requested_splits':a.splits,'summary':grouped},'temporal':{'periods_total':len(ordered),'periods_evaluated':len(temporal),'periods':temporal,'latest':latest},'blockers':blockers,'warnings':warnings}
+ report={'status':status,'target':'mismo curso con rendimiento crítico en N+1','rows':len(y),'students':len(np.unique(g)),'positive_rate':float(y.mean()),'features':features,'grouped':{'valid_splits':len(splits),'requested_splits':a.splits,'summary':grouped},'temporal':{'periods_total':len(ordered),'periods_evaluated':len(temporal),'periods':temporal,'latest':latest,'persistent_critical_aggregate':persistent_summary},'blockers':blockers,'warnings':warnings}
  out=Path(a.output);out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
  print(f'Reporte v7 creado: {out}');print(f'Estado: {status}')
  print(f'Filas: {len(y)} | estudiantes estables: {len(np.unique(g))} | crítico real: {y.mean():.1%}')
@@ -109,7 +120,8 @@ def main():
   for m in metrics_names:
    v=latest.get(m)
    if v is not None:print(f'temporal_{m}: {v:.3f}')
-  print('Subgrupo crítico persistente: '+json.dumps(latest.get('persistent_critical_subgroup',{}),ensure_ascii=False))
+  print('Subgrupo crítico persistente del último holdout: '+json.dumps(latest.get('persistent_critical_subgroup',{}),ensure_ascii=False))
+ print('Subgrupo crítico persistente agregado temporal: '+json.dumps(persistent_summary,ensure_ascii=False))
  if blockers:print('BLOQUEADORES:');[print('- '+x) for x in blockers]
  if warnings:print('ADVERTENCIAS:');[print('- '+x) for x in warnings]
 
