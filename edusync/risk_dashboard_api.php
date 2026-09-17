@@ -8,6 +8,12 @@ ob_start();
 
 $risk_api_replied=false;
 
+function risk_api_local_debug(): bool {
+    $addr=(string)($_SERVER['REMOTE_ADDR']??'');
+    $host=strtolower((string)($_SERVER['HTTP_HOST']??''));
+    return in_array($addr,['127.0.0.1','::1'],true)||str_starts_with($host,'localhost')||str_starts_with($host,'127.0.0.1');
+}
+
 function risk_api_reply(array $payload,int $status=200): void {
     global $risk_api_replied;
     $risk_api_replied=true;
@@ -34,9 +40,11 @@ register_shutdown_function(function(){
             header('Content-Type: application/json; charset=utf-8');
         }
         if(ob_get_level()>0)ob_clean();
+        $message='La Alerta Temprana Inteligente encontró un error interno. Revisa el log de PHP/XAMPP.';
+        if(risk_api_local_debug())$message.=' Detalle local: '.($last['message']??'Error fatal').' · '.basename((string)($last['file']??'' )).':'.(int)($last['line']??0);
         echo json_encode([
             'ok'=>false,
-            'message'=>'La Alerta Temprana Inteligente encontró un error interno. Revisa el log de PHP/XAMPP.'
+            'message'=>$message
         ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_INVALID_UTF8_SUBSTITUTE);
     }
 });
@@ -112,5 +120,7 @@ try{
     risk_api_reply(['ok'=>false,'message'=>'Acción no válida.'],404);
 }catch(Throwable $e){
     error_log('[risk_dashboard_api_predictive] '.$e->getMessage().' line '.$e->getLine().' file '.$e->getFile());
-    risk_api_reply(['ok'=>false,'message'=>'No pude procesar la Alerta Temprana Inteligente. Revisa el log de PHP/XAMPP para ver el error interno.'],500);
+    $message='No pude procesar la Alerta Temprana Inteligente. Revisa el log de PHP/XAMPP para ver el error interno.';
+    if(risk_api_local_debug())$message.=' Detalle local: '.$e->getMessage().' · '.basename($e->getFile()).':'.$e->getLine();
+    risk_api_reply(['ok'=>false,'message'=>$message],500);
 }
