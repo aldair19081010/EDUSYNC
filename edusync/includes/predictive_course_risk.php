@@ -202,8 +202,6 @@ function edu_course_risk_feature_vector(mysqli $conn,int $studentId,int $schoolI
     ],$prior);
 }
 
-function edu_course_risk_target_next
-
 function edu_course_risk_target_next(mysqli $conn,int $studentId,int $schoolId,int $yearId,int $sourceBimester,int $courseId): ?int {
     if($sourceBimester<1||$sourceBimester>=4)return null;$target=$sourceBimester+1;$closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$target);if(empty($closure['closed']))return null;$ctx=edu_course_risk_context_for_course($conn,$studentId,$schoolId,$yearId,$target,$courseId);if(!$ctx)return null;$m=edu_course_risk_period_metrics($conn,$studentId,$schoolId,$yearId,$target,$ctx,$closure['date']??null,30);if($m['course_mean_current']===null)return null;return(float)$m['course_mean_current']<edu_predictive_critical_threshold()?1:0;
 }
@@ -218,16 +216,20 @@ function edu_course_risk_score(array $features,array $model): array {
 function edu_course_risk_reason_labels(array $f): array {
     $reasons=[];$mean=$f['course_mean_current']??null;$threshold=edu_predictive_critical_threshold();
     if($mean!==null){if((float)$mean<$threshold)$reasons[]='El promedio actual del curso está en zona crítica ('.number_format((float)$mean,1).').';elseif((float)$mean<=$threshold+1.5)$reasons[]='El promedio actual está muy cerca del límite crítico ('.number_format((float)$mean,1).' frente a '.$threshold.').';}
-    if((float)($f['previous_course_available']??0)>=.5){$trend=(float)($f['course_trend']??0);if($trend<=-1)$reasons[]='El rendimiento del curso bajó '.number_format(abs($trend),1).' punto(s) respecto al bimestre anterior.';elseif(abs($trend)<.25&&$mean!==null&&(float)$mean<=$threshold+1.5)$reasons[]='El rendimiento se mantiene sin mejora y cerca del límite crítico.';}
+    if((float)($f['consecutive_critical_periods']??0)>=2)$reasons[]='El curso acumula '.(int)$f['consecutive_critical_periods'].' bimestres consecutivos en zona crítica.';
+    if((float)($f['previous_course_available']??0)>=.5){$trend=(float)($f['course_trend']??0);if($trend<=-1)$reasons[]='El rendimiento del curso bajó '.number_format(abs($trend),1).' punto(s) respecto al bimestre anterior.';elseif($trend>0&&$mean!==null&&(float)$mean<$threshold)$reasons[]='Existe una mejora de '.number_format($trend,1).' punto(s), pero el promedio aún permanece en zona crítica.';elseif(abs($trend)<.25&&$mean!==null&&(float)$mean<=$threshold+1.5)$reasons[]='El rendimiento se mantiene sin mejora y cerca del límite crítico.';}
+    if(($f['evaluation_trend_current']??null)!==null&&(float)$f['evaluation_trend_current']<-.5)$reasons[]='Las evaluaciones del bimestre muestran una tendencia descendente.';
+    if((float)($f['consecutive_low_evaluations_current']??0)>=2)$reasons[]='Las últimas '.(int)$f['consecutive_low_evaluations_current'].' evaluaciones registradas se mantienen en nivel bajo.';
+    if(($f['critical_competency_rate_current']??null)!==null&&(float)$f['critical_competency_rate_current']>=.5)$reasons[]='La mitad o más de las competencias evaluadas del curso están en zona crítica.';
+    if(($f['prior_years_critical_rate']??null)!==null&&(float)$f['prior_years_critical_rate']>=.5&&($f['prior_years_periods_available']??0)>=2)$reasons[]='El historial de años anteriores muestra dificultades frecuentes en este mismo curso.';
     if(($f['same_year_course_slope']??null)!==null&&(float)$f['same_year_course_slope']<-.5)$reasons[]='La tendencia de este curso durante el año es descendente.';
-    if(($f['low_grade_rate_current']??null)!==null&&(float)$f['low_grade_rate_current']>=.4)$reasons[]='Una proporción importante de sus evaluaciones del curso está en nivel bajo.';
+    if(($f['low_grade_rate_current']??null)!==null&&(float)$f['low_grade_rate_current']>=.4)$reasons[]='Una proporción importante de sus calificaciones del curso está en nivel bajo.';
     if(($f['missing_grade_rate_current']??null)!==null&&(float)$f['missing_grade_rate_current']>=.25)$reasons[]='Hay evaluaciones/competencias sin calificación registrada; no se consideran como cero.';
     if(($f['attendance_rate_30d']??null)!==null&&(float)$f['attendance_rate_30d']<85)$reasons[]='La asistencia reciente es baja ('.number_format((float)$f['attendance_rate_30d'],1).'%).';
     if(($f['absent_30d']??null)!==null&&(float)$f['absent_30d']>=3)$reasons[]='Registra '.(int)$f['absent_30d'].' ausencia(s) en los 30 días previos al cierre.';
     if(($f['late_30d']??null)!==null&&(float)$f['late_30d']>=3)$reasons[]='Registra '.(int)$f['late_30d'].' tardanza(s) en los 30 días previos al cierre.';
-    if(($f['missing_eval_absence_overlap']??null)!==null&&(int)$f['missing_eval_absence_overlap']>0)$reasons[]='Hay evaluación(es) sin nota cuya fecha coincide con una ausencia; es una asociación que debe revisarse, no una causa demostrada.';
     if(($f['class_students_critical_rate']??null)!==null&&(float)$f['class_students_critical_rate']>=.35)$reasons[]='El bajo rendimiento también aparece en una parte importante del aula en este curso.';
-    return array_slice($reasons,0,6);
+    return array_slice(array_values(array_unique($reasons)),0,7);
 }
 
 function edu_course_risk_history_across_years(mysqli $conn,int $studentId,int $schoolId,string $courseName,int $maxYears=4): array {
