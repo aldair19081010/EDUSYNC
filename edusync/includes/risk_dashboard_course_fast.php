@@ -141,7 +141,7 @@ function crf_identity_key(array $meta): string {
 function crf_prior_history_bundle(mysqli $conn,int $schoolId,int $currentYearId,int $maxYears=3): array {
     $bundle=['student'=>[],'course'=>[]];$stmt=$conn->prepare('SELECT start_date FROM academic_year WHERE id=? AND school_id=? LIMIT 1');if(!$stmt)return$bundle;$stmt->bind_param('ii',$currentYearId,$schoolId);$stmt->execute();$cur=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$cur||empty($cur['start_date']))return$bundle;
     $stmt=$conn->prepare('SELECT id,year,start_date FROM academic_year WHERE school_id=? AND start_date<? ORDER BY start_date DESC,id DESC LIMIT ?');if(!$stmt)return$bundle;$stmt->bind_param('isi',$schoolId,$cur['start_date'],$maxYears);$stmt->execute();$res=$stmt->get_result();$years=[];while($y=$res->fetch_assoc())$years[]=$y;$stmt->close();$years=array_reverse($years);
-    foreach($years as $y){$yearId=(int)$y['id'];for($b=1;$b<=4;$b++){$cl=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($cl['closed']))continue;$period=crf_load_period($conn,$schoolId,$yearId,$b,$cl['date']??null);foreach($period['metrics'] as $m){$sid=(int)$m['student_id'];$meta=$period['student_meta'][$sid]??null;if(!$meta)continue;$course=crf_norm((string)$m['course_name']);$entry=['year_id'=>$yearId,'bimester'=>$b,'mean'=>(float)$m['course_mean_current']];$bundle['student'][crf_identity_key($meta).'|'.$course][]=$entry;$bundle['course'][$course][]=$entry;}}}
+    foreach($years as $y){$yearId=(int)$y['id'];for($b=1;$b<=4;$b++){$cl=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($cl['closed']))continue;$period=crf_load_period($conn,$schoolId,$yearId,$b,$cl['date']??null);foreach($period['metrics'] as $m){$sid=(int)$m['student_id'];$meta=$period['student_meta'][$sid]??null;if(!$meta)continue;$course=crf_norm((string)$m['course_name']);$entry=['year_id'=>$yearId,'year'=>(string)($y['year']??$yearId),'bimester'=>$b,'mean'=>(float)$m['course_mean_current']];$bundle['student'][crf_identity_key($meta).'|'.$course][]=$entry;$bundle['course'][$course][]=$entry;}}}
     return$bundle;
 }
 function crf_v7_prior_features(array $meta,string $courseName,int $sourceBimester,array $bundle): array {
@@ -150,6 +150,11 @@ function crf_v7_prior_features(array $meta,string $courseName,int $sourceBimeste
     if($entries){$means=array_map(static fn($x)=>(float)$x['mean'],$entries);$crit=0;$trans=0;$stay=0;$same=null;foreach($entries as $e){if($e['mean']<edu_predictive_critical_threshold())$crit++;if((int)$e['bimester']===$sourceBimester)$same=(float)$e['mean'];}for($i=0;$i<count($entries)-1;$i++){if($entries[$i]['mean']>=edu_predictive_critical_threshold())continue;$trans++;if($entries[$i+1]['mean']<edu_predictive_critical_threshold())$stay++;}$last=end($entries);$out['prior_years_mean']=array_sum($means)/count($means);$out['prior_years_last_mean']=(float)$last['mean'];$out['prior_years_slope']=crf_slope($means);$out['prior_years_critical_rate']=$crit/count($entries);$out['prior_years_last_critical']=$last['mean']<edu_predictive_critical_threshold()?1.0:0.0;$out['prior_years_same_bimester_mean']=$same;$out['prior_years_persistence_after_critical_rate']=$trans?$stay/$trans:null;}
     if($courseEntries){$vals=array_map(static fn($x)=>(float)$x['mean'],$courseEntries);$crit=0;foreach($vals as $v)if($v<edu_predictive_critical_threshold())$crit++;$out['course_historical_mean']=array_sum($vals)/count($vals);$out['course_historical_critical_rate']=$crit/count($vals);}
     return$out;
+}
+function crf_v7_history_rows(array $meta,string $courseName,array $bundle): array {
+    $course=crf_norm($courseName);$entries=(array)($bundle['student'][crf_identity_key($meta).'|'.$course]??[]);$years=[];
+    foreach($entries as $e){$yearId=(int)($e['year_id']??0);if(!$yearId)continue;if(!isset($years[$yearId]))$years[$yearId]=['academic_year_id'=>$yearId,'year'=>(string)($e['year']??$yearId),'periods'=>[]];$b=(int)($e['bimester']??0);$years[$yearId]['periods'][]=['bimester'=>$b,'label'=>edu_predictive_bimester_label($b),'mean'=>(float)$e['mean'],'course_mean_current'=>(float)$e['mean']];}
+    return array_values($years);
 }
 
 function crf_match_student
@@ -276,14 +281,16 @@ function edu_course_dashboard_student_detail_fast(mysqli $conn,array $actor,int 
             'features'=>$f,
             'reasons'=>edu_course_risk_reason_labels($f),
             'history_same_year'=>$history,
-            'history_across_years'=>[[
+            'history_across_years'=>array_merge(crf_v7_history_rows($meta,(string)$m['course_name'],$priorBundle),[[
                 'academic_year_id'=>$yearId,
                 'year'=>(string)($year['year']??$yearId),
                 'periods'=>$history
-            ]],
-            'history_summary'=>count($means)>=2
-                ? ((($s=crf_slope($means))!==null&&$s<=-.5)?'Tendencia descendente en el año.':(($s!==null&&$s>=.5)?'Tendencia de recuperación/mejora en el año.':'Tendencia estable en el año.'))
-                : 'Sin historial suficiente para definir tendencia.'
+            ]]),
+            'history_summary'=>(($f['prior_years_periods_available']??0)>0
+                ? 'La predicción incorpora '.(int)$f['prior_years_periods_available'].' periodo(s) históricos de años anteriores del mismo curso.'
+                : (count($means)>=2
+                    ? ((($s=crf_slope($means))!==null&&$s<=-.5)?'Tendencia descendente en el año.':(($s!==null&&$s>=.5)?'Tendencia de recuperación/mejora en el año.':'Tendencia estable en el año.'))
+                    : 'Sin historial suficiente para definir tendencia.'))
         ];
     }
     if(!$courses)return['ok'=>false,'message'=>'No hay cursos evaluables para este estudiante.'];
@@ -302,5 +309,5 @@ function edu_course_dashboard_student_detail_fast(mysqli $conn,array $actor,int 
         'general'=>edu_course_risk_general_priority($courses),
         'model'=>$model
     ];
-    return['ok'=>true,'prediction'=>$prediction,'history_scope'=>'current_academic_year'];
+    return['ok'=>true,'prediction'=>$prediction,'history_scope'=>(int)($model['schema_version']??6)>=7?'longitudinal_v7':'current_academic_year'];
 }
