@@ -32,6 +32,9 @@ def base_model(name,seed):
  raise ValueError(name)
 
 def fit_predict_base(name,Xtr,ytr,Xva,seed):
+ usable=np.any(np.isfinite(Xtr),axis=0)
+ if not usable.any(): raise RuntimeError('No hay variables observadas en el entrenamiento.')
+ Xtr=Xtr[:,usable];Xva=Xva[:,usable]
  imp,Xi=preprocess_fit(Xtr);Xv=imp.transform(Xva)
  if name=='logistic':
   sc=StandardScaler();Xi=sc.fit_transform(Xi);Xv=sc.transform(Xv);model=base_model(name,seed);model.fit(Xi,ytr)
@@ -76,7 +79,23 @@ def main():
   if len(tr)>=100 and len(np.unique(y[tr]))==2 and len(np.unique(y[te]))==2:latest=(key,tr,te)
  if latest is None:raise SystemExit('No existe holdout temporal válido.')
  key,tr,te=latest;cutoff,year,base,target=key
+ active_names=[core.FEATURES[i] for i in active]
+ unavailable=[active_names[i] for i in range(len(active_names)) if not np.any(np.isfinite(X[tr][:,i]))]
+ persistent_all=[]
+ for i,r in enumerate(raw):
+  try: keep=float(r.get('current_course_critical','0') or 0)>=.5 and float(r.get('previous_course_critical','0') or 0)>=.5
+  except ValueError: keep=False
+  if keep: persistent_all.append(i)
  print(f'Holdout común v7: año {year} | {base}->{target} | corte {cutoff} | train {len(tr)} | test {len(te)}')
+ if unavailable:
+  print('Variables sin observaciones en ESTE entrenamiento temporal (se excluyen solo de este holdout): '+', '.join(unavailable))
+ if persistent_all:
+  obs=float(y[np.asarray(persistent_all,int)].mean())
+  print(f'Diagnóstico histórico de persistencia: n={len(persistent_all)} | tasa real de crítico en N+1={obs:.1%}')
+ else:
+  print('Diagnóstico histórico de persistencia: no hay filas con periodo anterior y actual críticos.')
+ if base<2:
+  print('Nota: el holdout más reciente es 1->2; por definición no puede contener dos bimestres críticos consecutivos del mismo año.')
  print(f'Meta de umbral seleccionada SOLO con entrenamiento: Recall >= {a.target_recall:.0%}')
  print('Modelo | umbral | recall | precision | f1 | PR-AUC | ROC-AUC | Brier | ECE | FP | FN | persist_obs | persist_pred')
  for name in ['logistic','random_forest','extra_trees','hist_gradient_boosting']:
