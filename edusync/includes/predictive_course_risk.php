@@ -96,10 +96,10 @@ function edu_course_risk_context_for_course(mysqli $conn,int $studentId,int $sch
 /** Filas esperadas de evaluación/competencia para un conjunto de asignaciones. */
 function edu_course_risk_expected_cells(mysqli $conn,array $teacherCourseIds,int $yearId,int $bimester,int $studentId): array {
     $ids=array_values(array_unique(array_filter(array_map('intval',$teacherCourseIds))));if(!$ids)return[];$idSql=implode(',',$ids);
-    $dateColumn=edu_course_risk_evaluation_date_column($conn);$dateSelect=$dateColumn!==null?"DATE(e.`$dateColumn`) evaluation_date":"NULL evaluation_date";
+    $dateColumn=edu_course_risk_evaluation_date_column($conn);$dateExpr=$dateColumn!==null?"DATE(e.`$dateColumn`)":"NULL";$dateSelect=$dateExpr." evaluation_date";$dateOrder=$dateColumn!==null?$dateExpr.",e.id":"e.id";
     $statusWhere=edu_predictive_column_exists($conn,'evaluations','status')?" AND COALESCE(e.status,'Activa')<>'Anulada'":'';
     $yearWhere=edu_predictive_column_exists($conn,'evaluations','academic_year_id')?' AND e.academic_year_id=?':'';$types=$yearWhere!==''?'iii':'ii';$params=$yearWhere!==''?[$studentId,$bimester,$yearId]:[$studentId,$bimester];
-    $sql="SELECT e.id evaluation_id,e.title,$dateSelect,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,eg.grade FROM evaluations e INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.competencia_id=ec.competencia_id AND eg.student_id=? WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=?$yearWhere$statusWhere ORDER BY COALESCE($dateSelect,e.id),e.id,ec.competencia_id";
+    $sql="SELECT e.id evaluation_id,e.title,$dateSelect,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,eg.grade FROM evaluations e INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.competencia_id=ec.competencia_id AND eg.student_id=? WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=?$yearWhere$statusWhere ORDER BY $dateOrder,ec.competencia_id";
     $stmt=$conn->prepare($sql);if(!$stmt)return[];edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$stmt->close();return$rows;
 }
 
