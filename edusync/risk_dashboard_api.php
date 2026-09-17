@@ -28,7 +28,7 @@ register_shutdown_function(function(){
     $last=error_get_last();
     $fatalTypes=[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR];
     if($last && in_array((int)$last['type'],$fatalTypes,true)){
-        error_log('[risk_dashboard_api_v6_fatal] '.($last['message']??'Error fatal').' line '.($last['line']??0).' file '.($last['file']??''));
+        error_log('[risk_dashboard_api_predictive_fatal] '.($last['message']??'Error fatal').' line '.($last['line']??0).' file '.($last['file']??''));
         if(!headers_sent()){
             http_response_code(500);
             header('Content-Type: application/json; charset=utf-8');
@@ -111,6 +111,6 @@ try{
     if($action==='update_intervention'){$id=(int)($_POST['id']??0);if($id<=0)risk_api_reply(['ok'=>false,'message'=>'Intervención no válida.'],422);$result=edu_course_update_intervention($conn,$actor,$id,$_POST);risk_api_reply($result,!empty($result['ok'])?200:422);}
     risk_api_reply(['ok'=>false,'message'=>'Acción no válida.'],404);
 }catch(Throwable $e){
-    error_log('[risk_dashboard_api_v6] '.$e->getMessage().' line '.$e->getLine().' file '.$e->getFile());
+    error_log('[risk_dashboard_api_predictive] '.$e->getMessage().' line '.$e->getLine().' file '.$e->getFile());
     risk_api_reply(['ok'=>false,'message'=>'No pude procesar la Alerta Temprana Inteligente. Revisa el log de PHP/XAMPP para ver el error interno.'],500);
 }
