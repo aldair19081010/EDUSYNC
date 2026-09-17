@@ -123,8 +123,6 @@ function edu_course_risk_class_metrics(mysqli $conn,array $teacherCourseIds,int 
     return$out;
 }
 
-function edu_course_risk_std
-
 function edu_course_risk_std(array $values): ?float {
     $v=array_values(array_filter($values,static fn($x)=>$x!==null&&is_numeric($x)));$n=count($v);if(!$n)return null;$m=array_sum($v)/$n;$ss=0.0;foreach($v as $x)$ss+=((float)$x-$m)**2;return sqrt($ss/$n);
 }
@@ -164,8 +162,6 @@ function edu_course_risk_period_metrics(mysqli $conn,int $studentId,int $schoolI
         'attendance_rate_30d'=>$attendance['attendance_rate_30d'],'late_30d'=>$attendance['late_30d'],'absent_30d'=>$attendance['absent_30d'],'attendance_records_30d'=>$attendance['attendance_records_30d'],
     ],$class);
 }
-
-function edu_course_risk_same_year_history
 
 function edu_course_risk_same_year_history(mysqli $conn,int $studentId,int $schoolId,int $yearId,int $sourceBimester,int $courseId,int $attendanceWindow=30): array {
     $periods=[];for($b=1;$b<=$sourceBimester;$b++){$closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($closure['closed']))continue;$ctx=edu_course_risk_context_for_course($conn,$studentId,$schoolId,$yearId,$b,$courseId);if(!$ctx)continue;$m=edu_course_risk_period_metrics($conn,$studentId,$schoolId,$yearId,$b,$ctx,$closure['date']??null,$attendanceWindow);if($m['course_mean_current']!==null)$periods[]=$m;}return$periods;
