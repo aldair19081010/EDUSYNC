@@ -114,13 +114,16 @@ function edu_course_risk_attendance_status_on_dates(mysqli $conn,int $studentId,
 function edu_course_risk_class_metrics(mysqli $conn,array $teacherCourseIds,int $yearId,int $bimester): array {
     $ids=array_values(array_unique(array_filter(array_map('intval',$teacherCourseIds))));$out=['class_course_mean_current'=>null,'class_low_grade_rate_current'=>null,'class_students_critical_rate'=>null,'class_graded_cells'=>0,'class_students_with_data'=>0];if(!$ids)return$out;$idSql=implode(',',$ids);
     $statusWhere=edu_predictive_column_exists($conn,'evaluations','status')?" AND COALESCE(e.status,'Activa')<>'Anulada'":'';$yearWhere=edu_predictive_column_exists($conn,'evaluations','academic_year_id')?' AND e.academic_year_id='.(int)$yearId:'';
-    $sql="SELECT eg.student_id,eg.grade FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=? $yearWhere $statusWhere AND eg.grade IS NOT NULL AND TRIM(eg.grade)<>''";
-    $stmt=$conn->prepare($sql);if(!$stmt)return$out;$stmt->bind_param('i',$bimester);$stmt->execute();$res=$stmt->get_result();$scores=[];$low=0;$byStudent=[];
-    while($r=$res->fetch_assoc()){$score=edu_course_risk_grade_score($r['grade']);if($score===null)continue;$scores[]=$score;if(edu_course_risk_grade_low($r['grade']))$low++;$sid=(int)$r['student_id'];if(!isset($byStudent[$sid]))$byStudent[$sid]=[];$byStudent[$sid][]=$score;}$stmt->close();
-    if($scores){$out['class_course_mean_current']=array_sum($scores)/count($scores);$out['class_low_grade_rate_current']=$low/count($scores);$out['class_graded_cells']=count($scores);}
-    if($byStudent){$critical=0;foreach($byStudent as $values)if(array_sum($values)/count($values)<edu_predictive_critical_threshold())$critical++;$out['class_students_with_data']=count($byStudent);$out['class_students_critical_rate']=$critical/count($byStudent);}
+    $sql="SELECT eg.student_id,eg.grade,eg.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=? $yearWhere $statusWhere AND eg.grade IS NOT NULL AND TRIM(eg.grade)<>''";
+    $stmt=$conn->prepare($sql);if(!$stmt)return$out;$stmt->bind_param('i',$bimester);$stmt->execute();$res=$stmt->get_result();$low=0;$cellScores=[];$byStudent=[];$weights=[];
+    while($r=$res->fetch_assoc()){$score=edu_course_risk_grade_score($r['grade']);if($score===null)continue;$sid=(int)$r['student_id'];$cid=(int)$r['competencia_id'];$cellScores[]=$score;if(edu_course_risk_grade_low($r['grade']))$low++;$byStudent[$sid][$cid][]=$score;$weights[$cid]=max(0.0,(float)($r['competencia_percentage']??100)/100.0);}$stmt->close();
+    $studentMeans=[];foreach($byStudent as $sid=>$comps){$sum=0.0;$used=0;foreach($comps as $cid=>$vals){if(!$vals)continue;$sum+=(array_sum($vals)/count($vals))*(float)($weights[$cid]??1.0);$used++;}if($used)$studentMeans[$sid]=$sum;}
+    if($cellScores){$out['class_low_grade_rate_current']=$low/count($cellScores);$out['class_graded_cells']=count($cellScores);}
+    if($studentMeans){$out['class_course_mean_current']=array_sum($studentMeans)/count($studentMeans);$critical=0;foreach($studentMeans as $m)if($m<edu_predictive_critical_threshold())$critical++;$out['class_students_with_data']=count($studentMeans);$out['class_students_critical_rate']=$critical/count($studentMeans);}
     return$out;
 }
+
+function edu_course_risk_std
 
 function edu_course_risk_std(array $values): ?float {
     $v=array_values(array_filter($values,static fn($x)=>$x!==null&&is_numeric($x)));$n=count($v);if(!$n)return null;$m=array_sum($v)/$n;$ss=0.0;foreach($v as $x)$ss+=((float)$x-$m)**2;return sqrt($ss/$n);
