@@ -89,7 +89,7 @@ try{
         if($action==='dashboard')risk_api_reply(risk_api_normalize_course_dashboard(edu_course_dashboard_data_fast($conn,$actor,$filters)));
         if($action==='student'){
             $studentId=(int)($_GET['student_id']??0);
-            $detail=edu_course_dashboard_student_detail($conn,$actor,$studentId,!empty($filters['bimestre'])?(int)$filters['bimestre']:null);
+            $detail=edu_course_dashboard_student_detail_fast($conn,$actor,$studentId,!empty($filters['bimestre'])?(int)$filters['bimestre']:null);
             if(empty($detail['ok']))risk_api_reply($detail,422);
             $detail['prediction']['student']=risk_api_normalize_student($detail['prediction']['student']);
             $detail['interventions']=edu_risk_list_interventions($conn,$actor,['student_id'=>$studentId],100);
