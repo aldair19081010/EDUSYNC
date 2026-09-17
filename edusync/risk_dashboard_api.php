@@ -59,14 +59,45 @@ function risk_api_normalize_course_dashboard(array $d): array {
     return $d;
 }
 
+/**
+ * Resolver mínimo para este módulo.
+ * Evita cargar chatbot_engine.php y sus comprobaciones repetidas SHOW COLUMNS.
+ * La Alerta Temprana solo admite administradores, por lo que no necesitamos
+ * resolver docentes/estudiantes ni metadatos opcionales del chatbot.
+ */
+function risk_api_resolve_admin(mysqli $conn): ?array {
+    $userId=(int)($_SESSION['login_id']??0);
+    if($userId<=0)return null;
+    $stmt=$conn->prepare('SELECT id,name,type,school_id FROM users WHERE id=? LIMIT 1');
+    if(!$stmt)return null;
+    $stmt->bind_param('i',$userId);
+    $stmt->execute();
+    $row=$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if(!$row)return null;
+    return [
+        'kind'=>'user',
+        'role'=>(int)$row['type']===1?'Administrador':'Usuario',
+        'type'=>(int)$row['type'],
+        'id'=>(int)$row['id'],
+        'student_id'=>0,
+        'teacher_id'=>0,
+        'school_id'=>(int)$row['school_id'],
+        'name'=>(string)$row['name'],
+        'dni'=>'',
+        'nivel'=>'',
+        'grado'=>'',
+        'seccion'=>''
+    ];
+}
+
 try{
     require_once __DIR__.'/session_config.php';
     require_once __DIR__.'/db_connect.php';
-    require_once __DIR__.'/includes/chatbot_engine.php';
     require_once __DIR__.'/includes/risk_dashboard_course.php';
     require_once __DIR__.'/includes/predictive_course_interventions.php';
 
-    $actor=edu_chat_resolve_actor($conn);
+    $actor=risk_api_resolve_admin($conn);
     if(!$actor)risk_api_reply(['ok'=>false,'message'=>'Tu sesión ha expirado.'],401);
     if((int)($actor['type']??0)!==1)risk_api_reply(['ok'=>false,'message'=>'Este módulo está disponible únicamente para administración.'],403);
 
