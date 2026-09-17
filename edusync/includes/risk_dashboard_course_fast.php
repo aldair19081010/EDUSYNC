@@ -157,7 +157,6 @@ function crf_v7_history_rows(array $meta,string $courseName,array $bundle): arra
     return array_values($years);
 }
 
-function crf_match_student
 function crf_match_student(array $s,array $filters): bool {
     $status=mb_strtolower(trim((string)($s['status']??'Activo')),'UTF-8');if(!in_array($status,['activo','active'],true))return false;
     if(!empty($filters['level'])&&strcasecmp(trim((string)$s['nivel']),trim((string)$filters['level']))!==0)return false;
