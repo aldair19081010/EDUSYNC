@@ -32,9 +32,7 @@ FEATURES=[
  'class_low_grade_rate_current','class_students_critical_rate','student_vs_class_mean',
  'prior_years_periods_available','prior_years_mean','prior_years_last_mean',
  'prior_years_slope','prior_years_critical_rate','prior_years_last_critical',
- 'prior_years_same_bimester_mean','prior_years_persistence_after_critical_rate',
- 'course_historical_mean','course_historical_critical_rate',
- 'course_historical_periods_available'
+ 'prior_years_same_bimester_mean','prior_years_persistence_after_critical_rate'
 ]
 TARGET='target_course_critical'
 
@@ -179,7 +177,7 @@ def main():
   'methodology':{
    'unit':'student_course_bimester','teacher_id_predictor':False,'attendance_used':True,
    'class_context_used':True,'evaluation_dynamics_used':True,'competency_structure_used':True,
-   'prior_year_history_used':True,'course_historical_context_used':True,'future_data_used':False,
+   'prior_year_history_used':True,'course_historical_context_used':False,'future_data_used':False,
    'validation_group':'stable_student_key'
   }
  }
