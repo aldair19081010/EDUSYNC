@@ -245,7 +245,7 @@ function edu_course_dashboard_student_detail_fast(mysqli $conn,array $actor,int 
     $schoolId=(int)($actor['school_id']??0);$model=edu_course_risk_model_load();
     if(empty($model['available']))return['ok'=>false,'message'=>'No hay modelo predictivo por curso disponible.','reason'=>$model['reason']??'model_missing'];
     $year=edu_predictive_academic_year($conn,$schoolId,null);if(!$year)return['ok'=>false,'message'=>'No hay año académico activo.'];
-    $yearId=(int)$year['id'];$b=$bimester??edu_predictive_latest_closed_bimester($conn,$schoolId,$yearId);
+    $yearId=(int)$year['id'];$yrLabelRes=$conn->query("SELECT year FROM academic_year WHERE id=".(int)$yearId." AND school_id=".(int)$schoolId." LIMIT 1");$yrLabelRow=$yrLabelRes?$yrLabelRes->fetch_assoc():null;$year['year']=(string)($yrLabelRow['year']??$yearId);$b=$bimester??edu_predictive_latest_closed_bimester($conn,$schoolId,$yearId);
     if(!$b||$b<1||$b>3)return['ok'=>false,'message'=>'No hay un bimestre cerrado disponible.'];
     $closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);
     if(empty($closure['closed'])||empty($closure['date']))return['ok'=>false,'message'=>'El bimestre seleccionado no tiene un cierre seguro.'];
