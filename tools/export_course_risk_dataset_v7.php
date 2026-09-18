@@ -3,7 +3,7 @@
  * Exportador v7 longitudinal por estudiante + curso.
  * - una fila = estudiante + curso + bimestre base cerrado;
  * - promedio del curso igual al portal: promedio por competencia x porcentaje;
- * - C=10, B=13, A=17, AD=20 para el cálculo ponderado, igual que my_grades_legacy;
+ * - C=5, B=12, A=15.5, AD=19 para el cálculo ponderado, igual que Libro de Notas;
  * - una nota vacía nunca se convierte en cero;
  * - excluye periodos con cobertura anormalmente baja dentro del mismo año;
  * - carga datos por bimestre en bloques para evitar consultas N+1.
