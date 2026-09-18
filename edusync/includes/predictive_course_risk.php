@@ -10,7 +10,7 @@
  * - nota literal C, o
  * - nota numérica < 10.5;
  * - para resumir un curso, las letras se normalizan SOLO para cálculo de
- *   tendencia: C=10, B=12, A=15.5, AD=19. La letra C sigue siendo crítica
+ *   promedios y tendencia: C=5, B=12, A=15.5, AD=19, igual que Libro de Notas. La letra C sigue siendo crítica
  *   directamente y una ausencia de nota nunca se convierte en cero.
  *
  * La asistencia es una señal asociada al riesgo, no una prueba de causalidad.
