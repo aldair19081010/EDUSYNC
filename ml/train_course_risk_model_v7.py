@@ -160,10 +160,11 @@ def main():
   'target':'mismo_curso_con_rendimiento_critico_en_bimestre_siguiente',
   'target_definition':{
    'numeric_rule':'promedio ponderado del curso < 10.5',
-   'letter_mapping':'C=10, B=13, A=17, AD=20 para cálculo ponderado',
+   'letter_mapping':'C=5, B=12, A=15.5, AD=19; misma escala canónica del Libro de Notas',
    'missing_grade':'dato faltante; nunca se convierte en cero',
    'warning':'Rendimiento crítico operativo, no sentencia de desaprobación anual.'
   },
+  'grade_mapping':{'C':5.0,'B':12.0,'A':15.5,'AD':19.0},
   'features':features,
   'dropped_all_missing_features':dropped,
   'imputer':{'strategy':'median','fill':{f:float(imp.statistics_[i]) for i,f in enumerate(features)}},
@@ -176,7 +177,7 @@ def main():
   'training':{'rows':len(y),'students':len(np.unique(g)),'positive_rate':float(y.mean()),'bimester_pair_counts':pairs,'academic_year_counts':years,'course_counts':courses},
   'methodology':{
    'unit':'student_course_bimester','teacher_id_predictor':False,'attendance_used':True,
-   'class_context_used':True,'evaluation_dynamics_used':True,'competency_structure_used':True,
+   'class_context_used':True,'evaluation_dynamics_used':True,'competency_structure_used':True,'zero_weight_evaluations_excluded':True,'requires_official_competency_weight_total_100':True,
    'prior_year_history_used':True,'course_historical_context_used':False,'future_data_used':False,
    'validation_group':'stable_student_key'
   }
