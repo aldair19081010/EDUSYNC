@@ -60,6 +60,11 @@ Cuando existe fecha académica real de evaluación se utiliza para ordenar. Si n
 
 El promedio del curso sigue alineado con EduSync y utiliza los porcentajes de las competencias.
 
+Reglas de cierre del piloto:
+- las competencias/evaluaciones con peso 0% (por ejemplo, **Evaluación No Oficial (No Promedia)**) se excluyen por completo del promedio y de las señales predictivas;
+- las competencias oficiales con peso positivo deben sumar 100% (tolerancia ±0.1); si no, el contexto se omite del entrenamiento y de la inferencia;
+- Libro de Notas muestra una advertencia cuando el total oficial no es 100%.
+
 ### Asistencia y contexto
 - asistencia de los 30 días previos;
 - cambio de asistencia frente al periodo anterior;
@@ -76,12 +81,12 @@ El promedio del curso sigue alineado con EduSync y utiliza los porcentajes de la
 
 Para cálculo ponderado y trayectoria:
 
-- C = 10
-- B = 13
-- A = 17
-- AD = 20
+- C = 5
+- B = 12
+- A = 15.5
+- AD = 19
 
-Una nota vacía nunca se convierte en cero.
+Esta es la misma escala canónica usada por el Libro de Notas. Una nota vacía nunca se convierte en cero.
 
 Rendimiento crítico operativo:
 
@@ -131,6 +136,9 @@ C:\xampp\php\php.exe -l edusync\includes\risk_dashboard_course.php
 C:\xampp\php\php.exe -l edusync\includes\risk_dashboard_course_fast.php
 C:\xampp\php\php.exe -l edusync\risk_dashboard_api.php
 C:\xampp\php\php.exe -l tools\export_course_risk_dataset_v7.php
+C:\xampp\php\php.exe -l edusync\gradebook_api.php
+C:\xampp\php\php.exe -l edusync\pages\grades.php
+C:\xampp\php\php.exe tools\predictive_course_risk_smoke_test.php
 ```
 
 ### 2. Compilar Python
