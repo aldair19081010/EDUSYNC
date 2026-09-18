@@ -172,6 +172,7 @@ if ($action === 'load') {
     $competencies=[];
     $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id']." AND is_active=1 ORDER BY id");
     while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>(float)$row['percentage']];
+    $officialWeightTotal=0.0;$officialWeightCount=0;foreach($competencies as $competency){$pct=(float)($competency['percentage']??0);if($pct<=0)continue;$officialWeightTotal+=$pct;$officialWeightCount++;}$officialWeightsValid=$officialWeightCount>0&&abs($officialWeightTotal-100.0)<=0.1;
     foreach($evaluations as $evaluation){$found=false;foreach($competencies as $competency)if($competency['id']===$evaluation['competencia_id']){$found=true;break;}if(!$found&&$evaluation['competencia_id']>0)$competencies[]=['id'=>$evaluation['competencia_id'],'name'=>$evaluation['competency_name']?:'Competencia histórica','percentage'=>$evaluation['competency_percentage']];}
 
     $readOnlyReason = '';
@@ -188,6 +189,8 @@ if ($action === 'load') {
         'bimestre' => $bimester,
         'evaluations' => $evaluations,
         'competencies' => $competencies,
+        'competency_weight_total' => $officialWeightTotal,
+        'competency_weights_valid' => $officialWeightsValid,
         'students' => $students,
         'grades' => $grades,
         'read_only' => $locked || $yearReadOnly || $teacherClosed,
