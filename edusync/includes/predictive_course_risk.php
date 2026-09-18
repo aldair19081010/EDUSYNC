@@ -29,6 +29,7 @@ function edu_course_risk_model_load(): array {
     $model=json_decode((string)file_get_contents($path),true);
     if(!is_array($model))return['available'=>false,'reason'=>'model_invalid','path'=>$path];
     $schema=(int)($model['schema_version']??0);$variant=(string)($model['model_variant']??'');if(!(($schema===6&&$variant==='student_course_next_bimester_v6')||($schema===7&&$variant==='student_course_longitudinal_v7')))return['available'=>false,'reason'=>'model_outdated','path'=>$path];
+    if($schema===7){$gm=(array)($model['grade_mapping']??[]);$expectedMap=['C'=>5.0,'B'=>12.0,'A'=>15.5,'AD'=>19.0];foreach($expectedMap as $k=>$v)if(!array_key_exists($k,$gm)||abs((float)$gm[$k]-$v)>1e-9)return['available'=>false,'reason'=>'model_grade_mapping_outdated','path'=>$path];}
     $features=(array)($model['features']??[]);$coefs=(array)($model['coefficients']??[]);$mean=(array)($model['scaler']['mean']??[]);$scale=(array)($model['scaler']['scale']??[]);
     if(($model['model_type']??'')!=='logistic_regression'||!$features||!isset($model['intercept']))return['available'=>false,'reason'=>'model_schema','path'=>$path];
     foreach($features as $f)if(!array_key_exists($f,$coefs)||!array_key_exists($f,$mean)||!array_key_exists($f,$scale))return['available'=>false,'reason'=>'model_schema','path'=>$path];
@@ -42,7 +43,7 @@ function edu_course_risk_grade_score($grade): ?float {
     $v=strtoupper(trim((string)$grade));if($v==='')return null;
     $numeric=str_replace(',','.',$v);
     if(is_numeric($numeric))return max(0.0,min(20.0,(float)$numeric));
-    $map=['C'=>10.0,'B'=>13.0,'A'=>17.0,'AD'=>20.0];
+    $map=['C'=>5.0,'B'=>12.0,'A'=>15.5,'AD'=>19.0];
     return$map[$v]??null;
 }
 function edu_course_risk_grade_low($grade): bool {
@@ -99,8 +100,16 @@ function edu_course_risk_expected_cells(mysqli $conn,array $teacherCourseIds,int
     $dateColumn=edu_course_risk_evaluation_date_column($conn);$dateExpr=$dateColumn!==null?"DATE(e.`$dateColumn`)":"NULL";$dateSelect=$dateExpr." evaluation_date";$dateOrder=$dateColumn!==null?$dateExpr.",e.id":"e.id";
     $statusWhere=edu_predictive_column_exists($conn,'evaluations','status')?" AND COALESCE(e.status,'Activa')<>'Anulada'":'';
     $yearWhere=edu_predictive_column_exists($conn,'evaluations','academic_year_id')?' AND e.academic_year_id=?':'';$types=$yearWhere!==''?'iii':'ii';$params=$yearWhere!==''?[$studentId,$bimester,$yearId]:[$studentId,$bimester];
-    $sql="SELECT e.id evaluation_id,e.title,$dateSelect,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,eg.grade FROM evaluations e INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.competencia_id=ec.competencia_id AND eg.student_id=? WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=?$yearWhere$statusWhere ORDER BY $dateOrder,ec.competencia_id";
+    $sql="SELECT e.id evaluation_id,e.title,$dateSelect,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,eg.grade FROM evaluations e INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.competencia_id=ec.competencia_id AND eg.student_id=? WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=?$yearWhere$statusWhere AND COALESCE(gcc.percentage,100)>0 ORDER BY $dateOrder,ec.competencia_id";
     $stmt=$conn->prepare($sql);if(!$stmt)return[];edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$stmt->close();return$rows;
+}
+
+function edu_course_risk_weight_configuration(mysqli $conn,array $teacherCourseIds,int $yearId): array {
+    $ids=array_values(array_unique(array_filter(array_map('intval',$teacherCourseIds))));$out=['valid'=>false,'total'=>0.0,'official_competencies'=>0];if(!$ids)return$out;$idSql=implode(',',$ids);
+    $sql="SELECT DISTINCT gcc.id,gcc.percentage FROM teacher_courses tc INNER JOIN general_course_competencies gcc ON gcc.course_id=tc.course_id AND gcc.teacher_id=tc.teacher_id AND gcc.academic_year_id=? AND COALESCE(gcc.is_active,1)=1 WHERE tc.id IN ($idSql)";
+    $stmt=$conn->prepare($sql);if(!$stmt)return$out;$stmt->bind_param('i',$yearId);$stmt->execute();$res=$stmt->get_result();$total=0.0;$count=0;
+    while($r=$res->fetch_assoc()){$pct=(float)($r['percentage']??0);if($pct<=0)continue;$total+=$pct;$count++;}$stmt->close();
+    $out['total']=$total;$out['official_competencies']=$count;$out['valid']=$count>0&&abs($total-100.0)<=0.1;return$out;
 }
 
 function edu_course_risk_attendance_status_on_dates(mysqli $conn,int $studentId,array $dates): array {
@@ -114,7 +123,7 @@ function edu_course_risk_attendance_status_on_dates(mysqli $conn,int $studentId,
 function edu_course_risk_class_metrics(mysqli $conn,array $teacherCourseIds,int $yearId,int $bimester): array {
     $ids=array_values(array_unique(array_filter(array_map('intval',$teacherCourseIds))));$out=['class_course_mean_current'=>null,'class_low_grade_rate_current'=>null,'class_students_critical_rate'=>null,'class_graded_cells'=>0,'class_students_with_data'=>0];if(!$ids)return$out;$idSql=implode(',',$ids);
     $statusWhere=edu_predictive_column_exists($conn,'evaluations','status')?" AND COALESCE(e.status,'Activa')<>'Anulada'":'';$yearWhere=edu_predictive_column_exists($conn,'evaluations','academic_year_id')?' AND e.academic_year_id='.(int)$yearId:'';
-    $sql="SELECT eg.student_id,eg.grade,eg.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=? $yearWhere $statusWhere AND eg.grade IS NOT NULL AND TRIM(eg.grade)<>''";
+    $sql="SELECT eg.student_id,eg.grade,eg.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id WHERE e.teacher_course_id IN ($idSql) AND CAST(e.bimestre AS UNSIGNED)=? $yearWhere $statusWhere AND COALESCE(gcc.percentage,100)>0 AND eg.grade IS NOT NULL AND TRIM(eg.grade)<>''";
     $stmt=$conn->prepare($sql);if(!$stmt)return$out;$stmt->bind_param('i',$bimester);$stmt->execute();$res=$stmt->get_result();$low=0;$cellScores=[];$byStudent=[];$weights=[];
     while($r=$res->fetch_assoc()){$score=edu_course_risk_grade_score($r['grade']);if($score===null)continue;$sid=(int)$r['student_id'];$cid=(int)$r['competencia_id'];$cellScores[]=$score;if(edu_course_risk_grade_low($r['grade']))$low++;$byStudent[$sid][$cid][]=$score;$weights[$cid]=max(0.0,(float)($r['competencia_percentage']??100)/100.0);}$stmt->close();
     $studentMeans=[];foreach($byStudent as $sid=>$comps){$sum=0.0;$used=0;foreach($comps as $cid=>$vals){if(!$vals)continue;$sum+=(array_sum($vals)/count($vals))*(float)($weights[$cid]??1.0);$used++;}if($used)$studentMeans[$sid]=$sum;}
@@ -127,7 +136,7 @@ function edu_course_risk_std(array $values): ?float {
     $v=array_values(array_filter($values,static fn($x)=>$x!==null&&is_numeric($x)));$n=count($v);if(!$n)return null;$m=array_sum($v)/$n;$ss=0.0;foreach($v as $x)$ss+=((float)$x-$m)**2;return sqrt($ss/$n);
 }
 function edu_course_risk_period_metrics(mysqli $conn,int $studentId,int $schoolId,int $yearId,int $bimester,array $context,?string $cutoffDate=null,int $attendanceWindow=30): array {
-    $cells=edu_course_risk_expected_cells($conn,(array)($context['teacher_course_ids']??[]),$yearId,$bimester,$studentId);
+    $weightConfig=edu_course_risk_weight_configuration($conn,(array)($context['teacher_course_ids']??[]),$yearId);$cells=$weightConfig['valid']?edu_course_risk_expected_cells($conn,(array)($context['teacher_course_ids']??[]),$yearId,$bimester,$studentId):[];
     $scores=[];$low=0;$missing=0;$evalIds=[];$missingEvalDates=[];$grades=[];$byComp=[];$weights=[];$byEval=[];$evalOrder=[];
     foreach($cells as $cell){
         $eid=(int)$cell['evaluation_id'];$cid=(int)$cell['competencia_id'];$evalIds[$eid]=true;$weights[$cid]=max(0.0,(float)($cell['competencia_percentage']??100)/100.0);
@@ -144,9 +153,9 @@ function edu_course_risk_period_metrics(mysqli $conn,int $studentId,int $schoolI
     $compMeans=[];$criticalComp=0;$criticalWeight=0.0;$usedWeight=0.0;foreach($byComp as $cid=>$vals){if(!$vals)continue;$cm=array_sum($vals)/count($vals);$compMeans[]=$cm;$w=(float)($weights[$cid]??1.0);$usedWeight+=$w;if($cm<edu_predictive_critical_threshold()){$criticalComp++;$criticalWeight+=$w;}}
     $attendance=$cutoffDate?edu_predictive_attendance_features($conn,$studentId,$cutoffDate,$attendanceWindow):['attendance_rate_30d'=>null,'late_30d'=>null,'absent_30d'=>null,'attendance_records_30d'=>0];
     $dateStatuses=edu_course_risk_attendance_status_on_dates($conn,$studentId,$missingEvalDates);$overlap=0;foreach($missingEvalDates as $d)if(($dateStatuses[$d]??'')==='Ausente')$overlap++;
-    $class=edu_course_risk_class_metrics($conn,(array)($context['teacher_course_ids']??[]),$yearId,$bimester);
+    $class=$weightConfig['valid']?edu_course_risk_class_metrics($conn,(array)($context['teacher_course_ids']??[]),$yearId,$bimester):['class_course_mean_current'=>null,'class_low_grade_rate_current'=>null,'class_students_critical_rate'=>null,'class_graded_cells'=>0,'class_students_with_data'=>0];
     return array_merge([
-        'course_id'=>(int)($context['course_id']??0),'course_name'=>(string)($context['course_name']??'Curso'),'bimester'=>$bimester,
+        'course_id'=>(int)($context['course_id']??0),'course_name'=>(string)($context['course_name']??'Curso'),'bimester'=>$bimester,'weight_configuration_valid'=>!empty($weightConfig['valid']),'weight_configuration_total'=>(float)$weightConfig['total'],
         'course_mean_current'=>$mean,'distance_to_critical'=>$mean===null?null:$mean-edu_predictive_critical_threshold(),
         'graded_cells'=>$graded,'expected_cells'=>$expected,'missing_grade_cells'=>$missing,'low_grade_cells'=>$low,
         'low_grade_rate_current'=>$graded>0?$low/$graded:null,'missing_grade_rate_current'=>$expected>0?$missing/$expected:null,
