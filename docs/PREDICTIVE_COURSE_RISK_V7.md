@@ -62,7 +62,8 @@ El promedio del curso sigue alineado con EduSync y utiliza los porcentajes de la
 
 Reglas de cierre del piloto:
 - las competencias/evaluaciones con peso 0% (por ejemplo, **Evaluación No Oficial (No Promedia)**) se excluyen por completo del promedio y de las señales predictivas;
-- las competencias oficiales con peso positivo deben sumar 100% (tolerancia ±0.1); si no, el contexto se omite del entrenamiento y de la inferencia;
+- para datos históricos heredados, si los pesos positivos no suman 100%, el exportador los normaliza proporcionalmente para conservar ese periodo sin alterar la relación entre competencias;
+- para la inferencia actual, las competencias oficiales con peso positivo deben sumar 100% (tolerancia ±0.1); si no, el curso no se predice hasta corregir su configuración;
 - Libro de Notas muestra una advertencia cuando el total oficial no es 100%.
 
 ### Asistencia y contexto
