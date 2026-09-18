@@ -19,7 +19,7 @@ function crf_ctx_key(int $courseId,string $level,string $grade,string $section):
 function crf_grade_score($grade): ?float {
     $v=strtoupper(trim((string)$grade));if($v==='')return null;
     $n=str_replace(',','.',$v);if(is_numeric($n))return max(0.0,min(20.0,(float)$n));
-    $map=['C'=>10.0,'B'=>13.0,'A'=>17.0,'AD'=>20.0];return $map[$v]??null;
+    $map=['C'=>5.0,'B'=>12.0,'A'=>15.5,'AD'=>19.0];return $map[$v]??null;
 }
 function crf_grade_low($grade): bool {
     $v=strtoupper(trim((string)$grade));if($v==='')return false;if($v==='C')return true;
@@ -63,19 +63,28 @@ function crf_att(array $days): array {
 }
 
 /** Carga todo un bimestre en pocas consultas, alineado con el exportador ponderado. */
+function crf_weight_config_map(mysqli $conn,int $schoolId,int $yearId): array {
+    $out=[];$hasTcYear=edu_predictive_column_exists($conn,'teacher_courses','academic_year_id');$where=$hasTcYear?' AND tc.academic_year_id='.(int)$yearId:'';
+    $sql="SELECT tc.id teacher_course_id,gcc.id competencia_id,gcc.percentage FROM teacher_courses tc INNER JOIN general_course_competencies gcc ON gcc.course_id=tc.course_id AND gcc.teacher_id=tc.teacher_id AND gcc.academic_year_id=".(int)$yearId." AND COALESCE(gcc.is_active,1)=1 WHERE tc.school_id=".(int)$schoolId.$where;
+    $res=$conn->query($sql);if(!$res)return$out;$seen=[];
+    while($r=$res->fetch_assoc()){$tc=(int)$r['teacher_course_id'];$cid=(int)$r['competencia_id'];$pct=(float)($r['percentage']??0);if($pct<=0||isset($seen[$tc][$cid]))continue;$seen[$tc][$cid]=true;$out[$tc]['total']=($out[$tc]['total']??0.0)+$pct;$out[$tc]['count']=($out[$tc]['count']??0)+1;}
+    foreach($out as $tc=>&$cfg)$cfg['valid']=($cfg['count']??0)>0&&abs((float)$cfg['total']-100.0)<=0.1;unset($cfg);return$out;
+}
+
 function crf_load_period(mysqli $conn,int $schoolId,int $yearId,int $bimester,?string $cutoffDate): array {
     $hasTcYear=edu_predictive_column_exists($conn,'teacher_courses','academic_year_id');
     $hasEYear=edu_predictive_column_exists($conn,'evaluations','academic_year_id');
     $hasStatus=edu_predictive_column_exists($conn,'evaluations','status');
+    $weightConfigs=crf_weight_config_map($conn,$schoolId,$yearId);
     $dateCol=crf_eval_date_col($conn);$dateExpr=$dateCol!==null?"DATE(e.`$dateCol`)":"NULL";$dateSelect=$dateExpr." evaluation_date";$dateOrder=$dateCol!==null?$dateExpr.",e.id":"e.id";
     $where=['tc.school_id=?','CAST(e.bimestre AS UNSIGNED)=?'];$types='ii';$params=[$schoolId,$bimester];
     if($hasTcYear){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($hasEYear){$where[]='e.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($hasStatus)$where[]="COALESCE(e.status,'Activa')<>'Anulada'";
-    $sql="SELECT e.id evaluation_id,tc.course_id,COALESCE(NULLIF(TRIM(ac.name),''),'Curso') course_name,ac.level,tc.grado,COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,$dateSelect FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id WHERE ".implode(' AND ',$where)." ORDER BY $dateOrder,ec.competencia_id";
+    $sql="SELECT e.id evaluation_id,tc.id teacher_course_id,tc.course_id,COALESCE(NULLIF(TRIM(ac.name),''),'Curso') course_name,ac.level,tc.grado,COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,$dateSelect FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id WHERE ".implode(' AND ',$where)." ORDER BY $dateOrder,ec.competencia_id";
     $stmt=$conn->prepare($sql);if(!$stmt)throw new RuntimeException('No pude cargar definiciones del bimestre: '.$conn->error);edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$defs=[];$evalCtx=[];
     while($r=$res->fetch_assoc()){
-        $key=crf_ctx_key((int)$r['course_id'],(string)$r['level'],(string)$r['grado'],(string)$r['seccion']);
+        $key=crf_ctx_key((int)$r['course_id'],(string)$r['level'],(string)$r['grado'],(string)$r['seccion']);$tcid=(int)($r['teacher_course_id']??0);$pct=(float)($r['competencia_percentage']??0);if($pct<=0||empty($weightConfigs[$tcid]['valid']))continue;
         $r['course_id']=(int)$r['course_id'];$r['competencia_id']=(int)$r['competencia_id'];$r['evaluation_id']=(int)$r['evaluation_id'];$r['weight']=max(0.0,(float)$r['competencia_percentage']/100.0);
         $defs[$key][]=$r;$evalCtx[$r['evaluation_id']]=$key;
     }
