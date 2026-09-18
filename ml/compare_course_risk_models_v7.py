@@ -73,12 +73,37 @@ def main():
  periods={}
  for i,r in enumerate(raw):
   key=(str(r['cutoff_date']),int(float(r['academic_year_id'])),int(float(r['bimester'])),int(float(r['target_bimester'])));periods.setdefault(key,[]).append(i)
+ ordered=sorted(periods.items(),key=lambda kv:kv[0])
+ print('Diagnóstico temporal del dataset:')
+ for key,testlist in ordered:
+  yy=y[np.asarray(testlist,int)]
+  pos=int((yy==1).sum());neg=int((yy==0).sum())
+  print(f'  corte {key[0]} | año {key[1]} | {key[2]}->{key[3]} | n={len(testlist)} | críticos={pos} | no críticos={neg}')
  latest=None
- for key,testlist in sorted(periods.items(),key=lambda kv:kv[0]):
+ for key,testlist in ordered:
   cutoff=key[0];tr=np.asarray([i for i,r in enumerate(raw) if str(r['cutoff_date'])<cutoff],int);te=np.asarray(testlist,int)
-  if len(tr)>=100 and len(np.unique(y[tr]))==2 and len(np.unique(y[te]))==2:latest=(key,tr,te)
- if latest is None:raise SystemExit('No existe holdout temporal válido.')
- key,tr,te=latest;cutoff,year,base,target=key
+  if len(tr)>=100 and len(np.unique(y[tr]))==2 and len(np.unique(y[te]))==2:
+   latest=(key,tr,te,[key]);continue
+ if latest is None:
+  # Respaldo temporal: agrupa los últimos periodos consecutivos, manteniendo
+  # entrenamiento estrictamente anterior al primer corte del bloque de test.
+  for end in range(len(ordered)-1,-1,-1):
+   block=[]
+   for start in range(end,-1,-1):
+    block=[ordered[start],*block]
+    first_cutoff=block[0][0][0]
+    tr=np.asarray([i for i,r in enumerate(raw) if str(r['cutoff_date'])<first_cutoff],int)
+    te=np.asarray([i for _,idxs in block for i in idxs],int)
+    if len(tr)>=100 and len(np.unique(y[tr]))==2 and len(np.unique(y[te]))==2:
+     key=block[-1][0]
+     latest=(key,tr,te,[k for k,_ in block])
+     break
+   if latest is not None:break
+ if latest is None:
+  raise SystemExit('No existe holdout temporal válido ni siquiera agrupando periodos consecutivos. Revisa el diagnóstico impreso arriba.')
+ key,tr,te,test_keys=latest;cutoff,year,base,target=key
+ if len(test_keys)>1:
+  print('Holdout temporal agrupado: '+' + '.join(f'{k[1]} {k[2]}->{k[3]}' for k in test_keys))
  active_names=[core.FEATURES[i] for i in active]
  unavailable=[active_names[i] for i in range(len(active_names)) if not np.any(np.isfinite(X[tr][:,i]))]
  persistent_all=[]
