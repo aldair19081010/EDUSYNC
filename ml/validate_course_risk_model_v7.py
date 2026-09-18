@@ -63,9 +63,14 @@ def main():
  except Exception:blockers.append('No se pudo leer el modelo v7.')
  if isinstance(artifact,dict):
   if artifact.get('schema_version')!=7 or artifact.get('model_variant')!='student_course_longitudinal_v7':blockers.append('El artefacto no corresponde a v7 longitudinal.')
+  expected_mapping={'C':5.0,'B':12.0,'A':15.5,'AD':19.0}
+  mapping=artifact.get('grade_mapping') or {}
+  if any(k not in mapping or abs(float(mapping[k])-v)>1e-9 for k,v in expected_mapping.items()):blockers.append('El artefacto no usa la escala canónica del Libro de Notas (C=5, B=12, A=15.5, AD=19).')
   meth=artifact.get('methodology',{})
   if meth.get('teacher_id_predictor') is not False:blockers.append('El artefacto no confirma exclusión de teacher_id.')
   if meth.get('future_data_used') is not False:blockers.append('El artefacto no confirma exclusión de información futura.')
+  if meth.get('zero_weight_evaluations_excluded') is not True:blockers.append('El artefacto no confirma exclusión de evaluaciones/competencias con peso 0%.')
+  if meth.get('requires_official_competency_weight_total_100') is not True:blockers.append('El artefacto no confirma validación de pesos oficiales al 100%.')
  metrics_names=['recall','precision','f1','balanced_accuracy','roc_auc','pr_auc','brier_score','ece']
  splits=[];sp=GroupShuffleSplit(n_splits=max(2,a.splits),test_size=a.test_size,random_state=a.seed)
  for no,(tr,te) in enumerate(sp.split(X,y,groups=g),1):
