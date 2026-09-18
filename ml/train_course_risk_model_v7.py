@@ -177,7 +177,7 @@ def main():
   'training':{'rows':len(y),'students':len(np.unique(g)),'positive_rate':float(y.mean()),'bimester_pair_counts':pairs,'academic_year_counts':years,'course_counts':courses},
   'methodology':{
    'unit':'student_course_bimester','teacher_id_predictor':False,'attendance_used':True,
-   'class_context_used':True,'evaluation_dynamics_used':True,'competency_structure_used':True,'zero_weight_evaluations_excluded':True,'requires_official_competency_weight_total_100':True,
+   'class_context_used':True,'evaluation_dynamics_used':True,'competency_structure_used':True,'zero_weight_evaluations_excluded':True,'requires_official_competency_weight_total_100':True,'legacy_historical_weights_normalized':True,
    'prior_year_history_used':True,'course_historical_context_used':False,'future_data_used':False,
    'validation_group':'stable_student_key'
   }
