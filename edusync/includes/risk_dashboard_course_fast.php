@@ -76,19 +76,24 @@ function crf_load_period(mysqli $conn,int $schoolId,int $yearId,int $bimester,?s
     $hasEYear=edu_predictive_column_exists($conn,'evaluations','academic_year_id');
     $hasStatus=edu_predictive_column_exists($conn,'evaluations','status');
     $weightConfigs=crf_weight_config_map($conn,$schoolId,$yearId);
+    $yr=$conn->query("SELECT is_active FROM academic_year WHERE id=".(int)$yearId." AND school_id=".(int)$schoolId." LIMIT 1");$yearRow=$yr?$yr->fetch_assoc():null;$isActiveYear=$yearRow&&((int)$yearRow['is_active']===1);
     $dateCol=crf_eval_date_col($conn);$dateExpr=$dateCol!==null?"DATE(e.`$dateCol`)":"NULL";$dateSelect=$dateExpr." evaluation_date";$dateOrder=$dateCol!==null?$dateExpr.",e.id":"e.id";
     $where=['tc.school_id=?','CAST(e.bimestre AS UNSIGNED)=?'];$types='ii';$params=[$schoolId,$bimester];
     if($hasTcYear){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($hasEYear){$where[]='e.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($hasStatus)$where[]="COALESCE(e.status,'Activa')<>'Anulada'";
     $sql="SELECT e.id evaluation_id,tc.id teacher_course_id,tc.course_id,COALESCE(NULLIF(TRIM(ac.name),''),'Curso') course_name,ac.level,tc.grado,COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,ec.competencia_id,COALESCE(gcc.percentage,100) competencia_percentage,$dateSelect FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id WHERE ".implode(' AND ',$where)." ORDER BY $dateOrder,ec.competencia_id";
-    $stmt=$conn->prepare($sql);if(!$stmt)throw new RuntimeException('No pude cargar definiciones del bimestre: '.$conn->error);edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$defs=[];$evalCtx=[];
+    $stmt=$conn->prepare($sql);if(!$stmt)throw new RuntimeException('No pude cargar definiciones del bimestre: '.$conn->error);edu_predictive_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$defs=[];$evalCtx=[];$rawDefs=[];$contextWeights=[];
     while($r=$res->fetch_assoc()){
-        $key=crf_ctx_key((int)$r['course_id'],(string)$r['level'],(string)$r['grado'],(string)$r['seccion']);$tcid=(int)($r['teacher_course_id']??0);$pct=(float)($r['competencia_percentage']??0);if($pct<=0||empty($weightConfigs[$tcid]['valid']))continue;
-        $r['course_id']=(int)$r['course_id'];$r['competencia_id']=(int)$r['competencia_id'];$r['evaluation_id']=(int)$r['evaluation_id'];$r['weight']=max(0.0,(float)$r['competencia_percentage']/100.0);
-        $defs[$key][]=$r;$evalCtx[$r['evaluation_id']]=$key;
+        $key=crf_ctx_key((int)$r['course_id'],(string)$r['level'],(string)$r['grado'],(string)$r['seccion']);$tcid=(int)($r['teacher_course_id']??0);$pct=(float)($r['competencia_percentage']??0);if($pct<=0)continue;
+        if($isActiveYear&&empty($weightConfigs[$tcid]['valid']))continue;
+        $r['course_id']=(int)$r['course_id'];$r['competencia_id']=(int)$r['competencia_id'];$r['evaluation_id']=(int)$r['evaluation_id'];$r['_ctx_key']=$key;$rawDefs[]=$r;
+        if(!isset($contextWeights[$key][$r['competencia_id']]))$contextWeights[$key][$r['competencia_id']]=$pct;
     }
-    $stmt->close();if(!$evalCtx)return['metrics'=>[],'student_meta'=>[]];
+    $stmt->close();
+    $contextTotals=[];foreach($contextWeights as $key=>$weights)$contextTotals[$key]=array_sum($weights);
+    foreach($rawDefs as $r){$key=$r['_ctx_key'];$total=(float)($contextTotals[$key]??0);if($total<=0)continue;$r['weight']=((float)$r['competencia_percentage'])/$total;unset($r['_ctx_key']);$defs[$key][]=$r;$evalCtx[$r['evaluation_id']]=$key;}
+    if(!$evalCtx)return['metrics'=>[],'student_meta'=>[]];
 
     $studentMeta=[];$gradeMap=[];$studentContexts=[];
     foreach(array_chunk(array_keys($evalCtx),700) as $chunk){
@@ -150,7 +155,7 @@ function crf_identity_key(array $meta): string {
 function crf_prior_history_bundle(mysqli $conn,int $schoolId,int $currentYearId,int $maxYears=3): array {
     $bundle=['student'=>[],'course'=>[]];$stmt=$conn->prepare('SELECT start_date FROM academic_year WHERE id=? AND school_id=? LIMIT 1');if(!$stmt)return$bundle;$stmt->bind_param('ii',$currentYearId,$schoolId);$stmt->execute();$cur=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$cur||empty($cur['start_date']))return$bundle;
     $stmt=$conn->prepare('SELECT id,year,start_date FROM academic_year WHERE school_id=? AND start_date<? ORDER BY start_date DESC,id DESC LIMIT ?');if(!$stmt)return$bundle;$currentStart=(string)$cur['start_date'];$stmt->bind_param('isi',$schoolId,$currentStart,$maxYears);$stmt->execute();$res=$stmt->get_result();$years=[];while($y=$res->fetch_assoc())$years[]=$y;$stmt->close();$years=array_reverse($years);
-    foreach($years as $y){$yearId=(int)$y['id'];for($b=1;$b<=4;$b++){$cl=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($cl['closed']))continue;$period=crf_load_period($conn,$schoolId,$yearId,$b,$cl['date']??null);foreach($period['metrics'] as $m){$sid=(int)$m['student_id'];$meta=$period['student_meta'][$sid]??null;if(!$meta)continue;$course=crf_norm((string)$m['course_name']);$entry=['year_id'=>$yearId,'year'=>(string)($y['year']??$yearId),'bimester'=>$b,'mean'=>(float)$m['course_mean_current']];$bundle['student'][crf_identity_key($meta).'|'.$course][]=$entry;$bundle['course'][$course][]=$entry;}}}
+    foreach($years as $y){$yearId=(int)$y['id'];for($b=1;$b<=4;$b++){$cl=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($cl['closed'])){$cutoff=edu_predictive_safe_eval_cutoff($conn,$schoolId,$yearId,$b);if($cutoff===null)continue;$cl=['closed'=>true,'date'=>$cutoff,'source'=>'historical_evaluation_evidence'];}$period=crf_load_period($conn,$schoolId,$yearId,$b,$cl['date']??null);foreach($period['metrics'] as $m){$sid=(int)$m['student_id'];$meta=$period['student_meta'][$sid]??null;if(!$meta)continue;$course=crf_norm((string)$m['course_name']);$entry=['year_id'=>$yearId,'year'=>(string)($y['year']??$yearId),'bimester'=>$b,'mean'=>(float)$m['course_mean_current']];$bundle['student'][crf_identity_key($meta).'|'.$course][]=$entry;$bundle['course'][$course][]=$entry;}}}
     return$bundle;
 }
 function crf_v7_prior_features(array $meta,string $courseName,int $sourceBimester,array $bundle): array {
@@ -179,7 +184,7 @@ function edu_course_dashboard_data_fast(mysqli $conn,array $actor,array $filters
     if((int)($actor['type']??0)!==1)return['ok'=>false,'message'=>'Este módulo está disponible únicamente para administración.'];
     $schoolId=(int)($actor['school_id']??0);$model=edu_course_risk_model_load();
     if(empty($model['available']))return['ok'=>true,'model'=>['available'=>false,'reason'=>$model['reason']??'model_missing'],'period'=>[],'filters'=>edu_course_dashboard_filter_options($conn,$actor),'summary'=>['evaluated'=>0,'high'=>0,'medium'=>0,'low'=>0,'attention_courses'=>0,'high_courses'=>0,'matched'=>0],'students'=>[],'course_patterns'=>[],'interventions'=>[],'migration_ready'=>false];
-    $year=edu_predictive_academic_year($conn,$schoolId,null);if(!$year)return['ok'=>false,'message'=>'No hay año académico activo.'];$yearId=(int)$year['id'];
+    $year=edu_predictive_academic_year($conn,$schoolId,null);if(!$year)return['ok'=>false,'message'=>'No hay año académico activo.'];$yearId=(int)$year['id'];$yrLabelRes=$conn->query("SELECT year FROM academic_year WHERE id=".(int)$yearId." AND school_id=".(int)$schoolId." LIMIT 1");$yrLabelRow=$yrLabelRes?$yrLabelRes->fetch_assoc():null;$year['year']=(string)($yrLabelRow['year']??$yearId);$yrLabelRes=$conn->query("SELECT year FROM academic_year WHERE id=".(int)$yearId." AND school_id=".(int)$schoolId." LIMIT 1");$yrLabelRow=$yrLabelRes?$yrLabelRes->fetch_assoc():null;$year['year']=(string)($yrLabelRow['year']??$yearId);
     $b=!empty($filters['bimestre'])?(int)$filters['bimestre']:edu_predictive_latest_closed_bimester($conn,$schoolId,$yearId);if(!$b||$b<1||$b>3)return['ok'=>false,'message'=>'No hay un bimestre cerrado disponible.'];
     $closure=edu_predictive_bimester_closure($conn,$schoolId,$yearId,$b);if(empty($closure['closed'])||empty($closure['date']))return['ok'=>false,'message'=>'El bimestre seleccionado no tiene un cierre seguro.'];
 
