@@ -63,7 +63,7 @@ echo [4/4] Validacion temporal v7...
 python ml\validate_course_risk_model_v7.py --input "%DATASET%" --model "%MODEL%" --output "%REPORT%" --splits 10
 if errorlevel 1 exit /b 1
 
-findstr /C:"Estado: APTO_PARA_PILOTO" "%REPORT%" >nul 2>&1
+findstr /C:"\"status\": \"APTO_PARA_PILOTO\"" "%REPORT%" >nul 2>&1
 if errorlevel 1 (
   echo.
   echo [ADVERTENCIA] Revisa el estado impreso por el validador.
