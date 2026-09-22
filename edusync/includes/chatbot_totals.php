@@ -37,7 +37,7 @@ function edu_chat_student_total_result(mysqli $conn, array $actor, array $entiti
 
     $scope = [];
     if (!empty($entities['level'])) $scope[] = (string)$entities['level'];
-    if (!empty($entities['grade'])) $scope[] = (string)$entities['grade'] . '° grado';
+    if (!empty($entities['grade'])) $scope[] = edu_chat_grade_label($entities['grade']) . ' grado';
     if (!empty($entities['section'])) $scope[] = 'sección ' . (string)$entities['section'];
     $scopeText = $scope ? ' de ' . implode(' · ', $scope) : '';
     $prefix = $type === 2 ? 'Tienes ' : 'Hay ';
