@@ -1,8 +1,12 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.5');
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.6');
 
 function edu_chat_router_explicit_grade(string $text): ?string {
+    if (function_exists('edu_chat_grade_number_from_text')) {
+        $grade = edu_chat_grade_number_from_text($text);
+        if ($grade !== null) return $grade;
+    }
     $patterns = [
         '/\b(?:grado\s*)?([1-6])\s*(?:ro|do|to|er|°)\b/',
         '/\bgrado\s+([1-6])\b/',
@@ -11,6 +15,13 @@ function edu_chat_router_explicit_grade(string $text): ?string {
     ];
     foreach ($patterns as $pattern) if (preg_match($pattern,$text,$m)) return (string)$m[1];
     return null;
+}
+
+function edu_chat_router_all_sections(string $text): bool {
+    return edu_chat_has($text,[
+        'ambas secciones','las dos secciones','todas las secciones',
+        'secciones a y b','seccion a y b','a y b'
+    ]);
 }
 
 function edu_chat_router_explicit_section(string $text): ?string {
@@ -79,6 +90,8 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $text=edu_chat_normalize($message);if($text==='')return null;
 
     $level=edu_chat_extract_level($text);$grade=edu_chat_router_explicit_grade($text);$section=edu_chat_router_explicit_section($text)?:edu_chat_extract_section($text);$period=edu_chat_extract_period($text);
+    $allSections=edu_chat_router_all_sections($text);
+    if($allSections)$section=null;
     $args=[];if($level)$args['level']=$level;if($grade)$args['grade']=$grade;if($section)$args['section']=$section;if($period)$args['period']=$period;
     $paymentMethod=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($text):null;
     if($paymentMethod)$args['payment_method']=$paymentMethod;
@@ -116,7 +129,7 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     ){
         $rosterArgs=$args;
         unset($rosterArgs['group_by'],$rosterArgs['period'],$rosterArgs['payment_method']);
-        $rosterArgs['limit']=edu_chat_router_requested_limit($text,20,50);
+        $rosterArgs['limit']=edu_chat_router_requested_limit($text,$allSections?50:20,50);
         return['name'=>'get_student_roster','arguments'=>$rosterArgs];
     }
 
@@ -234,7 +247,7 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
 
     if($wantsBreakdown&&edu_chat_has($text,['cuantos','cantidad','hay'])&&!$isDebtTopic&&!$isAttendanceTopic&&!$isRiskTopic)return['name'=>'get_student_distribution','arguments'=>$args];
 
-    if($isStudentTopic&&$wantsRoster&&!edu_chat_has($text,['cuantos','cantidad'])){$rosterArgs=$args;unset($rosterArgs['group_by'],$rosterArgs['period']);$rosterArgs['limit']=20;if(preg_match('/\b([1-9]|[1-4][0-9]|50)\b/',$text,$m))$rosterArgs['limit']=(int)$m[1];return['name'=>'get_student_roster','arguments'=>$rosterArgs];}
+    if($isStudentTopic&&$wantsRoster&&!edu_chat_has($text,['cuantos','cantidad'])){$rosterArgs=$args;unset($rosterArgs['group_by'],$rosterArgs['period']);$rosterArgs['limit']=$allSections?50:20;if(preg_match('/\b([1-9]|[1-4][0-9]|50)\b/',$text,$m))$rosterArgs['limit']=(int)$m[1];return['name'=>'get_student_roster','arguments'=>$rosterArgs];}
 
     // Fallback semántico general para frases naturales que no encajan en una
     // formulación exacta. Solo selecciona herramientas ya autorizadas.
