@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.6');
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.7');
 
 function edu_chat_router_explicit_grade(string $text): ?string {
     if (function_exists('edu_chat_grade_number_from_text')) {
