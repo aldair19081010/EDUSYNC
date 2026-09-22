@@ -19,8 +19,8 @@ function edu_chat_router_explicit_grade(string $text): ?string {
 
 function edu_chat_router_all_sections(string $text): bool {
     return edu_chat_has($text,[
-        'ambas secciones','las dos secciones','todas las secciones',
-        'secciones a y b','seccion a y b','a y b'
+        'ambas secciones','las dos secciones','todas las secciones','ambas aulas','ambos salones',
+        'secciones a y b','seccion a y b','a y b','grado completo'
     ]);
 }
 
@@ -115,6 +115,15 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
             return['name'=>'get_academic_risk_roster','arguments'=>$riskArgs];
         }
         return['name'=>'get_academic_risk','arguments'=>$riskArgs];
+    }
+
+    // Un grado completo o ambas secciones implica un listado nominal aunque
+    // el usuario omita la palabra "estudiantes".
+    if($allSections&&$grade&&$level&&edu_chat_has($text,['muestrame','mostrar','lista','listar','listame','dime','quiero','ver'])){
+        $rosterArgs=$args;
+        unset($rosterArgs['group_by'],$rosterArgs['period'],$rosterArgs['payment_method'],$rosterArgs['section']);
+        $rosterArgs['limit']=50;
+        return['name'=>'get_student_roster','arguments'=>$rosterArgs];
     }
 
     // Regex de alta prioridad sobre texto ya normalizado.
