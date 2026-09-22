@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.4');
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.5');
 
 function edu_chat_router_explicit_grade(string $text): ?string {
     $patterns = [
@@ -83,6 +83,27 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $paymentMethod=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($text):null;
     if($paymentMethod)$args['payment_method']=$paymentMethod;
 
+    // Riesgo académico tiene prioridad sobre las rutas genéricas de estudiantes.
+    // "estudiantes en riesgo" no debe degradarse a un conteo/listado general.
+    $priorityRisk=edu_chat_has($text,['riesgo','riesgos','critico','criticos','critica','criticas','alerta temprana','desaprobar','desaprobado','desaprobados','reprobar','reprobado','reprobados','nota baja','notas bajas','rendimiento critico']);
+    if($priorityRisk&&in_array($type,[1,2],true)){
+        $riskArgs=$args;
+        unset($riskArgs['payment_method'],$riskArgs['period']);
+        if(edu_chat_has($text,['por seccion','por grado','por nivel','por aula','por curso','cada seccion','cada grado','cada nivel','cada curso','distribucion','desglose'])){
+            $riskArgs['group_by']='grade_section';
+            if(edu_chat_has($text,['por nivel','cada nivel']))$riskArgs['group_by']='level';
+            elseif(edu_chat_has($text,['por grado','cada grado'])&&!edu_chat_has($text,['seccion','aula']))$riskArgs['group_by']='grade';
+            elseif(edu_chat_has($text,['por curso','cada curso']))$riskArgs['group_by']='course';
+            return['name'=>'get_academic_risk_distribution','arguments'=>$riskArgs];
+        }
+        if(edu_chat_has($text,['muestrame','mostrar','lista','listar','listame','quienes','nombres','dime los estudiantes','dime los alumnos'])){
+            $riskArgs['min_critical_records']=1;
+            $riskArgs['limit']=edu_chat_router_requested_limit($text,100,200);
+            return['name'=>'get_academic_risk_roster','arguments'=>$riskArgs];
+        }
+        return['name'=>'get_academic_risk','arguments'=>$riskArgs];
+    }
+
     // Regex de alta prioridad sobre texto ya normalizado.
     // Evita depender de coincidencias parciales para ayuda y listados nominales.
     if(preg_match('/\\b(?:como|donde)\\s+(?:puedo\\s+)?(?:registrar|registro|agregar|agrego|subir|subo|importar|importo|configurar|configuro)\\b/',$text)){
@@ -146,7 +167,7 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
         return['name'=>'get_my_courses','arguments'=>[]];
     }
 
-    if($isStudentTopic){
+    if($isStudentTopic&&!$isRiskTopic){
         if($wantsBreakdown){
             return['name'=>'get_student_distribution','arguments'=>$args];
         }
