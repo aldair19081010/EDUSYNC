@@ -45,6 +45,7 @@ function edu_chat_context_explicit_filters(string $message): array {
     if ($level) $out['level'] = $level;
     if ($grade) $out['grade'] = $grade;
     if ($section) $out['section'] = strtoupper((string)$section);
+    if (function_exists('edu_chat_router_all_sections') && edu_chat_router_all_sections($n)) $out['all_sections'] = true;
     if ($period) $out['period'] = $period;
     if (function_exists('edu_chat_payment_method_from_text')) { $method=edu_chat_payment_method_from_text($n); if($method)$out['payment_method']=$method; }
     if (preg_match('/\b(?:primer|1er|1ro)\s*bimestre\b/',$n)) $out['bimestre']='1';
@@ -62,6 +63,7 @@ function edu_chat_contextualize_message(string $message, array $state): string {
     $context = ['tema='.(string)$state['topic']];
     foreach (['level'=>'nivel','grade'=>'grado','section'=>'sección','period'=>'periodo','bimestre'=>'bimestre','payment_method'=>'método de pago'] as $key=>$label) {
         if (isset($explicit[$key])) continue;
+        if ($key==='section' && !empty($explicit['all_sections'])) continue;
         if (!empty($state[$key])) $context[] = $label.'='.(string)$state[$key];
     }
     if (!empty($state['root_query'])) $context[] = 'consulta base="'.mb_substr((string)$state['root_query'],0,260,'UTF-8').'"';
@@ -77,9 +79,10 @@ function edu_chat_context_update_state(string $originalMessage, array $result, a
     if (!$followup && !empty($previous['topic']) && $previous['topic'] !== $topic) $state = [];
     $state['topic'] = $topic;
     $explicit = edu_chat_context_explicit_filters($originalMessage);
-    foreach ($explicit as $key=>$value) $state[$key] = $value;
+    foreach ($explicit as $key=>$value) { if($key!=='all_sections') $state[$key] = $value; }
+    if (!empty($explicit['all_sections'])) unset($state['section']);
     if (!$followup || empty($state['root_query']) || ($previous['topic'] ?? null) !== $topic) $state['root_query'] = $originalMessage;
-    if (edu_chat_has(edu_chat_normalize($originalMessage), ['sin filtro','todos los niveles','todos los grados','todas las secciones','todo el colegio'])) {
+    if (edu_chat_has(edu_chat_normalize($originalMessage), ['sin filtro','todos los niveles','todos los grados','todas las secciones','ambas secciones','las dos secciones','secciones a y b','todo el colegio'])) {
         unset($state['level'],$state['grade'],$state['section']);
     }
     $state['updated_at'] = time();
@@ -90,7 +93,8 @@ function edu_chat_adv_entities(string $text, array $state): array {
     $explicit = edu_chat_context_explicit_filters($text);
     $entities = [];
     foreach (['level','grade','section','period','bimestre','payment_method'] as $key) {
-        if (isset($explicit[$key])) $entities[$key] = $explicit[$key];
+        if ($key==='section' && !empty($explicit['all_sections'])) $entities[$key] = null;
+        elseif (isset($explicit[$key])) $entities[$key] = $explicit[$key];
         elseif (!empty($state[$key])) $entities[$key] = $state[$key];
         else $entities[$key] = null;
     }
