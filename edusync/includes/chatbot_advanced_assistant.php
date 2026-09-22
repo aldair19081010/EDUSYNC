@@ -10,7 +10,7 @@ function edu_chat_context_is_followup_message(string $text): bool {
     $n = edu_chat_normalize($text);
     if ($n === '') return false;
     $words = preg_split('/\s+/', $n);
-    if (count($words) <= 9 && edu_chat_has($n, ['ahora','solo','solamente','de esos','de esas','ellos','ellas','ordena','ordenalos','ordenalas','y en','y ahora','este mes','hoy','seccion','grado'])) return true;
+    if (count($words) <= 9 && edu_chat_has($n, ['ahora','solo','solamente','de esos','de esas','ellos','ellas','ordena','ordenalos','ordenalas','y en','y ahora','y por','este mes','hoy','ayer','esta semana','mes pasado','seccion','grado','yape','efectivo','transferencia'])) return true;
     return edu_chat_has($n, ['de esos','de esas','los mismos','las mismas','eso mismo','ahora solo','solo los','solo las','ordenalos','ordenalas']);
 }
 
