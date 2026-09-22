@@ -4,6 +4,8 @@ require_once __DIR__ . '/../edusync/includes/chatbot_semantic_schema.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_router.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_advanced_assistant.php';
 
+echo 'Router version: '.(defined('EDUSYNC_CHAT_ROUTER_VERSION')?EDUSYNC_CHAT_ROUTER_VERSION:'unknown')."\n";
+
 $actors=[
     'admin'=>['type'=>1,'role'=>'Administrador','school_id'=>1],
     'teacher'=>['type'=>2,'role'=>'Docente','school_id'=>1],
