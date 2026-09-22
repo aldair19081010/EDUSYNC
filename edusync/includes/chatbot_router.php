@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.3');
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.4');
 
 function edu_chat_router_explicit_grade(string $text): ?string {
     $patterns = [
@@ -106,7 +106,8 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     }
 
     $directStudentTopic=edu_chat_has($text,['estudiante','estudiantes','alumno','alumnos','alumna','alumnas']);
-    if($directStudentTopic){
+    $directRiskTopic=edu_chat_has($text,['riesgo','riesgos','critico','criticos','critica','criticas','alerta temprana','desaprobar','desaprobado','desaprobados','reprobar','reprobado','reprobados','nota baja','notas bajas','rendimiento critico']);
+    if($directStudentTopic&&!$directRiskTopic){
         $directBreakdown=edu_chat_has($text,['por seccion','por grado','por nivel','por aula','cada seccion','cada grado','cada nivel','distribuye','distribucion','distribuir','desglose','desglosa','desglosar']);
         if($directBreakdown){
             $groupBy='grade_section';
