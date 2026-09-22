@@ -198,7 +198,7 @@ function edu_chat_grade_number_from_text(string $text): ?string {
         'sexto'=>'6'
     ];
     foreach ($map as $word=>$number) {
-        if (preg_match('/\b'.preg_quote($word,'/').'\b/', $text)) return $number;
+        if (preg_match('/\b'.preg_quote($word,'/').'\b(?!\s+bimestre)/', $text)) return $number;
     }
     return null;
 }
