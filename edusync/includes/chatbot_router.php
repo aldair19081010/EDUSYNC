@@ -1,5 +1,7 @@
 <?php
 
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.2');
+
 function edu_chat_router_explicit_grade(string $text): ?string {
     $patterns = [
         '/\b(?:grado\s*)?([1-6])\s*(?:ro|do|to|er|°)\b/',
@@ -80,6 +82,22 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $args=[];if($level)$args['level']=$level;if($grade)$args['grade']=$grade;if($section)$args['section']=$section;if($period)$args['period']=$period;
     $paymentMethod=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($text):null;
     if($paymentMethod)$args['payment_method']=$paymentMethod;
+
+    // Regex de alta prioridad sobre texto ya normalizado.
+    // Evita depender de coincidencias parciales para ayuda y listados nominales.
+    if(preg_match('/\\b(?:como|donde)\\s+(?:puedo\\s+)?(?:registrar|registro|agregar|agrego|subir|subo|importar|importo|configurar|configuro)\\b/',$text)){
+        return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+    }
+
+    if(
+        preg_match('/\\b(?:muestrame|mostrar|lista|listar|listame|dime)\\b.*\\b(?:estudiantes|alumnos|alumnas)\\b/',$text)
+        && !preg_match('/\\b(?:cuantos|cuantas|cantidad)\\b/',$text)
+    ){
+        $rosterArgs=$args;
+        unset($rosterArgs['group_by'],$rosterArgs['period'],$rosterArgs['payment_method']);
+        $rosterArgs['limit']=edu_chat_router_requested_limit($text,20,50);
+        return['name'=>'get_student_roster','arguments'=>$rosterArgs];
+    }
 
     // Rutas directas para intenciones inequívocas. Estas reglas deliberadamente
     // no dependen del clasificador semántico para evitar falsos null.
