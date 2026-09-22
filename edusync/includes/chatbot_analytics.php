@@ -47,9 +47,9 @@ function edu_chat_analytics_row_label(array $row, string $groupBy): string {
     $grade = trim((string)($row['grado'] ?? ''));
     $section = trim((string)($row['seccion'] ?? ''));
     if ($groupBy === 'level') return $level !== '' ? $level : 'Sin nivel';
-    if ($groupBy === 'grade') return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? $grade . '°' : 'Sin grado'));
+    if ($groupBy === 'grade') return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? edu_chat_grade_label($grade) : 'Sin grado'));
     if ($groupBy === 'section') return trim(($level !== '' ? $level . ' · ' : '') . ($section !== '' ? $section : 'Sin sección'));
-    return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? $grade . '°' : 'Sin grado') . ($section !== '' ? ' ' . $section : ''));
+    return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? edu_chat_grade_label($grade) : 'Sin grado') . ($section !== '' ? ' ' . $section : ''));
 }
 
 function edu_chat_student_distribution_result(mysqli $conn, array $actor, array $entities, string $groupBy = 'grade_section'): array {
@@ -157,7 +157,7 @@ function edu_chat_student_roster_result(mysqli $conn, array $actor, array $entit
     if (!$rows) return edu_chat_result('No encontré estudiantes activos con esos filtros.');
     $lines = [];
     foreach ($rows as $i => $row) {
-        $lines[] = ($i + 1) . '. ' . (string)$row['name'] . ' — ' . (string)$row['nivel'] . ' · ' . (string)$row['grado'] . '° ' . (string)$row['seccion'];
+        $lines[] = ($i + 1) . '. ' . (string)$row['name'] . ' — ' . (string)$row['nivel'] . ' · ' . edu_chat_grade_label($row['grado']) . ' ' . (string)$row['seccion'];
     }
     return edu_chat_result('Estudiantes encontrados (' . count($rows) . "):\n" . implode("\n", $lines), [], [['label'=>'Estudiantes listados','value'=>(string)count($rows),'tone'=>'primary']], $type === 1 ? [edu_chat_action('Ver Estudiantes','students','fa-users')] : []);
 }
