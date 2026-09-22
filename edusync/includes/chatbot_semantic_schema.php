@@ -1,65 +1,83 @@
 <?php
 
 /**
- * Diccionario semántico controlado del Asistente EduSync.
+ * Ontología semántica controlada del Asistente EduSync.
  *
- * La IA conoce conceptos y reglas de negocio, pero NO recibe libertad para
- * construir/ejecutar SQL. Las herramientas PHP siguen siendo la única vía
- * autorizada para consultar datos.
+ * La IA conoce conceptos, relaciones y reglas de negocio suficientes para
+ * seleccionar herramientas. Nunca recibe permiso para crear/ejecutar SQL libre.
  */
 
 function edu_chat_payment_method_from_text(string $text): ?string {
     $n = function_exists('edu_chat_normalize') ? edu_chat_normalize($text) : mb_strtolower(trim($text), 'UTF-8');
-
     $aliases = [
         'Efectivo' => ['efectivo','cash','dinero en efectivo','en caja'],
         'Yape' => ['yape','yapearon','yapeado','por yape'],
         'Transferencia' => ['transferencia','transferencias','transferido','deposito','deposito bancario','banco']
     ];
-
     foreach ($aliases as $canonical => $terms) {
-        foreach ($terms as $term) {
-            if ($term !== '' && strpos($n, $term) !== false) return $canonical;
-        }
+        foreach ($terms as $term) if ($term !== '' && strpos($n,$term) !== false) return $canonical;
     }
     return null;
 }
 
+function edu_chat_semantic_domain(string $text): ?string {
+    $n=function_exists('edu_chat_normalize')?edu_chat_normalize($text):mb_strtolower(trim($text),'UTF-8');
+    $domains=[
+        'payments'=>['pago','pagos','cobro','cobros','cobranza','recaudado','recaudacion','recibido','recibimos','ingreso','ingresos','entro','efectivo','yape','transferencia','deposito','caja','comprobante','recibo'],
+        'debts'=>['deuda','deudas','moroso','morosos','morosidad','saldo pendiente','obligacion','obligaciones','pension','pensiones','cuota','cuotas','vencida','vencidas'],
+        'attendance'=>['asistencia','asistencias','entrada','salida','presente','presentes','tarde','tardanza','tardanzas','ausente','ausentes','ausencia','ausencias','falta','faltas','permiso','permisos'],
+        'risk'=>['riesgo','riesgos','critico','criticos','critica','criticas','alerta temprana','desaprobar','desaprobado','reprobar','reprobado','rendimiento critico'],
+        'grades'=>['nota','notas','calificacion','calificaciones','evaluacion','evaluaciones','competencia','competencias','libro de notas','bimestre'],
+        'courses'=>['curso','cursos','area','areas','asignatura','asignaturas'],
+        'teachers'=>['docente','docentes','profesor','profesores','maestro','maestros'],
+        'students'=>['estudiante','estudiantes','alumno','alumnos','alumna','alumnas','matricula','matriculados','ficha 360','perfil 360'],
+        'system'=>['como hago','como puedo','donde esta','donde encuentro','ayuda','modulo','menu','configuracion','configurar','registrar','subir excel','importar']
+    ];
+    foreach($domains as $domain=>$terms)foreach($terms as $term)if(strpos($n,$term)!==false)return$domain;
+    return null;
+}
+
+function edu_chat_semantic_operation(string $text): string {
+    $n=function_exists('edu_chat_normalize')?edu_chat_normalize($text):mb_strtolower(trim($text),'UTF-8');
+    if(edu_chat_has($n,['por seccion','por grado','por nivel','por aula','cada seccion','cada grado','cada nivel','distribucion','desglose','desglosado']))return'distribution';
+    if(edu_chat_has($n,['quienes','quien','lista','listar','listame','muestrame','mostrar','nombres','dime los','dime las']))return'list';
+    if(edu_chat_has($n,['cuantos','cuantas','cantidad','numero de','total de estudiantes','total de docentes']))return'count';
+    if(edu_chat_has($n,['ficha','perfil 360','estado general','informacion completa','resumen del estudiante']))return'profile';
+    if(edu_chat_has($n,['cuanto','total','resumen','como esta','estado','recaudado','cobrado','recibido','ingreso']))return'summary';
+    if(edu_chat_has($n,['como','donde','ayuda','explica','explicame']))return'help';
+    return'query';
+}
+
 function edu_chat_finance_language(string $text): bool {
-    $n = function_exists('edu_chat_normalize') ? edu_chat_normalize($text) : mb_strtolower(trim($text), 'UTF-8');
-    foreach ([
-        'pago','pagos','cobro','cobros','cobrado','cobramos','cobranza',
-        'recaudado','recaudacion','recibido','recibimos','recibieron',
-        'ingreso','ingresos','entro','entrada de dinero','dinero entro',
-        'pagado','pagaron','caja'
-    ] as $term) {
-        if (strpos($n, $term) !== false) return true;
-    }
-    return edu_chat_payment_method_from_text($n) !== null;
+    $domain=edu_chat_semantic_domain($text);
+    return in_array($domain,['payments','debts'],true) || edu_chat_payment_method_from_text($text)!==null;
 }
 
 function edu_chat_semantic_schema_prompt(array $actor): string {
-    $type = (int)($actor['type'] ?? 0);
-    $lines = [
+    $type=(int)($actor['type']??0);
+    $lines=[
         'MAPA SEMÁNTICO AUTORIZADO DE EDUSYNC:',
-        '- Los datos reales se obtienen únicamente mediante herramientas PHP de solo lectura; nunca escribas SQL.',
-        '- El colegio/usuario permitido se determina por la sesión. Nunca solicites ni inventes school_id, student_id o teacher_id.',
-        '- estudiantes: nombre, nivel, grado, sección y estado.',
-        '- asistencia: registros de entrada/salida y estados como presente, tarde, ausente, justificado o permiso.',
-        '- académico: cursos, evaluaciones, competencias, notas y riesgo predictivo.',
-        '- finanzas: obligaciones/deudas, pagos confirmados y cobranza.',
-        '- pagos: cada registro tiene monto, fecha y, cuando existe en la instalación, método de pago.',
-        '- métodos de pago canónicos: Efectivo, Yape y Transferencia. Sinónimos como cash, depósito o banco deben mapearse al método canónico correspondiente.',
-        '- periodos conversacionales soportados: hoy, ayer, esta semana, este mes, mes pasado y año académico actual.',
-        '- “cuánto”, “total”, “ingresó”, “entró”, “recibimos”, “cobramos” o “recaudamos” sobre pagos significa consultar cobranza real; no responder desde conocimiento general.',
-        '- una consulta por método de pago debe usar get_collections_by_method cuando esa herramienta esté disponible.',
-        '- una consulta general de cobranza sin método usa get_collections_summary.',
-        '- los montos, conteos, nombres y estados devueltos por las herramientas son la fuente de verdad y no deben modificarse.'
+        'PRINCIPIO: interpreta lenguaje natural y selecciona herramientas; nunca escribas ni ejecutes SQL.',
+        'SEGURIDAD: colegio, usuario, docente y estudiante autorizado provienen de la sesión. Nunca pidas IDs internos para ampliar acceso.',
+        'DOMINIO estudiantes: estudiantes activos, nombre, nivel, grado, sección, conteos, distribución, listados y ficha 360 cuando el rol lo permita.',
+        'DOMINIO docentes: docentes del colegio y, para un docente autenticado, sus cursos/asignaciones y estudiantes vinculados.',
+        'DOMINIO pagos: pagos confirmados, montos, fechas, comprobantes y métodos Efectivo/Yape/Transferencia cuando la instalación tenga ese campo.',
+        'DOMINIO deudas: obligaciones activas, saldo pendiente, morosidad, cantidad de deudas, vencimientos cuando exista fecha compatible.',
+        'DOMINIO asistencia: registros de Entrada, Presente, Tarde, Ausente, Ausente Justificada y Permiso; no asumir falta solo por ausencia de marcación.',
+        'DOMINIO académico/notas: cursos, bimestres, evaluaciones, competencias y calificaciones disponibles según el perfil.',
+        'DOMINIO riesgo: alerta académica y riesgo predictivo; usar las herramientas/modelo existentes y no inventar causalidad.',
+        'DOMINIO sistema: ayuda sobre módulos, navegación y procesos documentados de EduSync.',
+        'OPERACIONES: count=cuántos; list=quiénes/lista; distribution=por nivel/grado/sección/aula; summary=total/resumen; profile=ficha/estado integral; help=cómo/dónde.',
+        'FILTROS COMUNES: nivel, grado, sección, bimestre, curso y periodo cuando correspondan.',
+        'PERIODOS: hoy, ayer, esta semana, este mes, mes pasado y año académico actual.',
+        'MÉTODOS DE PAGO: Efectivo, Yape, Transferencia. cash→Efectivo; depósito/banco→Transferencia.',
+        'REGLA: si una herramienta específica cubre el filtro solicitado, debes usarla. No sustituyas un desglose por un total general.',
+        'REGLA: montos, conteos, nombres, notas, porcentajes y estados solo pueden salir de una herramienta autorizada.',
+        'REGLA: si no existe una herramienta autorizada para responder exactamente, dilo brevemente; no completes el dato por inferencia.'
     ];
-
-    if ($type !== 1) {
-        $lines[] = '- El acceso financiero agregado del colegio está reservado al perfil Administrador.';
-    }
-
-    return implode("\n", $lines);
+    if($type!==1)$lines[]='El acceso financiero agregado del colegio está reservado al perfil Administrador.';
+    if($type===2)$lines[]='El Docente solo puede consultar estudiantes/cursos vinculados a sus asignaciones.';
+    if($type===3)$lines[]='El Auxiliar se limita a estudiantes y asistencia autorizada.';
+    if($type===4)$lines[]='El Estudiante solo puede consultar su propia información.';
+    return implode("\n",$lines);
 }
