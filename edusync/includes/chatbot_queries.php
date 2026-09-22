@@ -43,7 +43,7 @@ function edu_chat_teacher_students_current_result(mysqli $conn, array $actor, ar
     $stmt->close();
 
     $scope = !empty($entities['level']) ? ' de ' . strtolower((string)$entities['level']) : '';
-    if (!empty($entities['grade'])) $scope .= ' de ' . $entities['grade'] . '° grado';
+    if (!empty($entities['grade'])) $scope .= ' de ' . edu_chat_grade_label($entities['grade']) . ' grado';
     return edu_chat_result(
         'Tienes ' . $total . ' estudiante' . ($total === 1 ? '' : 's') . ' vinculado' . ($total === 1 ? '' : 's') . ' a tus asignaciones actuales' . $scope . '.',
         ['¿Cuáles son mis cursos?', '¿Cuántos estudiantes están en riesgo?'],
@@ -189,7 +189,7 @@ function edu_chat_top_debtors_result(mysqli $conn, array $actor, array $entities
         $debt = (float)($row['total_debt'] ?? 0);
         $totalListed += $debt;
         $location = trim((string)($row['nivel'] ?? ''));
-        if (!empty($row['grado'])) $location .= ($location !== '' ? ' · ' : '') . $row['grado'] . '°';
+        if (!empty($row['grado'])) $location .= ($location !== '' ? ' · ' : '') . edu_chat_grade_label($row['grado']);
         if (!empty($row['seccion'])) $location .= ($location !== '' ? ' ' : '') . $row['seccion'];
         $lines[] = ($index + 1) . '. ' . (string)$row['name'] . ' — ' . edu_chat_money($debt)
             . ' (' . (int)$row['obligations'] . ' obligación' . ((int)$row['obligations'] === 1 ? '' : 'es') . ')'
@@ -198,7 +198,7 @@ function edu_chat_top_debtors_result(mysqli $conn, array $actor, array $entities
 
     $scope = '';
     if (!empty($entities['level'])) $scope .= ' de ' . strtolower((string)$entities['level']);
-    if (!empty($entities['grade'])) $scope .= ' de ' . $entities['grade'] . '° grado';
+    if (!empty($entities['grade'])) $scope .= ' de ' . edu_chat_grade_label($entities['grade']) . ' grado';
     $message = 'Estos son los ' . count($rows) . ' estudiantes' . $scope . " con mayor deuda pendiente:\n" . implode("\n", $lines);
 
     return edu_chat_result(

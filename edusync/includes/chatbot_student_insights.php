@@ -178,7 +178,7 @@ function edu_chat_student_360_result(mysqli $conn, array $actor, array $entities
     if (count($matches) > 1) {
         $lines=[];
         foreach($matches as $i=>$row){
-            $lines[] = ($i+1).'. '.(string)$row['name'].' — '.(string)$row['nivel'].' · '.(string)$row['grado'].'° '.(string)$row['seccion'];
+            $lines[] = ($i+1).'. '.(string)$row['name'].' — '.(string)$row['nivel'].' · '.edu_chat_grade_label($row['grado']).' '.(string)$row['seccion'];
         }
         return edu_chat_result(
             "Encontré varias coincidencias. Indica el nombre completo o el aula:\n".implode("\n",$lines),
@@ -201,7 +201,7 @@ function edu_chat_student_360_result(mysqli $conn, array $actor, array $entities
     $attendance=edu_chat_insights_attendance_data($conn,$studentId,$schoolId,'month');
     $risk=edu_chat_insights_risk_data($conn,$studentId,$schoolId);
 
-    $location=(string)$student['nivel'].' · '.(string)$student['grado'].'° '.(string)$student['seccion'];
+    $location=(string)$student['nivel'].' · '.edu_chat_grade_label($student['grado']).' '.(string)$student['seccion'];
     $lines=[];
     $lines[]='Estudiante: '.(string)$student['name'];
     $lines[]='Aula: '.$location;
@@ -254,7 +254,7 @@ function edu_chat_attendance_roster_result(mysqli $conn, array $actor, array $en
     edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($row=$res->fetch_assoc())$rows[]=$row;$stmt->close();
     if(!$rows)return edu_chat_result('No encontré estudiantes que cumplan ese filtro de asistencia para '.$label.'.');
     $labelStatus=$status==='all'?'registros':strtolower($statusMap[$status]);$lines=[];
-    foreach($rows as $i=>$row)$lines[]=($i+1).'. '.$row['name'].' — '.$row['occurrences'].' '.$labelStatus.' · '.$row['nivel'].' · '.$row['grado'].'° '.$row['seccion'];
+    foreach($rows as $i=>$row)$lines[]=($i+1).'. '.$row['name'].' — '.$row['occurrences'].' '.$labelStatus.' · '.$row['nivel'].' · '.edu_chat_grade_label($row['grado']).' '.$row['seccion'];
     return edu_chat_result('Estudiantes por asistencia ('.$label.'):\n'.implode("\n",$lines),[],[['label'=>'Estudiantes listados','value'=>(string)count($rows),'tone'=>'warning']],[edu_chat_action('Ver Reporte de Asistencia','attendance_report','fa-clipboard-list')]);
 }
 
@@ -278,6 +278,6 @@ function edu_chat_academic_risk_roster_result(mysqli $conn, array $actor, array 
           ORDER BY critical_records DESC,critical_courses DESC,s.name ASC LIMIT $limit";
     $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar la consulta de riesgo académico.');edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$rows=[];while($row=$res->fetch_assoc())$rows[]=$row;$stmt->close();
     if(!$rows)return edu_chat_result('No encontré estudiantes con registros académicos críticos que cumplan esos filtros.');
-    $lines=[];foreach($rows as $i=>$row){$courses=trim((string)($row['courses']??''));$lines[]=($i+1).'. '.$row['name'].' — '.$row['critical_records'].' registros críticos en '.$row['critical_courses'].' curso'.((int)$row['critical_courses']===1?'':'s').' · '.$row['nivel'].' · '.$row['grado'].'° '.$row['seccion'].($courses!==''?' · '.$courses:'');}
+    $lines=[];foreach($rows as $i=>$row){$courses=trim((string)($row['courses']??''));$lines[]=($i+1).'. '.$row['name'].' — '.$row['critical_records'].' registros críticos en '.$row['critical_courses'].' curso'.((int)$row['critical_courses']===1?'':'s').' · '.$row['nivel'].' · '.edu_chat_grade_label($row['grado']).' '.$row['seccion'].($courses!==''?' · '.$courses:'');}
     return edu_chat_result('Estudiantes en riesgo académico:\n'.implode("\n",$lines),[],[['label'=>'Estudiantes listados','value'=>(string)count($rows),'tone'=>'danger']],[edu_chat_action('Ver Reporte de Notas','grades_report','fa-chart-bar')]);
 }

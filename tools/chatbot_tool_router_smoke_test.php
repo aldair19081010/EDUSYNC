@@ -19,6 +19,8 @@ $cases=[
     ['admin','¿Cuánto ingresó por transferencia esta semana?','get_collections_by_method',['payment_method'=>'Transferencia','period'=>'week']],
     ['admin','¿Cuántos estudiantes hay en secundaria?','get_student_count',['level'=>'Secundaria']],
     ['admin','Muéstrame los estudiantes de 4to de secundaria','get_student_roster',['level'=>'Secundaria','grade'=>'4']],
+    ['admin','Muéstrame los estudiantes de tercero de secundaria en ambas secciones','get_student_roster',['level'=>'Secundaria','grade'=>'3','limit'=>50]],
+    ['admin','Muéstrame tercero de secundaria en ambas secciones','get_student_roster',['level'=>'Secundaria','grade'=>'3','limit'=>50]],
     ['admin','¿Cómo se distribuyen los estudiantes por sección?','get_student_distribution',[]],
     ['admin','¿Cuántos docentes hay?','get_teacher_count',[]],
     ['admin','¿Cómo está la deuda del colegio?','get_debt_summary',[]],
@@ -41,6 +43,26 @@ foreach($cases as [$who,$text,$tool,$expected]){
     echo ($ok?'OK':'FAIL').": [$who] $text => ".($route['name']??'null')."\n";
     if(!$ok){$failed++;echo '  '.json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n";}
 }
+
+$gradeOk=edu_chat_grade_label('3°')==='3°' && edu_chat_grade_label('3')==='3°' && edu_chat_grade_label('3°°')==='3°';
+echo ($gradeOk?'OK':'FAIL').": formato de grado evita doble símbolo °\n";
+if(!$gradeOk)$failed++;
+
+$bimesterOk=edu_chat_router_explicit_grade('tercer bimestre')===null;
+echo ($bimesterOk?'OK':'FAIL').": tercer bimestre no se confunde con tercer grado\n";
+if(!$bimesterOk)$failed++;
+
+$sectionState=['topic'=>'estudiantes','level'=>'Secundaria','grade'=>'3','section'=>'A','root_query'=>'Muéstrame tercero A','updated_at'=>time()];
+$sectionFollow=edu_chat_contextualize_message('Ahora ambas secciones',$sectionState);
+$sectionRoute=edu_chat_ai_forced_route($actors['admin'],$sectionFollow);
+$sectionOk=is_array($sectionRoute)
+    &&($sectionRoute['name']??'')==='get_student_roster'
+    &&(($sectionRoute['arguments']['grade']??'')==='3')
+    &&!isset($sectionRoute['arguments']['section'])
+    &&(($sectionRoute['arguments']['limit']??0)===50)
+    &&strpos($sectionFollow,'sección=A')===false;
+echo ($sectionOk?'OK':'FAIL').": ambas secciones elimina filtro A heredado\n";
+if(!$sectionOk){$failed++;echo '  contextualizado='.$sectionFollow."\n  route=".json_encode($sectionRoute,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)."\n";}
 
 $state=['topic'=>'finanzas','period'=>'today','root_query'=>'¿Cuánto cobramos hoy?','updated_at'=>time()];
 $follow=edu_chat_contextualize_message('¿Y por Yape?',$state);
