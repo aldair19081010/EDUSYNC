@@ -140,5 +140,42 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     if($wantsBreakdown&&edu_chat_has($text,['cuantos','cantidad','hay'])&&!$isDebtTopic&&!$isAttendanceTopic&&!$isRiskTopic)return['name'=>'get_student_distribution','arguments'=>$args];
 
     if($isStudentTopic&&$wantsRoster&&!edu_chat_has($text,['cuantos','cantidad'])){$rosterArgs=$args;unset($rosterArgs['group_by'],$rosterArgs['period']);$rosterArgs['limit']=20;if(preg_match('/\b([1-9]|[1-4][0-9]|50)\b/',$text,$m))$rosterArgs['limit']=(int)$m[1];return['name'=>'get_student_roster','arguments'=>$rosterArgs];}
+
+    // Fallback semántico general para frases naturales que no encajan en una
+    // formulación exacta. Solo selecciona herramientas ya autorizadas.
+    if(function_exists('edu_chat_semantic_domain')&&function_exists('edu_chat_semantic_operation')){
+        $domain=edu_chat_semantic_domain($text);$operation=edu_chat_semantic_operation($text);
+        if($domain==='system'&&$operation==='help')return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+        if($domain==='teachers'){
+            if($type===1&&in_array($operation,['count','summary','query'],true))return['name'=>'get_teacher_count','arguments'=>[]];
+            if($type===2&&in_array($operation,['list','summary','query'],true))return['name'=>'get_my_courses','arguments'=>[]];
+        }
+        if($domain==='students'){
+            if($operation==='distribution'&&in_array($type,[1,2,3],true))return['name'=>'get_student_distribution','arguments'=>$args];
+            if($operation==='list'&&in_array($type,[1,2,3],true)){unset($args['group_by'],$args['period']);$args['limit']=edu_chat_router_requested_limit($text,20,50);return['name'=>'get_student_roster','arguments'=>$args];}
+            if($operation==='count'){
+                if($type===2)return['name'=>'get_my_student_count','arguments'=>$args];
+                if(in_array($type,[1,3],true))return['name'=>'get_student_count','arguments'=>$args];
+            }
+        }
+        if($domain==='payments'&&$type===1){
+            if($paymentMethod){$p=$args;unset($p['group_by']);if(empty($p['period']))$p['period']='month';return['name'=>'get_collections_by_method','arguments'=>$p];}
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by']);if(empty($args['period']))$args['period']='month';return['name'=>'get_collections_summary','arguments'=>$args];}
+        }
+        if($domain==='debts'&&$type===1){
+            if($operation==='distribution')return['name'=>'get_debt_distribution','arguments'=>$args];
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by'],$args['period']);return['name'=>'get_debt_summary','arguments'=>$args];}
+        }
+        if($domain==='attendance'&&in_array($type,[1,3],true)){
+            if($operation==='distribution'){if(empty($args['period']))$args['period']='today';return['name'=>'get_attendance_distribution','arguments'=>$args];}
+            if($operation==='list'){$a=$args;unset($a['group_by']);if(empty($a['period']))$a['period']='month';$a['status']='all';$a['min_occurrences']=1;$a['limit']=edu_chat_router_requested_limit($text,100,200);return['name'=>'get_attendance_roster','arguments'=>$a];}
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by']);if(empty($args['period']))$args['period']='today';return['name'=>'get_attendance_summary','arguments'=>$args];}
+        }
+        if($domain==='risk'&&in_array($type,[1,2],true)){
+            if($operation==='distribution')return['name'=>'get_academic_risk_distribution','arguments'=>$args];
+            if($operation==='list'){$r=$args;unset($r['group_by'],$r['period']);$r['min_critical_records']=1;$r['limit']=edu_chat_router_requested_limit($text,100,200);return['name'=>'get_academic_risk_roster','arguments'=>$r];}
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by'],$args['period']);return['name'=>'get_academic_risk','arguments'=>$args];}
+        }
+    }
     return null;
 }
