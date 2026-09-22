@@ -20,6 +20,7 @@ $cases=[
     ['admin','¿Cuántos estudiantes hay en secundaria?','get_student_count',['level'=>'Secundaria']],
     ['admin','Muéstrame los estudiantes de 4to de secundaria','get_student_roster',['level'=>'Secundaria','grade'=>'4']],
     ['admin','Muéstrame los estudiantes de tercero de secundaria en ambas secciones','get_student_roster',['level'=>'Secundaria','grade'=>'3','limit'=>50]],
+    ['admin','Muéstrame tercero de secundaria en ambas secciones','get_student_roster',['level'=>'Secundaria','grade'=>'3','limit'=>50]],
     ['admin','¿Cómo se distribuyen los estudiantes por sección?','get_student_distribution',[]],
     ['admin','¿Cuántos docentes hay?','get_teacher_count',[]],
     ['admin','¿Cómo está la deuda del colegio?','get_debt_summary',[]],
