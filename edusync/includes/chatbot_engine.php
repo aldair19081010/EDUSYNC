@@ -196,6 +196,9 @@ function edu_chat_extract_section(string $text): ?string {
 }
 
 function edu_chat_extract_period(string $text): ?string {
+    if (edu_chat_has($text, ['ayer', 'dia de ayer'])) return 'yesterday';
+    if (edu_chat_has($text, ['esta semana', 'semana actual'])) return 'week';
+    if (edu_chat_has($text, ['mes pasado', 'mes anterior', 'ultimo mes'])) return 'last_month';
     if (edu_chat_has($text, ['hoy', 'dia de hoy'])) return 'today';
     if (edu_chat_has($text, ['este mes', 'mes actual', 'del mes'])) return 'month';
     if (edu_chat_has($text, ['este ano', 'ano actual', 'este año'])) return 'year';
