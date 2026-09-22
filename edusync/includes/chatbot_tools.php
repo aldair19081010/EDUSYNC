@@ -152,7 +152,7 @@ function edu_chat_ai_run_tool(mysqli $conn, array $actor, string $name, array $a
         case 'get_school_overview': if($type!==1)break; return edu_chat_ai_combine_results([edu_chat_student_total_result($conn,$actor,[]),edu_chat_count_teachers_result($conn,$actor),edu_chat_debt_summary_result($conn,$actor,[]),edu_chat_collections_result($conn,$actor,['period'=>'month']),edu_chat_attendance_summary_result($conn,$actor,['period'=>'today']),edu_chat_academic_risk_current_result($conn,$actor,[])]);
         case 'get_student_count': if(!in_array($type,[1,3],true))break; return edu_chat_student_total_result($conn,$actor,$entities);
         case 'get_student_distribution': if(!in_array($type,[1,2,3],true))break; return edu_chat_student_distribution_result($conn,$actor,$entities,(string)($args['group_by']??'grade_section'));
-        case 'get_student_roster': if(!in_array($type,[1,2,3],true))break; return edu_chat_student_roster_result($conn,$actor,$entities,(string)($args['name_search']??''),(int)($args['limit']??20));
+        case 'get_student_roster': if(!in_array($type,[1,2,3],true))break; return edu_chat_student_roster_result($conn,$actor,$entities,(string)($args['name_search']??''),(int)($args['limit']??50));
         case 'get_student_360': if($type!==1)break; return edu_chat_student_360_result($conn,$actor,$entities,(string)($args['name_search']??''));
         case 'get_teacher_count': if($type!==1)break; return edu_chat_count_teachers_result($conn,$actor);
         case 'get_debt_summary': if($type!==1)break; return edu_chat_debt_summary_result($conn,$actor,$entities);
