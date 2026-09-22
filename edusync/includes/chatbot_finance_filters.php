@@ -135,9 +135,9 @@ function edu_chat_students_by_debt_count_result(
         $section = trim((string)($row['seccion'] ?? ''));
         if ($mode === 'none') return '';
         if ($mode === 'level') return $level !== '' ? $level : 'Sin nivel';
-        if ($mode === 'grade') return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? $grade . '°' : 'Sin grado'));
+        if ($mode === 'grade') return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? edu_chat_grade_label($grade) : 'Sin grado'));
         if ($mode === 'section') return trim(($level !== '' ? $level . ' · ' : '') . ($section !== '' ? 'Sección ' . $section : 'Sin sección'));
-        return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? $grade . '°' : 'Sin grado') . ($section !== '' ? ' ' . $section : ''));
+        return trim(($level !== '' ? $level . ' · ' : '') . ($grade !== '' ? edu_chat_grade_label($grade) : 'Sin grado') . ($section !== '' ? ' ' . $section : ''));
     };
 
     $groups = [];
@@ -157,7 +157,7 @@ function edu_chat_students_by_debt_count_result(
         if ($groupBy !== 'none') $lines[] = $label . ':';
         foreach ($items as $row) {
             $location = trim((string)($row['nivel'] ?? ''));
-            if (!empty($row['grado'])) $location .= ($location !== '' ? ' · ' : '') . $row['grado'] . '°';
+            if (!empty($row['grado'])) $location .= ($location !== '' ? ' · ' : '') . edu_chat_grade_label($row['grado']);
             if (!empty($row['seccion'])) $location .= ($location !== '' ? ' ' : '') . $row['seccion'];
             $prefix = $groupBy === 'none' ? ($globalIndex . '. ') : '- ';
             $lines[] = $prefix . (string)$row['name']
