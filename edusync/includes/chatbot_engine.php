@@ -17,6 +17,14 @@ function edu_chat_column_exists(mysqli $conn, string $table, string $column): bo
 
 function edu_chat_normalize(string $value): string {
     $value = trim($value);
+
+    // Normalización española determinista. No dependemos de que iconv esté
+    // disponible o translitere igual en Windows/Linux.
+    $value = strtr($value, [
+        'á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','ñ'=>'n',
+        'Á'=>'A','É'=>'E','Í'=>'I','Ó'=>'O','Ú'=>'U','Ü'=>'U','Ñ'=>'N'
+    ]);
+
     if (function_exists('iconv')) {
         $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
         if ($converted !== false) $value = $converted;
