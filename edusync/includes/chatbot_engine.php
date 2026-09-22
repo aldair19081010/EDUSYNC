@@ -172,6 +172,37 @@ function edu_chat_suggestions(array $actor): array {
     ];
 }
 
+function edu_chat_grade_label($grade): string {
+    $grade = trim((string)$grade);
+    if ($grade === '') return '';
+
+    $grade = str_replace('º', '°', $grade);
+    if (preg_match('/^([0-9]+)\s*°+$/u', $grade, $m)) return $m[1] . '°';
+    if (preg_match('/^([0-9]+)$/', $grade, $m)) return $m[1] . '°';
+
+    return $grade;
+}
+
+function edu_chat_grade_number_from_text(string $text): ?string {
+    if (preg_match('/\b(?:grado\s*)?([1-6])\s*(?:ro|do|to|er|°)?\s*(?:grado)?\b/', $text, $m)) {
+        $matched = $m[0];
+        if (strpos($matched, 'bimestre') === false) return (string)$m[1];
+    }
+
+    $map = [
+        'primero'=>'1','primer'=>'1',
+        'segundo'=>'2',
+        'tercero'=>'3','tercer'=>'3',
+        'cuarto'=>'4',
+        'quinto'=>'5',
+        'sexto'=>'6'
+    ];
+    foreach ($map as $word=>$number) {
+        if (preg_match('/\b'.preg_quote($word,'/').'\b/', $text)) return $number;
+    }
+    return null;
+}
+
 function edu_chat_extract_level(string $text): ?string {
     if (strpos($text, 'secundaria') !== false) return 'Secundaria';
     if (strpos($text, 'primaria') !== false) return 'Primaria';
@@ -191,11 +222,7 @@ function edu_chat_extract_bimester(string $text): ?string {
 }
 
 function edu_chat_extract_grade(string $text): ?string {
-    if (preg_match('/\b(?:grado\s*)?([1-6])\s*(?:ro|do|to|er|°)?\s*(?:grado)?\b/', $text, $m)) {
-        $matched = $m[0];
-        if (strpos($matched, 'bimestre') === false) return (string)$m[1];
-    }
-    return null;
+    return edu_chat_grade_number_from_text($text);
 }
 
 function edu_chat_extract_section(string $text): ?string {
