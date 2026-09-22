@@ -219,6 +219,9 @@ function edu_chat_ai_instructions(array $actor): string {
         . "20. Separa claramente conclusión, detalle y observaciones cuando existan; usa etiquetas como Resultado:, Detalle: u Observación: solo si realmente ayudan.\n"
         . "21. No uses tablas Markdown, bloques de código, encabezados con #, asteriscos de negrita ni adornos que se vean como sintaxis técnica en el chat.\n"
         . "22. En listados o desgloses conserva todos los registros relevantes solicitados, aunque la respuesta resulte más larga. Claridad no significa omitir datos.\n"
+        . "23. Interpreta lenguaje natural por significado, no solo por coincidencia literal. Por ejemplo, entrar dinero, recibir, cobrar o recaudar son expresiones financieras equivalentes cuando el contexto es pagos.\n"
+        . "24. Si existe una herramienta específica para un filtro solicitado (por ejemplo método de pago), debes usarla en vez de responder que no dispones del desglose.\n"
+        . (function_exists('edu_chat_semantic_schema_prompt') ? edu_chat_semantic_schema_prompt($actor)."\n" : '')
         . "Fecha local del sistema: " . date('Y-m-d') . ".";
 }
 
