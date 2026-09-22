@@ -88,6 +88,35 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $wantsBreakdown=edu_chat_has($text,['cada seccion','por seccion','por aula','cada aula','por grado','cada grado','por nivel','cada nivel','distribucion','desglose','desglosado','desglosada','secciones','aulas','nivel grado y seccion','nivel grado seccion']);
     $wantsRoster=edu_chat_has($text,['lista','listar','listame','quienes son','nombres de','muestrame','mostrar estudiantes','dime los alumnos','dime los estudiantes','quien falto','quienes faltaron','quien llego tarde','quienes llegaron tarde']);
 
+    // Prioridades semánticas inequívocas. Se resuelven antes de dominios más
+    // amplios para evitar que "notas" capture una pregunta de ayuda o que
+    // "cursos" oculte una consulta propia del docente.
+    $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($text):'query';
+
+    if($semanticOperation==='help'&&edu_chat_has($text,['como','donde','ayuda','explica','explicame','registrar','configurar','subir','importar'])){
+        return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+    }
+
+    if($type===2&&edu_chat_has($text,['mis cursos','cuales son mis cursos','que cursos tengo','cursos asignados','mis asignaciones'])){
+        return['name'=>'get_my_courses','arguments'=>[]];
+    }
+
+    if($isStudentTopic){
+        if($wantsBreakdown){
+            return['name'=>'get_student_distribution','arguments'=>$args];
+        }
+        if($wantsRoster&&!edu_chat_has($text,['cuantos','cuantas','cantidad'])){
+            $rosterArgs=$args;unset($rosterArgs['group_by'],$rosterArgs['period']);
+            $rosterArgs['limit']=edu_chat_router_requested_limit($text,20,50);
+            return['name'=>'get_student_roster','arguments'=>$rosterArgs];
+        }
+        if(edu_chat_has($text,['cuantos','cuantas','cantidad','total','hay','tengo'])){
+            $countArgs=$args;unset($countArgs['group_by'],$countArgs['period']);
+            if($type===2)return['name'=>'get_my_student_count','arguments'=>$countArgs];
+            if(in_array($type,[1,3],true))return['name'=>'get_student_count','arguments'=>$countArgs];
+        }
+    }
+
     // Las consultas de cobranza por método se fuerzan a una herramienta segura.
     // No es obligatorio que el usuario diga literalmente "pago": frases como
     // "cuánto efectivo entró hoy" o "qué recibimos por Yape ayer" también aplican.
