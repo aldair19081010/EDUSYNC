@@ -47,6 +47,10 @@ $gradeOk=edu_chat_grade_label('3°')==='3°' && edu_chat_grade_label('3')==='3°
 echo ($gradeOk?'OK':'FAIL').": formato de grado evita doble símbolo °\n";
 if(!$gradeOk)$failed++;
 
+$bimesterOk=edu_chat_router_explicit_grade('tercer bimestre')===null;
+echo ($bimesterOk?'OK':'FAIL').": tercer bimestre no se confunde con tercer grado\n";
+if(!$bimesterOk)$failed++;
+
 $sectionState=['topic'=>'estudiantes','level'=>'Secundaria','grade'=>'3','section'=>'A','root_query'=>'Muéstrame tercero A','updated_at'=>time()];
 $sectionFollow=edu_chat_contextualize_message('Ahora ambas secciones',$sectionState);
 $sectionRoute=edu_chat_ai_forced_route($actors['admin'],$sectionFollow);
