@@ -78,6 +78,8 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
 
     $level=edu_chat_extract_level($text);$grade=edu_chat_router_explicit_grade($text);$section=edu_chat_router_explicit_section($text)?:edu_chat_extract_section($text);$period=edu_chat_extract_period($text);
     $args=[];if($level)$args['level']=$level;if($grade)$args['grade']=$grade;if($section)$args['section']=$section;if($period)$args['period']=$period;
+    $paymentMethod=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($text):null;
+    if($paymentMethod)$args['payment_method']=$paymentMethod;
 
     $isStudentTopic=edu_chat_has($text,['estudiante','estudiantes','alumno','alumnos','matricula','matriculados']);
     $isDebtTopic=edu_chat_has($text,['deuda','deudas','debe','deben','moroso','morosos','morosidad','pendiente','pendientes','obligacion','obligaciones','cuota','cuotas','pension','pensiones']);
@@ -85,6 +87,19 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $isRiskTopic=edu_chat_has($text,['riesgo','riesgos','critico','criticos','critica','criticas','nota baja','notas bajas','desaprobado','desaprobados','reprobado','reprobados','con c','tienen c']);
     $wantsBreakdown=edu_chat_has($text,['cada seccion','por seccion','por aula','cada aula','por grado','cada grado','por nivel','cada nivel','distribucion','desglose','desglosado','desglosada','secciones','aulas','nivel grado y seccion','nivel grado seccion']);
     $wantsRoster=edu_chat_has($text,['lista','listar','listame','quienes son','nombres de','muestrame','mostrar estudiantes','dime los alumnos','dime los estudiantes','quien falto','quienes faltaron','quien llego tarde','quienes llegaron tarde']);
+
+    // Las consultas de cobranza por método se fuerzan a una herramienta segura.
+    // No es obligatorio que el usuario diga literalmente "pago": frases como
+    // "cuánto efectivo entró hoy" o "qué recibimos por Yape ayer" también aplican.
+    if($type===1&&$paymentMethod){
+        $isFinance=function_exists('edu_chat_finance_language')?edu_chat_finance_language($text):true;
+        if($isFinance){
+            $payArgs=$args;
+            unset($payArgs['group_by']);
+            if(empty($payArgs['period']))$payArgs['period']='month';
+            return['name'=>'get_collections_by_method','arguments'=>$payArgs];
+        }
+    }
 
     $groupBy='grade_section';
     if(edu_chat_has($text,['por nivel','cada nivel']))$groupBy='level';
