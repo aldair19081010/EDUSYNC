@@ -10,13 +10,13 @@ function edu_chat_context_is_followup_message(string $text): bool {
     $n = edu_chat_normalize($text);
     if ($n === '') return false;
     $words = preg_split('/\s+/', $n);
-    if (count($words) <= 9 && edu_chat_has($n, ['ahora','solo','solamente','de esos','de esas','ellos','ellas','ordena','ordenalos','ordenalas','y en','y ahora','este mes','hoy','seccion','grado'])) return true;
+    if (count($words) <= 9 && edu_chat_has($n, ['ahora','solo','solamente','de esos','de esas','ellos','ellas','ordena','ordenalos','ordenalas','y en','y ahora','y por','este mes','hoy','ayer','esta semana','mes pasado','seccion','grado','yape','efectivo','transferencia'])) return true;
     return edu_chat_has($n, ['de esos','de esas','los mismos','las mismas','eso mismo','ahora solo','solo los','solo las','ordenalos','ordenalas']);
 }
 
 function edu_chat_context_topic_from_text(string $text): ?string {
     $n = edu_chat_normalize($text);
-    if (edu_chat_has($n, ['deuda','deudas','moroso','morosos','morosidad','pension','pensiones','saldo','cobrado','recaudado','pago','pagos','yape','efectivo','transferencia'])) return 'finanzas';
+    if (edu_chat_has($n, ['deuda','deudas','moroso','morosos','morosidad','pension','pensiones','saldo','cobrado','cobramos','cobranza','recaudado','recaudacion','recibido','recibimos','ingreso','ingresos','entro','pago','pagos','yape','efectivo','cash','transferencia','deposito','banco','caja'])) return 'finanzas';
     if (edu_chat_has($n, ['asistencia','tardanza','tardanzas','ausencia','ausencias','falta','faltas','falto','faltaron','entrada','presente','presentes'])) return 'asistencia';
     if (edu_chat_has($n, ['riesgo','nota','notas','calificacion','calificaciones','desaprobado','desaprobados','reprobado','reprobados','competencia','competencias','curso','cursos','area','areas','bimestre'])) return 'academico';
     if (edu_chat_has($n, ['estudiante','estudiantes','alumno','alumnos','ficha 360','perfil 360'])) return 'estudiantes';
@@ -46,6 +46,7 @@ function edu_chat_context_explicit_filters(string $message): array {
     if ($grade) $out['grade'] = $grade;
     if ($section) $out['section'] = strtoupper((string)$section);
     if ($period) $out['period'] = $period;
+    if (function_exists('edu_chat_payment_method_from_text')) { $method=edu_chat_payment_method_from_text($n); if($method)$out['payment_method']=$method; }
     if (preg_match('/\b(?:primer|1er|1ro)\s*bimestre\b/',$n)) $out['bimestre']='1';
     elseif (preg_match('/\b(?:segundo|2do)\s*bimestre\b/',$n)) $out['bimestre']='2';
     elseif (preg_match('/\b(?:tercer|tercero|3er|3ro)\s*bimestre\b/',$n)) $out['bimestre']='3';
@@ -59,7 +60,7 @@ function edu_chat_contextualize_message(string $message, array $state): string {
 
     $explicit = edu_chat_context_explicit_filters($message);
     $context = ['tema='.(string)$state['topic']];
-    foreach (['level'=>'nivel','grade'=>'grado','section'=>'sección','period'=>'periodo','bimestre'=>'bimestre'] as $key=>$label) {
+    foreach (['level'=>'nivel','grade'=>'grado','section'=>'sección','period'=>'periodo','bimestre'=>'bimestre','payment_method'=>'método de pago'] as $key=>$label) {
         if (isset($explicit[$key])) continue;
         if (!empty($state[$key])) $context[] = $label.'='.(string)$state[$key];
     }
@@ -88,7 +89,7 @@ function edu_chat_context_update_state(string $originalMessage, array $result, a
 function edu_chat_adv_entities(string $text, array $state): array {
     $explicit = edu_chat_context_explicit_filters($text);
     $entities = [];
-    foreach (['level','grade','section','period','bimestre'] as $key) {
+    foreach (['level','grade','section','period','bimestre','payment_method'] as $key) {
         if (isset($explicit[$key])) $entities[$key] = $explicit[$key];
         elseif (!empty($state[$key])) $entities[$key] = $state[$key];
         else $entities[$key] = null;
@@ -202,8 +203,14 @@ function edu_chat_adv_academic_courses_result(mysqli $conn,array $actor,array $e
 function edu_chat_advanced_try(mysqli $conn,array $actor,string $message,array $state=[]): ?array {
     $n=edu_chat_normalize($message);$type=(int)($actor['type']??0);$entities=edu_chat_adv_entities($n,$state);
 
-    if($type===1&&edu_chat_has($n,['pago','pagos','cobrado','recaudado','recaudacion'])){
-        foreach(['yape'=>'Yape','efectivo'=>'Efectivo','transferencia'=>'Transferencia'] as $needle=>$method)if(strpos($n,$needle)!==false)return edu_chat_adv_collection_method_result($conn,$actor,$entities,$method);
+    if($type===1){
+        $method=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($n):null;
+        $financeLanguage=function_exists('edu_chat_finance_language')?edu_chat_finance_language($n):edu_chat_has($n,['pago','pagos','cobrado','recaudado','recaudacion']);
+        if(!$method&&!empty($entities['payment_method']))$method=(string)$entities['payment_method'];
+        if($method&&$financeLanguage){
+            if(empty($entities['period']))$entities['period']='month';
+            return edu_chat_adv_collection_method_result($conn,$actor,$entities,$method);
+        }
     }
 
     if($type===1&&edu_chat_has($n,['deuda','deudas','moroso','morosos','saldo','deben'])){

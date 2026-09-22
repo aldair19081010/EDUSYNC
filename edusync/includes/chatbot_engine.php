@@ -17,6 +17,14 @@ function edu_chat_column_exists(mysqli $conn, string $table, string $column): bo
 
 function edu_chat_normalize(string $value): string {
     $value = trim($value);
+
+    // Normalización española determinista. No dependemos de que iconv esté
+    // disponible o translitere igual en Windows/Linux.
+    $value = strtr($value, [
+        'á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','ñ'=>'n',
+        'Á'=>'A','É'=>'E','Í'=>'I','Ó'=>'O','Ú'=>'U','Ü'=>'U','Ñ'=>'N'
+    ]);
+
     if (function_exists('iconv')) {
         $converted = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
         if ($converted !== false) $value = $converted;
@@ -196,6 +204,9 @@ function edu_chat_extract_section(string $text): ?string {
 }
 
 function edu_chat_extract_period(string $text): ?string {
+    if (edu_chat_has($text, ['ayer', 'dia de ayer'])) return 'yesterday';
+    if (edu_chat_has($text, ['esta semana', 'semana actual'])) return 'week';
+    if (edu_chat_has($text, ['mes pasado', 'mes anterior', 'ultimo mes'])) return 'last_month';
     if (edu_chat_has($text, ['hoy', 'dia de hoy'])) return 'today';
     if (edu_chat_has($text, ['este mes', 'mes actual', 'del mes'])) return 'month';
     if (edu_chat_has($text, ['este ano', 'ano actual', 'este año'])) return 'year';

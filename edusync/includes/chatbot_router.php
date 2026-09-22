@@ -1,5 +1,7 @@
 <?php
 
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.5');
+
 function edu_chat_router_explicit_grade(string $text): ?string {
     $patterns = [
         '/\b(?:grado\s*)?([1-6])\s*(?:ro|do|to|er|°)\b/',
@@ -78,6 +80,72 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
 
     $level=edu_chat_extract_level($text);$grade=edu_chat_router_explicit_grade($text);$section=edu_chat_router_explicit_section($text)?:edu_chat_extract_section($text);$period=edu_chat_extract_period($text);
     $args=[];if($level)$args['level']=$level;if($grade)$args['grade']=$grade;if($section)$args['section']=$section;if($period)$args['period']=$period;
+    $paymentMethod=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($text):null;
+    if($paymentMethod)$args['payment_method']=$paymentMethod;
+
+    // Riesgo académico tiene prioridad sobre las rutas genéricas de estudiantes.
+    // "estudiantes en riesgo" no debe degradarse a un conteo/listado general.
+    $priorityRisk=edu_chat_has($text,['riesgo','riesgos','critico','criticos','critica','criticas','alerta temprana','desaprobar','desaprobado','desaprobados','reprobar','reprobado','reprobados','nota baja','notas bajas','rendimiento critico']);
+    if($priorityRisk&&in_array($type,[1,2],true)){
+        $riskArgs=$args;
+        unset($riskArgs['payment_method'],$riskArgs['period']);
+        if(edu_chat_has($text,['por seccion','por grado','por nivel','por aula','por curso','cada seccion','cada grado','cada nivel','cada curso','distribucion','desglose'])){
+            $riskArgs['group_by']='grade_section';
+            if(edu_chat_has($text,['por nivel','cada nivel']))$riskArgs['group_by']='level';
+            elseif(edu_chat_has($text,['por grado','cada grado'])&&!edu_chat_has($text,['seccion','aula']))$riskArgs['group_by']='grade';
+            elseif(edu_chat_has($text,['por curso','cada curso']))$riskArgs['group_by']='course';
+            return['name'=>'get_academic_risk_distribution','arguments'=>$riskArgs];
+        }
+        if(edu_chat_has($text,['muestrame','mostrar','lista','listar','listame','quienes','nombres','dime los estudiantes','dime los alumnos'])){
+            $riskArgs['min_critical_records']=1;
+            $riskArgs['limit']=edu_chat_router_requested_limit($text,100,200);
+            return['name'=>'get_academic_risk_roster','arguments'=>$riskArgs];
+        }
+        return['name'=>'get_academic_risk','arguments'=>$riskArgs];
+    }
+
+    // Regex de alta prioridad sobre texto ya normalizado.
+    // Evita depender de coincidencias parciales para ayuda y listados nominales.
+    if(preg_match('/\\b(?:como|donde)\\s+(?:puedo\\s+)?(?:registrar|registro|agregar|agrego|subir|subo|importar|importo|configurar|configuro)\\b/',$text)){
+        return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+    }
+
+    if(
+        preg_match('/\\b(?:muestrame|mostrar|lista|listar|listame|dime)\\b.*\\b(?:estudiantes|alumnos|alumnas)\\b/',$text)
+        && !preg_match('/\\b(?:cuantos|cuantas|cantidad)\\b/',$text)
+    ){
+        $rosterArgs=$args;
+        unset($rosterArgs['group_by'],$rosterArgs['period'],$rosterArgs['payment_method']);
+        $rosterArgs['limit']=edu_chat_router_requested_limit($text,20,50);
+        return['name'=>'get_student_roster','arguments'=>$rosterArgs];
+    }
+
+    // Rutas directas para intenciones inequívocas. Estas reglas deliberadamente
+    // no dependen del clasificador semántico para evitar falsos null.
+    if(edu_chat_has($text,['como registrar','como registro','como puedo registrar','donde registro','como subir','como importar','como configurar'])){
+        return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+    }
+
+    $directStudentTopic=edu_chat_has($text,['estudiante','estudiantes','alumno','alumnos','alumna','alumnas']);
+    $directRiskTopic=edu_chat_has($text,['riesgo','riesgos','critico','criticos','critica','criticas','alerta temprana','desaprobar','desaprobado','desaprobados','reprobar','reprobado','reprobados','nota baja','notas bajas','rendimiento critico']);
+    if($directStudentTopic&&!$directRiskTopic){
+        $directBreakdown=edu_chat_has($text,['por seccion','por grado','por nivel','por aula','cada seccion','cada grado','cada nivel','distribuye','distribucion','distribuir','desglose','desglosa','desglosar']);
+        if($directBreakdown){
+            $groupBy='grade_section';
+            if(edu_chat_has($text,['por nivel','cada nivel']))$groupBy='level';
+            elseif(edu_chat_has($text,['por grado','cada grado'])&&!edu_chat_has($text,['seccion','aula']))$groupBy='grade';
+            $args['group_by']=$groupBy;
+            return['name'=>'get_student_distribution','arguments'=>$args];
+        }
+
+        $directRoster=edu_chat_has($text,['muestrame','mostrar','lista','listar','listame','quienes','nombres','dime los estudiantes','dime los alumnos']);
+        if($directRoster&&!edu_chat_has($text,['cuantos','cuantas','cantidad'])){
+            $rosterArgs=$args;
+            unset($rosterArgs['group_by'],$rosterArgs['period'],$rosterArgs['payment_method']);
+            $rosterArgs['limit']=edu_chat_router_requested_limit($text,20,50);
+            return['name'=>'get_student_roster','arguments'=>$rosterArgs];
+        }
+    }
 
     $isStudentTopic=edu_chat_has($text,['estudiante','estudiantes','alumno','alumnos','matricula','matriculados']);
     $isDebtTopic=edu_chat_has($text,['deuda','deudas','debe','deben','moroso','morosos','morosidad','pendiente','pendientes','obligacion','obligaciones','cuota','cuotas','pension','pensiones']);
@@ -85,6 +153,48 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $isRiskTopic=edu_chat_has($text,['riesgo','riesgos','critico','criticos','critica','criticas','nota baja','notas bajas','desaprobado','desaprobados','reprobado','reprobados','con c','tienen c']);
     $wantsBreakdown=edu_chat_has($text,['cada seccion','por seccion','por aula','cada aula','por grado','cada grado','por nivel','cada nivel','distribucion','desglose','desglosado','desglosada','secciones','aulas','nivel grado y seccion','nivel grado seccion']);
     $wantsRoster=edu_chat_has($text,['lista','listar','listame','quienes son','nombres de','muestrame','mostrar estudiantes','dime los alumnos','dime los estudiantes','quien falto','quienes faltaron','quien llego tarde','quienes llegaron tarde']);
+
+    // Prioridades semánticas inequívocas. Se resuelven antes de dominios más
+    // amplios para evitar que "notas" capture una pregunta de ayuda o que
+    // "cursos" oculte una consulta propia del docente.
+    $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($text):'query';
+
+    if($semanticOperation==='help'&&edu_chat_has($text,['como','donde','ayuda','explica','explicame','registrar','configurar','subir','importar'])){
+        return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+    }
+
+    if($type===2&&edu_chat_has($text,['mis cursos','cuales son mis cursos','que cursos tengo','cursos asignados','mis asignaciones'])){
+        return['name'=>'get_my_courses','arguments'=>[]];
+    }
+
+    if($isStudentTopic&&!$isRiskTopic){
+        if($wantsBreakdown){
+            return['name'=>'get_student_distribution','arguments'=>$args];
+        }
+        if($wantsRoster&&!edu_chat_has($text,['cuantos','cuantas','cantidad'])){
+            $rosterArgs=$args;unset($rosterArgs['group_by'],$rosterArgs['period']);
+            $rosterArgs['limit']=edu_chat_router_requested_limit($text,20,50);
+            return['name'=>'get_student_roster','arguments'=>$rosterArgs];
+        }
+        if(edu_chat_has($text,['cuantos','cuantas','cantidad','total','hay','tengo'])){
+            $countArgs=$args;unset($countArgs['group_by'],$countArgs['period']);
+            if($type===2)return['name'=>'get_my_student_count','arguments'=>$countArgs];
+            if(in_array($type,[1,3],true))return['name'=>'get_student_count','arguments'=>$countArgs];
+        }
+    }
+
+    // Las consultas de cobranza por método se fuerzan a una herramienta segura.
+    // No es obligatorio que el usuario diga literalmente "pago": frases como
+    // "cuánto efectivo entró hoy" o "qué recibimos por Yape ayer" también aplican.
+    if($type===1&&$paymentMethod){
+        $isFinance=function_exists('edu_chat_finance_language')?edu_chat_finance_language($text):true;
+        if($isFinance){
+            $payArgs=$args;
+            unset($payArgs['group_by']);
+            if(empty($payArgs['period']))$payArgs['period']='month';
+            return['name'=>'get_collections_by_method','arguments'=>$payArgs];
+        }
+    }
 
     $groupBy='grade_section';
     if(edu_chat_has($text,['por nivel','cada nivel']))$groupBy='level';
@@ -125,5 +235,42 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     if($wantsBreakdown&&edu_chat_has($text,['cuantos','cantidad','hay'])&&!$isDebtTopic&&!$isAttendanceTopic&&!$isRiskTopic)return['name'=>'get_student_distribution','arguments'=>$args];
 
     if($isStudentTopic&&$wantsRoster&&!edu_chat_has($text,['cuantos','cantidad'])){$rosterArgs=$args;unset($rosterArgs['group_by'],$rosterArgs['period']);$rosterArgs['limit']=20;if(preg_match('/\b([1-9]|[1-4][0-9]|50)\b/',$text,$m))$rosterArgs['limit']=(int)$m[1];return['name'=>'get_student_roster','arguments'=>$rosterArgs];}
+
+    // Fallback semántico general para frases naturales que no encajan en una
+    // formulación exacta. Solo selecciona herramientas ya autorizadas.
+    if(function_exists('edu_chat_semantic_domain')&&function_exists('edu_chat_semantic_operation')){
+        $domain=edu_chat_semantic_domain($text);$operation=edu_chat_semantic_operation($text);
+        if($domain==='system'&&$operation==='help')return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+        if($domain==='teachers'){
+            if($type===1&&in_array($operation,['count','summary','query'],true))return['name'=>'get_teacher_count','arguments'=>[]];
+            if($type===2&&in_array($operation,['list','summary','query'],true))return['name'=>'get_my_courses','arguments'=>[]];
+        }
+        if($domain==='students'){
+            if($operation==='distribution'&&in_array($type,[1,2,3],true))return['name'=>'get_student_distribution','arguments'=>$args];
+            if($operation==='list'&&in_array($type,[1,2,3],true)){unset($args['group_by'],$args['period']);$args['limit']=edu_chat_router_requested_limit($text,20,50);return['name'=>'get_student_roster','arguments'=>$args];}
+            if($operation==='count'){
+                if($type===2)return['name'=>'get_my_student_count','arguments'=>$args];
+                if(in_array($type,[1,3],true))return['name'=>'get_student_count','arguments'=>$args];
+            }
+        }
+        if($domain==='payments'&&$type===1){
+            if($paymentMethod){$p=$args;unset($p['group_by']);if(empty($p['period']))$p['period']='month';return['name'=>'get_collections_by_method','arguments'=>$p];}
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by']);if(empty($args['period']))$args['period']='month';return['name'=>'get_collections_summary','arguments'=>$args];}
+        }
+        if($domain==='debts'&&$type===1){
+            if($operation==='distribution')return['name'=>'get_debt_distribution','arguments'=>$args];
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by'],$args['period']);return['name'=>'get_debt_summary','arguments'=>$args];}
+        }
+        if($domain==='attendance'&&in_array($type,[1,3],true)){
+            if($operation==='distribution'){if(empty($args['period']))$args['period']='today';return['name'=>'get_attendance_distribution','arguments'=>$args];}
+            if($operation==='list'){$a=$args;unset($a['group_by']);if(empty($a['period']))$a['period']='month';$a['status']='all';$a['min_occurrences']=1;$a['limit']=edu_chat_router_requested_limit($text,100,200);return['name'=>'get_attendance_roster','arguments'=>$a];}
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by']);if(empty($args['period']))$args['period']='today';return['name'=>'get_attendance_summary','arguments'=>$args];}
+        }
+        if($domain==='risk'&&in_array($type,[1,2],true)){
+            if($operation==='distribution')return['name'=>'get_academic_risk_distribution','arguments'=>$args];
+            if($operation==='list'){$r=$args;unset($r['group_by'],$r['period']);$r['min_critical_records']=1;$r['limit']=edu_chat_router_requested_limit($text,100,200);return['name'=>'get_academic_risk_roster','arguments'=>$r];}
+            if(in_array($operation,['summary','count','query'],true)){unset($args['group_by'],$args['period']);return['name'=>'get_academic_risk','arguments'=>$args];}
+        }
+    }
     return null;
 }
