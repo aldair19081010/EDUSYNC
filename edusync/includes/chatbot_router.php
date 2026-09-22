@@ -81,6 +81,32 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $paymentMethod=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($text):null;
     if($paymentMethod)$args['payment_method']=$paymentMethod;
 
+    // Rutas directas para intenciones inequívocas. Estas reglas deliberadamente
+    // no dependen del clasificador semántico para evitar falsos null.
+    if(edu_chat_has($text,['como registrar','como registro','como puedo registrar','donde registro','como subir','como importar','como configurar'])){
+        return['name'=>'get_system_help','arguments'=>['query'=>$message]];
+    }
+
+    $directStudentTopic=edu_chat_has($text,['estudiante','estudiantes','alumno','alumnos','alumna','alumnas']);
+    if($directStudentTopic){
+        $directBreakdown=edu_chat_has($text,['por seccion','por grado','por nivel','por aula','cada seccion','cada grado','cada nivel','distribuye','distribucion','distribuir','desglose','desglosa','desglosar']);
+        if($directBreakdown){
+            $groupBy='grade_section';
+            if(edu_chat_has($text,['por nivel','cada nivel']))$groupBy='level';
+            elseif(edu_chat_has($text,['por grado','cada grado'])&&!edu_chat_has($text,['seccion','aula']))$groupBy='grade';
+            $args['group_by']=$groupBy;
+            return['name'=>'get_student_distribution','arguments'=>$args];
+        }
+
+        $directRoster=edu_chat_has($text,['muestrame','mostrar','lista','listar','listame','quienes','nombres','dime los estudiantes','dime los alumnos']);
+        if($directRoster&&!edu_chat_has($text,['cuantos','cuantas','cantidad'])){
+            $rosterArgs=$args;
+            unset($rosterArgs['group_by'],$rosterArgs['period'],$rosterArgs['payment_method']);
+            $rosterArgs['limit']=edu_chat_router_requested_limit($text,20,50);
+            return['name'=>'get_student_roster','arguments'=>$rosterArgs];
+        }
+    }
+
     $isStudentTopic=edu_chat_has($text,['estudiante','estudiantes','alumno','alumnos','matricula','matriculados']);
     $isDebtTopic=edu_chat_has($text,['deuda','deudas','debe','deben','moroso','morosos','morosidad','pendiente','pendientes','obligacion','obligaciones','cuota','cuotas','pension','pensiones']);
     $isAttendanceTopic=edu_chat_has($text,['asistencia','asistencias','tardanza','tardanzas','ausencia','ausencias','ausente','ausentes','falto','faltaron','falta','faltas','presente','presentes','permiso','permisos','llego tarde','llegaron tarde']);
