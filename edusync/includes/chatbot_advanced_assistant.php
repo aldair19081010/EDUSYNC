@@ -152,7 +152,6 @@ function edu_chat_adv_collection_method_result(mysqli $conn,array $actor,array $
     $period=(string)($entities['period']??'month');
     [$start,$end,$label]=edu_chat_analytics_period($conn,$school,$period);
     $r=null;
-    $source=null;
 
     // Esquema actual de EduSync: una operación puede repartirse entre varios
     // medios de pago. El monto correcto por método está en
@@ -195,7 +194,6 @@ function edu_chat_adv_collection_method_result(mysqli $conn,array $actor,array $
         $stmt->execute();
         $r=$stmt->get_result()->fetch_assoc()?:[];
         $stmt->close();
-        $source='operation_methods';
     }
 
     // Compatibilidad con instalaciones anteriores que guardaban el desglose
@@ -240,7 +238,6 @@ function edu_chat_adv_collection_method_result(mysqli $conn,array $actor,array $
         $stmt->execute();
         $r=$stmt->get_result()->fetch_assoc()?:[];
         $stmt->close();
-        $source='payment_split';
     }
 
     // Compatibilidad con el esquema previo que guardaba solo un
@@ -281,7 +278,6 @@ function edu_chat_adv_collection_method_result(mysqli $conn,array $actor,array $
         $stmt->execute();
         $r=$stmt->get_result()->fetch_assoc()?:[];
         $stmt->close();
-        $source='payment_method_id';
     }
 
     // Último fallback para esquemas muy antiguos con el método guardado como
@@ -321,7 +317,6 @@ function edu_chat_adv_collection_method_result(mysqli $conn,array $actor,array $
             $stmt->execute();
             $r=$stmt->get_result()->fetch_assoc()?:[];
             $stmt->close();
-            $source='legacy_text';
         }
     }
 
@@ -345,7 +340,6 @@ function edu_chat_adv_collection_method_result(mysqli $conn,array $actor,array $
         [edu_chat_action('Ver Pagos','payments','fa-credit-card')]
     );
     $result['tools_used']=['advanced_collections_method'];
-    $result['payment_method_source']=$source;
     return $result;
 }
 
