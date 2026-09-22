@@ -145,17 +145,202 @@ function edu_chat_adv_finance_by_amount_result(mysqli $conn,array $actor,array $
 
 function edu_chat_adv_collection_method_result(mysqli $conn,array $actor,array $entities,string $method): array {
     if((int)($actor['type']??0)!==1)return edu_chat_result('Esta consulta solo está disponible para administración.');
-    if(!edu_chat_table_exists($conn,'payments')||!edu_chat_table_exists($conn,'student_ef_list'))return edu_chat_result('El historial de pagos no está disponible.');
-    $methodColumn=null;foreach(['payment_method','method','payment_type'] as $c)if(edu_chat_column_exists($conn,'payments',$c)){$methodColumn=$c;break;}
-    if($methodColumn===null)return edu_chat_result('La base actual no tiene un campo compatible para filtrar pagos por método.');
-    $period=(string)($entities['period']??'month');[$start,$end,$label]=edu_chat_analytics_period($conn,(int)$actor['school_id'],$period);
-    $dateColumn=edu_chat_column_exists($conn,'payments','date_created')?'date_created':null;if($dateColumn===null)return edu_chat_result('No pude identificar la fecha de los pagos.');
-    $where=['s.school_id=?',"DATE(p.$dateColumn) BETWEEN ? AND ?","LOWER(TRIM(p.`$methodColumn`))=LOWER(TRIM(?))"];$types='isss';$params=[(int)$actor['school_id'],$start,$end,$method];
-    if(edu_chat_column_exists($conn,'payments','payment_status'))$where[]="COALESCE(p.payment_status,'Confirmado')='Confirmado'";
-    edu_chat_analytics_apply_student_filters($entities,'s',$where,$types,$params);
-    $sql="SELECT COUNT(DISTINCT p.id) operations,COUNT(DISTINCT s.id) students,COALESCE(SUM(p.amount),0) total FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id WHERE ".implode(' AND ',$where);
-    $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar la consulta de pagos.');edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc()?:[];$stmt->close();
-    $result=edu_chat_result('Cobranza por '.$method.' '.$label.': '.edu_chat_money((float)($r['total']??0)).' en '.(int)($r['operations']??0).' pago'.((int)($r['operations']??0)===1?'':'s').' de '.(int)($r['students']??0).' estudiante'.((int)($r['students']??0)===1?'':'s').'.',[],[['label'=>'Recaudado','value'=>edu_chat_money((float)($r['total']??0)),'tone'=>'success'],['label'=>'Pagos','value'=>(string)(int)($r['operations']??0),'tone'=>'primary']],[edu_chat_action('Ver Pagos','payments','fa-credit-card')]);$result['tools_used']=['advanced_collections_method'];return $result;
+
+    $school=(int)($actor['school_id']??0);
+    if($school<=0)return edu_chat_result('No pude identificar el colegio autenticado.');
+
+    $period=(string)($entities['period']??'month');
+    [$start,$end,$label]=edu_chat_analytics_period($conn,$school,$period);
+    $r=null;
+
+    // Esquema actual de EduSync: una operación puede repartirse entre varios
+    // medios de pago. El monto correcto por método está en
+    // payment_operation_methods.amount, no en payments.
+    if(
+        edu_chat_table_exists($conn,'payment_operations')
+        && edu_chat_table_exists($conn,'payment_operation_methods')
+        && edu_chat_table_exists($conn,'payment_methods')
+        && edu_chat_column_exists($conn,'payment_operations','payment_date')
+        && edu_chat_column_exists($conn,'payment_operation_methods','payment_method_id')
+        && edu_chat_column_exists($conn,'payment_operation_methods','amount')
+        && edu_chat_column_exists($conn,'payment_methods','name')
+    ){
+        $where=[
+            'po.school_id=?',
+            'DATE(po.payment_date) BETWEEN ? AND ?',
+            'LOWER(TRIM(pm.name))=LOWER(TRIM(?))'
+        ];
+        $types='isss';
+        $params=[$school,$start,$end,$method];
+
+        if(edu_chat_column_exists($conn,'payment_operations','status')){
+            $where[]="COALESCE(po.status,'Confirmado')='Confirmado'";
+        }
+
+        edu_chat_analytics_apply_student_filters($entities,'s',$where,$types,$params);
+
+        $sql="SELECT COUNT(DISTINCT po.id) operations,
+                     COUNT(DISTINCT s.id) students,
+                     COALESCE(SUM(pom.amount),0) total
+              FROM payment_operations po
+              INNER JOIN payment_operation_methods pom ON pom.operation_id=po.id
+              INNER JOIN payment_methods pm ON pm.id=pom.payment_method_id
+              INNER JOIN student s ON s.id=po.student_id AND s.school_id=po.school_id
+              WHERE ".implode(' AND ',$where);
+
+        $stmt=$conn->prepare($sql);
+        if(!$stmt)return edu_chat_result('No pude preparar la consulta de cobranza por medio de pago.');
+        edu_chat_bind($stmt,$types,$params);
+        $stmt->execute();
+        $r=$stmt->get_result()->fetch_assoc()?:[];
+        $stmt->close();
+    }
+
+    // Compatibilidad con instalaciones anteriores que guardaban el desglose
+    // por pago en payment_split.
+    if($r===null
+        && edu_chat_table_exists($conn,'payments')
+        && edu_chat_table_exists($conn,'student_ef_list')
+        && edu_chat_table_exists($conn,'payment_split')
+        && edu_chat_table_exists($conn,'payment_methods')
+        && edu_chat_column_exists($conn,'payments','date_created')
+        && edu_chat_column_exists($conn,'payment_split','payment_id')
+        && edu_chat_column_exists($conn,'payment_split','payment_method_id')
+        && edu_chat_column_exists($conn,'payment_split','amount')
+    ){
+        $where=[
+            's.school_id=?',
+            'DATE(p.date_created) BETWEEN ? AND ?',
+            'LOWER(TRIM(pm.name))=LOWER(TRIM(?))'
+        ];
+        $types='isss';
+        $params=[$school,$start,$end,$method];
+
+        if(edu_chat_column_exists($conn,'payments','payment_status')){
+            $where[]="COALESCE(p.payment_status,'Confirmado')='Confirmado'";
+        }
+
+        edu_chat_analytics_apply_student_filters($entities,'s',$where,$types,$params);
+
+        $sql="SELECT COUNT(DISTINCT p.id) operations,
+                     COUNT(DISTINCT s.id) students,
+                     COALESCE(SUM(ps.amount),0) total
+              FROM payments p
+              INNER JOIN payment_split ps ON ps.payment_id=p.id
+              INNER JOIN payment_methods pm ON pm.id=ps.payment_method_id
+              INNER JOIN student_ef_list ef ON ef.id=p.ef_id
+              INNER JOIN student s ON s.id=ef.student_id
+              WHERE ".implode(' AND ',$where);
+
+        $stmt=$conn->prepare($sql);
+        if(!$stmt)return edu_chat_result('No pude preparar la consulta de cobranza por medio de pago.');
+        edu_chat_bind($stmt,$types,$params);
+        $stmt->execute();
+        $r=$stmt->get_result()->fetch_assoc()?:[];
+        $stmt->close();
+    }
+
+    // Compatibilidad con el esquema previo que guardaba solo un
+    // payment_method_id por registro de payments.
+    if($r===null
+        && edu_chat_table_exists($conn,'payments')
+        && edu_chat_table_exists($conn,'student_ef_list')
+        && edu_chat_table_exists($conn,'payment_methods')
+        && edu_chat_column_exists($conn,'payments','payment_method_id')
+        && edu_chat_column_exists($conn,'payments','date_created')
+    ){
+        $where=[
+            's.school_id=?',
+            'DATE(p.date_created) BETWEEN ? AND ?',
+            'LOWER(TRIM(pm.name))=LOWER(TRIM(?))'
+        ];
+        $types='isss';
+        $params=[$school,$start,$end,$method];
+
+        if(edu_chat_column_exists($conn,'payments','payment_status')){
+            $where[]="COALESCE(p.payment_status,'Confirmado')='Confirmado'";
+        }
+
+        edu_chat_analytics_apply_student_filters($entities,'s',$where,$types,$params);
+
+        $sql="SELECT COUNT(DISTINCT p.id) operations,
+                     COUNT(DISTINCT s.id) students,
+                     COALESCE(SUM(p.amount),0) total
+              FROM payments p
+              INNER JOIN payment_methods pm ON pm.id=p.payment_method_id
+              INNER JOIN student_ef_list ef ON ef.id=p.ef_id
+              INNER JOIN student s ON s.id=ef.student_id
+              WHERE ".implode(' AND ',$where);
+
+        $stmt=$conn->prepare($sql);
+        if(!$stmt)return edu_chat_result('No pude preparar la consulta de cobranza por medio de pago.');
+        edu_chat_bind($stmt,$types,$params);
+        $stmt->execute();
+        $r=$stmt->get_result()->fetch_assoc()?:[];
+        $stmt->close();
+    }
+
+    // Último fallback para esquemas muy antiguos con el método guardado como
+    // texto directamente en payments.
+    if($r===null && edu_chat_table_exists($conn,'payments') && edu_chat_table_exists($conn,'student_ef_list')){
+        $methodColumn=null;
+        foreach(['payment_method','method','payment_type'] as $column){
+            if(edu_chat_column_exists($conn,'payments',$column)){$methodColumn=$column;break;}
+        }
+
+        if($methodColumn!==null && edu_chat_column_exists($conn,'payments','date_created')){
+            $where=[
+                's.school_id=?',
+                'DATE(p.date_created) BETWEEN ? AND ?',
+                "LOWER(TRIM(p.`$methodColumn`))=LOWER(TRIM(?))"
+            ];
+            $types='isss';
+            $params=[$school,$start,$end,$method];
+
+            if(edu_chat_column_exists($conn,'payments','payment_status')){
+                $where[]="COALESCE(p.payment_status,'Confirmado')='Confirmado'";
+            }
+
+            edu_chat_analytics_apply_student_filters($entities,'s',$where,$types,$params);
+
+            $sql="SELECT COUNT(DISTINCT p.id) operations,
+                         COUNT(DISTINCT s.id) students,
+                         COALESCE(SUM(p.amount),0) total
+                  FROM payments p
+                  INNER JOIN student_ef_list ef ON ef.id=p.ef_id
+                  INNER JOIN student s ON s.id=ef.student_id
+                  WHERE ".implode(' AND ',$where);
+
+            $stmt=$conn->prepare($sql);
+            if(!$stmt)return edu_chat_result('No pude preparar la consulta de cobranza por medio de pago.');
+            edu_chat_bind($stmt,$types,$params);
+            $stmt->execute();
+            $r=$stmt->get_result()->fetch_assoc()?:[];
+            $stmt->close();
+        }
+    }
+
+    if($r===null){
+        return edu_chat_result('No pude identificar una estructura compatible para consultar la cobranza por medio de pago.');
+    }
+
+    $total=(float)($r['total']??0);
+    $operations=(int)($r['operations']??0);
+    $students=(int)($r['students']??0);
+
+    $result=edu_chat_result(
+        'Cobranza por '.$method.' '.$label.': '.edu_chat_money($total)
+        .' en '.$operations.' pago'.($operations===1?'':'s')
+        .' de '.$students.' estudiante'.($students===1?'':'s').'.',
+        [],
+        [
+            ['label'=>'Recaudado','value'=>edu_chat_money($total),'tone'=>'success'],
+            ['label'=>'Pagos','value'=>(string)$operations,'tone'=>'primary']
+        ],
+        [edu_chat_action('Ver Pagos','payments','fa-credit-card')]
+    );
+    $result['tools_used']=['advanced_collections_method'];
+    return $result;
 }
 
 function edu_chat_adv_attendance_rate_result(mysqli $conn,array $actor,array $entities,float $maxRate,int $limit=100): array {
