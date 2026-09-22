@@ -196,9 +196,20 @@ function edu_chat_debt_distribution_result(mysqli $conn, array $actor, array $en
 }
 
 function edu_chat_analytics_period(mysqli $conn, int $schoolId, string $period): array {
-    $period = in_array($period, ['today','month','year'], true) ? $period : 'today';
+    $period = in_array($period, ['today','yesterday','week','month','last_month','year'], true) ? $period : 'today';
     if ($period === 'today') return [date('Y-m-d'), date('Y-m-d'), 'hoy'];
+    if ($period === 'yesterday') { $d=date('Y-m-d',strtotime('-1 day')); return [$d,$d,'ayer']; }
+    if ($period === 'week') {
+        $start=date('Y-m-d',strtotime('monday this week'));
+        $end=date('Y-m-d');
+        return [$start,$end,'esta semana'];
+    }
     if ($period === 'month') return [date('Y-m-01'), date('Y-m-t'), 'este mes'];
+    if ($period === 'last_month') {
+        $start=date('Y-m-01',strtotime('first day of last month'));
+        $end=date('Y-m-t',strtotime('last day of last month'));
+        return [$start,$end,'el mes pasado'];
+    }
     $year = edu_chat_active_year($conn, $schoolId);
     return [$year['start_date'] ?? date('Y-01-01'), $year['end_date'] ?? date('Y-12-31'), !empty($year['year']) ? 'el año '.$year['year'] : 'este año'];
 }
