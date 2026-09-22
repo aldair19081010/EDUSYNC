@@ -570,7 +570,7 @@ function edu_chat_count_students_result(mysqli $conn, array $actor, array $entit
     if (!empty($entities['section'])) { $where[]='seccion=?'; $types.='s'; $params[]=$entities['section']; }
     $stmt=$conn->prepare('SELECT COUNT(*) total FROM student WHERE '.implode(' AND ',$where)); edu_chat_bind($stmt,$types,$params); $stmt->execute(); $total=(int)($stmt->get_result()->fetch_assoc()['total']??0); $stmt->close();
     $scope = !empty($entities['level']) ? ' de ' . strtolower($entities['level']) : '';
-    if (!empty($entities['grade'])) $scope .= ' de ' . $entities['grade'] . '° grado';
+    if (!empty($entities['grade'])) $scope .= ' de ' . edu_chat_grade_label($entities['grade']) . ' grado';
     return edu_chat_result('Hay ' . $total . ' estudiantes activos' . $scope . '.', ['¿Cuántos estudiantes tienen deuda?', '¿Cómo está la asistencia hoy?'], [['label'=>'Estudiantes activos','value'=>(string)$total,'tone'=>'primary']], $actor['type']===1 ? [edu_chat_action('Ver Estudiantes','students','fa-users')] : []);
 }
 
@@ -644,7 +644,7 @@ function edu_chat_teacher_courses_result(mysqli $conn, array $actor): array {
     $where=['tc.teacher_id=?','tc.school_id=?']; $types='ii'; $params=[$teacher,(int)$actor['school_id']]; if($yearId>0){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     $stmt=$conn->prepare('SELECT ac.name,ac.level,tc.grado,tc.seccion FROM teacher_courses tc LEFT JOIN academic_courses ac ON ac.id=tc.course_id WHERE '.implode(' AND ',$where).' ORDER BY ac.name,tc.grado,tc.seccion'); edu_chat_bind($stmt,$types,$params); $stmt->execute(); $res=$stmt->get_result(); $rows=[]; while($r=$res->fetch_assoc())$rows[]=$r; $stmt->close();
     if(!$rows)return edu_chat_result('No tienes cursos asignados en el año académico actual.',[],[],[edu_chat_action('Ver Mis Cursos','my_courses','fa-book')]);
-    $lines=[]; foreach($rows as $r){$lines[]=(string)($r['name']?:'Curso').' · '.$r['grado'].'° '.$r['seccion']; if(count($lines)>=6)break;}
+    $lines=[]; foreach($rows as $r){$lines[]=(string)($r['name']?:'Curso').' · '.edu_chat_grade_label($r['grado']).' '.$r['seccion']; if(count($lines)>=6)break;}
     return edu_chat_result('Tienes '.count($rows)." asignación".(count($rows)===1?'':'es').":\n• ".implode("\n• ",$lines), ['¿Cuántos estudiantes tengo?', '¿Cuántos estudiantes están en riesgo?'], [['label'=>'Asignaciones','value'=>(string)count($rows),'tone'=>'primary']], [edu_chat_action('Ver Mis Cursos','my_courses','fa-book')]);
 }
 
