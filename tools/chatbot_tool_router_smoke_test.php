@@ -5,6 +5,7 @@ require_once __DIR__ . '/../edusync/includes/chatbot_router.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_advanced_assistant.php';
 
 echo 'Router version: '.(defined('EDUSYNC_CHAT_ROUTER_VERSION')?EDUSYNC_CHAT_ROUTER_VERSION:'unknown')."\n";
+echo 'Normalizacion: '.edu_chat_normalize('Muéstrame cómo registrar notas')."\n";
 
 $actors=[
     'admin'=>['type'=>1,'role'=>'Administrador','school_id'=>1],
