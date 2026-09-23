@@ -146,7 +146,7 @@ function edu_chat_universal_attendance_join(mysqli $conn,array $p,int $school,st
 function edu_chat_universal_grade_join(mysqli $conn,array $actor,array $p,string &$types,array &$params): string {
     foreach(['evaluation_grades','evaluations','teacher_courses','academic_courses'] as $t)if(!edu_chat_table_exists($conn,$t))return '';
     $school=(int)$actor['school_id'];
-    $year=edu_chat_active_year($conn,$school);$yearId=(int)($year['id']??0);
+    $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
     $where=['tc.school_id=?'];$types.='i';$params[]=$school;
     if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if((int)($actor['type']??0)===2){
@@ -196,6 +196,11 @@ function edu_chat_universal_students(mysqli $conn,array $actor,array $p): array 
     if($needsGrades)$join.=edu_chat_universal_grade_join($conn,$actor,$p,$joinTypes,$joinParams);
 
     edu_chat_universal_student_where($p,'s',$where,$whereTypes,$whereParams);
+    if($p['academic_year']!==''&&edu_chat_column_exists($conn,'student','academic_year_id')){
+        $requestedYear=edu_chat_universal_year($conn,$school,$p['academic_year']);
+        if(!$requestedYear)return edu_chat_result('No encontré el año académico solicitado.');
+        $where[]='s.academic_year_id=?';$whereTypes.='i';$whereParams[]=(int)$requestedYear['id'];
+    }
 
     if($p['debt_min']!==null){$where[]='COALESCE(ud.debt_total,0)>=?';$whereTypes.='d';$whereParams[]=$p['debt_min'];}
     if($p['debt_max']!==null){$where[]='COALESCE(ud.debt_total,0)<=?';$whereTypes.='d';$whereParams[]=$p['debt_max'];}
