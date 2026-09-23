@@ -338,7 +338,7 @@ function edu_chat_ai_final_payload(array $actor, string $prompt): array {
     ];
 }
 
-function edu_chat_ai_ask(array $actor, string $message, array $history = []): array {
+function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $history = []): array {
     if (!edu_chat_ai_enabled()) throw new RuntimeException('IA no configurada.');
 
     $tools = edu_chat_ai_tool_definitions($actor);
