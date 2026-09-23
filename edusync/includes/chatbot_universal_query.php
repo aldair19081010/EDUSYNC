@@ -177,6 +177,7 @@ function edu_chat_universal_grade_join(mysqli $conn,array $actor,array $p,string
 function edu_chat_universal_students(mysqli $conn,array $actor,array $p): array {
     if(!edu_chat_table_exists($conn,'student'))return edu_chat_result('No está disponible la información de estudiantes.');
     $school=(int)$actor['school_id'];$type=(int)($actor['type']??0);
+    if($p['academic_year']!==''&&!edu_chat_universal_year($conn,$school,$p['academic_year']))return edu_chat_result('No encontré el año académico solicitado.');
 
     $requestsFinance=$p['debt_min']!==null||$p['debt_max']!==null||$p['debt_count_min']!==null||in_array($p['sort_by'],['debt','debt_count'],true);
     $requestsAttendance=$p['late_min']!==null||$p['absent_min']!==null||in_array($p['sort_by'],['late','absent'],true);
@@ -297,6 +298,7 @@ function edu_chat_universal_teachers(mysqli $conn,array $actor,array $p): array 
 function edu_chat_universal_courses(mysqli $conn,array $actor,array $p): array {
     if(!edu_chat_table_exists($conn,'academic_courses')||!edu_chat_table_exists($conn,'teacher_courses'))return edu_chat_result('No está disponible la información de cursos.');
     $school=(int)$actor['school_id'];$type=(int)($actor['type']??0);
+    if($p['academic_year']!==''&&!edu_chat_universal_year($conn,$school,$p['academic_year']))return edu_chat_result('No encontré el año académico solicitado.');
     $where=['tc.school_id=?'];$types='i';$params=[$school];
     $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
     if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
@@ -377,6 +379,7 @@ function edu_chat_universal_payments(mysqli $conn,array $actor,array $p): array 
 function edu_chat_universal_grades(mysqli $conn,array $actor,array $p): array {
     foreach(['evaluation_grades','evaluations','teacher_courses','academic_courses','student'] as $t)if(!edu_chat_table_exists($conn,$t))return edu_chat_result('No está disponible la información académica necesaria.');
     $type=(int)($actor['type']??0);$school=(int)$actor['school_id'];
+    if($p['academic_year']!==''&&!edu_chat_universal_year($conn,$school,$p['academic_year']))return edu_chat_result('No encontré el año académico solicitado.');
     $where=['s.school_id=?','tc.school_id=?'];$types='ii';$params=[$school,$school];
     $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
     if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
@@ -415,7 +418,9 @@ function edu_chat_universal_grades(mysqli $conn,array $actor,array $p): array {
 
 function edu_chat_universal_evaluations(mysqli $conn,array $actor,array $p): array {
     foreach(['evaluations','teacher_courses','academic_courses'] as $t)if(!edu_chat_table_exists($conn,$t))return edu_chat_result('No está disponible la información de evaluaciones.');
-    $type=(int)($actor['type']??0);$school=(int)$actor['school_id'];$where=['tc.school_id=?'];$types='i';$params=[$school];
+    $type=(int)($actor['type']??0);$school=(int)$actor['school_id'];
+    if($p['academic_year']!==''&&!edu_chat_universal_year($conn,$school,$p['academic_year']))return edu_chat_result('No encontré el año académico solicitado.');
+    $where=['tc.school_id=?'];$types='i';$params=[$school];
     $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
     if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($type===2){$teacher=(int)($actor['teacher_id']??0);if($teacher<=0)return edu_chat_result('No pude identificar tu ficha docente.');$where[]='tc.teacher_id=?';$types.='i';$params[]=$teacher;}
@@ -484,6 +489,7 @@ function edu_chat_universal_areas(mysqli $conn,array $actor,array $p): array {
 
 function edu_chat_universal_competencies(mysqli $conn,array $actor,array $p): array {
     $school=(int)$actor['school_id'];$type=(int)($actor['type']??0);
+    if($p['academic_year']!==''&&!edu_chat_universal_year($conn,$school,$p['academic_year']))return edu_chat_result('No encontré el año académico solicitado.');
     if(edu_chat_table_exists($conn,'general_course_competencies')&&edu_chat_table_exists($conn,'academic_courses')){
         $where=['ac.school_id=?'];$types='i';$params=[$school];
         $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
