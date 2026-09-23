@@ -56,7 +56,7 @@ function edu_chat_ai_tool_definitions(array $actor): array {
 
     if ($type !== 4) {
         $universalDomains = $type === 1
-            ? ['school','config','students','teachers','courses','assignments','attendance','payments','debts','grades','evaluations','billing','academic_years']
+            ? ['school','config','users','students','teachers','courses','assignments','concepts','attendance','payments','debts','grades','evaluations','billing','academic_years']
             : ($type === 2
                 ? ['school','students','courses','assignments','grades','evaluations','academic_years']
                 : ['school','students','attendance','academic_years']);
@@ -81,6 +81,10 @@ function edu_chat_ai_tool_definitions(array $actor): array {
                 'attendance_status'=>['type'=>'string','description'=>'Estado exacto de asistencia, por ejemplo Tarde, Ausente, Presente o Permiso.'],
                 'document_type'=>['type'=>'string','enum'=>['boleta','factura']],
                 'resource'=>['type'=>'string','enum'=>['payment_methods','attendance_rules','bimester_locks'],'description'=>'Recurso de configuración segura cuando domain=config.'],
+                'status'=>['type'=>'string','enum'=>['Activo','Egresado','Retirado'],'description'=>'Estado de matrícula cuando domain=students.'],
+                'gender'=>['type'=>'string','description'=>'Género registrado del estudiante cuando se solicita explícitamente.'],
+                'concept'=>['type'=>'string','description'=>'Nombre o parte del concepto de pago, por ejemplo Mensualidad Septiembre o Matrícula.'],
+                'role_type'=>['type'=>'integer','minimum'=>1,'maximum'=>4,'description'=>'Tipo de perfil del usuario cuando domain=users. 1=Administrador, 2=Docente, 3=Auxiliar.'],
                 'amount_min'=>['type'=>'number'],'amount_max'=>['type'=>'number'],
                 'debt_min'=>['type'=>'number'],'debt_max'=>['type'=>'number'],
                 'paid_min'=>['type'=>'number'],'paid_max'=>['type'=>'number'],
@@ -99,7 +103,7 @@ function edu_chat_ai_tool_definitions(array $actor): array {
                 'domain'=>['type'=>'string','enum'=>$universalDomains,'description'=>'Dominio principal de la pregunta.'],
                 'operation'=>['type'=>'string','enum'=>['count','list','sum','avg','min','max','group'],'description'=>'Operación solicitada. group para por grado/sección/curso/método/estado; list para nombres/registros.'],
                 'metric'=>['type'=>'string','enum'=>['count','debt','paid','late','absent','critical','average_grade','amount'],'description'=>'Métrica principal. En students: debt, paid, late, absent, critical, average_grade o count. En payments/debts usa amount/debt según corresponda.'],
-                'group_by'=>['type'=>'string','enum'=>['none','level','grade','section','grade_section','course','teacher','student','specialty','payment_method','status','date','concept','competency','bimestre','type','series'],'description'=>'Dimensión de agrupación.'],
+                'group_by'=>['type'=>'string','enum'=>['none','level','grade','section','grade_section','gender','course','teacher','student','specialty','payment_method','status','date','concept','competency','bimestre','type','series','year'],'description'=>'Dimensión de agrupación.'],
                 'filters'=>$universalFilters,
                 'sort_by'=>['type'=>'string','enum'=>['name','value','debt','paid','late','absent','critical','average_grade','assignments','courses','date'],'description'=>'Campo lógico para ordenar.'],
                 'sort_dir'=>['type'=>'string','enum'=>['asc','desc']],
