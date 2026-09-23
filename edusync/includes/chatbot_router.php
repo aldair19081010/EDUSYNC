@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.7');
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.23.1');
 
 function edu_chat_router_explicit_grade(string $text): ?string {
     if (function_exists('edu_chat_grade_number_from_text')) {
@@ -84,6 +84,32 @@ function edu_chat_router_profile_name(string $text): ?string {
     return null;
 }
 
+function edu_chat_router_needs_universal(string $text): bool {
+    $finance=edu_chat_has($text,['deuda','deudas','moroso','morosos','saldo','pension','pensiones','pago','pagos','cobro','cobranza','efectivo','yape','transferencia']);
+    $attendance=edu_chat_has($text,['asistencia','tardanza','tardanzas','ausencia','ausencias','ausente','faltas','falto','faltaron','permiso']);
+    $academic=edu_chat_has($text,['nota','notas','calificacion','calificaciones','promedio','evaluacion','evaluaciones','bimestre','curso','cursos','competencia','competencias','critico','criticos','riesgo']);
+    $domains=($finance?1:0)+($attendance?1:0)+($academic?1:0);
+
+    // Los cruces reales entre módulos deben planificarse con el motor universal.
+    if($domains>=2)return true;
+
+    // Comparaciones financieras por monto no deben degradarse a un listado genérico.
+    if($finance&&edu_chat_has($text,['mas de','mayor a','mayores a','menos de','menor a','entre ','soles','s/']))return true;
+
+    // Comparaciones académicas numéricas/promedios también requieren un plan.
+    if($academic&&edu_chat_has($text,['promedio mayor','promedio menor','nota mayor','nota menor','entre ','mayor a','menor a']))return true;
+
+    // Información administrativa que pertenece al motor universal y no debe
+    // degradarse a rutas antiguas de deuda/pagos/ayuda.
+    if(edu_chat_has($text,['concepto de pago','conceptos de pago','mensualidad','matricula','cuota escolar'])
+       && edu_chat_has($text,['cuanto cuesta','precio','monto','asignado','asignada','asignaciones','cobrado','recaudado','lista','muestrame','cuantos']))return true;
+    if(edu_chat_has($text,['ruc','razon social','modo sunat','serie de factura','serie factura','serie de boleta','serie boleta','configuracion institucional']))return true;
+    if(edu_chat_has($text,['notificacion','notificaciones','alertas de notas bajas','alertas academicas']))return true;
+    if(edu_chat_has($text,['sunat','envios sunat','operaciones sunat','rechazos sunat','errores sunat'])&&!edu_chat_has($text,['como configurar','como configuro','donde configurar']))return true;
+
+    return false;
+}
+
 function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $type=(int)($actor['type']??0);
     if(!in_array($type,[1,2,3],true))return null;
@@ -115,6 +141,13 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
             return['name'=>'get_academic_risk_roster','arguments'=>$riskArgs];
         }
         return['name'=>'get_academic_risk','arguments'=>$riskArgs];
+    }
+
+    // Si la consulta cruza dominios o usa filtros comparativos que las rutas
+    // específicas no representan completamente, dejamos que la IA construya
+    // un plan para query_edusync_data.
+    if(function_exists('edu_chat_router_needs_universal')&&edu_chat_router_needs_universal($text)){
+        return null;
     }
 
     // Un grado completo o ambas secciones implica un listado nominal aunque

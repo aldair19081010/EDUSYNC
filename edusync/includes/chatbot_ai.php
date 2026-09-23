@@ -277,6 +277,40 @@ function edu_chat_ai_first_payload(array $actor, string $input, array $tools): a
     ];
 }
 
+function edu_chat_ai_universal_tool(array $tools): ?array {
+    foreach($tools as $tool)if(($tool['name']??'')==='query_edusync_data')return $tool;
+    return null;
+}
+
+function edu_chat_ai_universal_planner_payload(array $actor,string $input,array $tool): array {
+    $plannerPrompt="Convierte la consulta del usuario en UN plan estructurado para query_edusync_data. Conserva todos los filtros explícitos y cruces entre módulos. No respondas en texto y no inventes filtros no pedidos.\n\n".$input;
+    if(edu_chat_ai_api_style()==='chat_completions'){
+        $payload=[
+            'model'=>edu_chat_ai_model(),
+            'messages'=>[
+                ['role'=>'system','content'=>edu_chat_ai_instructions($actor)],
+                ['role'=>'user','content'=>$plannerPrompt]
+            ],
+            'tools'=>edu_chat_ai_chat_tools([$tool]),
+            'tool_choice'=>['type'=>'function','function'=>['name'=>'query_edusync_data']],
+            'temperature'=>0.0,
+            'stream'=>false
+        ];
+        if(edu_chat_ai_provider()==='groq'){$payload['max_completion_tokens']=edu_chat_ai_max_tokens();$payload['parallel_tool_calls']=false;}
+        else $payload['max_tokens']=edu_chat_ai_max_tokens();
+        return $payload;
+    }
+    return[
+        'model'=>edu_chat_ai_model(),
+        'instructions'=>edu_chat_ai_instructions($actor),
+        'input'=>$plannerPrompt,
+        'tools'=>[$tool],
+        'tool_choice'=>['type'=>'function','name'=>'query_edusync_data'],
+        'max_output_tokens'=>edu_chat_ai_max_tokens(),
+        'store'=>false
+    ];
+}
+
 function edu_chat_ai_final_payload(array $actor, string $prompt): array {
     if (edu_chat_ai_api_style() === 'chat_completions') {
         $payload = [
@@ -323,6 +357,25 @@ function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $his
     } else {
         $first = edu_chat_ai_request(edu_chat_ai_first_payload($actor, $input, $tools));
         $calls = edu_chat_ai_tool_calls($first);
+
+        // Si una pregunta de datos del sistema no produjo tool call, hacemos un
+        // segundo intento obligado con el planificador universal. Así la IA no
+        // responde "no dispongo" cuando la información sí puede consultarse.
+        if(!$calls && in_array((int)($actor['type']??0),[1,2,3],true)){
+            $domain=function_exists('edu_chat_semantic_domain')?edu_chat_semantic_domain($message):null;
+            $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($message):'query';
+            $isHowTo=$domain==='system'&&$semanticOperation==='help';
+            $universal=edu_chat_ai_universal_tool($tools);
+            if(!$isHowTo&&is_array($universal)){
+                try{
+                    $planned=edu_chat_ai_request(edu_chat_ai_universal_planner_payload($actor,$input,$universal));
+                    $calls=edu_chat_ai_tool_calls($planned);
+                }catch(Throwable $e){
+                    error_log('[chatbot_ai universal planner fallback] '.$e->getMessage());
+                }
+            }
+        }
+
         if (!$calls) {
             $text = edu_chat_ai_extract_text($first);
             if ($text === '') throw new RuntimeException('La IA no devolvió contenido.');
