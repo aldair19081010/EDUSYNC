@@ -11,6 +11,8 @@ require_once __DIR__ . '/../edusync/includes/chatbot_advanced_assistant.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_universal_query.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_tools.php';
 
+echo 'Motor universal: '.(defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')?EDUSYNC_CHAT_UNIVERSAL_VERSION:'unknown')."\n";
+
 $failed=0;
 function uq_ok($ok,$label,$detail=''){
     global $failed;
