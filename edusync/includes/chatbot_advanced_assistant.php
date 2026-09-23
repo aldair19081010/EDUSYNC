@@ -392,6 +392,10 @@ function edu_chat_adv_academic_courses_result(mysqli $conn,array $actor,array $e
 function edu_chat_advanced_try(mysqli $conn,array $actor,string $message,array $state=[]): ?array {
     $n=edu_chat_normalize($message);$type=(int)($actor['type']??0);$entities=edu_chat_adv_entities($n,$state);
 
+    // Las consultas que necesitan combinar dominios, aplicar filtros ricos o
+    // reutilizar un plan universal deben llegar a la IA + motor universal.
+    if(function_exists('edu_chat_router_needs_universal')&&edu_chat_router_needs_universal($n))return null;
+
     if($type===1){
         $method=function_exists('edu_chat_payment_method_from_text')?edu_chat_payment_method_from_text($n):null;
         $financeLanguage=function_exists('edu_chat_finance_language')?edu_chat_finance_language($n):edu_chat_has($n,['pago','pagos','cobrado','recaudado','recaudacion']);
