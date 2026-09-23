@@ -61,10 +61,15 @@ function edu_chat_semantic_schema_prompt(array $actor): string {
         'SEGURIDAD: colegio, usuario, docente y estudiante autorizado provienen de la sesión. Nunca pidas IDs internos para ampliar acceso.',
         'DOMINIO estudiantes: estudiantes activos, nombre, nivel, grado, sección, conteos, distribución, listados y ficha 360 cuando el rol lo permita.',
         'DOMINIO docentes: docentes del colegio y, para un docente autenticado, sus cursos/asignaciones y estudiantes vinculados.',
-        'DOMINIO pagos: pagos confirmados, montos, fechas, comprobantes y métodos Efectivo/Yape/Transferencia cuando la instalación tenga ese campo.',
+        'DOMINIO pagos: pagos confirmados, montos, fechas, recibos y desglose por Efectivo/Yape/Transferencia según la estructura real del módulo de pagos.',
         'DOMINIO deudas: obligaciones activas, saldo pendiente, morosidad, cantidad de deudas, vencimientos cuando exista fecha compatible.',
         'DOMINIO asistencia: registros de Entrada, Presente, Tarde, Ausente, Ausente Justificada y Permiso; no asumir falta solo por ausencia de marcación.',
         'DOMINIO académico/notas: cursos, bimestres, evaluaciones, competencias y calificaciones disponibles según el perfil.',
+        'DOMINIO conceptos: matrícula, mensualidades y otros conceptos de pago configurados por año, nivel y grados.',
+        'DOMINIO facturación: comprobantes electrónicos, boletas/facturas, series, fechas, montos y estado/respuesta SUNAT consultable; nunca credenciales ni certificados.',
+        'DOMINIO usuarios: nombres y perfiles del sistema para administración; nunca contraseñas, hashes, tokens ni credenciales.',
+        'DOMINIO configuración: medios de pago, reglas de asistencia y bloqueos de bimestre consultables para administración.',
+        'DOMINIO institución: datos seguros del colegio y configuración fiscal pública/administrativa permitida.',
         'DOMINIO riesgo: alerta académica y riesgo predictivo; usar las herramientas/modelo existentes y no inventar causalidad.',
         'DOMINIO sistema: ayuda sobre módulos, navegación y procesos documentados de EduSync.',
         'OPERACIONES: count=cuántos; list=quiénes/lista; distribution=por nivel/grado/sección/aula; summary=total/resumen; profile=ficha/estado integral; help=cómo/dónde.',
@@ -73,7 +78,9 @@ function edu_chat_semantic_schema_prompt(array $actor): string {
         'MÉTODOS DE PAGO: Efectivo, Yape, Transferencia. cash→Efectivo; depósito/banco→Transferencia.',
         'REGLA: si una herramienta específica cubre el filtro solicitado, debes usarla. No sustituyas un desglose por un total general.',
         'REGLA: montos, conteos, nombres, notas, porcentajes y estados solo pueden salir de una herramienta autorizada.',
-        'REGLA: si no existe una herramienta autorizada para responder exactamente, dilo brevemente; no completes el dato por inferencia.'
+        'MOTOR UNIVERSAL: cuando una pregunta de datos no encaje exactamente en una herramienta específica, usa query_edusync_data con dominio, operación, filtros, agrupación, orden y límite; nunca generes SQL.',
+        'CRUCES: si el resultado final son estudiantes, el motor universal puede combinar deuda, pagos, tardanzas, ausencias, registros críticos y promedio académico según los permisos del rol.',
+        'REGLA: si no existe una herramienta autorizada para responder exactamente incluso después de intentar el motor universal, dilo brevemente; no completes el dato por inferencia.'
     ];
     if($type!==1)$lines[]='El acceso financiero agregado del colegio está reservado al perfil Administrador.';
     if($type===2)$lines[]='El Docente solo puede consultar estudiantes/cursos vinculados a sus asignaciones.';
