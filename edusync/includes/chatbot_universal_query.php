@@ -78,7 +78,7 @@ function edu_chat_universal_year(mysqli $conn,int $school,string $requested=''):
         $st->bind_param('is',$school,$requested);$st->execute();$row=$st->get_result()->fetch_assoc();$st->close();
         return $row?:null;
     }
-    return edu_chat_universal_year($conn,$school,$p['academic_year']);
+    return edu_chat_active_year($conn,$school);
 }
 
 function edu_chat_universal_period(mysqli $conn,int $school,array $p): array {
