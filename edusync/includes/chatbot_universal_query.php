@@ -14,7 +14,7 @@ require_once __DIR__ . '/chatbot_student_insights.php';
 
 function edu_chat_universal_allowed_subjects(array $actor): array {
     $type=(int)($actor['type']??0);
-    if($type===1)return ['students','teachers','courses','payments','debts','attendance','grades','evaluations','risk','academic_years','areas','competencies','billing','users','school','bimester_locks','attendance_config'];
+    if($type===1)return ['students','teachers','courses','concepts','fees','payments','debts','attendance','grades','evaluations','risk','academic_years','areas','competencies','billing','sunat','notifications','settings','users','school','bimester_locks','attendance_config'];
     if($type===2)return ['students','courses','grades','evaluations','risk','academic_years','areas','competencies','school','bimester_locks'];
     if($type===3)return ['students','attendance','academic_years','school','attendance_config'];
     return [];
@@ -45,6 +45,10 @@ function edu_chat_universal_plan(array $args): array {
         'status'=>trim((string)($args['status']??'')),
         'gender'=>trim((string)($args['gender']??'')),
         'course'=>trim((string)($args['course']??'')),
+        'concept'=>trim((string)($args['concept']??'')),
+        'setting_key'=>trim((string)($args['setting_key']??'')),
+        'notification_type'=>trim((string)($args['notification_type']??'')),
+        'sunat_operation'=>trim((string)($args['sunat_operation']??'')),
         'teacher_name'=>trim((string)($args['teacher_name']??'')),
         'bimestre'=>trim((string)($args['bimestre']??'')),
         'evaluation_type'=>trim((string)($args['evaluation_type']??'')),
@@ -595,6 +599,192 @@ function edu_chat_universal_attendance_config(mysqli $conn,array $actor,array $p
     return $lines?edu_chat_result("Configuración de asistencia:\n".implode("\n",$lines)):edu_chat_result('No está disponible la configuración de asistencia.');
 }
 
+
+function edu_chat_universal_concepts(mysqli $conn,array $actor,array $p): array {
+    if((int)($actor['type']??0)!==1)return edu_chat_result('Los conceptos de pago solo están disponibles para administración.');
+    if(!edu_chat_table_exists($conn,'courses')||!edu_chat_table_exists($conn,'academic_year'))return edu_chat_result('No está disponible la información de conceptos de pago.');
+    $school=(int)$actor['school_id'];$where=['ay.school_id=?'];$types='i';$params=[$school];
+    $year=edu_chat_universal_year($conn,$school,$p['academic_year']);
+    if($p['academic_year']!==''&&!$year)return edu_chat_result('No encontré el año académico solicitado.');
+    if($year){$where[]='c.academic_year_id=?';$types.='i';$params[]=(int)$year['id'];}
+    if($p['level']!==''){$where[]='LOWER(TRIM(c.level))=LOWER(TRIM(?))';$types.='s';$params[]=$p['level'];}
+    if($p['grade']!==''){
+        $where[]="CONCAT(',',REPLACE(REPLACE(COALESCE(c.grades,''),' ',''),'º','°'),',') LIKE ?";
+        $types.='s';$params[]='%,' . edu_chat_grade_label($p['grade']) . ',%';
+    }
+    $needle=$p['concept']!==''?$p['concept']:$p['name_search'];
+    if($needle!==''){$where[]='LOWER(TRIM(c.course)) LIKE LOWER(?)';$types.='s';$params[]='%'.$needle.'%';}
+    if($p['amount_min']!==null){$where[]='c.total_amount>=?';$types.='d';$params[]=$p['amount_min'];}
+    if($p['amount_max']!==null){$where[]='c.total_amount<=?';$types.='d';$params[]=$p['amount_max'];}
+    if(edu_chat_column_exists($conn,'courses','concept_status')&&$p['status']!==''){$where[]='LOWER(TRIM(c.concept_status))=LOWER(TRIM(?))';$types.='s';$params[]=$p['status'];}
+    elseif(edu_chat_column_exists($conn,'courses','concept_status'))$where[]="COALESCE(c.concept_status,'Activo')<>'Archivado'";
+    $w=implode(' AND ',$where);
+
+    if($p['operation']==='count'){
+        $st=$conn->prepare("SELECT COUNT(*) total FROM courses c INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE $w");
+        if(!$st)return edu_chat_result('No pude preparar la consulta de conceptos.');
+        edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
+        return edu_chat_result('Conceptos encontrados: '.(int)($r['total']??0).'.');
+    }
+
+    if($p['operation']==='distribution'&&in_array($p['group_by'],['level','status'],true)){
+        if($p['group_by']==='level'){$sel='c.level label';$grp='c.level';}
+        else{
+            if(!edu_chat_column_exists($conn,'courses','concept_status'))return edu_chat_result('La base actual no registra estado del concepto.');
+            $sel="COALESCE(c.concept_status,'Activo') label";$grp="COALESCE(c.concept_status,'Activo')";
+        }
+        $st=$conn->prepare("SELECT $sel,COUNT(*) total,COALESCE(SUM(c.total_amount),0) nominal FROM courses c INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE $w GROUP BY $grp ORDER BY total DESC");
+        if(!$st)return edu_chat_result('No pude preparar la distribución de conceptos.');
+        edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['label'].': '.(int)$r['total'].' conceptos · monto nominal '.edu_chat_money((float)$r['nominal']);$st->close();
+        return $lines?edu_chat_result("Conceptos por grupo:\n".implode("\n",$lines)):edu_chat_result('No encontré conceptos con esos filtros.');
+    }
+
+    $payStatus=edu_chat_table_exists($conn,'payments')&&edu_chat_column_exists($conn,'payments','payment_status')?" AND COALESCE(p.payment_status,'Confirmado')='Confirmado'":'';
+    $assigned=edu_chat_table_exists($conn,'student_ef_list')?"(SELECT COUNT(*) FROM student_ef_list ef WHERE ef.course_id=c.id)":'0';
+    $assignedTotal=edu_chat_table_exists($conn,'student_ef_list')?"(SELECT COALESCE(SUM(COALESCE(ef.discounted_amount,ef.total_fee)),0) FROM student_ef_list ef WHERE ef.course_id=c.id)":'0';
+    $collected=(edu_chat_table_exists($conn,'student_ef_list')&&edu_chat_table_exists($conn,'payments'))?"(SELECT COALESCE(SUM(p.amount),0) FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id WHERE ef.course_id=c.id$payStatus)":'0';
+    $statusSelect=edu_chat_column_exists($conn,'courses','concept_status')?",COALESCE(c.concept_status,'Activo') concept_status":'';
+    $sql="SELECT c.course,c.level,c.grades,c.total_amount,ay.year,$assigned assignments,$assignedTotal assigned_total,$collected collected_total$statusSelect
+          FROM courses c INNER JOIN academic_year ay ON ay.id=c.academic_year_id
+          WHERE $w ORDER BY ay.year DESC,c.level,c.course,c.total_amount LIMIT ".$p['limit'];
+    $st=$conn->prepare($sql);if(!$st)return edu_chat_result('No pude preparar la consulta de conceptos.');
+    edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$st->close();
+    if(!$rows)return edu_chat_result('No encontré conceptos con esos filtros.');
+    $lines=[];foreach($rows as $r){
+        $line='• '.$r['course'].' — '.$r['level'].' — grados '.$r['grades'].' — '.edu_chat_money((float)$r['total_amount']).' — año '.$r['year'];
+        $line.=' — '.(int)$r['assignments'].' asignaciones';
+        if((float)$r['assigned_total']>0|| (float)$r['collected_total']>0)$line.=' — asignado '.edu_chat_money((float)$r['assigned_total']).' — cobrado '.edu_chat_money((float)$r['collected_total']);
+        if(isset($r['concept_status']))$line.=' — '.$r['concept_status'];
+        $lines[]=$line;
+    }
+    return edu_chat_result('Conceptos encontrados ('.count($rows)."):\n".implode("\n",$lines));
+}
+
+function edu_chat_universal_fees(mysqli $conn,array $actor,array $p): array {
+    if((int)($actor['type']??0)!==1)return edu_chat_result('Las asignaciones financieras solo están disponibles para administración.');
+    if(!edu_chat_table_exists($conn,'student_ef_list')||!edu_chat_table_exists($conn,'student')||!edu_chat_table_exists($conn,'courses'))return edu_chat_result('No está disponible la información de cuotas asignadas.');
+    $school=(int)$actor['school_id'];$where=['s.school_id=?'];$types='i';$params=[$school];
+    edu_chat_universal_student_where($p,'s',$where,$types,$params);
+    $year=edu_chat_universal_year($conn,$school,$p['academic_year']);
+    if($p['academic_year']!==''&&!$year)return edu_chat_result('No encontré el año académico solicitado.');
+    if($year){$where[]='c.academic_year_id=?';$types.='i';$params[]=(int)$year['id'];}
+    $needle=$p['concept']!==''?$p['concept']:'';
+    if($needle!==''){$where[]='LOWER(TRIM(c.course)) LIKE LOWER(?)';$types.='s';$params[]='%'.$needle.'%';}
+    if($p['amount_min']!==null){$where[]='COALESCE(ef.discounted_amount,ef.total_fee)>=?';$types.='d';$params[]=$p['amount_min'];}
+    if($p['amount_max']!==null){$where[]='COALESCE(ef.discounted_amount,ef.total_fee)<=?';$types.='d';$params[]=$p['amount_max'];}
+    if(edu_chat_column_exists($conn,'student_ef_list','debt_status')&&$p['status']!==''){$where[]='LOWER(TRIM(ef.debt_status))=LOWER(TRIM(?))';$types.='s';$params[]=$p['status'];}
+    $payStatus=edu_chat_column_exists($conn,'payments','payment_status')?" AND COALESCE(p.payment_status,'Confirmado')='Confirmado'":'';
+    $w=implode(' AND ',$where);
+    $balance="GREATEST(COALESCE(ef.discounted_amount,ef.total_fee)-COALESCE(SUM(p.amount),0),0)";
+
+    if($p['operation']==='count'){
+        $sql="SELECT COUNT(*) total FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id INNER JOIN courses c ON c.id=ef.course_id WHERE $w";
+        $st=$conn->prepare($sql);if(!$st)return edu_chat_result('No pude preparar la consulta de cuotas.');
+        edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();return edu_chat_result('Cuotas/asignaciones encontradas: '.(int)($r['total']??0).'.');
+    }
+
+    if(in_array($p['operation'],['summary','sum'],true)){
+        $sql="SELECT COUNT(DISTINCT ef.id) assignments,COUNT(DISTINCT s.id) students,COALESCE(SUM(COALESCE(ef.discounted_amount,ef.total_fee)),0) assigned_total,COALESCE(SUM(p.amount),0) paid_total
+              FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id INNER JOIN courses c ON c.id=ef.course_id LEFT JOIN payments p ON p.ef_id=ef.id$payStatus
+              WHERE $w";
+        $st=$conn->prepare($sql);if(!$st)return edu_chat_result('No pude preparar el resumen de cuotas.');edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
+        $assigned=(float)($r['assigned_total']??0);$paid=(float)($r['paid_total']??0);
+        return edu_chat_result('Asignaciones: '.(int)($r['assignments']??0).' · estudiantes '.(int)($r['students']??0).' · asignado '.edu_chat_money($assigned).' · pagado '.edu_chat_money($paid).' · saldo '.edu_chat_money(max(0,$assigned-$paid)).'.');
+    }
+
+    $sql="SELECT s.name,s.nivel,s.grado,COALESCE(NULLIF(TRIM(s.seccion),''),'Sin sección') seccion,c.course concept,COALESCE(ef.discounted_amount,ef.total_fee) effective_amount,COALESCE(SUM(p.amount),0) paid,$balance balance
+          FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id INNER JOIN courses c ON c.id=ef.course_id
+          LEFT JOIN payments p ON p.ef_id=ef.id$payStatus
+          WHERE $w
+          GROUP BY ef.id,s.id,s.name,s.nivel,s.grado,s.seccion,c.course,ef.discounted_amount,ef.total_fee
+          ORDER BY balance DESC,s.name,c.course LIMIT ".$p['limit'];
+    $st=$conn->prepare($sql);if(!$st)return edu_chat_result('No pude preparar la consulta de cuotas.');edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$st->close();
+    if(!$rows)return edu_chat_result('No encontré cuotas/asignaciones con esos filtros.');
+    $lines=[];foreach($rows as $r)$lines[]='• '.$r['name'].' — '.$r['nivel'].' · '.edu_chat_grade_label($r['grado']).' '.$r['seccion'].' — '.$r['concept'].' — asignado '.edu_chat_money((float)$r['effective_amount']).' — pagado '.edu_chat_money((float)$r['paid']).' — saldo '.edu_chat_money((float)$r['balance']);
+    return edu_chat_result('Cuotas/asignaciones encontradas ('.count($rows)."):\n".implode("\n",$lines));
+}
+
+function edu_chat_universal_notifications(mysqli $conn,array $actor,array $p): array {
+    if((int)($actor['type']??0)!==1)return edu_chat_result('Las notificaciones globales solo están disponibles para administración.');
+    $school=(int)$actor['school_id'];
+    $type=strtolower($p['notification_type']);
+    $useLow=in_array($type,['low_grade','notas_bajas','academica','academic'],true);
+
+    if($useLow){
+        if(!edu_chat_table_exists($conn,'low_grade_notifications'))return edu_chat_result('No está disponible el historial de alertas de notas bajas.');
+        $where=['s.school_id=?'];$types='i';$params=[$school];
+        edu_chat_universal_student_where($p,'s',$where,$types,$params);
+        if($p['bimestre']!==''){$where[]='n.bimestre=?';$types.='s';$params[]=$p['bimestre'];}
+        if($p['status']!==''){
+            $read=in_array(strtolower($p['status']),['leida','leido','read','1'],true)?1:0;$where[]='n.is_read=?';$types.='i';$params[]=$read;
+        }
+        $w=implode(' AND ',$where);
+        if(in_array($p['operation'],['count','summary'],true)){
+            $st=$conn->prepare("SELECT COUNT(*) total,COALESCE(SUM(n.count_low_grades),0) low_grades FROM low_grade_notifications n INNER JOIN student s ON s.id=n.student_id WHERE $w");edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
+            return edu_chat_result('Alertas académicas: '.(int)($r['total']??0).' · notas bajas registradas '.(int)($r['low_grades']??0).'.');
+        }
+        $st=$conn->prepare("SELECT n.created_at,n.bimestre,n.count_low_grades,n.failed_courses,n.is_read,s.name,s.nivel,s.grado,s.seccion FROM low_grade_notifications n INNER JOIN student s ON s.id=n.student_id WHERE $w ORDER BY n.created_at DESC LIMIT ".$p['limit']);edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['created_at'].' — '.$r['name'].' — '.edu_chat_grade_label($r['grado']).' '.$r['seccion'].' — B'.$r['bimestre'].' — '.(int)$r['count_low_grades'].' notas bajas'.(!empty($r['failed_courses'])?' — '.$r['failed_courses']:'');$st->close();
+        return $lines?edu_chat_result("Alertas académicas:\n".implode("\n",$lines)):edu_chat_result('No encontré alertas académicas con esos filtros.');
+    }
+
+    if(!edu_chat_table_exists($conn,'notificaciones'))return edu_chat_result('No está disponible el historial de notificaciones.');
+    $where=['s.school_id=?'];$types='i';$params=[$school];
+    edu_chat_universal_student_where($p,'s',$where,$types,$params);
+    if($p['status']!==''){$read=in_array(strtolower($p['status']),['leida','leido','read','1'],true)?1:0;$where[]='n.leido=?';$types.='i';$params[]=$read;}
+    if($p['name_search']!==''){$where[]='(LOWER(n.titulo) LIKE LOWER(?) OR LOWER(n.mensaje) LIKE LOWER(?))';$types.='ss';$like='%'.$p['name_search'].'%';$params[]=$like;$params[]=$like;}
+    $w=implode(' AND ',$where);
+    if(in_array($p['operation'],['count','summary'],true)){
+        $st=$conn->prepare("SELECT COUNT(*) total,SUM(COALESCE(n.leido,0)=0) unread FROM notificaciones n INNER JOIN student s ON s.id=n.student_id WHERE $w");edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
+        return edu_chat_result('Notificaciones: '.(int)($r['total']??0).' · no leídas '.(int)($r['unread']??0).'.');
+    }
+    $st=$conn->prepare("SELECT n.fecha,n.titulo,n.mensaje,n.leido,s.name FROM notificaciones n INNER JOIN student s ON s.id=n.student_id WHERE $w ORDER BY n.fecha DESC LIMIT ".$p['limit']);edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['fecha'].' — '.$r['name'].' — '.$r['titulo'].' — '.((int)$r['leido']===1?'Leída':'No leída').' — '.mb_substr((string)$r['mensaje'],0,180,'UTF-8');$st->close();
+    return $lines?edu_chat_result("Notificaciones encontradas:\n".implode("\n",$lines)):edu_chat_result('No encontré notificaciones con esos filtros.');
+}
+
+function edu_chat_universal_settings(mysqli $conn,array $actor,array $p): array {
+    if((int)($actor['type']??0)!==1)return edu_chat_result('La configuración institucional solo está disponible para administración.');
+    $school=(int)$actor['school_id'];$lines=[];
+
+    if(edu_chat_table_exists($conn,'schools')){
+        $st=$conn->prepare('SELECT name,contact_number,email,address FROM schools WHERE id=? LIMIT 1');$st->bind_param('i',$school);$st->execute();$r=$st->get_result()->fetch_assoc();$st->close();
+        if($r)$lines[]='• Institución: '.$r['name'].(!empty($r['email'])?' — '.$r['email']:'').(!empty($r['contact_number'])?' — '.$r['contact_number']:'').(!empty($r['address'])?' — '.$r['address']:'');
+    }
+
+    if(edu_chat_table_exists($conn,'company_config')){
+        $st=$conn->prepare('SELECT ruc,razon_social,nombre_comercial,direccion,provincia,departamento,distrito,telefono,email,website,sunat_modo,serie_factura,serie_boleta,serie_nota_credito,serie_nota_debito,correlativo_factura,correlativo_boleta,correlativo_nota_credito,correlativo_nota_debito,is_active FROM company_config WHERE school_id=? ORDER BY id DESC LIMIT 1');
+        if($st){$st->bind_param('i',$school);$st->execute();$r=$st->get_result()->fetch_assoc();$st->close();if($r)$lines[]='• Facturación: '.($r['razon_social']?:'Sin razón social').' — RUC '.$r['ruc'].' — modo SUNAT '.$r['sunat_modo'].' — series factura '.$r['serie_factura'].', boleta '.$r['serie_boleta'].' — '.((int)$r['is_active']===1?'Activa':'Inactiva');}
+    }
+
+    if(edu_chat_table_exists($conn,'system_settings')){
+        $st=$conn->query('SELECT name,email,contact,about_content FROM system_settings ORDER BY id DESC LIMIT 1');
+        if($st&&($r=$st->fetch_assoc()))$lines[]='• Configuración general: '.$r['name'].(!empty($r['email'])?' — '.$r['email']:'').(!empty($r['contact'])?' — '.$r['contact']:'');
+    }
+
+    if(!$lines)return edu_chat_result('No encontré configuración institucional disponible.');
+    return edu_chat_result("Configuración institucional segura:\n".implode("\n",$lines)."\nNo se muestran credenciales, claves, certificados ni secretos.");
+}
+
+function edu_chat_universal_sunat(mysqli $conn,array $actor,array $p): array {
+    if((int)($actor['type']??0)!==1)return edu_chat_result('La trazabilidad SUNAT solo está disponible para administración.');
+    if(!edu_chat_table_exists($conn,'sunat_log')||!edu_chat_table_exists($conn,'comprobantes_electronicos'))return edu_chat_result('No está disponible el historial SUNAT.');
+    $school=(int)$actor['school_id'];[$from,$to,$label]=edu_chat_universal_period($conn,$school,$p);
+    $where=['ce.school_id=?','DATE(sl.created_at) BETWEEN ? AND ?'];$types='iss';$params=[$school,$from,$to];
+    if($p['sunat_operation']!==''){$where[]='LOWER(TRIM(sl.operacion))=LOWER(TRIM(?))';$types.='s';$params[]=$p['sunat_operation'];}
+    if($p['status']!==''){$where[]='LOWER(TRIM(COALESCE(sl.estado,\'\')))=LOWER(TRIM(?))';$types.='s';$params[]=$p['status'];}
+    $w=implode(' AND ',$where);
+    if(in_array($p['operation'],['summary','count'],true)){
+        $st=$conn->prepare("SELECT COUNT(*) total,SUM(LOWER(TRIM(COALESCE(sl.estado,''))) IN ('aceptado','ok','exito','exitoso')) ok,SUM(LOWER(TRIM(COALESCE(sl.estado,''))) IN ('rechazado','error','fallido')) failed FROM sunat_log sl INNER JOIN comprobantes_electronicos ce ON ce.id=sl.comprobante_id WHERE $w");edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
+        return edu_chat_result('Operaciones SUNAT '.$label.': '.(int)($r['total']??0).' · exitosas '.(int)($r['ok']??0).' · con error/rechazo '.(int)($r['failed']??0).'.');
+    }
+    if($p['operation']==='distribution'&&in_array($p['group_by'],['status','operation'],true)){
+        $field=$p['group_by']==='operation'?'sl.operacion':'COALESCE(sl.estado,\'Sin estado\')';
+        $st=$conn->prepare("SELECT $field label,COUNT(*) total FROM sunat_log sl INNER JOIN comprobantes_electronicos ce ON ce.id=sl.comprobante_id WHERE $w GROUP BY $field ORDER BY total DESC");edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['label'].': '.(int)$r['total'];$st->close();
+        return $lines?edu_chat_result("SUNAT por grupo $label:\n".implode("\n",$lines)):edu_chat_result('No encontré operaciones SUNAT con esos filtros.');
+    }
+    $st=$conn->prepare("SELECT sl.created_at,sl.operacion,sl.estado,sl.mensaje,ce.numero_completo FROM sunat_log sl INNER JOIN comprobantes_electronicos ce ON ce.id=sl.comprobante_id WHERE $w ORDER BY sl.created_at DESC LIMIT ".$p['limit']);edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['created_at'].' — '.$r['numero_completo'].' — '.$r['operacion'].' — '.($r['estado']?:'Sin estado').(!empty($r['mensaje'])?' — '.mb_substr((string)$r['mensaje'],0,180,'UTF-8'):'');$st->close();
+    return $lines?edu_chat_result("Operaciones SUNAT encontradas:\n".implode("\n",$lines)):edu_chat_result('No encontré operaciones SUNAT con esos filtros.');
+}
+
 function edu_chat_universal_billing(mysqli $conn,array $actor,array $p): array {
     if((int)($actor['type']??0)!==1)return edu_chat_result('La facturación electrónica solo está disponible para administración.');
     if(!edu_chat_table_exists($conn,'comprobantes_electronicos'))return edu_chat_result('No está disponible el módulo de comprobantes electrónicos.');
@@ -631,6 +821,8 @@ function edu_chat_universal_query(mysqli $conn,array $actor,array $args): array 
         case 'students': return edu_chat_universal_students($conn,$actor,$p);
         case 'teachers': return edu_chat_universal_teachers($conn,$actor,$p);
         case 'courses': return edu_chat_universal_courses($conn,$actor,$p);
+        case 'concepts': return edu_chat_universal_concepts($conn,$actor,$p);
+        case 'fees': return edu_chat_universal_fees($conn,$actor,$p);
         case 'payments': return edu_chat_universal_payments($conn,$actor,$p);
         case 'debts':
             if((int)($actor['type']??0)!==1)return edu_chat_result('Esta consulta financiera solo está disponible para administración.');
@@ -661,6 +853,9 @@ function edu_chat_universal_query(mysqli $conn,array $actor,array $args): array 
         case 'areas': return edu_chat_universal_areas($conn,$actor,$p);
         case 'competencies': return edu_chat_universal_competencies($conn,$actor,$p);
         case 'billing': return edu_chat_universal_billing($conn,$actor,$p);
+        case 'sunat': return edu_chat_universal_sunat($conn,$actor,$p);
+        case 'notifications': return edu_chat_universal_notifications($conn,$actor,$p);
+        case 'settings': return edu_chat_universal_settings($conn,$actor,$p);
         case 'users': return edu_chat_universal_users($conn,$actor,$p);
         case 'school': return edu_chat_universal_school($conn,$actor,$p);
         case 'bimester_locks': return edu_chat_universal_bimester_locks($conn,$actor,$p);
