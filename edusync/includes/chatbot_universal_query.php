@@ -78,7 +78,7 @@ function edu_chat_universal_year(mysqli $conn,int $school,string $requested=''):
         $st->bind_param('is',$school,$requested);$st->execute();$row=$st->get_result()->fetch_assoc();$st->close();
         return $row?:null;
     }
-    return edu_chat_active_year($conn,$school);
+    return edu_chat_universal_year($conn,$school,$p['academic_year']);
 }
 
 function edu_chat_universal_period(mysqli $conn,int $school,array $p): array {
@@ -183,7 +183,7 @@ function edu_chat_universal_students(mysqli $conn,array $actor,array $p): array 
         $teacher=(int)($actor['teacher_id']??0);if($teacher<=0)return edu_chat_result('No pude identificar tu ficha docente.');
         $join.=" INNER JOIN teacher_courses utc ON utc.school_id=s.school_id AND TRIM(utc.grado)=TRIM(s.grado) AND UPPER(TRIM(COALESCE(utc.seccion,'')))=UPPER(TRIM(COALESCE(s.seccion,'')))";
         $where[]='utc.teacher_id=?';$whereTypes.='i';$whereParams[]=$teacher;
-        $year=edu_chat_active_year($conn,$school);$yearId=(int)($year['id']??0);
+        $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
         if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='utc.academic_year_id=?';$whereTypes.='i';$whereParams[]=$yearId;}
     }
 
@@ -291,7 +291,7 @@ function edu_chat_universal_courses(mysqli $conn,array $actor,array $p): array {
     if(!edu_chat_table_exists($conn,'academic_courses')||!edu_chat_table_exists($conn,'teacher_courses'))return edu_chat_result('No está disponible la información de cursos.');
     $school=(int)$actor['school_id'];$type=(int)($actor['type']??0);
     $where=['tc.school_id=?'];$types='i';$params=[$school];
-    $year=edu_chat_active_year($conn,$school);$yearId=(int)($year['id']??0);
+    $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
     if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($type===2){$teacher=(int)($actor['teacher_id']??0);if($teacher<=0)return edu_chat_result('No pude identificar tu ficha docente.');$where[]='tc.teacher_id=?';$types.='i';$params[]=$teacher;}
     if($p['level']!==''){$where[]='LOWER(TRIM(tc.level))=LOWER(TRIM(?))';$types.='s';$params[]=$p['level'];}
@@ -371,7 +371,7 @@ function edu_chat_universal_grades(mysqli $conn,array $actor,array $p): array {
     foreach(['evaluation_grades','evaluations','teacher_courses','academic_courses','student'] as $t)if(!edu_chat_table_exists($conn,$t))return edu_chat_result('No está disponible la información académica necesaria.');
     $type=(int)($actor['type']??0);$school=(int)$actor['school_id'];
     $where=['s.school_id=?','tc.school_id=?'];$types='ii';$params=[$school,$school];
-    $year=edu_chat_active_year($conn,$school);$yearId=(int)($year['id']??0);
+    $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
     if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($type===2){$teacher=(int)($actor['teacher_id']??0);if($teacher<=0)return edu_chat_result('No pude identificar tu ficha docente.');$where[]='tc.teacher_id=?';$types.='i';$params[]=$teacher;}
     if($p['level']!==''){$where[]='LOWER(TRIM(s.nivel))=LOWER(TRIM(?))';$types.='s';$params[]=$p['level'];}
@@ -409,7 +409,7 @@ function edu_chat_universal_grades(mysqli $conn,array $actor,array $p): array {
 function edu_chat_universal_evaluations(mysqli $conn,array $actor,array $p): array {
     foreach(['evaluations','teacher_courses','academic_courses'] as $t)if(!edu_chat_table_exists($conn,$t))return edu_chat_result('No está disponible la información de evaluaciones.');
     $type=(int)($actor['type']??0);$school=(int)$actor['school_id'];$where=['tc.school_id=?'];$types='i';$params=[$school];
-    $year=edu_chat_active_year($conn,$school);$yearId=(int)($year['id']??0);
+    $year=edu_chat_universal_year($conn,$school,$p['academic_year']);$yearId=(int)($year['id']??0);
     if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$where[]='tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
     if($type===2){$teacher=(int)($actor['teacher_id']??0);if($teacher<=0)return edu_chat_result('No pude identificar tu ficha docente.');$where[]='tc.teacher_id=?';$types.='i';$params[]=$teacher;}
     if($p['level']!==''){$where[]='LOWER(TRIM(tc.level))=LOWER(TRIM(?))';$types.='s';$params[]=$p['level'];}
