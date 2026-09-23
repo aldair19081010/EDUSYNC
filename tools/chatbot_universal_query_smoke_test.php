@@ -33,10 +33,16 @@ $names=array_map(static function($t){return $t['name']??'';},$adminTools);
 uq_ok(in_array('query_edusync_data',$names,true),'administrador recibe query_edusync_data');
 
 $studentAllowed=edu_chat_universal_allowed_subjects($admin);
-uq_ok(in_array('billing',$studentAllowed,true)&&in_array('competencies',$studentAllowed,true)&&in_array('bimester_locks',$studentAllowed,true),'cobertura administrativa ampliada');
+uq_ok(in_array('billing',$studentAllowed,true)&&in_array('competencies',$studentAllowed,true)&&in_array('bimester_locks',$studentAllowed,true)&&in_array('concepts',$studentAllowed,true)&&in_array('fees',$studentAllowed,true)&&in_array('notifications',$studentAllowed,true)&&in_array('settings',$studentAllowed,true)&&in_array('sunat',$studentAllowed,true),'cobertura administrativa ampliada');
 
 $route=edu_chat_ai_forced_route($admin,'Muéstrame estudiantes con deuda mayor a 500 soles y al menos 2 tardanzas este mes');
 uq_ok($route===null,'consulta cruzada no es robada por router específico',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+
+$route=edu_chat_ai_forced_route($admin,'¿Cuánto cuesta la mensualidad de tercero de secundaria?');
+uq_ok($route===null,'consulta de concepto de pago llega al motor universal',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+
+$route=edu_chat_ai_forced_route($admin,'¿Cuál es el modo SUNAT configurado?');
+uq_ok($route===null,'consulta de configuración SUNAT llega al motor universal',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
 $denied=edu_chat_universal_query($teacher,['subject'=>'students','operation'=>'list','debt_min'=>1]);
 uq_ok(stripos((string)($denied['message']??''),'no está autorizada')!==false,'docente no puede cruzar alumnos con finanzas',(string)($denied['message']??''));
@@ -50,6 +56,8 @@ $cases=[
     ['áreas', ['subject'=>'areas','operation'=>'list','limit'=>50]],
     ['competencias', ['subject'=>'competencies','operation'=>'list','limit'=>20]],
     ['cursos', ['subject'=>'courses','operation'=>'list','limit'=>20]],
+    ['conceptos de pago', ['subject'=>'concepts','operation'=>'list','level'=>'Secundaria','grade'=>'3','limit'=>20]],
+    ['cuotas asignadas', ['subject'=>'fees','operation'=>'summary','level'=>'Secundaria','grade'=>'3']],
     ['evaluaciones', ['subject'=>'evaluations','operation'=>'count']],
     ['notas', ['subject'=>'grades','operation'=>'summary']],
     ['pagos', ['subject'=>'payments','operation'=>'summary','period'=>'month']],
@@ -59,10 +67,13 @@ $cases=[
     ['institución', ['subject'=>'school','operation'=>'summary']],
     ['bimestres bloqueados', ['subject'=>'bimester_locks','operation'=>'list']],
     ['usuarios', ['subject'=>'users','operation'=>'count']],
-    ['configuración asistencia', ['subject'=>'attendance_config','operation'=>'summary']]
+    ['configuración asistencia', ['subject'=>'attendance_config','operation'=>'summary']],
+    ['configuración institucional', ['subject'=>'settings','operation'=>'summary']],
+    ['notificaciones', ['subject'=>'notifications','operation'=>'summary']]
 ];
 
 if(edu_chat_table_exists($conn,'comprobantes_electronicos'))$cases[]=['facturación',['subject'=>'billing','operation'=>'summary','period'=>'month']];
+if(edu_chat_table_exists($conn,'sunat_log')&&edu_chat_table_exists($conn,'comprobantes_electronicos'))$cases[]=['trazabilidad SUNAT',['subject'=>'sunat','operation'=>'summary','period'=>'month']];
 
 foreach($cases as $case){
     [$label,$args]=$case;
