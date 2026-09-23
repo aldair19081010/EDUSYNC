@@ -14,9 +14,9 @@ require_once __DIR__ . '/chatbot_student_insights.php';
 
 function edu_chat_universal_allowed_subjects(array $actor): array {
     $type=(int)($actor['type']??0);
-    if($type===1)return ['students','teachers','courses','payments','debts','attendance','grades','evaluations','risk'];
-    if($type===2)return ['students','courses','grades','evaluations','risk'];
-    if($type===3)return ['students','attendance'];
+    if($type===1)return ['students','teachers','courses','payments','debts','attendance','grades','evaluations','risk','academic_years','areas','competencies','billing','users','school','bimester_locks','attendance_config'];
+    if($type===2)return ['students','courses','grades','evaluations','risk','academic_years','areas','competencies','school','bimester_locks'];
+    if($type===3)return ['students','attendance','academic_years','school','attendance_config'];
     return [];
 }
 
@@ -48,6 +48,8 @@ function edu_chat_universal_plan(array $args): array {
         'teacher_name'=>trim((string)($args['teacher_name']??'')),
         'bimestre'=>trim((string)($args['bimestre']??'')),
         'evaluation_type'=>trim((string)($args['evaluation_type']??'')),
+        'academic_year'=>trim((string)($args['academic_year']??'')),
+        'document_type'=>trim((string)($args['document_type']??'')),
         'period'=>trim((string)($args['period']??'')),
         'date_from'=>trim((string)($args['date_from']??'')),
         'date_to'=>trim((string)($args['date_to']??'')),
@@ -65,6 +67,18 @@ function edu_chat_universal_plan(array $args): array {
         'grade_max'=>isset($args['grade_max'])?(float)$args['grade_max']:null,
         'grade_value'=>strtoupper(trim((string)($args['grade_value']??'')))
     ];
+}
+
+function edu_chat_universal_year(mysqli $conn,int $school,string $requested=''): ?array {
+    if(!edu_chat_table_exists($conn,'academic_year'))return null;
+    $requested=trim($requested);
+    if($requested!==''){
+        $st=$conn->prepare('SELECT id,year,start_date,end_date,is_active FROM academic_year WHERE school_id=? AND year=? ORDER BY id DESC LIMIT 1');
+        if(!$st)return null;
+        $st->bind_param('is',$school,$requested);$st->execute();$row=$st->get_result()->fetch_assoc();$st->close();
+        return $row?:null;
+    }
+    return edu_chat_active_year($conn,$school);
 }
 
 function edu_chat_universal_period(mysqli $conn,int $school,array $p): array {
