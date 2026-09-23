@@ -338,110 +338,91 @@ function edu_chat_ai_final_payload(array $actor, string $prompt): array {
     ];
 }
 
-function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $history = []): array {
+function edu_chat_ai_ask(array $actor, string $message, array $history = []): array {
     if (!edu_chat_ai_enabled()) throw new RuntimeException('IA no configurada.');
 
     $tools = edu_chat_ai_tool_definitions($actor);
     $historyText = edu_chat_ai_history_text($history);
     $input = ($historyText !== '' ? "Conversación reciente:\n{$historyText}\n\n" : '') . 'Consulta actual del usuario: ' . $message;
+    $type=(int)($actor['type']??0);
+    $normalized=function_exists('edu_chat_normalize')?edu_chat_normalize($message):mb_strtolower(trim($message),'UTF-8');
+    $semanticDomain=function_exists('edu_chat_semantic_domain')?edu_chat_semantic_domain($normalized):'';
+    $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($normalized):'query';
 
-    // Para consultas analíticas inequívocas, PHP elige la herramienta correcta.
-    // La IA sigue redactando la respuesta final, pero ya no puede sustituir un
-    // desglose por un total general ni inventar grupos inexistentes.
+    // La documentación y el predictor especializado conservan sus rutas propias.
+    // Toda pregunta de DATOS del sistema pasa primero por el motor universal.
+    $isHowTo=($semanticDomain==='system'&&$semanticOperation==='help')
+        ||preg_match('/\b(?:como|donde|ayuda|explicame|explica)\b.*\b(?:registrar|configurar|usar|hacer|funciona|ingresar|subir|importar)\b/',$normalized);
+    $riskSpecialized=function_exists('edu_chat_has')&&edu_chat_has($normalized,['alerta temprana','riesgo academico','probabilidad de riesgo','probabilidad de reprobar','predecir riesgo','prediccion de riesgo']);
+    $universal=edu_chat_ai_universal_tool($tools);
+
+    if(in_array($type,[1,2,3],true)&&!$isHowTo&&!$riskSpecialized&&is_array($universal)){
+        try{
+            $planned=edu_chat_ai_request(edu_chat_ai_universal_planner_payload($actor,$input,$universal));
+            $universalCalls=array_values(array_filter(
+                edu_chat_ai_tool_calls($planned),
+                static fn($call)=>(string)($call['name']??'')==='query_edusync_data'
+            ));
+            if($universalCalls){
+                $cards=[];$actions=[];$followUp=[];$toolSummaries=[];$toolsUsed=[];
+                foreach($universalCalls as $call){
+                    $args=(array)($call['arguments']??[]);
+                    $result=edu_chat_ai_run_tool($conn,$actor,'query_edusync_data',$args);
+                    $toolsUsed[]='query_edusync_data';
+                    edu_chat_ai_merge_visuals($cards,$actions,$followUp,$result);
+                    $toolSummaries[]=['tool'=>'query_edusync_data','arguments'=>$args,'result'=>['message'=>(string)($result['message']??''),'cards'=>(array)($result['cards']??[])]];
+                }
+                $finalPrompt="Consulta original: {$message}\n\nResultados autorizados obtenidos directamente desde EduSync:\n"
+                    .json_encode($toolSummaries,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
+                    ."\n\nResponde exclusivamente con estos resultados. Empieza por la respuesta directa. Conserva números, nombres, montos, fechas, niveles, grados y secciones. No inventes ni completes datos. No menciones herramientas ni SQL.";
+                try{
+                    $final=edu_chat_ai_request(edu_chat_ai_final_payload($actor,$finalPrompt));
+                    $text=edu_chat_ai_extract_text($final);
+                }catch(Throwable $e){$text='';}
+                if($text===''){
+                    $text=implode("\n",array_values(array_filter(array_map(static fn($v)=>(string)($v['result']['message']??''),$toolSummaries))));
+                }
+                if($text!=='')return['message'=>$text,'cards'=>$cards,'actions'=>$actions,'follow_up'=>$followUp,'mode'=>edu_chat_ai_mode(),'tools_used'=>array_values(array_unique($toolsUsed))];
+            }
+        }catch(Throwable $e){
+            error_log('[chatbot_ai universal-first fallback] '.$e->getMessage());
+        }
+    }
+
+    // Compatibilidad: rutas determinísticas y herramientas especializadas siguen
+    // disponibles cuando el plan universal falla o cuando la consulta necesita
+    // un modelo especializado (por ejemplo, Alerta Temprana).
     $forcedRoute = function_exists('edu_chat_ai_forced_route') ? edu_chat_ai_forced_route($actor, $message) : null;
     if (is_array($forcedRoute) && !empty($forcedRoute['name'])) {
-        $calls = [[
-            'name'=>(string)$forcedRoute['name'],
-            'arguments'=>(array)($forcedRoute['arguments'] ?? [])
-        ]];
+        $calls=[['name'=>(string)$forcedRoute['name'],'arguments'=>(array)($forcedRoute['arguments']??[])]];
     } else {
-        $first = edu_chat_ai_request(edu_chat_ai_first_payload($actor, $input, $tools));
-        $calls = edu_chat_ai_tool_calls($first);
-
-        // Si una pregunta de datos del sistema no produjo tool call, hacemos un
-        // segundo intento obligado con el planificador universal. Así la IA no
-        // responde "no dispongo" cuando la información sí puede consultarse.
-        if(!$calls && in_array((int)($actor['type']??0),[1,2,3],true)){
-            $domain=function_exists('edu_chat_semantic_domain')?edu_chat_semantic_domain($message):null;
-            $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($message):'query';
-            $isHowTo=$domain==='system'&&$semanticOperation==='help';
-            $universal=edu_chat_ai_universal_tool($tools);
-            if(!$isHowTo&&is_array($universal)){
-                try{
-                    $planned=edu_chat_ai_request(edu_chat_ai_universal_planner_payload($actor,$input,$universal));
-                    $calls=edu_chat_ai_tool_calls($planned);
-                }catch(Throwable $e){
-                    error_log('[chatbot_ai universal planner fallback] '.$e->getMessage());
-                }
-            }
+        $first=edu_chat_ai_request(edu_chat_ai_first_payload($actor,$input,$tools));
+        $calls=edu_chat_ai_tool_calls($first);
+        if(!$calls&&in_array($type,[1,2,3],true)&&!$isHowTo&&is_array($universal)){
+            try{
+                $planned=edu_chat_ai_request(edu_chat_ai_universal_planner_payload($actor,$input,$universal));
+                $calls=edu_chat_ai_tool_calls($planned);
+            }catch(Throwable $e){error_log('[chatbot_ai universal fallback] '.$e->getMessage());}
         }
-
-        if (!$calls) {
-            $text = edu_chat_ai_extract_text($first);
-            if ($text === '') throw new RuntimeException('La IA no devolvió contenido.');
-            return ['message'=>$text,'cards'=>[],'actions'=>[],'follow_up'=>[],'mode'=>edu_chat_ai_mode(),'tools_used'=>[]];
+        if(!$calls){
+            $text=edu_chat_ai_extract_text($first);
+            if($text==='')throw new RuntimeException('La IA no devolvió contenido.');
+            return['message'=>$text,'cards'=>[],'actions'=>[],'follow_up'=>[],'mode'=>edu_chat_ai_mode(),'tools_used'=>[]];
         }
     }
 
-    $cards = [];
-    $actions = [];
-    $followUp = [];
-    $toolSummaries = [];
-    $toolsUsed = [];
-
-    foreach ($calls as $call) {
-        $name = (string)$call['name'];
-        $args = (array)($call['arguments'] ?? []);
-        $result = edu_chat_ai_run_tool($conn, $actor, $name, $args);
-        $toolsUsed[] = $name;
-        edu_chat_ai_merge_visuals($cards, $actions, $followUp, $result);
-        $toolSummaries[] = [
-            'tool'=>$name,
-            'arguments'=>$args,
-            'result'=>[
-                'message'=>(string)($result['message'] ?? ''),
-                'cards'=>(array)($result['cards'] ?? [])
-            ]
-        ];
+    $cards=[];$actions=[];$followUp=[];$toolSummaries=[];$toolsUsed=[];
+    foreach($calls as $call){
+        $name=(string)$call['name'];$args=(array)($call['arguments']??[]);
+        $result=edu_chat_ai_run_tool($conn,$actor,$name,$args);
+        $toolsUsed[]=$name;edu_chat_ai_merge_visuals($cards,$actions,$followUp,$result);
+        $toolSummaries[]=['tool'=>$name,'arguments'=>$args,'result'=>['message'=>(string)($result['message']??''),'cards'=>(array)($result['cards']??[])]];
     }
-
-    $finalPrompt = "Consulta original: {$message}\n\n"
-        . "Resultados autorizados obtenidos directamente desde EduSync:\n"
-        . json_encode($toolSummaries, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-        . "\n\nREGLAS PARA LA RESPUESTA FINAL:\n"
-        . "- Responde exclusivamente con estos resultados.\n"
-        . "- Empieza por la respuesta directa. Si hay un total o una conclusión clara, colócala primero.\n"
-        . "- Después muestra solo el detalle necesario. Para varios registros usa • y una línea por registro o grupo.\n"
-        . "- Mantén una estructura uniforme, por ejemplo: • Nombre — grado y sección — dato relevante.\n"
-        . "- Usa frases breves y fáciles de leer. No repitas la consulta ni agregues una introducción genérica.\n"
-        . "- No uses tablas Markdown, código, #, ** ni sintaxis técnica visible.\n"
-        . "- No cambies ningún número, nombre, nivel, grado, sección, monto ni estado.\n"
-        . "- Si el resultado contiene un desglose, conserva TODOS los grupos relevantes en la respuesta.\n"
-        . "- No agregues grupos con valor 0 que no hayan sido devueltos.\n"
-        . "- No conviertas ausencia de información en cero.\n"
-        . "- No menciones nombres internos de herramientas ni JSON.\n"
-        . "- Si los resultados no alcanzan para responder una parte, dilo expresamente y de forma breve.";
-
-    try {
-        $final = edu_chat_ai_request(edu_chat_ai_final_payload($actor, $finalPrompt));
-        $text = edu_chat_ai_extract_text($final);
-    } catch (Throwable $e) {
-        error_log('[chatbot_ai final redact fallback] ' . $e->getMessage());
-        $text = '';
-    }
-
-    if ($text === '') {
-        $texts = array_values(array_filter(array_map(static fn($v) => (string)($v['result']['message'] ?? ''), $toolSummaries)));
-        $text = implode("\n", $texts);
-    }
-    if ($text === '') throw new RuntimeException('No se pudo redactar la respuesta final.');
-
-    return [
-        'message'=>$text,
-        'cards'=>$cards,
-        'actions'=>$actions,
-        'follow_up'=>$followUp,
-        'mode'=>edu_chat_ai_mode(),
-        'tools_used'=>array_values(array_unique($toolsUsed))
-    ];
+    $finalPrompt="Consulta original: {$message}\n\nResultados autorizados obtenidos directamente desde EduSync:\n"
+        .json_encode($toolSummaries,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)
+        ."\n\nREGLAS: responde solo con estos resultados; empieza directamente; conserva todos los datos; no inventes; no menciones herramientas, SQL ni JSON.";
+    try{$final=edu_chat_ai_request(edu_chat_ai_final_payload($actor,$finalPrompt));$text=edu_chat_ai_extract_text($final);}catch(Throwable $e){$text='';}
+    if($text==='')$text=implode("\n",array_values(array_filter(array_map(static fn($v)=>(string)($v['result']['message']??''),$toolSummaries))));
+    if($text==='')throw new RuntimeException('No se pudo redactar la respuesta final.');
+    return['message'=>$text,'cards'=>$cards,'actions'=>$actions,'follow_up'=>$followUp,'mode'=>edu_chat_ai_mode(),'tools_used'=>array_values(array_unique($toolsUsed))];
 }
