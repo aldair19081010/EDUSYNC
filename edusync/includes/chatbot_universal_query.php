@@ -80,14 +80,6 @@ function edu_chat_uq_grade_sql(string $expr,string $grade,string &$types,array &
     return 'LOWER(TRIM('.$expr.'))=LOWER(TRIM(?))';
 }
 
-function edu_chat_uq_base_student_filters(array $filters,string $alias,array &$where,string &$types,array &$params): void {
-    if(!empty($filters['level'])){$where[]="LOWER(TRIM($alias.nivel))=LOWER(TRIM(?))";$types.='s';$params[]=edu_chat_uq_clean_text($filters['level'],40);}
-    if(!empty($filters['grade']))$where[]=edu_chat_uq_grade_sql("$alias.grado",(string)$filters['grade'],$types,$params);
-    if(!empty($filters['section'])){$where[]="UPPER(TRIM(COALESCE($alias.seccion,'')))=UPPER(TRIM(?))";$types.='s';$params[]=edu_chat_uq_clean_text($filters['section'],10);}
-    if(!empty($filters['name'])){$where[]="LOWER($alias.name) LIKE LOWER(?)";$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';}
-    if(!empty($filters['status'])&&edu_chat_column_exists($GLOBALS['conn']??null,'student','status')){}
-}
-
 function edu_chat_uq_student_metric_permissions(int $type): array {
     if($type===1)return ['debt','paid','late','absent','critical','average_grade'];
     if($type===2)return ['critical','average_grade'];
@@ -315,11 +307,30 @@ function edu_chat_uq_payment_query(mysqli $conn,array $actor,array $plan): array
     }elseif(edu_chat_table_exists($conn,'payments')&&edu_chat_table_exists($conn,'student_ef_list')){
         $where=['s.school_id=?','DATE(p.date_created) BETWEEN ? AND ?'];$types='iss';$params=[$school,$start,$end];
         if(edu_chat_column_exists($conn,'payments','payment_status'))$where[]="COALESCE(p.payment_status,'Confirmado')='Confirmado'";
-        $methodJoin='';$methodExpr="'Sin método'";
-        if(edu_chat_table_exists($conn,'payment_methods')&&edu_chat_column_exists($conn,'payments','payment_method_id')){$methodJoin=' LEFT JOIN payment_methods pm ON pm.id=p.payment_method_id ';$methodExpr="COALESCE(pm.name,'Sin método')";}
-        if(!empty($filters['payment_method'])&&$methodJoin!==''){$where[]='LOWER(TRIM(pm.name))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['payment_method'],50);}
+
+        $hasMethods=edu_chat_table_exists($conn,'payment_methods');
+        $hasDirectMethod=$hasMethods&&edu_chat_column_exists($conn,'payments','payment_method_id');
+        $hasSplit=$hasMethods&&edu_chat_table_exists($conn,'payment_split')
+            &&edu_chat_column_exists($conn,'payment_split','payment_id')
+            &&edu_chat_column_exists($conn,'payment_split','payment_method_id')
+            &&edu_chat_column_exists($conn,'payment_split','amount');
+
+        $methodJoin='';$methodExpr="'Sin método'";$amountExpr='p.amount';
+        if($hasSplit){
+            $methodJoin.=" LEFT JOIN payment_split ps ON ps.payment_id=p.id LEFT JOIN payment_methods pms ON pms.id=ps.payment_method_id ";
+            if($hasDirectMethod)$methodJoin.=" LEFT JOIN payment_methods pmd ON pmd.id=p.payment_method_id ";
+            $methodExpr=$hasDirectMethod?"COALESCE(pms.name,pmd.name,'Sin método')":"COALESCE(pms.name,'Sin método')";
+            $amountExpr='COALESCE(ps.amount,p.amount)';
+        }elseif($hasDirectMethod){
+            $methodJoin=' LEFT JOIN payment_methods pmd ON pmd.id=p.payment_method_id ';
+            $methodExpr="COALESCE(pmd.name,'Sin método')";
+        }
+
+        if(!empty($filters['payment_method'])&&$hasMethods){
+            $where[]="LOWER(TRIM($methodExpr))=LOWER(TRIM(?))";$types.='s';$params[]=edu_chat_uq_clean_text($filters['payment_method'],50);
+        }
         if(!empty($filters['name'])){$where[]='LOWER(s.name) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';}
-        $base="SELECT p.id,p.date_created date,s.name student,$methodExpr payment_method,p.amount,p.receipt_no receipt FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $methodJoin WHERE ".implode(' AND ',$where);
+        $base="SELECT p.id,p.date_created date,s.name student,$methodExpr payment_method,$amountExpr amount,p.receipt_no receipt FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $methodJoin WHERE ".implode(' AND ',$where);
     }else return edu_chat_result('No está disponible la información de pagos.');
 
     $operation=(string)($plan['operation']??'sum');$limit=edu_chat_uq_int($plan['limit']??100,1,200,100);
