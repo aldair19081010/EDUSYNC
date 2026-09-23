@@ -40,6 +40,23 @@ uq_ok(in_array('billing',$studentAllowed,true)&&in_array('competencies',$student
 $route=edu_chat_ai_forced_route($admin,'Muéstrame estudiantes con deuda mayor a 500 soles y al menos 2 tardanzas este mes');
 uq_ok($route===null,'consulta cruzada no es robada por router específico',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
+$paymentCountRoute=edu_chat_ai_forced_route($admin,'¿Cuántos pagos se hicieron el día de ayer?');
+$paymentCountOk=is_array($paymentCountRoute)
+    &&($paymentCountRoute['name']??'')==='query_edusync_data'
+    &&(($paymentCountRoute['arguments']['subject']??'')==='payments')
+    &&(($paymentCountRoute['arguments']['operation']??'')==='count')
+    &&(($paymentCountRoute['arguments']['period']??'')==='yesterday');
+uq_ok($paymentCountOk,'conteo de pagos de ayer conserva operación y periodo',json_encode($paymentCountRoute,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+
+try{
+    $paymentCountResult=edu_chat_universal_query($conn,$admin,['subject'=>'payments','operation'=>'count','period'=>'yesterday']);
+    $paymentCountMessage=(string)($paymentCountResult['message']??'');
+    $paymentCountDbOk=$paymentCountMessage!==''&&stripos($paymentCountMessage,'Pagos ayer:')===0&&stripos($paymentCountMessage,'Cobranza')===false;
+    uq_ok($paymentCountDbOk,'conteo DB de pagos de ayer responde cantidad, no resumen mensual',$paymentCountMessage);
+}catch(Throwable $e){
+    uq_ok(false,'conteo DB de pagos de ayer responde cantidad, no resumen mensual',$e->getMessage());
+}
+
 $route=edu_chat_ai_forced_route($admin,'¿Cuánto cuesta la mensualidad de tercero de secundaria?');
 uq_ok($route===null,'consulta de concepto de pago llega al motor universal',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
