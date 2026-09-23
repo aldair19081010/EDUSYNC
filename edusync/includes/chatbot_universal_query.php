@@ -361,17 +361,31 @@ function edu_chat_universal_payments(mysqli $conn,array $actor,array $p): array 
     if($p['level']!==''){$where[]='LOWER(TRIM(s.nivel))=LOWER(TRIM(?))';$types.='s';$params[]=$p['level'];}
     if($p['grade']!=='')$where[]=edu_chat_analytics_grade_filter('s',$p['grade'],$types,$params);
     if($p['section']!==''){$where[]="UPPER(TRIM(COALESCE(s.seccion,'')))=UPPER(TRIM(?))";$types.='s';$params[]=$p['section'];}
-    $join=' LEFT JOIN payment_methods pm ON pm.id=p.payment_method_id';
+    $hasSplit=edu_chat_table_exists($conn,'payment_split');
+    if($hasSplit){
+        $join=' LEFT JOIN payment_split ps ON ps.payment_id=p.id LEFT JOIN payment_methods pm ON pm.id=COALESCE(ps.payment_method_id,p.payment_method_id)';
+        $amountExpr='CASE WHEN ps.id IS NOT NULL THEN ps.amount ELSE p.amount END';
+    }else{
+        $join=' LEFT JOIN payment_methods pm ON pm.id=p.payment_method_id';
+        $amountExpr='p.amount';
+    }
     if($p['payment_method']!==''){$where[]='LOWER(TRIM(pm.name))=LOWER(TRIM(?))';$types.='s';$params[]=$p['payment_method'];}
-    if($p['amount_min']!==null){$where[]='p.amount>=?';$types.='d';$params[]=$p['amount_min'];}
-    if($p['amount_max']!==null){$where[]='p.amount<=?';$types.='d';$params[]=$p['amount_max'];}
+    if($p['amount_min']!==null){$where[]="$amountExpr>=?";$types.='d';$params[]=$p['amount_min'];}
+    if($p['amount_max']!==null){$where[]="$amountExpr<=?";$types.='d';$params[]=$p['amount_max'];}
     $w=implode(' AND ',$where);
     if($p['operation']==='distribution'&&$p['group_by']==='payment_method'){
-        $sql="SELECT COALESCE(pm.name,'Sin método') label,COUNT(DISTINCT p.id) operations,SUM(p.amount) total FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $join WHERE $w GROUP BY pm.id,pm.name ORDER BY total DESC";
+        $sql="SELECT COALESCE(pm.name,'Sin método') label,COUNT(DISTINCT p.id) operations,COALESCE(SUM($amountExpr),0) total FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $join WHERE $w GROUP BY pm.id,pm.name ORDER BY total DESC";
         $st=$conn->prepare($sql);edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$lines=[];$grand=0;while($r=$res->fetch_assoc()){$grand+=(float)$r['total'];$lines[]='• '.$r['label'].': '.edu_chat_money((float)$r['total']);}$st->close();
         return $lines?edu_chat_result("Cobranza por método $label:\n".implode("\n",$lines)."\nTotal: ".edu_chat_money($grand)):edu_chat_result('No encontré pagos con esos filtros.');
     }
-    $sql="SELECT COUNT(DISTINCT p.id) operations,COUNT(DISTINCT s.id) students,COALESCE(SUM(p.amount),0) total FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $join WHERE $w";
+    if(in_array($p['operation'],['list','ranking'],true)){
+        $sql="SELECT p.receipt_no,p.date_created,s.name,COALESCE(pm.name,'Sin método') payment_method,$amountExpr amount FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $join WHERE $w ORDER BY p.date_created DESC,p.id DESC LIMIT ".$p['limit'];
+        $st=$conn->prepare($sql);edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$st->close();
+        if(!$rows)return edu_chat_result('No encontré pagos con esos filtros.');
+        $lines=[];foreach($rows as $r)$lines[]='• '.$r['date_created'].' — '.$r['name'].' — '.$r['payment_method'].' — '.edu_chat_money((float)$r['amount']).' — Recibo '.$r['receipt_no'];
+        return edu_chat_result('Pagos encontrados ('.count($rows)."):\n".implode("\n",$lines));
+    }
+    $sql="SELECT COUNT(DISTINCT p.id) operations,COUNT(DISTINCT s.id) students,COALESCE(SUM($amountExpr),0) total FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $join WHERE $w";
     $st=$conn->prepare($sql);edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
     return edu_chat_result('Cobranza '.$label.': '.edu_chat_money((float)($r['total']??0)).' · '.(int)($r['operations']??0).' pagos · '.(int)($r['students']??0).' estudiantes.');
 }
