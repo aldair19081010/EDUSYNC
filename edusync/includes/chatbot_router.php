@@ -92,15 +92,48 @@ function edu_chat_router_needs_universal(string $text): bool {
     if(edu_chat_has($text,['docente','docentes','profesor','profesores','especialidad','asignacion','asignaciones']))$families++;
     if($families>=2)return true;
 
-    // Dominios que no tienen una herramienta específica suficientemente general.
-    if(edu_chat_has($text,['evaluacion','evaluaciones','competencia','competencias','comprobante','comprobantes','boleta','boletas','factura','facturas','sunat','especialidad']))return true;
+    // Consultas que requieren dimensiones/filtros que las rutas antiguas no
+    // modelan de forma completa.
+    if(edu_chat_has($text,[
+        'evaluacion','evaluaciones','competencia','competencias',
+        'comprobante','comprobantes','boleta','boletas','factura','facturas','sunat',
+        'especialidad','especialidades','usuarios','perfiles',
+        'concepto de pago','conceptos de pago','medios de pago','metodos de pago','formas de pago',
+        'bimestre bloqueado','bimestres bloqueados','bloqueo de bimestre',
+        'retirado','retirados','retirada','retiradas','egresado','egresados',
+        'genero','masculino','femenino','hombres','mujeres'
+    ]))return true;
 
-    // Agregaciones académicas libres deben pasar al motor universal.
-    if(edu_chat_has($text,['promedio','promedia','promedian','nota mas alta','nota mas baja','mayor promedio','menor promedio']))return true;
+    // Filtros cuantitativos combinados o rankings deben conservar la condición
+    // numérica completa en vez de caer en un resumen genérico.
+    if(
+        edu_chat_has($text,['deuda','deudas','tardanza','tardanzas','ausencia','ausencias','nota','notas','promedio'])
+        && (
+            preg_match('/\b(?:mas de|mayor(?:es)? a|al menos|minimo|menos de|menor(?:es)? a|entre|exactamente|con)\b/',$text)
+            || preg_match('/\b[0-9]+(?:[.,][0-9]+)?\b/',$text)
+        )
+    )return true;
+
+    if(edu_chat_has($text,[
+        'promedio','promedia','promedian','nota mas alta','nota mas baja',
+        'mayor promedio','menor promedio','mayor deuda','menor deuda',
+        'mas deuda','menos deuda','mayor cobranza','menor cobranza',
+        'mas pagos','menos pagos'
+    ]))return true;
+
+    // Notas literales concretas requieren el filtro académico exacto.
+    if(preg_match('/\b(?:nota|notas|calificacion|calificaciones|con)\s+(?:ad|a|b|c)\b/',$text))return true;
+
+    // Si el usuario pide explícitamente otro año, el motor universal aplica el
+    // academic_year correcto en cada dominio.
+    if(preg_match('/\b20[0-9]{2}\b/',$text)
+        && edu_chat_has($text,['estudiante','estudiantes','alumno','alumnos','curso','cursos','nota','notas','evaluacion','evaluaciones','docente','docentes','pago','pagos','deuda','deudas']))return true;
+
+    // Los seguimientos del motor se marcan en el mensaje contextualizado.
+    if(strpos($text,'plan universal anterior')!==false)return true;
 
     return false;
 }
-
 function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $type=(int)($actor['type']??0);
     if(!in_array($type,[1,2,3],true))return null;
