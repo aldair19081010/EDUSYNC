@@ -684,9 +684,17 @@ function edu_chat_universal_fees(mysqli $conn,array $actor,array $p): array {
     }
 
     if(in_array($p['operation'],['summary','sum'],true)){
-        $sql="SELECT COUNT(DISTINCT ef.id) assignments,COUNT(DISTINCT s.id) students,COALESCE(SUM(COALESCE(ef.discounted_amount,ef.total_fee)),0) assigned_total,COALESCE(SUM(p.amount),0) paid_total
-              FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id INNER JOIN courses c ON c.id=ef.course_id LEFT JOIN payments p ON p.ef_id=ef.id$payStatus
-              WHERE $w";
+        $inner="SELECT ef.id,s.id student_id,COALESCE(ef.discounted_amount,ef.total_fee) effective_amount,COALESCE(SUM(p.amount),0) paid
+                FROM student_ef_list ef
+                INNER JOIN student s ON s.id=ef.student_id
+                INNER JOIN courses c ON c.id=ef.course_id
+                LEFT JOIN payments p ON p.ef_id=ef.id$payStatus
+                WHERE $w
+                GROUP BY ef.id,s.id,ef.discounted_amount,ef.total_fee";
+        $sql="SELECT COUNT(*) assignments,COUNT(DISTINCT x.student_id) students,
+                     COALESCE(SUM(x.effective_amount),0) assigned_total,
+                     COALESCE(SUM(x.paid),0) paid_total
+              FROM ($inner) x";
         $st=$conn->prepare($sql);if(!$st)return edu_chat_result('No pude preparar el resumen de cuotas.');edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
         $assigned=(float)($r['assigned_total']??0);$paid=(float)($r['paid_total']??0);
         return edu_chat_result('Asignaciones: '.(int)($r['assignments']??0).' · estudiantes '.(int)($r['students']??0).' · asignado '.edu_chat_money($assigned).' · pagado '.edu_chat_money($paid).' · saldo '.edu_chat_money(max(0,$assigned-$paid)).'.');
