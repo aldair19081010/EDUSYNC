@@ -56,10 +56,10 @@ function edu_chat_ai_tool_definitions(array $actor): array {
 
     if ($type !== 4) {
         $universalDomains = $type === 1
-            ? ['students','teachers','courses','assignments','attendance','payments','debts','grades','evaluations','billing','academic_years']
+            ? ['school','config','students','teachers','courses','assignments','attendance','payments','debts','grades','evaluations','billing','academic_years']
             : ($type === 2
-                ? ['students','courses','assignments','grades','evaluations','academic_years']
-                : ['students','attendance','academic_years']);
+                ? ['school','students','courses','assignments','grades','evaluations','academic_years']
+                : ['school','students','attendance','academic_years']);
 
         $universalFilters = [
             'type'=>'object',
@@ -80,6 +80,7 @@ function edu_chat_ai_tool_definitions(array $actor): array {
                 'payment_method'=>['type'=>'string','enum'=>['Efectivo','Yape','Transferencia']],
                 'attendance_status'=>['type'=>'string','description'=>'Estado exacto de asistencia, por ejemplo Tarde, Ausente, Presente o Permiso.'],
                 'document_type'=>['type'=>'string','enum'=>['boleta','factura']],
+                'resource'=>['type'=>'string','enum'=>['payment_methods','attendance_rules','bimester_locks'],'description'=>'Recurso de configuración segura cuando domain=config.'],
                 'amount_min'=>['type'=>'number'],'amount_max'=>['type'=>'number'],
                 'debt_min'=>['type'=>'number'],'debt_max'=>['type'=>'number'],
                 'paid_min'=>['type'=>'number'],'paid_max'=>['type'=>'number'],
