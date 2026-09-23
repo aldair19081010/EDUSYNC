@@ -183,14 +183,14 @@ function edu_chat_universal_students(mysqli $conn,array $actor,array $p): array 
 
     edu_chat_universal_student_where($p,'s',$where,$whereTypes,$whereParams);
 
-    if($p['debt_min']!==null)$where[]='COALESCE(ud.debt_total,0)>=?',$whereTypes.='d',$whereParams[]=$p['debt_min'];
-    if($p['debt_max']!==null)$where[]='COALESCE(ud.debt_total,0)<=?',$whereTypes.='d',$whereParams[]=$p['debt_max'];
-    if($p['debt_count_min']!==null)$where[]='COALESCE(ud.debt_count,0)>=?',$whereTypes.='i',$whereParams[]=$p['debt_count_min'];
-    if($p['late_min']!==null)$where[]='COALESCE(ua.late_count,0)>=?',$whereTypes.='i',$whereParams[]=$p['late_min'];
-    if($p['absent_min']!==null)$where[]='COALESCE(ua.absent_count,0)>=?',$whereTypes.='i',$whereParams[]=$p['absent_min'];
-    if($p['critical_min']!==null)$where[]='COALESCE(ug.critical_count,0)>=?',$whereTypes.='i',$whereParams[]=$p['critical_min'];
-    if($p['grade_min']!==null)$where[]='ug.grade_average>=?',$whereTypes.='d',$whereParams[]=$p['grade_min'];
-    if($p['grade_max']!==null)$where[]='ug.grade_average<=?',$whereTypes.='d',$whereParams[]=$p['grade_max'];
+    if($p['debt_min']!==null){$where[]='COALESCE(ud.debt_total,0)>=?';$whereTypes.='d';$whereParams[]=$p['debt_min'];}
+    if($p['debt_max']!==null){$where[]='COALESCE(ud.debt_total,0)<=?';$whereTypes.='d';$whereParams[]=$p['debt_max'];}
+    if($p['debt_count_min']!==null){$where[]='COALESCE(ud.debt_count,0)>=?';$whereTypes.='i';$whereParams[]=$p['debt_count_min'];}
+    if($p['late_min']!==null){$where[]='COALESCE(ua.late_count,0)>=?';$whereTypes.='i';$whereParams[]=$p['late_min'];}
+    if($p['absent_min']!==null){$where[]='COALESCE(ua.absent_count,0)>=?';$whereTypes.='i';$whereParams[]=$p['absent_min'];}
+    if($p['critical_min']!==null){$where[]='COALESCE(ug.critical_count,0)>=?';$whereTypes.='i';$whereParams[]=$p['critical_min'];}
+    if($p['grade_min']!==null){$where[]='ug.grade_average>=?';$whereTypes.='d';$whereParams[]=$p['grade_min'];}
+    if($p['grade_max']!==null){$where[]='ug.grade_average<=?';$whereTypes.='d';$whereParams[]=$p['grade_max'];}
 
     $types=$joinTypes.$whereTypes;$params=array_merge($joinParams,$whereParams);
     $whereSql=implode(' AND ',$where);
