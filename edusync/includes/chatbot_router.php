@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.7');
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.22.8');
 
 function edu_chat_router_explicit_grade(string $text): ?string {
     if (function_exists('edu_chat_grade_number_from_text')) {
@@ -84,10 +84,31 @@ function edu_chat_router_profile_name(string $text): ?string {
     return null;
 }
 
+function edu_chat_router_needs_universal(string $text): bool {
+    $families=0;
+    if(edu_chat_has($text,['deuda','deudas','morosidad','moroso','morosos','pension','pensiones','cobranza','cobrado','recaudado','pago','pagos','efectivo','yape','transferencia','deposito']))$families++;
+    if(edu_chat_has($text,['asistencia','tardanza','tardanzas','ausencia','ausencias','falta','faltas','presente','presentes','permiso']))$families++;
+    if(edu_chat_has($text,['nota','notas','calificacion','calificaciones','promedio','evaluacion','evaluaciones','bimestre','competencia','competencias','riesgo','critico','desaprobado','curso','cursos','area','areas']))$families++;
+    if(edu_chat_has($text,['docente','docentes','profesor','profesores','especialidad','asignacion','asignaciones']))$families++;
+    if($families>=2)return true;
+
+    // Dominios que no tienen una herramienta específica suficientemente general.
+    if(edu_chat_has($text,['evaluacion','evaluaciones','competencia','competencias','comprobante','comprobantes','boleta','boletas','factura','facturas','sunat','especialidad']))return true;
+
+    // Agregaciones académicas libres deben pasar al motor universal.
+    if(edu_chat_has($text,['promedio','promedia','promedian','nota mas alta','nota mas baja','mayor promedio','menor promedio']))return true;
+
+    return false;
+}
+
 function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     $type=(int)($actor['type']??0);
     if(!in_array($type,[1,2,3],true))return null;
     $text=edu_chat_normalize($message);if($text==='')return null;
+
+    // Las consultas cruzadas o agregaciones no cubiertas exactamente por una
+    // ruta determinista pasan a la IA para que construya un plan universal seguro.
+    if(edu_chat_router_needs_universal($text))return null;
 
     $level=edu_chat_extract_level($text);$grade=edu_chat_router_explicit_grade($text);$section=edu_chat_router_explicit_section($text)?:edu_chat_extract_section($text);$period=edu_chat_extract_period($text);
     $allSections=edu_chat_router_all_sections($text);
