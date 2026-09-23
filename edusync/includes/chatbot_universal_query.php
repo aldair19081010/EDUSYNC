@@ -394,69 +394,274 @@ function edu_chat_uq_debt_query(mysqli $conn,array $actor,array $plan): array {
 }
 
 function edu_chat_uq_grade_query(mysqli $conn,array $actor,array $plan,bool $evaluationsOnly=false): array {
-    foreach(['evaluation_grades','evaluations','teacher_courses','student'] as $t)if(!edu_chat_table_exists($conn,$t))return edu_chat_result('No está disponible la información académica necesaria.');
-    $type=(int)($actor['type']??0);if(!in_array($type,[1,2],true))return edu_chat_result('Esta consulta académica no está autorizada para tu perfil.');
-    $school=(int)($actor['school_id']??0);$filters=(array)($plan['filters']??[]);$yearId=edu_chat_uq_active_year_id($conn,$school);
-    $where=['s.school_id=?'];$types='i';$params=[$school];
+    foreach(['evaluation_grades','evaluations','teacher_courses','student'] as $t){
+        if(!edu_chat_table_exists($conn,$t))return edu_chat_result('No está disponible la información académica necesaria.');
+    }
+
+    $type=(int)($actor['type']??0);
+    if(!in_array($type,[1,2],true))return edu_chat_result('Esta consulta académica no está autorizada para tu perfil.');
+
+    $school=(int)($actor['school_id']??0);
+    $filters=(array)($plan['filters']??[]);
+    $yearId=edu_chat_uq_active_year_id($conn,$school);
+    $where=['s.school_id=?'];
+    $types='i';
+    $params=[$school];
+
     if(edu_chat_column_exists($conn,'evaluations','academic_year_id')){
         $requestedYear=!empty($filters['year'])?edu_chat_uq_year_id_by_label($conn,$school,$filters['year']):0;
         $scopeYear=$requestedYear>0?$requestedYear:$yearId;
         if($scopeYear>0){$where[]='e.academic_year_id=?';$types.='i';$params[]=$scopeYear;}
     }
-    if($type===2){$where[]='tc.teacher_id=?';$types.='i';$params[]=(int)($actor['teacher_id']??0);}
-    if(!empty($filters['level'])){$where[]='LOWER(TRIM(s.nivel))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['level'],40);}if(!empty($filters['grade']))$where[]=edu_chat_uq_grade_sql('s.grado',(string)$filters['grade'],$types,$params);if(!empty($filters['section'])){$where[]="UPPER(TRIM(COALESCE(s.seccion,'')))=UPPER(TRIM(?))";$types.='s';$params[]=edu_chat_uq_clean_text($filters['section'],10);}if(!empty($filters['name'])){$where[]='LOWER(s.name) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';}if(!empty($filters['bimestre'])){$where[]='e.bimestre=?';$types.='s';$params[]=(string)((int)$filters['bimestre']);}
+
+    if($type===2){
+        $teacherId=(int)($actor['teacher_id']??0);
+        if($teacherId<=0)return edu_chat_result('No pude identificar tu ficha docente.');
+        $where[]='tc.teacher_id=?';$types.='i';$params[]=$teacherId;
+    }
+
+    if(!empty($filters['level'])){$where[]='LOWER(TRIM(s.nivel))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['level'],40);}
+    if(!empty($filters['grade']))$where[]=edu_chat_uq_grade_sql('s.grado',(string)$filters['grade'],$types,$params);
+    if(!empty($filters['section'])){$where[]="UPPER(TRIM(COALESCE(s.seccion,'')))=UPPER(TRIM(?))";$types.='s';$params[]=edu_chat_uq_clean_text($filters['section'],10);}
+    if(!empty($filters['name'])){$where[]='LOWER(s.name) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';}
+    if(!empty($filters['bimestre'])){$where[]='e.bimestre=?';$types.='s';$params[]=(string)((int)$filters['bimestre']);}
     if(!empty($filters['evaluation_type'])){$where[]='LOWER(TRIM(e.type))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['evaluation_type'],50);}
     if(!empty($filters['grade_value'])){$where[]='UPPER(TRIM(eg.grade))=UPPER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['grade_value'],10);}
-    if(!empty($filters['critical_only']))$where[]="((eg.grade REGEXP '^[0-9]+([.][0-9]+)?edu_chat_table_exists($conn,'academic_courses')?' LEFT JOIN academic_courses ac ON ac.id=tc.course_id ':'';$courseExpr=edu_chat_table_exists($conn,'academic_courses')?"COALESCE(ac.name,'Curso')":"'Curso'";if(!empty($filters['course'])&&edu_chat_table_exists($conn,'academic_courses')){$where[]='LOWER(ac.name) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['course'],120).'%';}
-    $compJoin='';$compNames=[];
-    if(edu_chat_table_exists($conn,'competencias')){$compJoin.=' LEFT JOIN competencias cp ON cp.id=eg.competencia_id ';$compNames[]='cp.name';}
-    if(edu_chat_table_exists($conn,'general_course_competencies')){$compJoin.=' LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id AND gcc.course_id=tc.course_id ';$compNames[]='gcc.name';}
-    $compExpr=$compNames?'COALESCE('.implode(',',$compNames).",'Competencia')":"'Competencia'";
-    if(!empty($filters['competency'])&&$compNames){$where[]="LOWER(TRIM($compExpr)) LIKE LOWER(TRIM(?))";$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['competency'],120).'%';}
-    $num="CASE WHEN eg.grade REGEXP '^[0-9]+([.][0-9]+)?$' THEN CAST(eg.grade AS DECIMAL(10,2)) WHEN UPPER(TRIM(eg.grade))='C' THEN 5 WHEN UPPER(TRIM(eg.grade))='B' THEN 12 WHEN UPPER(TRIM(eg.grade))='A' THEN 15.5 WHEN UPPER(TRIM(eg.grade))='AD' THEN 19 ELSE NULL END";
-    $base="SELECT eg.id,s.name student,s.nivel,s.grado,COALESCE(NULLIF(TRIM(s.seccion),''),'Sin sección') seccion,$courseExpr course,e.title evaluation,e.type,e.bimestre,$compExpr competencia,eg.grade,$num grade_numeric FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN student s ON s.id=eg.student_id $courseJoin $compJoin WHERE ".implode(' AND ',$where);
-    if($evaluationsOnly)$base="SELECT MIN(id) id,course,evaluation,type,bimestre,COUNT(*) grade_records,ROUND(AVG(grade_numeric),2) average_grade FROM ($base) z GROUP BY course,evaluation,type,bimestre";
-    $outer=[];$min=edu_chat_uq_float_or_null($filters['grade_min']??null);$max=edu_chat_uq_float_or_null($filters['grade_max']??null);if(!$evaluationsOnly){if($min!==null){$outer[]='grade_numeric>=?';$types.='d';$params[]=$min;}if($max!==null){$outer[]='grade_numeric<=?';$types.='d';$params[]=$max;}}$outerSql=$outer?' WHERE '.implode(' AND ',$outer):'';
-    $operation=(string)($plan['operation']??'list');$limit=edu_chat_uq_int($plan['limit']??100,1,200,100);
-    if($operation==='count'){$sql="SELECT COUNT(*) value FROM ($base) uq$outerSql";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();return edu_chat_result('Resultado: '.(int)$r['value'].($evaluationsOnly?' evaluaciones.':' registros de nota.'));}
-    if(!$evaluationsOnly&&in_array($operation,['avg','min','max'],true)){$fn=strtoupper($operation);$sql="SELECT $fn(grade_numeric) value FROM ($base) uq$outerSql";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();return edu_chat_result($r['value']===null?'No hay notas suficientes para calcular ese valor.':'Resultado: '.number_format((float)$r['value'],2,'.','').'.');}
-    if($operation==='group'){
-        $group=(string)($plan['group_by']??'course');$map=$evaluationsOnly?['course'=>'course','bimestre'=>'bimestre','type'=>'type']:['course'=>'course','student'=>'student','bimestre'=>'bimestre','grade_section'=>'CONCAT(nivel,\' · \',grado,\' \',seccion)','competency'=>'competencia','type'=>'type'];$expr=$map[$group]??$map['course'];$valueExpr=$evaluationsOnly?'COUNT(*)':'ROUND(AVG(grade_numeric),2)';$sql="SELECT $expr label,$valueExpr value,COUNT(*) records FROM ($base) uq$outerSql GROUP BY $expr ORDER BY value DESC,label LIMIT $limit";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['label'].': '.($evaluationsOnly?(int)$r['value']:number_format((float)$r['value'],2,'.','')).' · '.(int)$r['records'].' registros';$stmt->close();return edu_chat_result($lines?"Resultado académico por grupo:\n".implode("\n",$lines):'No encontré información académica con esos filtros.');
+    if(!empty($filters['critical_only']))$where[]="((eg.grade REGEXP '^[0-9]+([.][0-9]+)?$' AND CAST(eg.grade AS DECIMAL(10,2))<10.5) OR UPPER(TRIM(eg.grade))='C')";
+
+    $courseJoin='';
+    $courseExpr="'Curso'";
+    if(edu_chat_table_exists($conn,'academic_courses')){
+        $courseJoin=' LEFT JOIN academic_courses ac ON ac.id=tc.course_id ';
+        $courseExpr="COALESCE(ac.name,'Curso')";
+        if(!empty($filters['course'])){$where[]='LOWER(ac.name) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['course'],120).'%';}
     }
-    $sql="SELECT * FROM ($base) uq$outerSql ORDER BY ".($evaluationsOnly?'bimestre DESC,course,evaluation':'student,course,evaluation')." LIMIT $limit";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];while($r=$res->fetch_assoc()){if($evaluationsOnly)$lines[]='• '.$r['course'].' — '.$r['evaluation'].' · '.$r['type'].' · bimestre '.$r['bimestre'].' · '.(int)$r['grade_records'].' notas · promedio '.($r['average_grade']===null?'sin datos':number_format((float)$r['average_grade'],2,'.',''));else{$g=function_exists('edu_chat_grade_label')?edu_chat_grade_label($r['grado']):$r['grado'];$lines[]='• '.$r['student'].' — '.$g.' '.$r['seccion'].' · '.$r['course'].' · '.$r['evaluation'].' · '.$r['competencia'].' · nota '.$r['grade'];}}$stmt->close();return edu_chat_result($lines?($evaluationsOnly?"Evaluaciones encontradas:\n":"Notas encontradas:\n").implode("\n",$lines):'No encontré información académica con esos filtros.');
+
+    $compJoin='';
+    $compNames=[];
+    if(edu_chat_table_exists($conn,'competencias')){
+        $compJoin.=' LEFT JOIN competencias cp ON cp.id=eg.competencia_id ';
+        $compNames[]='cp.name';
+    }
+    if(edu_chat_table_exists($conn,'general_course_competencies')){
+        $compJoin.=' LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id AND gcc.course_id=tc.course_id ';
+        $compNames[]='gcc.name';
+    }
+    $compExpr=$compNames?'COALESCE('.implode(',',$compNames).",'Competencia')":"'Competencia'";
+    if(!empty($filters['competency'])&&$compNames){
+        $where[]="LOWER(TRIM($compExpr)) LIKE LOWER(TRIM(?))";
+        $types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['competency'],120).'%';
+    }
+
+    $num="CASE
+        WHEN eg.grade REGEXP '^[0-9]+([.][0-9]+)?$' THEN CAST(eg.grade AS DECIMAL(10,2))
+        WHEN UPPER(TRIM(eg.grade))='C' THEN 5
+        WHEN UPPER(TRIM(eg.grade))='B' THEN 12
+        WHEN UPPER(TRIM(eg.grade))='A' THEN 15.5
+        WHEN UPPER(TRIM(eg.grade))='AD' THEN 19
+        ELSE NULL END";
+
+    $base="SELECT eg.id,s.name student,s.nivel,s.grado,
+                  COALESCE(NULLIF(TRIM(s.seccion),''),'Sin sección') seccion,
+                  $courseExpr course,e.title evaluation,e.type,e.bimestre,
+                  $compExpr competencia,eg.grade,$num grade_numeric
+           FROM evaluation_grades eg
+           INNER JOIN evaluations e ON e.id=eg.evaluation_id
+           INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+           INNER JOIN student s ON s.id=eg.student_id
+           $courseJoin $compJoin
+           WHERE ".implode(' AND ',$where);
+
+    if($evaluationsOnly){
+        $base="SELECT MIN(id) id,course,evaluation,type,bimestre,
+                      COUNT(*) grade_records,ROUND(AVG(grade_numeric),2) average_grade
+               FROM ($base) z
+               GROUP BY course,evaluation,type,bimestre";
+    }
+
+    $outer=[];
+    if(!$evaluationsOnly){
+        $min=edu_chat_uq_float_or_null($filters['grade_min']??null);
+        $max=edu_chat_uq_float_or_null($filters['grade_max']??null);
+        if($min!==null){$outer[]='grade_numeric>=?';$types.='d';$params[]=$min;}
+        if($max!==null){$outer[]='grade_numeric<=?';$types.='d';$params[]=$max;}
+    }
+    $outerSql=$outer?' WHERE '.implode(' AND ',$outer):'';
+
+    $operation=(string)($plan['operation']??'list');
+    $metric=(string)($plan['metric']??($evaluationsOnly?'count':'average_grade'));
+    $limit=edu_chat_uq_int($plan['limit']??100,1,200,100);
+
+    if($operation==='count'){
+        $sql="SELECT COUNT(*) value FROM ($base) uq$outerSql";
+        $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar la consulta académica.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();
+        return edu_chat_result('Resultado: '.(int)($r['value']??0).($evaluationsOnly?' evaluaciones.':' registros de nota.'));
+    }
+
+    if(!$evaluationsOnly&&in_array($operation,['avg','min','max'],true)){
+        $fn=strtoupper($operation);
+        $sql="SELECT $fn(grade_numeric) value FROM ($base) uq$outerSql";
+        $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar el cálculo académico.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();
+        return edu_chat_result(($r['value']??null)===null?'No hay notas suficientes para calcular ese valor.':'Resultado: '.number_format((float)$r['value'],2,'.','').'.');
+    }
+
+    if($operation==='group'){
+        $group=(string)($plan['group_by']??'course');
+        $map=$evaluationsOnly
+            ? ['course'=>'course','bimestre'=>'bimestre','type'=>'type']
+            : ['course'=>'course','student'=>'student','bimestre'=>'bimestre','grade_section'=>"CONCAT(nivel,' · ',grado,' ',seccion)",'competency'=>'competencia','type'=>'type'];
+        $expr=$map[$group]??$map['course'];
+        $valueExpr=$evaluationsOnly||$metric==='count'?'COUNT(*)':'ROUND(AVG(grade_numeric),2)';
+        $sql="SELECT $expr label,$valueExpr value,COUNT(*) records
+              FROM ($base) uq$outerSql
+              GROUP BY $expr
+              ORDER BY value DESC,label
+              LIMIT $limit";
+        $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar el desglose académico.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
+        while($r=$res->fetch_assoc()){
+            $display=($evaluationsOnly||$metric==='count')?(string)(int)$r['value']:number_format((float)$r['value'],2,'.','');
+            $lines[]='• '.$r['label'].': '.$display.' · '.(int)$r['records'].' registros';
+        }
+        $stmt->close();
+        return edu_chat_result($lines?"Resultado académico por grupo:\n".implode("\n",$lines):'No encontré información académica con esos filtros.');
+    }
+
+    $order=$evaluationsOnly?'bimestre DESC,course,evaluation':'student,course,evaluation';
+    $sql="SELECT * FROM ($base) uq$outerSql ORDER BY $order LIMIT $limit";
+    $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar el listado académico.');
+    edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
+    while($r=$res->fetch_assoc()){
+        if($evaluationsOnly){
+            $lines[]='• '.$r['course'].' — '.$r['evaluation'].' · '.$r['type'].' · bimestre '.$r['bimestre'].' · '.(int)$r['grade_records'].' notas · promedio '.(($r['average_grade']??null)===null?'sin datos':number_format((float)$r['average_grade'],2,'.',''));
+        }else{
+            $g=function_exists('edu_chat_grade_label')?edu_chat_grade_label($r['grado']):$r['grado'];
+            $lines[]='• '.$r['student'].' — '.$g.' '.$r['seccion'].' · '.$r['course'].' · '.$r['evaluation'].' · '.$r['competencia'].' · nota '.$r['grade'];
+        }
+    }
+    $stmt->close();
+    return edu_chat_result($lines?($evaluationsOnly?"Evaluaciones encontradas:\n":"Notas encontradas:\n").implode("\n",$lines):'No encontré información académica con esos filtros.');
 }
 
 function edu_chat_uq_billing_query(mysqli $conn,array $actor,array $plan): array {
     if((int)($actor['type']??0)!==1)return edu_chat_result('Esta consulta de facturación solo está disponible para administración.');
     if(!edu_chat_table_exists($conn,'comprobantes_electronicos'))return edu_chat_result('No está disponible la información de comprobantes electrónicos.');
-    $school=(int)($actor['school_id']??0);$filters=(array)($plan['filters']??[]);[$start,$end,$label]=edu_chat_uq_period($conn,$actor,$filters);$where=['ce.school_id=?','ce.fecha_emision BETWEEN ? AND ?'];$types='iss';$params=[$school,$start,$end];
-    if(!empty($filters['document_type'])){$where[]='ce.serie LIKE ?';$types.='s';$kind=strtolower(edu_chat_uq_clean_text($filters['document_type'],20));$params[]=$kind==='factura'?'F%':($kind==='boleta'?'B%':'%');}
-    if(!empty($filters['name'])){$where[]='LOWER(ce.cliente_razon_social) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';}
-    $amountExpr=edu_chat_table_exists($conn,'comprobante_detalle')?"COALESCE((SELECT SUM(cd.total) FROM comprobante_detalle cd WHERE cd.comprobante_id=ce.id),0)":"0";
-    $base="SELECT ce.id,ce.numero_completo,ce.serie,ce.cliente_num_doc,ce.cliente_razon_social,ce.fecha_emision,ce.sunat_code,ce.sunat_description,$amountExpr amount FROM comprobantes_electronicos ce WHERE ".implode(' AND ',$where);$operation=(string)($plan['operation']??'count');$limit=edu_chat_uq_int($plan['limit']??100,1,200,100);
-    if($operation==='count'){$sql="SELECT COUNT(*) value FROM ($base) uq";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();return edu_chat_result('Resultado '.$label.': '.(int)$r['value'].' comprobantes.');}
-    if(in_array($operation,['sum','avg','min','max'],true)){$fn=strtoupper($operation);$stmt=$conn->prepare("SELECT $fn(amount) value FROM ($base) uq");edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();return edu_chat_result('Resultado '.$label.': '.edu_chat_money((float)($r['value']??0)).'.');}
-    if($operation==='group'){$group=(string)($plan['group_by']??'status');$expr=$group==='series'?'serie':($group==='date'?'fecha_emision':'COALESCE(NULLIF(sunat_code,\'\'),\'Sin respuesta SUNAT\')');$sql="SELECT $expr label,COUNT(*) value FROM ($base) uq GROUP BY $expr ORDER BY value DESC,label LIMIT $limit";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['label'].': '.(int)$r['value'];$stmt->close();return edu_chat_result($lines?"Comprobantes $label:\n".implode("\n",$lines):'No encontré comprobantes con esos filtros.');}
-    $sql="SELECT * FROM ($base) uq ORDER BY fecha_emision DESC,id DESC LIMIT $limit";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];while($r=$res->fetch_assoc())$lines[]='• '.$r['numero_completo'].' — '.$r['cliente_razon_social'].' · '.$r['fecha_emision'].' · '.edu_chat_money((float)$r['amount']).' · SUNAT '.($r['sunat_code']?:'sin código');$stmt->close();return edu_chat_result($lines?"Comprobantes $label:\n".implode("\n",$lines):'No encontré comprobantes con esos filtros.');
+
+    $school=(int)($actor['school_id']??0);
+    $filters=(array)($plan['filters']??[]);
+    [$start,$end,$label]=edu_chat_uq_period($conn,$actor,$filters);
+    $where=['ce.school_id=?','ce.fecha_emision BETWEEN ? AND ?'];
+    $types='iss';
+    $params=[$school,$start,$end];
+
+    if(!empty($filters['document_type'])){
+        $where[]='ce.serie LIKE ?';$types.='s';
+        $kind=strtolower(edu_chat_uq_clean_text($filters['document_type'],20));
+        $params[]=$kind==='factura'?'F%':($kind==='boleta'?'B%':'%');
+    }
+    if(!empty($filters['name'])){
+        $where[]='LOWER(ce.cliente_razon_social) LIKE LOWER(?)';$types.='s';
+        $params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';
+    }
+
+    $amountExpr=edu_chat_table_exists($conn,'comprobante_detalle')
+        ? "COALESCE((SELECT SUM(cd.total) FROM comprobante_detalle cd WHERE cd.comprobante_id=ce.id),0)"
+        : "0";
+
+    $base="SELECT ce.id,ce.numero_completo,ce.serie,ce.cliente_razon_social,
+                  ce.fecha_emision,ce.sunat_code,ce.sunat_description,$amountExpr amount
+           FROM comprobantes_electronicos ce
+           WHERE ".implode(' AND ',$where);
+
+    $operation=(string)($plan['operation']??'count');
+    $metric=(string)($plan['metric']??'count');
+    $limit=edu_chat_uq_int($plan['limit']??100,1,200,100);
+
+    if($operation==='count'){
+        $stmt=$conn->prepare("SELECT COUNT(*) value FROM ($base) uq");
+        if(!$stmt)return edu_chat_result('No pude preparar la consulta de comprobantes.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();
+        return edu_chat_result('Resultado '.$label.': '.(int)($r['value']??0).' comprobantes.');
+    }
+
+    if(in_array($operation,['sum','avg','min','max'],true)){
+        $fn=strtoupper($operation);
+        $stmt=$conn->prepare("SELECT $fn(amount) value FROM ($base) uq");
+        if(!$stmt)return edu_chat_result('No pude preparar el cálculo de comprobantes.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();
+        return edu_chat_result('Resultado '.$label.': '.edu_chat_money((float)($r['value']??0)).'.');
+    }
+
+    if($operation==='group'){
+        $group=(string)($plan['group_by']??'status');
+        $expr=$group==='series'?'serie':($group==='date'?'fecha_emision':"COALESCE(NULLIF(sunat_code,''),'Sin respuesta SUNAT')");
+        $valueExpr=$metric==='amount'?'SUM(amount)':'COUNT(*)';
+        $sql="SELECT $expr label,$valueExpr value
+              FROM ($base) uq
+              GROUP BY $expr
+              ORDER BY value DESC,label
+              LIMIT $limit";
+        $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar el desglose de comprobantes.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
+        while($r=$res->fetch_assoc())$lines[]='• '.$r['label'].': '.($metric==='amount'?edu_chat_money((float)$r['value']):(string)(int)$r['value']);
+        $stmt->close();
+        return edu_chat_result($lines?"Comprobantes $label:\n".implode("\n",$lines):'No encontré comprobantes con esos filtros.');
+    }
+
+    $sql="SELECT * FROM ($base) uq ORDER BY fecha_emision DESC,id DESC LIMIT $limit";
+    $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar el listado de comprobantes.');
+    edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
+    while($r=$res->fetch_assoc())$lines[]='• '.$r['numero_completo'].' — '.$r['cliente_razon_social'].' · '.$r['fecha_emision'].' · '.edu_chat_money((float)$r['amount']).' · SUNAT '.($r['sunat_code']?:'sin código');
+    $stmt->close();
+    return edu_chat_result($lines?"Comprobantes $label:\n".implode("\n",$lines):'No encontré comprobantes con esos filtros.');
 }
 
 function edu_chat_uq_user_query(mysqli $conn,array $actor,array $plan): array {
     if((int)($actor['type']??0)!==1)return edu_chat_result('La información de usuarios solo está disponible para administración.');
     if(!edu_chat_table_exists($conn,'users'))return edu_chat_result('No está disponible la información de usuarios.');
-    $school=(int)($actor['school_id']??0);$filters=(array)($plan['filters']??[]);$where=['school_id=?'];$types='i';$params=[$school];
+
+    $school=(int)($actor['school_id']??0);
+    $filters=(array)($plan['filters']??[]);
+    $where=['school_id=?'];
+    $types='i';
+    $params=[$school];
+
     if(!empty($filters['name'])){$where[]='LOWER(name) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';}
     if(isset($filters['role_type'])&&is_numeric($filters['role_type'])){$where[]='type=?';$types.='i';$params[]=(int)$filters['role_type'];}
+
     $base="SELECT name,type,COALESCE(is_director,0) is_director FROM users WHERE ".implode(' AND ',$where);
-    $operation=(string)($plan['operation']??'list');$limit=edu_chat_uq_int($plan['limit']??100,1,200,100);
-    if($operation==='count'){$stmt=$conn->prepare("SELECT COUNT(*) value FROM ($base) uq");edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();return edu_chat_result('Resultado: '.(int)$r['value'].' usuarios.');}
-    if($operation==='group'){
-        $sql="SELECT type,COUNT(*) value FROM ($base) uq GROUP BY type ORDER BY type";$stmt=$conn->prepare($sql);edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
-        while($r=$res->fetch_assoc()){$role=((int)$r['type']===1?'Administrador':((int)$r['type']===2?'Docente':((int)$r['type']===3?'Auxiliar':((int)$r['type']===4?'Estudiante':'Otro'))));$lines[]='• '.$role.': '.(int)$r['value'];}
-        $stmt->close();return edu_chat_result($lines?"Usuarios por perfil:\n".implode("\n",$lines):'No encontré usuarios.');
+    $operation=(string)($plan['operation']??'list');
+    $limit=edu_chat_uq_int($plan['limit']??100,1,200,100);
+
+    if($operation==='count'){
+        $stmt=$conn->prepare("SELECT COUNT(*) value FROM ($base) uq");if(!$stmt)return edu_chat_result('No pude preparar la consulta de usuarios.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result()->fetch_assoc();$stmt->close();
+        return edu_chat_result('Resultado: '.(int)($r['value']??0).' usuarios.');
     }
-    $stmt=$conn->prepare("SELECT * FROM ($base) uq ORDER BY type,name LIMIT $limit");edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
-    while($r=$res->fetch_assoc()){$role=((int)$r['type']===1?'Administrador':((int)$r['type']===2?'Docente':((int)$r['type']===3?'Auxiliar':'Otro')));$lines[]='• '.$r['name'].' — '.$role.((int)$r['is_director']===1?' · Director':'');}
-    $stmt->close();return edu_chat_result($lines?"Usuarios encontrados:\n".implode("\n",$lines):'No encontré usuarios.');
+
+    if($operation==='group'){
+        $stmt=$conn->prepare("SELECT type,COUNT(*) value FROM ($base) uq GROUP BY type ORDER BY type");if(!$stmt)return edu_chat_result('No pude preparar el desglose de usuarios.');
+        edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
+        while($r=$res->fetch_assoc()){
+            $n=(int)$r['type'];
+            $role=$n===1?'Administrador':($n===2?'Docente':($n===3?'Auxiliar':($n===4?'Estudiante':'Otro')));
+            $lines[]='• '.$role.': '.(int)$r['value'];
+        }
+        $stmt->close();
+        return edu_chat_result($lines?"Usuarios por perfil:\n".implode("\n",$lines):'No encontré usuarios.');
+    }
+
+    $stmt=$conn->prepare("SELECT * FROM ($base) uq ORDER BY type,name LIMIT $limit");if(!$stmt)return edu_chat_result('No pude preparar el listado de usuarios.');
+    edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
+    while($r=$res->fetch_assoc()){
+        $n=(int)$r['type'];
+        $role=$n===1?'Administrador':($n===2?'Docente':($n===3?'Auxiliar':($n===4?'Estudiante':'Otro')));
+        $lines[]='• '.$r['name'].' — '.$role.((int)$r['is_director']===1?' · Director':'');
+    }
+    $stmt->close();
+    return edu_chat_result($lines?"Usuarios encontrados:\n".implode("\n",$lines):'No encontré usuarios.');
 }
 
 function edu_chat_uq_concept_query(mysqli $conn,array $actor,array $plan): array {
