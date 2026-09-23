@@ -66,6 +66,21 @@ function edu_chat_uq_year_id_by_label(mysqli $conn,int $school,$year): int {
     return(int)($row['id']??0);
 }
 
+function edu_chat_uq_course_ids(mysqli $conn,int $school,string $name): array {
+    $name=trim($name);
+    if($name===''||!edu_chat_table_exists($conn,'academic_courses'))return [];
+    $stmt=$conn->prepare('SELECT id FROM academic_courses WHERE school_id=? AND LOWER(name) LIKE LOWER(?) ORDER BY LENGTH(name),id LIMIT 20');
+    if(!$stmt)return [];
+    $like='%'.edu_chat_uq_clean_text($name,120).'%';
+    $stmt->bind_param('is',$school,$like);
+    $stmt->execute();
+    $res=$stmt->get_result();
+    $ids=[];
+    while($row=$res->fetch_assoc())$ids[]=(int)$row['id'];
+    $stmt->close();
+    return array_values(array_unique(array_filter($ids,static fn($v)=>$v>0)));
+}
+
 function edu_chat_uq_active_year_id(mysqli $conn,int $school): int {
     if(function_exists('edu_chat_active_year')){
         $year=edu_chat_active_year($conn,$school);
@@ -155,8 +170,8 @@ function edu_chat_uq_student_base(mysqli $conn,array $actor,array $plan,array &$
         if($type===2)$academicWhere[]='tc.teacher_id='.(int)($actor['teacher_id']??0);
         if(!empty($filters['bimestre']))$academicWhere[]="e.bimestre='".((int)$filters['bimestre'])."'";
         if(!empty($filters['course'])&&edu_chat_table_exists($conn,'academic_courses')){
-            $safe=$conn->real_escape_string(edu_chat_uq_clean_text($filters['course'],120));
-            $academicWhere[]="LOWER(TRIM(ac.name)) LIKE LOWER('%$safe%')";
+            $courseIds=edu_chat_uq_course_ids($conn,$school,(string)$filters['course']);
+            $academicWhere[]=$courseIds?'tc.course_id IN ('.implode(',',array_map('intval',$courseIds)).')':'1=0';
         }
         $extra=$academicWhere?' AND '.implode(' AND ',$academicWhere):'';
         $courseJoin=edu_chat_table_exists($conn,'academic_courses')?' LEFT JOIN academic_courses ac ON ac.id=tc.course_id ':'';
