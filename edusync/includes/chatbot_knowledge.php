@@ -47,10 +47,70 @@ function edu_chat_knowledge_sections(): array {
             'keywords' => ['facturacion','sunat','boleta','comprobante electronico','ose','pse'],
             'content' => 'EduSync cuenta con un bloque de Facturación Electrónica que incluye Comprobantes, Facturación de Deudas y Configuración. Las acciones de emisión o configuración son administrativas y no deben ejecutarse desde el chatbot; el asistente solo puede orientar o navegar hacia el módulo correspondiente.'
         ],
+        'gestion_academica' => [
+            'title' => 'Gestión Académica y Años Académicos',
+            'keywords' => ['gestion academica','area','areas','curso','cursos','ano academico','años academicos','año academico','academic year'],
+            'content' => 'Administración dispone de Gestión Académica para organizar áreas y cursos académicos del colegio, y de Años Académicos para administrar los periodos escolares. Las asignaciones de docentes y las evaluaciones se vinculan al año académico correspondiente. EduSync también dispone de controles y exportaciones relacionados con años académicos.'
+        ],
+        'competencias' => [
+            'title' => 'Competencias',
+            'keywords' => ['competencia','competencias','competencias por nivel','porcentaje competencia','peso competencia'],
+            'content' => 'El módulo Competencias por Nivel administra las competencias asociadas a cursos y niveles. En Libro de Notas las evaluaciones se registran dentro de competencias. Las competencias oficiales con peso positivo participan en el cálculo académico configurado; elementos marcados con peso 0 pueden usarse como evaluaciones no oficiales que no promedian.'
+        ],
+        'conceptos_deudas' => [
+            'title' => 'Conceptos de Pago y Asignación de Deudas',
+            'keywords' => ['concepto','conceptos','conceptos de pago','asignar deuda','asignar deudas','fees','mensualidad','matricula'],
+            'content' => 'En Gestión de Pagos, Conceptos de Pagos define conceptos como matrícula o mensualidades por año académico, nivel, grados y monto. Asignar Deudas crea las obligaciones para estudiantes. El sistema conserva el historial de conceptos que ya tienen deudas o pagos y dispone de operaciones masivas y exportaciones según el módulo.'
+        ],
+        'descuentos' => [
+            'title' => 'Descuentos y Becas',
+            'keywords' => ['descuento','descuentos','beca','becas','beneficio'],
+            'content' => 'Administración dispone de Descuentos / Becas para registrar beneficios sobre obligaciones. Los pagos utilizan el monto efectivo de la deuda después de descuentos. Las correcciones de pagos mantienen trazabilidad y no deben alterar silenciosamente el historial.'
+        ],
+        'reportes_financieros' => [
+            'title' => 'Reportes de Pagos y Deudas',
+            'keywords' => ['reporte pagos','reporte de pagos','reporte deudas','reporte de deudas','exportar pagos','exportar deudas'],
+            'content' => 'Gestión de Pagos incluye Reporte de Pagos y Reporte de Deudas. Estos módulos permiten consultar información financiera por los filtros disponibles y cuentan con opciones de exportación o impresión. El chatbot puede consultar datos de cobranza y deuda en modo lectura según el perfil.'
+        ],
+        'reglas_asistencia' => [
+            'title' => 'Reglas y Reporte de Asistencia',
+            'keywords' => ['reglas asistencia','regla asistencia','horario asistencia','reporte asistencia','reporte de asistencia'],
+            'content' => 'Administración y Auxiliar disponen de Asistencia, Reglas de Asistencia y Reporte de Asistencia. Las reglas definen horarios operativos para clasificar marcaciones; el reporte permite revisar los registros y el sistema dispone de exportación e impresión. El chatbot trata Entrada como referencia principal cuando resume asistencia, salvo que se solicite Salida.'
+        ],
+        'reporte_notas' => [
+            'title' => 'Reporte de Notas y Cierres',
+            'keywords' => ['reporte notas','reporte de notas','cerrar bimestre','cierre bimestre','reabrir notas','bloqueo bimestre'],
+            'content' => 'EduSync dispone de Reporte de Notas, vistas de impresión/exportación y controles de cierre o bloqueo de periodos académicos. Los bloqueos de bimestre limitan modificaciones según la configuración institucional. Las acciones de cierre, reapertura o edición no se ejecutan desde el chatbot; el asistente solo consulta y orienta.'
+        ],
+        'fichas_reportes' => [
+            'title' => 'Fichas y Reportes',
+            'keywords' => ['ficha','fichas','fichas y reportes','report builder','generar ficha','reporte personalizado'],
+            'content' => 'El módulo Fichas y Reportes permite generar fichas y reportes institucionales. El sistema incluye generación y exportación de reportes; el chatbot puede orientar hacia el módulo, pero no crea ni modifica registros desde la conversación.'
+        ],
+        'usuarios' => [
+            'title' => 'Usuarios del Sistema',
+            'keywords' => ['usuario','usuarios','cuenta','cuentas','director','administrador','perfil usuario'],
+            'content' => 'Administración dispone del módulo Usuarios para gestionar cuentas y perfiles autorizados. El chatbot puede consultar nombres y tipos de perfil permitidos, pero nunca revela contraseñas, hashes, tokens, credenciales ni otros secretos.'
+        ],
+        'alerta_temprana' => [
+            'title' => 'Alerta Temprana IA',
+            'keywords' => ['alerta temprana','riesgo predictivo','prediccion','predicción','riesgo curso','probabilidad'],
+            'content' => 'Alerta Temprana IA estima, para un estudiante y curso, la probabilidad de que ese mismo curso presente rendimiento crítico en el siguiente bimestre. El modelo usa señales longitudinales del curso, evaluaciones, competencias, persistencia académica, asistencia y contexto de clase disponibles al corte. La probabilidad es predictiva, no una explicación causal; las notas faltantes se tratan como ausentes y no como cero.'
+        ],
+        'perfil_institucion' => [
+            'title' => 'Institución y Configuración',
+            'keywords' => ['institucion','colegio','perfil colegio','ruc','razon social','configuracion colegio','datos colegio'],
+            'content' => 'EduSync mantiene datos de la institución y, para administración, configuración fiscal necesaria para facturación. El chatbot puede consultar información institucional segura como nombre, dirección, contacto, RUC o razón social cuando esté disponible, pero nunca certificados, contraseñas SUNAT, claves privadas ni tokens.'
+        ],
+        'catalogo_modulos' => [
+            'title' => 'Catálogo de Módulos',
+            'keywords' => ['modulos','módulos','todo el sistema','que tiene edusync','funciones edusync','opciones sistema'],
+            'content' => 'Para Administración, el menú principal incluye Lista de Estudiantes, Actualización Masiva, Lista de Docentes, Asignar a Cursos, Gestión Académica, Años Académicos, Competencias por Nivel, Conceptos de Pagos, Asignar Deudas, Registrar Pagos, Descuentos / Becas, Reporte de Pagos, Reporte de Deudas, Comprobantes, Facturación de Deudas, Configuración de Facturación, Asistencia, Reglas de Asistencia, Reporte de Asistencia, Libro de Notas, Reporte de Notas, Fichas y Reportes, Usuarios y Alerta Temprana IA. Las opciones visibles cambian según el rol.'
+        ],
         'navegacion' => [
             'title' => 'Módulos principales',
             'keywords' => ['modulo','menu','donde','navegar','seccion'],
-            'content' => 'Los módulos visibles dependen del rol. Administración puede tener Estudiantes, Docentes, Gestión Académica, Años Académicos, Competencias, Gestión de Pagos, Facturación SUNAT, Asistencia, Libro de Notas, Reporte de Notas, Fichas y Reportes y Usuarios. Docentes disponen principalmente de Mis Cursos, Competencias y Notas. Estudiantes disponen de Mis Notas, Mis Asistencias, Mis Pagos y Mis Deudas.'
+            'content' => 'Los módulos visibles dependen del rol. Administración puede usar Estudiantes, Docentes, Gestión Académica, Años Académicos, Competencias, Gestión de Pagos, Facturación SUNAT, Asistencia, Libro de Notas, Reporte de Notas, Fichas y Reportes, Usuarios y Alerta Temprana IA. Docentes disponen principalmente de Mis Cursos, Competencias, Libro de Notas y Reporte de Notas. Auxiliares disponen de Asistencia, Reglas de Asistencia y Reporte de Asistencia. Estudiantes disponen de Mis Notas, Mis Asistencias, Mis Pagos y Mis Deudas.'
         ]
     ];
 }
@@ -85,8 +145,11 @@ function edu_chat_knowledge_search(string $query, int $limit = 4): array {
         $results[] = ['topic' => $key, 'title' => $section['title'], 'content' => $section['content']];
     }
     if (!$results) {
-        foreach (array_slice(edu_chat_knowledge_sections(), 0, 2) as $key => $section) {
-            $results[] = ['topic' => $key, 'title' => $section['title'], 'content' => $section['content']];
+        $all=edu_chat_knowledge_sections();
+        foreach (['catalogo_modulos','alcance'] as $key) {
+            if(!isset($all[$key]))continue;
+            $section=$all[$key];
+            $results[]=['topic'=>$key,'title'=>$section['title'],'content'=>$section['content']];
         }
     }
     return $results;
