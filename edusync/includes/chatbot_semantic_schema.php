@@ -67,6 +67,8 @@ function edu_chat_semantic_schema_prompt(array $actor): string {
         'DOMINIO académico/notas: cursos, bimestres, evaluaciones, competencias y calificaciones disponibles según el perfil.',
         'DOMINIO riesgo: alerta académica y riesgo predictivo; usar las herramientas/modelo existentes y no inventar causalidad.',
         'DOMINIO sistema: ayuda sobre módulos, navegación y procesos documentados de EduSync.',
+        'DOMINIOS administrativos del motor universal: años académicos, áreas, competencias, usuarios por rol, bloqueos de bimestre, configuración de asistencia, datos institucionales y comprobantes electrónicos/SUNAT.',
+        'SEGURIDAD ADMINISTRATIVA: el motor nunca expone contraseñas, hashes, tokens, secretos, credenciales SUNAT, client secrets ni claves/certificados; solo campos operativos seguros.',
         'OPERACIONES: count=cuántos; list=quiénes/lista; distribution=por nivel/grado/sección/aula; summary=total/resumen; profile=ficha/estado integral; help=cómo/dónde.',
         'FILTROS COMUNES: nivel, grado, sección, bimestre, curso y periodo cuando correspondan.',
         'PERIODOS: hoy, ayer, esta semana, este mes, mes pasado y año académico actual.',
