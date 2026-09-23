@@ -177,6 +177,13 @@ function edu_chat_universal_grade_join(mysqli $conn,array $actor,array $p,string
 function edu_chat_universal_students(mysqli $conn,array $actor,array $p): array {
     if(!edu_chat_table_exists($conn,'student'))return edu_chat_result('No está disponible la información de estudiantes.');
     $school=(int)$actor['school_id'];$type=(int)($actor['type']??0);
+
+    $requestsFinance=$p['debt_min']!==null||$p['debt_max']!==null||$p['debt_count_min']!==null||in_array($p['sort_by'],['debt','debt_count'],true);
+    $requestsAttendance=$p['late_min']!==null||$p['absent_min']!==null||in_array($p['sort_by'],['late','absent'],true);
+    $requestsAcademic=$p['critical_min']!==null||$p['grade_min']!==null||$p['grade_max']!==null||$p['course']!==''||$p['bimestre']!==''||in_array($p['sort_by'],['grade','critical'],true);
+    if($type===2&&($requestsFinance||$requestsAttendance))return edu_chat_result('Ese cruce incluye información financiera o de asistencia que no está autorizada para el perfil Docente.');
+    if($type===3&&($requestsFinance||$requestsAcademic))return edu_chat_result('Ese cruce incluye información financiera o académica que no está autorizada para el perfil Auxiliar.');
+
     $join='';$joinTypes='';$joinParams=[];$where=['s.school_id=?'];$whereTypes='i';$whereParams=[$school];
 
     if($type===2){
