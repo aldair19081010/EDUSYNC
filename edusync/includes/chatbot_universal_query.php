@@ -352,7 +352,10 @@ function edu_chat_universal_payments(mysqli $conn,array $actor,array $p): array 
         if(in_array($p['operation'],['sum','summary','count'],true)){
             $sql="SELECT COUNT(DISTINCT po.id) operations,COUNT(DISTINCT po.student_id) students,COALESCE(SUM(pom.amount),0) total FROM payment_operations po INNER JOIN payment_operation_methods pom ON pom.operation_id=po.id INNER JOIN payment_methods pm ON pm.id=pom.payment_method_id INNER JOIN student s ON s.id=po.student_id WHERE $w";
             $st=$conn->prepare($sql);edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
-            return edu_chat_result('Cobranza '.$label.': '.edu_chat_money((float)($r['total']??0)).' · '.(int)($r['operations']??0).' operaciones · '.(int)($r['students']??0).' estudiantes.');
+            $operations=(int)($r['operations']??0);$students=(int)($r['students']??0);$total=(float)($r['total']??0);
+            if($p['operation']==='count')return edu_chat_result('Pagos '.$label.': '.$operations.' pago'.($operations===1?'':'s').'.',[],[['label'=>'Pagos','value'=>(string)$operations,'tone'=>'primary']]);
+            if($p['operation']==='sum')return edu_chat_result('Cobranza '.$label.': '.edu_chat_money($total).'.',[],[['label'=>'Cobrado','value'=>edu_chat_money($total),'tone'=>'success']]);
+            return edu_chat_result('Cobranza '.$label.': '.edu_chat_money($total).' · '.$operations.' operaciones · '.$students.' estudiantes.');
         }
         $sql="SELECT po.receipt_full,po.payment_date,s.name,pm.name payment_method,pom.amount FROM payment_operations po INNER JOIN payment_operation_methods pom ON pom.operation_id=po.id INNER JOIN payment_methods pm ON pm.id=pom.payment_method_id INNER JOIN student s ON s.id=po.student_id WHERE $w ORDER BY po.payment_date DESC,po.id DESC LIMIT ".$p['limit'];
         $st=$conn->prepare($sql);edu_chat_bind($st,$types,$params);$st->execute();$res=$st->get_result();$rows=[];while($r=$res->fetch_assoc())$rows[]=$r;$st->close();
@@ -393,7 +396,10 @@ function edu_chat_universal_payments(mysqli $conn,array $actor,array $p): array 
     }
     $sql="SELECT COUNT(DISTINCT p.id) operations,COUNT(DISTINCT s.id) students,COALESCE(SUM($amountExpr),0) total FROM payments p INNER JOIN student_ef_list ef ON ef.id=p.ef_id INNER JOIN student s ON s.id=ef.student_id $join WHERE $w";
     $st=$conn->prepare($sql);edu_chat_bind($st,$types,$params);$st->execute();$r=$st->get_result()->fetch_assoc()?:[];$st->close();
-    return edu_chat_result('Cobranza '.$label.': '.edu_chat_money((float)($r['total']??0)).' · '.(int)($r['operations']??0).' pagos · '.(int)($r['students']??0).' estudiantes.');
+    $operations=(int)($r['operations']??0);$students=(int)($r['students']??0);$total=(float)($r['total']??0);
+    if($p['operation']==='count')return edu_chat_result('Pagos '.$label.': '.$operations.' pago'.($operations===1?'':'s').'.',[],[['label'=>'Pagos','value'=>(string)$operations,'tone'=>'primary']]);
+    if($p['operation']==='sum')return edu_chat_result('Cobranza '.$label.': '.edu_chat_money($total).'.',[],[['label'=>'Cobrado','value'=>edu_chat_money($total),'tone'=>'success']]);
+    return edu_chat_result('Cobranza '.$label.': '.edu_chat_money($total).' · '.$operations.' pagos · '.$students.' estudiantes.');
 }
 
 function edu_chat_universal_grades(mysqli $conn,array $actor,array $p): array {
