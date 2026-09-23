@@ -221,6 +221,10 @@ function edu_chat_ai_instructions(array $actor): string {
         . "22. En listados o desgloses conserva todos los registros relevantes solicitados, aunque la respuesta resulte más larga. Claridad no significa omitir datos.\n"
         . "23. Interpreta lenguaje natural por significado, no solo por coincidencia literal. Por ejemplo, entrar dinero, recibir, cobrar o recaudar son expresiones financieras equivalentes cuando el contexto es pagos.\n"
         . "24. Si existe una herramienta específica para un filtro solicitado (por ejemplo método de pago), debes usarla en vez de responder que no dispones del desglose.\n"
+        . "25. Si la pregunta pide datos reales del sistema y ninguna herramienta específica cubre exactamente todos los filtros, usa query_edusync_data. No respondas que no puedes consultar un dato antes de intentar el motor universal autorizado.\n"
+        . "26. Para consultas cruzadas, usa domain=students cuando el resultado final sean alumnos y combina filtros como debt_min, late_min, absent_min, critical_min o average_grade_min/max. Ejemplo: alumnos con deuda > 500 y 2 tardanzas.\n"
+        . "27. Si el usuario pide 'qué sección/curso/método tiene más o menos', usa operation=group y sort_dir apropiado. Para nombres concretos usa operation=list. Para un total usa count/sum/avg según corresponda.\n"
+        . "28. No inventes filtros. Si el usuario dice ambas/todas las secciones, omite section. Si dice tercero/3ro/3°, usa grade=3.\n"
         . (function_exists('edu_chat_semantic_schema_prompt') ? edu_chat_semantic_schema_prompt($actor)."\n" : '')
         . "Fecha local del sistema: " . date('Y-m-d') . ".";
 }
