@@ -213,6 +213,19 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     // amplios para evitar que "notas" capture una pregunta de ayuda o que
     // "cursos" oculte una consulta propia del docente.
     $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($text):'query';
+    $semanticDomain=function_exists('edu_chat_semantic_domain')?edu_chat_semantic_domain($text):'';
+
+    // "¿Cuántos pagos...?" es un conteo de operaciones, no un resumen de
+    // cobranza. Lo enviamos al motor universal para conservar exactamente el
+    // periodo solicitado (ayer, hoy, semana, mes, etc.).
+    if($type===1&&$semanticDomain==='payments'&&$semanticOperation==='count'){
+        $paymentArgs=['subject'=>'payments','operation'=>'count'];
+        foreach(['level','grade','section','period','payment_method'] as $key){
+            if(isset($args[$key])&&$args[$key]!=='')$paymentArgs[$key]=$args[$key];
+        }
+        if(empty($paymentArgs['period']))$paymentArgs['period']='month';
+        return['name'=>'query_edusync_data','arguments'=>$paymentArgs];
+    }
 
     if($semanticOperation==='help'&&edu_chat_has($text,['como','donde','ayuda','explica','explicame','registrar','configurar','subir','importar'])){
         return['name'=>'get_system_help','arguments'=>['query'=>$message]];
