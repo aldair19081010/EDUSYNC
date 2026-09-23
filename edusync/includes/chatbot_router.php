@@ -99,6 +99,14 @@ function edu_chat_router_needs_universal(string $text): bool {
     // Comparaciones académicas numéricas/promedios también requieren un plan.
     if($academic&&edu_chat_has($text,['promedio mayor','promedio menor','nota mayor','nota menor','entre ','mayor a','menor a']))return true;
 
+    // Información administrativa que pertenece al motor universal y no debe
+    // degradarse a rutas antiguas de deuda/pagos/ayuda.
+    if(edu_chat_has($text,['concepto de pago','conceptos de pago','mensualidad','matricula','cuota escolar'])
+       && edu_chat_has($text,['cuanto cuesta','precio','monto','asignado','asignada','asignaciones','cobrado','recaudado','lista','muestrame','cuantos']))return true;
+    if(edu_chat_has($text,['ruc','razon social','modo sunat','serie de factura','serie factura','serie de boleta','serie boleta','configuracion institucional']))return true;
+    if(edu_chat_has($text,['notificacion','notificaciones','alertas de notas bajas','alertas academicas']))return true;
+    if(edu_chat_has($text,['sunat','envios sunat','operaciones sunat','rechazos sunat','errores sunat'])&&!edu_chat_has($text,['como configurar','como configuro','donde configurar']))return true;
+
     return false;
 }
 
