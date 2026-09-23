@@ -6,6 +6,7 @@ require_once __DIR__ . '/chatbot_analytics.php';
 require_once __DIR__ . '/chatbot_totals.php';
 require_once __DIR__ . '/chatbot_finance_filters.php';
 require_once __DIR__ . '/chatbot_student_insights.php';
+require_once __DIR__ . '/chatbot_universal_query.php';
 
 function edu_chat_ai_function(string $name, string $description, array $properties = [], array $required = []): array {
     return [
@@ -52,6 +53,60 @@ function edu_chat_ai_tool_definitions(array $actor): array {
             'query'=>['type'=>'string','description'=>'Duda o tema exacto sobre EduSync.']
         ], ['query'])
     ];
+
+    if ($type !== 4) {
+        $universalDomains = $type === 1
+            ? ['students','teachers','courses','assignments','attendance','payments','debts','grades','evaluations','billing','academic_years']
+            : ($type === 2
+                ? ['students','courses','assignments','grades','evaluations','academic_years']
+                : ['students','attendance','academic_years']);
+
+        $universalFilters = [
+            'type'=>'object',
+            'description'=>'Filtros opcionales. Incluye solo los que el usuario haya pedido o sean necesarios por el contexto.',
+            'properties'=>[
+                'level'=>['type'=>'string','enum'=>['Inicial','Primaria','Secundaria']],
+                'grade'=>['type'=>'string','description'=>'Grado como 1, 2, 3, 4, 5 o 6.'],
+                'section'=>['type'=>'string','description'=>'Sección como A, B o U. Si pide ambas/todas las secciones, omitir este filtro.'],
+                'name'=>['type'=>'string','description'=>'Nombre o parte del nombre de estudiante/docente/cliente según el dominio.'],
+                'specialty'=>['type'=>'string','description'=>'Especialidad del docente.'],
+                'course'=>['type'=>'string','description'=>'Curso/área académica.'],
+                'teacher'=>['type'=>'string','description'=>'Nombre o parte del nombre del docente.'],
+                'bimestre'=>['type'=>'string','enum'=>['1','2','3','4']],
+                'year'=>['type'=>'string','description'=>'Año académico solicitado, por ejemplo 2026.'],
+                'period'=>['type'=>'string','enum'=>['today','yesterday','week','month','last_month','year']],
+                'date_from'=>['type'=>'string','description'=>'Fecha inicial YYYY-MM-DD cuando el usuario indique un rango exacto.'],
+                'date_to'=>['type'=>'string','description'=>'Fecha final YYYY-MM-DD cuando el usuario indique un rango exacto.'],
+                'payment_method'=>['type'=>'string','enum'=>['Efectivo','Yape','Transferencia']],
+                'attendance_status'=>['type'=>'string','description'=>'Estado exacto de asistencia, por ejemplo Tarde, Ausente, Presente o Permiso.'],
+                'document_type'=>['type'=>'string','enum'=>['boleta','factura']],
+                'amount_min'=>['type'=>'number'],'amount_max'=>['type'=>'number'],
+                'debt_min'=>['type'=>'number'],'debt_max'=>['type'=>'number'],
+                'paid_min'=>['type'=>'number'],'paid_max'=>['type'=>'number'],
+                'late_min'=>['type'=>'number'],'late_max'=>['type'=>'number'],
+                'absent_min'=>['type'=>'number'],'absent_max'=>['type'=>'number'],
+                'critical_min'=>['type'=>'number'],'critical_max'=>['type'=>'number'],
+                'average_grade_min'=>['type'=>'number'],'average_grade_max'=>['type'=>'number'],
+                'grade_min'=>['type'=>'number'],'grade_max'=>['type'=>'number']
+            ]
+        ];
+
+        $tools[] = edu_chat_ai_function(
+            'query_edusync_data',
+            'Motor universal SEGURO de solo lectura. Úsalo cuando una pregunta sobre datos reales de EduSync no encaje exactamente en otra herramienta, cuando combine varios dominios/filtros, o cuando pida comparar, agrupar, ordenar o calcular. Nunca envía SQL: solo un plan semántico validado por PHP. Dominio students permite cruces como deuda + pagos + tardanzas/ausencias + riesgo/promedio. Usa herramientas específicas cuando respondan exactamente y este motor para lo demás.',
+            [
+                'domain'=>['type'=>'string','enum'=>$universalDomains,'description'=>'Dominio principal de la pregunta.'],
+                'operation'=>['type'=>'string','enum'=>['count','list','sum','avg','min','max','group'],'description'=>'Operación solicitada. group para por grado/sección/curso/método/estado; list para nombres/registros.'],
+                'metric'=>['type'=>'string','enum'=>['count','debt','paid','late','absent','critical','average_grade','amount'],'description'=>'Métrica principal. En students: debt, paid, late, absent, critical, average_grade o count. En payments/debts usa amount/debt según corresponda.'],
+                'group_by'=>['type'=>'string','enum'=>['none','level','grade','section','grade_section','course','teacher','student','specialty','payment_method','status','date','concept','competency','bimestre','type','series'],'description'=>'Dimensión de agrupación.'],
+                'filters'=>$universalFilters,
+                'sort_by'=>['type'=>'string','enum'=>['name','value','debt','paid','late','absent','critical','average_grade','assignments','courses','date'],'description'=>'Campo lógico para ordenar.'],
+                'sort_dir'=>['type'=>'string','enum'=>['asc','desc']],
+                'limit'=>['type'=>'integer','minimum'=>1,'maximum'=>200]
+            ],
+            ['domain','operation']
+        );
+    }
 
     if ($type === 4) {
         $tools[] = edu_chat_ai_function('get_my_overview', 'Obtiene un resumen integral del estudiante autenticado combinando deudas, pagos, asistencia del mes y notas disponibles.');
@@ -142,6 +197,7 @@ function edu_chat_ai_run_tool(mysqli $conn, array $actor, string $name, array $a
     $type=(int)($actor['type']??0); $entities=edu_chat_ai_entities($args);
     switch($name){
         case 'get_system_help': return edu_chat_ai_system_help_result((string)($args['query']??'EduSync'));
+        case 'query_edusync_data': if(!in_array($type,[1,2,3],true))break; return edu_chat_universal_query($conn,$actor,$args);
         case 'get_my_overview': if($type!==4)break; return edu_chat_ai_combine_results([edu_chat_student_debt_result($conn,$actor,false),edu_chat_student_payment_result($conn,$actor),edu_chat_student_attendance_result($conn,$actor,['period'=>'month']),edu_chat_student_grades_result($conn,$actor,['course'=>null,'bimestre'=>null])]);
         case 'explain_my_notes_access': if($type!==4)break; return edu_chat_student_debt_result($conn,$actor,true);
         case 'get_my_debts': if($type!==4)break; return edu_chat_student_debt_result($conn,$actor,false);
