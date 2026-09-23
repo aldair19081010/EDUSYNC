@@ -363,8 +363,10 @@ function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $his
         // responde "no dispongo" cuando la información sí puede consultarse.
         if(!$calls && in_array((int)($actor['type']??0),[1,2,3],true)){
             $domain=function_exists('edu_chat_semantic_domain')?edu_chat_semantic_domain($message):null;
+            $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($message):'query';
+            $isHowTo=$domain==='system'&&$semanticOperation==='help';
             $universal=edu_chat_ai_universal_tool($tools);
-            if($domain!=='system'&&is_array($universal)){
+            if(!$isHowTo&&is_array($universal)){
                 try{
                     $planned=edu_chat_ai_request(edu_chat_ai_universal_planner_payload($actor,$input,$universal));
                     $calls=edu_chat_ai_tool_calls($planned);
