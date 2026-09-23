@@ -24,6 +24,14 @@ function edu_chat_context_topic_from_text(string $text): ?string {
 }
 
 function edu_chat_context_topic_from_result(array $result): ?string {
+    $plan=is_array($result['universal_plan']??null)?$result['universal_plan']:[];
+    $domain=strtolower((string)($plan['domain']??''));
+    if(in_array($domain,['payments','debts','concepts','billing'],true))return 'finanzas';
+    if($domain==='attendance')return 'asistencia';
+    if(in_array($domain,['grades','evaluations','courses','assignments'],true))return 'academico';
+    if($domain==='students')return 'estudiantes';
+    if(in_array($domain,['teachers','users','school','config','academic_years'],true))return 'sistema';
+
     foreach ((array)($result['tools_used'] ?? []) as $tool) {
         $tool = strtolower((string)$tool);
         if (strpos($tool,'debt') !== false || strpos($tool,'collection') !== false || strpos($tool,'payment') !== false || strpos($tool,'finance') !== false) return 'finanzas';
@@ -67,6 +75,13 @@ function edu_chat_contextualize_message(string $message, array $state): string {
         if (!empty($state[$key])) $context[] = $label.'='.(string)$state[$key];
     }
     if (!empty($state['root_query'])) $context[] = 'consulta base="'.mb_substr((string)$state['root_query'],0,260,'UTF-8').'"';
+    if(is_array($state['universal_plan']??null)&&$state['universal_plan']){
+        $encoded=json_encode($state['universal_plan'],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        if(is_string($encoded)&&$encoded!==''){
+            if(mb_strlen($encoded,'UTF-8')>1200)$encoded=mb_substr($encoded,0,1200,'UTF-8');
+            $context[]='plan universal anterior='.$encoded;
+        }
+    }
     return $message . '. Contexto vigente de la conversación: ' . implode(', ', $context) . '.';
 }
 
@@ -81,6 +96,8 @@ function edu_chat_context_update_state(string $originalMessage, array $result, a
     $explicit = edu_chat_context_explicit_filters($originalMessage);
     foreach ($explicit as $key=>$value) { if($key!=='all_sections') $state[$key] = $value; }
     if (!empty($explicit['all_sections'])) unset($state['section']);
+    if(is_array($result['universal_plan']??null)&&$result['universal_plan'])$state['universal_plan']=$result['universal_plan'];
+    elseif(!$followup)unset($state['universal_plan']);
     if (!$followup || empty($state['root_query']) || ($previous['topic'] ?? null) !== $topic) $state['root_query'] = $originalMessage;
     if (edu_chat_has(edu_chat_normalize($originalMessage), ['sin filtro','todos los niveles','todos los grados','todas las secciones','ambas secciones','las dos secciones','secciones a y b','todo el colegio'])) {
         unset($state['level'],$state['grade'],$state['section']);
