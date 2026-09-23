@@ -11,7 +11,7 @@
 
 function edu_chat_uq_allowed_domains(array $actor): array {
     $type=(int)($actor['type']??0);
-    if($type===1)return ['school','config','students','teachers','courses','assignments','attendance','payments','debts','grades','evaluations','billing','academic_years'];
+    if($type===1)return ['school','config','users','students','teachers','courses','assignments','concepts','attendance','payments','debts','grades','evaluations','billing','academic_years'];
     if($type===2)return ['school','students','courses','assignments','grades','evaluations','academic_years'];
     if($type===3)return ['school','students','attendance','academic_years'];
     return [];
@@ -103,7 +103,15 @@ function edu_chat_uq_student_base(mysqli $conn,array $actor,array $plan,array &$
     [$start,$end]=edu_chat_uq_period($conn,$actor,$filters);
     $yearId=edu_chat_uq_active_year_id($conn,$school);
     $where=['s.school_id=?'];$types='i';$params=[$school];
-    if(edu_chat_column_exists($conn,'student','status'))$where[]="LOWER(TRIM(COALESCE(s.status,'Activo'))) IN ('activo','active')";
+    if(edu_chat_column_exists($conn,'student','status')){
+        if($type===1&&!empty($filters['status'])){$where[]='LOWER(TRIM(s.status))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['status'],20);}
+        else $where[]="LOWER(TRIM(COALESCE(s.status,'Activo'))) IN ('activo','active')";
+    }
+    if(!empty($filters['year'])&&edu_chat_column_exists($conn,'student','academic_year_id')){
+        $studentYear=edu_chat_uq_year_id_by_label($conn,$school,$filters['year']);
+        if($studentYear>0){$where[]='s.academic_year_id=?';$types.='i';$params[]=$studentYear;}
+    }
+    if(!empty($filters['gender'])&&edu_chat_column_exists($conn,'student','genero')){$where[]='LOWER(TRIM(COALESCE(s.genero,\'\')))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['gender'],20);}
     if(!empty($filters['level'])){$where[]="LOWER(TRIM(s.nivel))=LOWER(TRIM(?))";$types.='s';$params[]=edu_chat_uq_clean_text($filters['level'],40);}
     if(!empty($filters['grade']))$where[]=edu_chat_uq_grade_sql('s.grado',(string)$filters['grade'],$types,$params);
     if(!empty($filters['section'])){$where[]="UPPER(TRIM(COALESCE(s.seccion,'')))=UPPER(TRIM(?))";$types.='s';$params[]=edu_chat_uq_clean_text($filters['section'],10);}
@@ -156,7 +164,9 @@ function edu_chat_uq_student_base(mysqli $conn,array $actor,array $plan,array &$
         $avgExpr="(SELECT ROUND(AVG($num),2) FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id $courseJoin WHERE eg.student_id=s.id$extra)";
     }
 
-    return "SELECT s.id,s.name,s.nivel,s.grado,COALESCE(NULLIF(TRIM(s.seccion),''),'Sin sección') seccion,$debtExpr debt,$paidExpr paid,$lateExpr late,$absentExpr absent,$criticalExpr critical,$avgExpr average_grade FROM student s WHERE ".implode(' AND ',$where);
+    $genderExpr=edu_chat_column_exists($conn,'student','genero')?"COALESCE(NULLIF(TRIM(s.genero),''),'Sin dato')":"'Sin dato'";
+    $statusExpr=edu_chat_column_exists($conn,'student','status')?"COALESCE(NULLIF(TRIM(s.status),''),'Activo')":"'Activo'";
+    return "SELECT s.id,s.name,$genderExpr gender,$statusExpr status,s.nivel,s.grado,COALESCE(NULLIF(TRIM(s.seccion),''),'Sin sección') seccion,$debtExpr debt,$paidExpr paid,$lateExpr late,$absentExpr absent,$criticalExpr critical,$avgExpr average_grade FROM student s WHERE ".implode(' AND ',$where);
 }
 
 function edu_chat_uq_student_query(mysqli $conn,array $actor,array $plan): array {
@@ -199,7 +209,9 @@ function edu_chat_uq_student_query(mysqli $conn,array $actor,array $plan): array
             'level'=>['nivel','nivel'],
             'grade'=>['CONCAT(nivel,\' · \',grado)','nivel,CAST(grado AS UNSIGNED),grado'],
             'section'=>['seccion','seccion'],
-            'grade_section'=>['CONCAT(nivel,\' · \',grado,\' \',seccion)','nivel,CAST(grado AS UNSIGNED),grado,seccion']
+            'grade_section'=>['CONCAT(nivel,\' · \',grado,\' \',seccion)','nivel,CAST(grado AS UNSIGNED),grado,seccion'],
+            'gender'=>['gender','gender'],
+            'status'=>['status','status']
         ];
         if(!isset($groups[$group]))$group='grade_section';
         $gexpr=$groups[$group][0];$gorder=$groups[$group][1];
