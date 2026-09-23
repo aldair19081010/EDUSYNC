@@ -339,12 +339,18 @@ function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $his
     $followUp = [];
     $toolSummaries = [];
     $toolsUsed = [];
+    $universalPlan = null;
 
     foreach ($calls as $call) {
         $name = (string)$call['name'];
         $args = (array)($call['arguments'] ?? []);
         $result = edu_chat_ai_run_tool($conn, $actor, $name, $args);
         $toolsUsed[] = $name;
+        if($name==='query_edusync_data'&&!empty($args['domain'])){
+            $domain=strtolower((string)$args['domain']);
+            $toolsUsed[]='universal_'.$domain;
+            $universalPlan=$args;
+        }
         edu_chat_ai_merge_visuals($cards, $actions, $followUp, $result);
         $toolSummaries[] = [
             'tool'=>$name,
@@ -393,6 +399,7 @@ function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $his
         'actions'=>$actions,
         'follow_up'=>$followUp,
         'mode'=>edu_chat_ai_mode(),
-        'tools_used'=>array_values(array_unique($toolsUsed))
+        'tools_used'=>array_values(array_unique($toolsUsed)),
+        'universal_plan'=>$universalPlan
     ];
 }
