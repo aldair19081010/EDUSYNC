@@ -2,9 +2,9 @@
 require_once __DIR__ . '/../edusync/db_connect.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_engine.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_semantic_schema.php';
-require_once __DIR__ . '/../edusync/includes/chatbot_advanced_assistant.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_tools.php';
 require_once __DIR__ . '/../edusync/includes/chatbot_router.php';
+require_once __DIR__ . '/../edusync/includes/chatbot_advanced_assistant.php';
 
 $schoolId=1;
 foreach($argv as $arg){
@@ -28,7 +28,11 @@ $cross=[
     '¿Cuántos estudiantes deben más de 500 soles y tienen 2 tardanzas este mes?',
     'Muéstrame alumnos con notas críticas y deuda pendiente',
     '¿Qué cursos dicta cada docente?',
-    '¿Cuántas boletas se emitieron este mes?'
+    '¿Cuántas boletas se emitieron este mes?',
+    '¿Cuántos estudiantes retirados hay?',
+    '¿Cómo se distribuyen los estudiantes por género?',
+    '¿Qué medios de pago están configurados?',
+    'Muéstrame los alumnos con nota C en Matemática'
 ];
 foreach($cross as $question){
     $route=edu_chat_ai_forced_route($actor,$question);
@@ -40,7 +44,11 @@ foreach($cross as $question){
 $plans=[
     'school'=>['domain'=>'school','operation'=>'list'],
     'config_methods'=>['domain'=>'config','operation'=>'list','filters'=>['resource'=>'payment_methods']],
+    'users_by_role'=>['domain'=>'users','operation'=>'group','group_by'=>'type'],
+    'concepts'=>['domain'=>'concepts','operation'=>'list','filters'=>['year'=>'2026'],'limit'=>5],
     'students_3_sec'=>['domain'=>'students','operation'=>'count','metric'=>'count','filters'=>['level'=>'Secundaria','grade'=>'3']],
+    'students_gender'=>['domain'=>'students','operation'=>'group','metric'=>'count','group_by'=>'gender','limit'=>10],
+    'students_retired'=>['domain'=>'students','operation'=>'count','metric'=>'count','filters'=>['status'=>'Retirado']],
     'students_cross'=>['domain'=>'students','operation'=>'list','metric'=>'debt','filters'=>['level'=>'Secundaria','debt_min'=>0.01,'late_min'=>1,'period'=>'month'],'sort_by'=>'debt','sort_dir'=>'desc','limit'=>10],
     'teachers'=>['domain'=>'teachers','operation'=>'count'],
     'assignments'=>['domain'=>'assignments','operation'=>'group','group_by'=>'course','limit'=>20],
@@ -48,10 +56,29 @@ $plans=[
     'payments'=>['domain'=>'payments','operation'=>'sum','metric'=>'amount','filters'=>['period'=>'today']],
     'debts'=>['domain'=>'debts','operation'=>'sum','metric'=>'debt'],
     'grades'=>['domain'=>'grades','operation'=>'count','filters'=>['bimestre'=>'2']],
+    'grades_critical'=>['domain'=>'grades','operation'=>'list','filters'=>['critical_only'=>true,'level'=>'Secundaria'],'limit'=>5],
     'evaluations'=>['domain'=>'evaluations','operation'=>'count'],
     'billing'=>['domain'=>'billing','operation'=>'count','filters'=>['period'=>'month']],
+    'billing_total'=>['domain'=>'billing','operation'=>'sum','metric'=>'amount','filters'=>['period'=>'month']],
     'years'=>['domain'=>'academic_years','operation'=>'list']
 ];
+
+$universalState=[
+    'topic'=>'estudiantes',
+    'root_query'=>'Muéstrame alumnos con deuda mayor a 500 y dos tardanzas este mes',
+    'universal_plan'=>[
+        'domain'=>'students','operation'=>'list','metric'=>'debt',
+        'filters'=>['debt_min'=>500,'late_min'=>2,'period'=>'month'],
+        'sort_by'=>'debt','sort_dir'=>'desc'
+    ],
+    'updated_at'=>time()
+];
+$follow=edu_chat_contextualize_message('Ahora solo tercero de secundaria',$universalState);
+$followOk=strpos($follow,'plan universal anterior=')!==false
+    && strpos($follow,'"debt_min":500')!==false
+    && strpos($follow,'"late_min":2')!==false;
+echo ($followOk?'OK':'FAIL').": seguimiento conserva plan universal\n";
+if(!$followOk){$failed++;echo "  $follow\n";}
 
 foreach($plans as $label=>$plan){
     try{
