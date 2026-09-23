@@ -102,13 +102,15 @@ function edu_chat_uq_student_base(mysqli $conn,array $actor,array $plan,array &$
     $filters=(array)($plan['filters']??[]);
     [$start,$end]=edu_chat_uq_period($conn,$actor,$filters);
     $yearId=edu_chat_uq_active_year_id($conn,$school);
+    $requestedStudentYear=!empty($filters['year'])?edu_chat_uq_year_id_by_label($conn,$school,$filters['year']):0;
+    $scopeYearId=$requestedStudentYear>0?$requestedStudentYear:$yearId;
     $where=['s.school_id=?'];$types='i';$params=[$school];
     if(edu_chat_column_exists($conn,'student','status')){
         if($type===1&&!empty($filters['status'])){$where[]='LOWER(TRIM(s.status))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['status'],20);}
         else $where[]="LOWER(TRIM(COALESCE(s.status,'Activo'))) IN ('activo','active')";
     }
     if(!empty($filters['year'])&&edu_chat_column_exists($conn,'student','academic_year_id')){
-        $studentYear=edu_chat_uq_year_id_by_label($conn,$school,$filters['year']);
+        $studentYear=$requestedStudentYear;
         if($studentYear>0){$where[]='s.academic_year_id=?';$types.='i';$params[]=$studentYear;}
     }
     if(!empty($filters['gender'])&&edu_chat_column_exists($conn,'student','genero')){$where[]='LOWER(TRIM(COALESCE(s.genero,\'\')))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['gender'],20);}
@@ -122,7 +124,7 @@ function edu_chat_uq_student_base(mysqli $conn,array $actor,array $plan,array &$
         if($teacher<=0)return null;
         $scope="EXISTS(SELECT 1 FROM teacher_courses scope_tc WHERE scope_tc.school_id=s.school_id AND scope_tc.teacher_id=? AND CAST(scope_tc.grado AS UNSIGNED)=CAST(s.grado AS UNSIGNED) AND UPPER(TRIM(COALESCE(scope_tc.seccion,'')))=UPPER(TRIM(COALESCE(s.seccion,'')))";
         $types.='i';$params[]=$teacher;
-        if($yearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$scope.=' AND scope_tc.academic_year_id=?';$types.='i';$params[]=$yearId;}
+        if($scopeYearId>0&&edu_chat_column_exists($conn,'teacher_courses','academic_year_id')){$scope.=' AND scope_tc.academic_year_id=?';$types.='i';$params[]=$scopeYearId;}
         $where[]=$scope.')';
     }
 
@@ -149,7 +151,7 @@ function edu_chat_uq_student_base(mysqli $conn,array $actor,array $plan,array &$
     $criticalExpr='0';$avgExpr='NULL';
     if(in_array($type,[1,2],true)&&edu_chat_table_exists($conn,'evaluation_grades')&&edu_chat_table_exists($conn,'evaluations')&&edu_chat_table_exists($conn,'teacher_courses')){
         $academicWhere=[];
-        if($yearId>0&&edu_chat_column_exists($conn,'evaluations','academic_year_id'))$academicWhere[]='e.academic_year_id='.(int)$yearId;
+        if($scopeYearId>0&&edu_chat_column_exists($conn,'evaluations','academic_year_id'))$academicWhere[]='e.academic_year_id='.(int)$scopeYearId;
         if($type===2)$academicWhere[]='tc.teacher_id='.(int)($actor['teacher_id']??0);
         if(!empty($filters['bimestre']))$academicWhere[]="e.bimestre='".((int)$filters['bimestre'])."'";
         if(!empty($filters['course'])&&edu_chat_table_exists($conn,'academic_courses')){
@@ -666,10 +668,9 @@ function edu_chat_uq_user_query(mysqli $conn,array $actor,array $plan): array {
 
 function edu_chat_uq_concept_query(mysqli $conn,array $actor,array $plan): array {
     if((int)($actor['type']??0)!==1)return edu_chat_result('La información de conceptos de pago solo está disponible para administración.');
-    if(!edu_chat_table_exists($conn,'courses'))return edu_chat_result('No está disponible la información de conceptos de pago.');
-    $school=(int)($actor['school_id']??0);$filters=(array)($plan['filters']??[]);$where=['1=1'];$types='';$params=[];
-    $join='';$yearExpr="'Sin año'";
-    if(edu_chat_table_exists($conn,'academic_year')){$join=' LEFT JOIN academic_year ay ON ay.id=c.academic_year_id ';$where[]='ay.school_id=?';$types.='i';$params[]=$school;$yearExpr="COALESCE(ay.year,'Sin año')";}
+    if(!edu_chat_table_exists($conn,'courses')||!edu_chat_table_exists($conn,'academic_year'))return edu_chat_result('No está disponible una relación segura entre conceptos y colegio.');
+    $school=(int)($actor['school_id']??0);$filters=(array)($plan['filters']??[]);$where=['ay.school_id=?'];$types='i';$params=[$school];
+    $join=' INNER JOIN academic_year ay ON ay.id=c.academic_year_id ';$yearExpr="COALESCE(ay.year,'Sin año')";
     if(!empty($filters['year'])&&edu_chat_table_exists($conn,'academic_year')){$where[]='ay.year=?';$types.='s';$params[]=edu_chat_uq_clean_text($filters['year'],10);}
     if(!empty($filters['level'])){$where[]='LOWER(TRIM(c.level))=LOWER(TRIM(?))';$types.='s';$params[]=edu_chat_uq_clean_text($filters['level'],40);}
     if(!empty($filters['concept'])){$where[]='LOWER(c.course) LIKE LOWER(?)';$types.='s';$params[]='%'.edu_chat_uq_clean_text($filters['concept'],120).'%';}
