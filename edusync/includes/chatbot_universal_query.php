@@ -574,21 +574,31 @@ function edu_chat_uq_billing_query(mysqli $conn,array $actor,array $plan): array
     $params=[$school,$start,$end];
 
     if(!empty($filters['document_type'])){
-        $where[]='ce.serie LIKE ?';$types.='s';
         $kind=strtolower(edu_chat_uq_clean_text($filters['document_type'],20));
-        $params[]=$kind==='factura'?'F%':($kind==='boleta'?'B%':'%');
+        if(edu_chat_column_exists($conn,'comprobantes_electronicos','tipo_comprobante')){
+            $where[]='ce.tipo_comprobante=?';$types.='s';
+            $params[]=$kind==='factura'?'01':($kind==='boleta'?'03':'');
+        }else{
+            $where[]='ce.serie LIKE ?';$types.='s';
+            $params[]=$kind==='factura'?'F%':($kind==='boleta'?'B%':'%');
+        }
     }
     if(!empty($filters['name'])){
         $where[]='LOWER(ce.cliente_razon_social) LIKE LOWER(?)';$types.='s';
         $params[]='%'.edu_chat_uq_clean_text($filters['name'],120).'%';
     }
 
-    $amountExpr=edu_chat_table_exists($conn,'comprobante_detalle')
-        ? "COALESCE((SELECT SUM(cd.total) FROM comprobante_detalle cd WHERE cd.comprobante_id=ce.id),0)"
-        : "0";
+    $amountExpr=edu_chat_column_exists($conn,'comprobantes_electronicos','total_precio_venta')
+        ? "COALESCE(ce.total_precio_venta,0)"
+        : (edu_chat_table_exists($conn,'comprobante_detalle')
+            ? "COALESCE((SELECT SUM(cd.total) FROM comprobante_detalle cd WHERE cd.comprobante_id=ce.id),0)"
+            : "0");
+    $statusExpr=edu_chat_column_exists($conn,'comprobantes_electronicos','estado_sunat')
+        ? "COALESCE(NULLIF(TRIM(ce.estado_sunat),''),'Sin estado')"
+        : "COALESCE(NULLIF(TRIM(ce.sunat_code),''),'Sin respuesta SUNAT')";
 
     $base="SELECT ce.id,ce.numero_completo,ce.serie,ce.cliente_razon_social,
-                  ce.fecha_emision,ce.sunat_code,ce.sunat_description,$amountExpr amount
+                  ce.fecha_emision,ce.sunat_code,ce.sunat_description,$statusExpr sunat_status,$amountExpr amount
            FROM comprobantes_electronicos ce
            WHERE ".implode(' AND ',$where);
 
@@ -613,7 +623,7 @@ function edu_chat_uq_billing_query(mysqli $conn,array $actor,array $plan): array
 
     if($operation==='group'){
         $group=(string)($plan['group_by']??'status');
-        $expr=$group==='series'?'serie':($group==='date'?'fecha_emision':"COALESCE(NULLIF(sunat_code,''),'Sin respuesta SUNAT')");
+        $expr=$group==='series'?'serie':($group==='date'?'fecha_emision':'sunat_status');
         $valueExpr=$metric==='amount'?'SUM(amount)':'COUNT(*)';
         $sql="SELECT $expr label,$valueExpr value
               FROM ($base) uq
@@ -630,7 +640,7 @@ function edu_chat_uq_billing_query(mysqli $conn,array $actor,array $plan): array
     $sql="SELECT * FROM ($base) uq ORDER BY fecha_emision DESC,id DESC LIMIT $limit";
     $stmt=$conn->prepare($sql);if(!$stmt)return edu_chat_result('No pude preparar el listado de comprobantes.');
     edu_chat_bind($stmt,$types,$params);$stmt->execute();$res=$stmt->get_result();$lines=[];
-    while($r=$res->fetch_assoc())$lines[]='• '.$r['numero_completo'].' — '.$r['cliente_razon_social'].' · '.$r['fecha_emision'].' · '.edu_chat_money((float)$r['amount']).' · SUNAT '.($r['sunat_code']?:'sin código');
+    while($r=$res->fetch_assoc())$lines[]='• '.$r['numero_completo'].' — '.$r['cliente_razon_social'].' · '.$r['fecha_emision'].' · '.edu_chat_money((float)$r['amount']).' · SUNAT '.$r['sunat_status'];
     $stmt->close();
     return edu_chat_result($lines?"Comprobantes $label:\n".implode("\n",$lines):'No encontré comprobantes con esos filtros.');
 }
@@ -712,7 +722,7 @@ function edu_chat_uq_school_query(mysqli $conn,array $actor,array $plan): array 
     if(trim((string)$row['email'])!=='')$lines[]='Correo: '.trim((string)$row['email']);
 
     if((int)($actor['type']??0)===1&&edu_chat_table_exists($conn,'company_config')){
-        $sql='SELECT ruc,razon_social,nombre_comercial,direccion,provincia,departamento,distrito,telefono,email,website FROM company_config WHERE school_id=? AND COALESCE(is_active,1)=1 ORDER BY id DESC LIMIT 1';
+        $sql='SELECT ruc,razon_social,nombre_comercial,direccion,provincia,departamento,distrito,telefono,email,website,sunat_modo,serie_factura,serie_boleta FROM company_config WHERE school_id=? AND COALESCE(is_active,1)=1 ORDER BY id DESC LIMIT 1';
         $s=$conn->prepare($sql);
         if($s){$s->bind_param('i',$school);$s->execute();$cfg=$s->get_result()->fetch_assoc();$s->close();
             if($cfg){
@@ -722,6 +732,9 @@ function edu_chat_uq_school_query(mysqli $conn,array $actor,array $plan): array 
                 $place=trim(implode(', ',array_filter([trim((string)$cfg['distrito']),trim((string)$cfg['provincia']),trim((string)$cfg['departamento'])])));
                 if($place!=='')$lines[]='Ubicación fiscal: '.$place;
                 if(trim((string)$cfg['website'])!=='')$lines[]='Web: '.trim((string)$cfg['website']);
+                if(trim((string)$cfg['sunat_modo'])!=='')$lines[]='Modo SUNAT: '.trim((string)$cfg['sunat_modo']);
+                if(trim((string)$cfg['serie_boleta'])!=='')$lines[]='Serie de boleta: '.trim((string)$cfg['serie_boleta']);
+                if(trim((string)$cfg['serie_factura'])!=='')$lines[]='Serie de factura: '.trim((string)$cfg['serie_factura']);
             }
         }
     }
