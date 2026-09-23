@@ -630,6 +630,14 @@ function edu_chat_universal_query(mysqli $conn,array $actor,array $args): array 
             if($p['operation']==='distribution')return edu_chat_academic_risk_distribution_result($conn,$actor,$entities,in_array($p['group_by'],['level','grade','section','grade_section','course'],true)?$p['group_by']:'grade_section');
             if(in_array($p['operation'],['list','ranking'],true))return edu_chat_academic_risk_roster_result($conn,$actor,$entities,$p['critical_min']??1,$p['limit']);
             return edu_chat_academic_risk_current_result($conn,$actor,$entities);
+        case 'academic_years': return edu_chat_universal_academic_years($conn,$actor,$p);
+        case 'areas': return edu_chat_universal_areas($conn,$actor,$p);
+        case 'competencies': return edu_chat_universal_competencies($conn,$actor,$p);
+        case 'billing': return edu_chat_universal_billing($conn,$actor,$p);
+        case 'users': return edu_chat_universal_users($conn,$actor,$p);
+        case 'school': return edu_chat_universal_school($conn,$actor,$p);
+        case 'bimester_locks': return edu_chat_universal_bimester_locks($conn,$actor,$p);
+        case 'attendance_config': return edu_chat_universal_attendance_config($conn,$actor,$p);
     }
     return edu_chat_result('No pude interpretar el dominio solicitado.');
 }
