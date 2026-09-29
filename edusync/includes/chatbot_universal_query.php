@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')) define('EDUSYNC_CHAT_UNIVERSAL_VERSION','2026.09.23.2');
+if(!defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')) define('EDUSYNC_CHAT_UNIVERSAL_VERSION','2026.09.23.3');
 
 /**
  * Motor universal de consultas de solo lectura para EduSync.
@@ -11,6 +11,7 @@ if(!defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')) define('EDUSYNC_CHAT_UNIVERSAL_VE
  */
 
 require_once __DIR__ . '/chatbot_engine.php';
+require_once __DIR__ . '/chatbot_queries.php';
 require_once __DIR__ . '/chatbot_analytics.php';
 require_once __DIR__ . '/chatbot_student_insights.php';
 
