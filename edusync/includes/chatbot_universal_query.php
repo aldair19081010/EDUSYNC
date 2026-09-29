@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')) define('EDUSYNC_CHAT_UNIVERSAL_VERSION','2026.09.23.1');
+if(!defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')) define('EDUSYNC_CHAT_UNIVERSAL_VERSION','2026.09.23.2');
 
 /**
  * Motor universal de consultas de solo lectura para EduSync.
