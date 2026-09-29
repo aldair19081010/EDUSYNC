@@ -62,6 +62,14 @@ foreach($universalFirstCases as $q){
 }
 uq_ok($route===null,'consulta de configuración SUNAT llega al motor universal',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
+try{
+    $paymentCount=edu_chat_universal_query($conn,$admin,['subject'=>'payments','operation'=>'count','period'=>'yesterday']);
+    $paymentCountMessage=trim((string)($paymentCount['message']??''));
+    uq_ok(stripos($paymentCountMessage,'Pagos ayer:')===0&&stripos($paymentCountMessage,'Cobranza')===false,'count de pagos de ayer devuelve cantidad y no resumen mensual',$paymentCountMessage);
+}catch(Throwable $e){
+    uq_ok(false,'count de pagos de ayer devuelve cantidad y no resumen mensual',$e->getMessage());
+}
+
 $denied=edu_chat_universal_query($conn,$teacher,['subject'=>'students','operation'=>'list','debt_min'=>1]);
 uq_ok(stripos((string)($denied['message']??''),'no está autorizada')!==false,'docente no puede cruzar alumnos con finanzas',(string)($denied['message']??''));
 
