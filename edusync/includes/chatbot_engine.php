@@ -601,6 +601,9 @@ function edu_chat_collections_result(mysqli $conn, array $actor, array $entities
     if (!edu_chat_table_exists($conn,'payments') || !edu_chat_table_exists($conn,'student_ef_list')) return edu_chat_result('El módulo de pagos no está disponible.');
     $school=(int)$actor['school_id']; $period=$entities['period']??'month'; $start=date('Y-m-01'); $end=date('Y-m-t'); $label='este mes';
     if ($period==='today') { $start=date('Y-m-d'); $end=$start; $label='hoy'; }
+    elseif ($period==='yesterday') { $start=date('Y-m-d',strtotime('-1 day')); $end=$start; $label='ayer'; }
+    elseif ($period==='week') { $start=date('Y-m-d',strtotime('monday this week')); $end=date('Y-m-d'); $label='esta semana'; }
+    elseif ($period==='last_month') { $start=date('Y-m-01',strtotime('first day of last month')); $end=date('Y-m-t',strtotime('last day of last month')); $label='el mes pasado'; }
     elseif ($period==='year') { $year=edu_chat_active_year($conn,$school); $start=$year['start_date']??date('Y-01-01'); $end=$year['end_date']??date('Y-12-31'); $label='este año'; }
     $hasStatus=edu_chat_column_exists($conn,'payments','payment_status'); $hasOpId=edu_chat_column_exists($conn,'payments','operation_id'); $hasOps=$hasOpId&&edu_chat_table_exists($conn,'payment_operations');
     $join=$hasOps?' LEFT JOIN payment_operations po ON po.id=p.operation_id':''; $dateExpr='p.date_created'; $valid='';

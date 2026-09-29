@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.23.1');
+if(!defined('EDUSYNC_CHAT_ROUTER_VERSION')) define('EDUSYNC_CHAT_ROUTER_VERSION','2026.09.23.2');
 
 function edu_chat_router_explicit_grade(string $text): ?string {
     if (function_exists('edu_chat_grade_number_from_text')) {
@@ -213,6 +213,18 @@ function edu_chat_ai_forced_route(array $actor,string $message): ?array {
     // amplios para evitar que "notas" capture una pregunta de ayuda o que
     // "cursos" oculte una consulta propia del docente.
     $semanticOperation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($text):'query';
+    $semanticDomain=function_exists('edu_chat_semantic_domain')?edu_chat_semantic_domain($text):'';
+
+    // Respaldo determinístico: si el planificador universal no responde, una
+    // pregunta de cantidad de pagos conserva count + periodo exacto.
+    if($type===1&&$semanticDomain==='payments'&&$semanticOperation==='count'){
+        $paymentArgs=['subject'=>'payments','operation'=>'count'];
+        foreach(['level','grade','section','period','payment_method'] as $key){
+            if(isset($args[$key])&&$args[$key]!=='')$paymentArgs[$key]=$args[$key];
+        }
+        if(empty($paymentArgs['period']))$paymentArgs['period']='month';
+        return['name'=>'query_edusync_data','arguments'=>$paymentArgs];
+    }
 
     if($semanticOperation==='help'&&edu_chat_has($text,['como','donde','ayuda','explica','explicame','registrar','configurar','subir','importar'])){
         return['name'=>'get_system_help','arguments'=>['query'=>$message]];

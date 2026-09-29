@@ -44,12 +44,36 @@ $route=edu_chat_ai_forced_route($admin,'¿Cuánto cuesta la mensualidad de terce
 uq_ok($route===null,'consulta de concepto de pago llega al motor universal',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
 $route=edu_chat_ai_forced_route($admin,'¿Cuál es el modo SUNAT configurado?');
+
+$universalFirstCases=[
+    '¿Cuántos pagos se hicieron el día de ayer?',
+    '¿Cuánto se cobró ayer?',
+    '¿Cuánto efectivo se recibió hoy?',
+    'Muéstrame los estudiantes de tercero de secundaria en ambas secciones',
+    '¿Cuántos estudiantes tienen deuda mayor a 500 soles y al menos 2 tardanzas este mes?',
+    '¿Qué cursos tiene tercero de secundaria?',
+    '¿Cuántos docentes hay?'
+];
+foreach($universalFirstCases as $q){
+    $normalized=edu_chat_normalize($q);
+    $domain=function_exists('edu_chat_semantic_domain')?edu_chat_semantic_domain($normalized):'';
+    $operation=function_exists('edu_chat_semantic_operation')?edu_chat_semantic_operation($normalized):'';
+    echo 'UNIVERSAL-FIRST: '.$q.' | domain='.$domain.' | operation='.$operation."\n";
+}
 uq_ok($route===null,'consulta de configuración SUNAT llega al motor universal',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
-$denied=edu_chat_universal_query($teacher,['subject'=>'students','operation'=>'list','debt_min'=>1]);
+try{
+    $paymentCount=edu_chat_universal_query($conn,$admin,['subject'=>'payments','operation'=>'count','period'=>'yesterday']);
+    $paymentCountMessage=trim((string)($paymentCount['message']??''));
+    uq_ok(stripos($paymentCountMessage,'Pagos ayer:')===0&&stripos($paymentCountMessage,'Cobranza')===false,'count de pagos de ayer devuelve cantidad y no resumen mensual',$paymentCountMessage);
+}catch(Throwable $e){
+    uq_ok(false,'count de pagos de ayer devuelve cantidad y no resumen mensual',$e->getMessage());
+}
+
+$denied=edu_chat_universal_query($conn,$teacher,['subject'=>'students','operation'=>'list','debt_min'=>1]);
 uq_ok(stripos((string)($denied['message']??''),'no está autorizada')!==false,'docente no puede cruzar alumnos con finanzas',(string)($denied['message']??''));
 
-$deniedAux=edu_chat_universal_query($aux,['subject'=>'students','operation'=>'list','grade_max'=>10]);
+$deniedAux=edu_chat_universal_query($conn,$aux,['subject'=>'students','operation'=>'list','grade_max'=>10]);
 uq_ok(stripos((string)($deniedAux['message']??''),'no está autorizada')!==false,'auxiliar no puede cruzar alumnos con notas',(string)($deniedAux['message']??''));
 
 $cases=[
