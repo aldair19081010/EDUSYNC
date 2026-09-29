@@ -62,10 +62,10 @@ foreach($universalFirstCases as $q){
 }
 uq_ok($route===null,'consulta de configuración SUNAT llega al motor universal',json_encode($route,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
-$denied=edu_chat_universal_query($teacher,['subject'=>'students','operation'=>'list','debt_min'=>1]);
+$denied=edu_chat_universal_query($conn,$teacher,['subject'=>'students','operation'=>'list','debt_min'=>1]);
 uq_ok(stripos((string)($denied['message']??''),'no está autorizada')!==false,'docente no puede cruzar alumnos con finanzas',(string)($denied['message']??''));
 
-$deniedAux=edu_chat_universal_query($aux,['subject'=>'students','operation'=>'list','grade_max'=>10]);
+$deniedAux=edu_chat_universal_query($conn,$aux,['subject'=>'students','operation'=>'list','grade_max'=>10]);
 uq_ok(stripos((string)($deniedAux['message']??''),'no está autorizada')!==false,'auxiliar no puede cruzar alumnos con notas',(string)($deniedAux['message']??''));
 
 $cases=[
