@@ -30,6 +30,12 @@ $plan=edu_chat_universal_plan([
 ]);
 uq_ok($plan['subject']==='students'&&$plan['debt_min']===500.0&&$plan['late_min']===2&&$plan['limit']===40,'plan estructurado conserva filtros cruzados');
 
+$strictLate=edu_chat_ai_apply_explicit_integer_comparators('Dime qué estudiantes tienen más de 2 tardanzas este mes',['subject'=>'students','operation'=>'list','period'=>'month','late_min'=>2]);
+uq_ok((int)($strictLate['late_min']??0)===3,'más de 2 tardanzas se interpreta como mínimo 3',json_encode($strictLate,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+
+$inclusiveLate=edu_chat_ai_apply_explicit_integer_comparators('Dime qué estudiantes tienen al menos 2 tardanzas este mes',['subject'=>'students','operation'=>'list','period'=>'month','late_min'=>3]);
+uq_ok((int)($inclusiveLate['late_min']??0)===2,'al menos 2 tardanzas conserva mínimo inclusivo 2',json_encode($inclusiveLate,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+
 $adminTools=edu_chat_ai_tool_definitions($admin);
 $names=array_map(static function($t){return $t['name']??'';},$adminTools);
 uq_ok(in_array('query_edusync_data',$names,true),'administrador recibe query_edusync_data');
