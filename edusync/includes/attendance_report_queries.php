@@ -41,16 +41,17 @@ function arq_where(array $f, int $school, bool $entryOnly=false, bool $applyStat
 
 function arq_summary(mysqli $db, int $school, array $f): array {
     $where=arq_where($f,$school,true,true);
-    $sql="SELECT COUNT(*) total,
-      SUM(CASE WHEN a.estado IN('Presente','Normal','Temprano') THEN 1 ELSE 0 END) present,
-      SUM(CASE WHEN a.estado='Tarde' THEN 1 ELSE 0 END) late,
-      SUM(CASE WHEN a.estado='Ausente' THEN 1 ELSE 0 END) absent,
-      SUM(CASE WHEN a.estado='Ausente Justificada' THEN 1 ELSE 0 END) justified,
-      SUM(CASE WHEN a.estado='Permiso' THEN 1 ELSE 0 END) permission
+    $dayKey="CONCAT(a.student_id,'|',a.fecha)";
+    $sql="SELECT COUNT(DISTINCT $dayKey) total,
+      COUNT(DISTINCT CASE WHEN a.estado IN('Presente','Normal','Temprano','Tarde') THEN $dayKey END) present,
+      COUNT(DISTINCT CASE WHEN a.estado='Tarde' THEN $dayKey END) late,
+      COUNT(DISTINCT CASE WHEN a.estado='Ausente' THEN $dayKey END) absent,
+      COUNT(DISTINCT CASE WHEN a.estado='Ausente Justificada' THEN $dayKey END) justified,
+      COUNT(DISTINCT CASE WHEN a.estado='Permiso' THEN $dayKey END) permission
       FROM asistencia a INNER JOIN student s ON s.id=a.student_id WHERE $where";
     $r=$db->query($sql);$x=$r?$r->fetch_assoc():[];
     foreach(['total','present','late','absent','justified','permission'] as $k)$x[$k]=(int)($x[$k]??0);
-    $x['attendance_rate']=$x['total']?round((($x['present']+$x['late'])/$x['total'])*100,1):0;
+    $x['attendance_rate']=$x['total']?round(($x['present']/$x['total'])*100,1):0;
     return $x;
 }
 
@@ -61,12 +62,13 @@ function arq_dataset(mysqli $db, int $school, array $f, string $view): array {
         return ["SELECT a.id,a.fecha,a.hora,a.tipo,$state estado,a.source,a.notes,a.justification_status,a.justification_reason,s.id_no,s.name student_name,s.nivel,s.grado,s.seccion FROM asistencia a INNER JOIN student s ON s.id=a.student_id WHERE $where",'a.fecha DESC,a.hora DESC,s.name'];
     }
     $where=arq_where($f,$school,true,true);
-    $metrics="COUNT(*) marks,SUM($state='Presente') present,SUM($state='Tarde') late,SUM($state='Ausente') absent,SUM($state='Ausente Justificada') justified,SUM($state='Permiso') permission";
+    $metricKey=in_array($view,['student','incidents'],true)?'a.fecha':"CONCAT(a.student_id,'|',a.fecha)";
+    $metrics="COUNT(DISTINCT $metricKey) marks,COUNT(DISTINCT CASE WHEN $state IN('Presente','Tarde') THEN $metricKey END) present,COUNT(DISTINCT CASE WHEN $state='Tarde' THEN $metricKey END) late,COUNT(DISTINCT CASE WHEN $state='Ausente' THEN $metricKey END) absent,COUNT(DISTINCT CASE WHEN $state='Ausente Justificada' THEN $metricKey END) justified,COUNT(DISTINCT CASE WHEN $state='Permiso' THEN $metricKey END) permission";
     if ($view==='student') return ["SELECT s.id,s.id_no,s.name student_name,s.nivel,s.grado,s.seccion,$metrics FROM asistencia a INNER JOIN student s ON s.id=a.student_id WHERE $where GROUP BY s.id,s.id_no,s.name,s.nivel,s.grado,s.seccion",'s.name'];
     if ($view==='class') return ["SELECT s.nivel,s.grado,s.seccion,COUNT(DISTINCT s.id) students,$metrics FROM asistencia a INNER JOIN student s ON s.id=a.student_id WHERE $where GROUP BY s.nivel,s.grado,s.seccion",'FIELD(s.nivel,\'Inicial\',\'Primaria\',\'Secundaria\'),s.grado,s.seccion'];
     if ($view==='incidents') return ["SELECT s.id,s.id_no,s.name student_name,s.nivel,s.grado,s.seccion,$metrics FROM asistencia a INNER JOIN student s ON s.id=a.student_id WHERE $where GROUP BY s.id,s.id_no,s.name,s.nivel,s.grado,s.seccion HAVING late+absent+justified+permission>0",'late DESC,absent DESC,s.name'];
     $base=arq_where($f,$school,true,false);
-    return ["SELECT a.fecha,s.nivel,s.grado,s.seccion,COUNT(DISTINCT s.id) marked,SUM($state='Presente') present,SUM($state='Tarde') late,SUM($state IN('Ausente','Ausente Justificada')) absent,COALESCE(c.status,'Pendiente') closure_status,c.closed_at,c.reopened_at FROM asistencia a INNER JOIN student s ON s.id=a.student_id LEFT JOIN attendance_day_closures c ON c.school_id=a.school_id AND c.attendance_date=a.fecha AND c.nivel=s.nivel AND c.grado=s.grado AND c.seccion=s.seccion WHERE $base GROUP BY a.fecha,s.nivel,s.grado,s.seccion,c.status,c.closed_at,c.reopened_at",'a.fecha DESC,s.nivel,s.grado,s.seccion'];
+    return ["SELECT a.fecha,s.nivel,s.grado,s.seccion,COUNT(DISTINCT s.id) marked,COUNT(DISTINCT CASE WHEN $state IN('Presente','Tarde') THEN s.id END) present,COUNT(DISTINCT CASE WHEN $state='Tarde' THEN s.id END) late,COUNT(DISTINCT CASE WHEN $state IN('Ausente','Ausente Justificada') THEN s.id END) absent,COALESCE(c.status,'Pendiente') closure_status,c.closed_at,c.reopened_at FROM asistencia a INNER JOIN student s ON s.id=a.student_id LEFT JOIN attendance_day_closures c ON c.school_id=a.school_id AND c.attendance_date=a.fecha AND c.nivel=s.nivel AND c.grado=s.grado AND c.seccion=s.seccion WHERE $base GROUP BY a.fecha,s.nivel,s.grado,s.seccion,c.status,c.closed_at,c.reopened_at",'a.fecha DESC,s.nivel,s.grado,s.seccion'];
 }
 
 function arq_rows(mysqli $db, int $school, array $f, string $view, int $start=0, int $length=25): array {
