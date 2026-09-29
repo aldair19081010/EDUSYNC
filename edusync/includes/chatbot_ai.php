@@ -282,6 +282,24 @@ function edu_chat_ai_universal_tool(array $tools): ?array {
     return null;
 }
 
+function edu_chat_ai_apply_explicit_integer_comparators(string $message,array $args): array {
+    if(!function_exists('edu_chat_normalize')||!function_exists('edu_chat_router_count_minimum'))return $args;
+    $text=edu_chat_normalize($message);
+    if($text==='')return $args;
+
+    // "más de 2 tardanzas" significa 3 o más. El LLM puede interpretar 2 como
+    // mínimo inclusivo; esta capa determinística conserva el comparador escrito.
+    if(edu_chat_has($text,['tardanza','tardanzas','llego tarde','llegaron tarde'])){
+        $min=edu_chat_router_count_minimum($text,'(?:tardanza|tardanzas)');
+        if($min!==null)$args['late_min']=$min;
+    }
+    if(edu_chat_has($text,['ausencia','ausencias','ausente','ausentes','falta','faltas'])){
+        $min=edu_chat_router_count_minimum($text,'(?:ausencia|ausencias|falta|faltas)');
+        if($min!==null)$args['absent_min']=$min;
+    }
+    return $args;
+}
+
 function edu_chat_ai_universal_planner_payload(array $actor,string $input,array $tool): array {
     $plannerPrompt="Convierte la consulta del usuario en UN plan estructurado para query_edusync_data. Conserva todos los filtros explícitos y cruces entre módulos. No respondas en texto y no inventes filtros no pedidos.\n\n".$input;
     if(edu_chat_ai_api_style()==='chat_completions'){
@@ -367,6 +385,7 @@ function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $his
                 $cards=[];$actions=[];$followUp=[];$toolSummaries=[];$toolsUsed=[];
                 foreach($universalCalls as $call){
                     $args=(array)($call['arguments']??[]);
+                    $args=edu_chat_ai_apply_explicit_integer_comparators($message,$args);
                     $result=edu_chat_ai_run_tool($conn,$actor,'query_edusync_data',$args);
                     $toolsUsed[]='query_edusync_data';
                     edu_chat_ai_merge_visuals($cards,$actions,$followUp,$result);
@@ -414,6 +433,7 @@ function edu_chat_ai_ask(mysqli $conn, array $actor, string $message, array $his
     $cards=[];$actions=[];$followUp=[];$toolSummaries=[];$toolsUsed=[];
     foreach($calls as $call){
         $name=(string)$call['name'];$args=(array)($call['arguments']??[]);
+        if($name==='query_edusync_data')$args=edu_chat_ai_apply_explicit_integer_comparators($message,$args);
         $result=edu_chat_ai_run_tool($conn,$actor,$name,$args);
         $toolsUsed[]=$name;edu_chat_ai_merge_visuals($cards,$actions,$followUp,$result);
         $toolSummaries[]=['tool'=>$name,'arguments'=>$args,'result'=>['message'=>(string)($result['message']??''),'cards'=>(array)($result['cards']??[])]];
