@@ -1,6 +1,6 @@
 <?php
 
-if(!defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')) define('EDUSYNC_CHAT_UNIVERSAL_VERSION','2026.09.23.3');
+if(!defined('EDUSYNC_CHAT_UNIVERSAL_VERSION')) define('EDUSYNC_CHAT_UNIVERSAL_VERSION','2026.09.23.4');
 
 /**
  * Motor universal de consultas de solo lectura para EduSync.
@@ -138,11 +138,13 @@ function edu_chat_universal_attendance_join(mysqli $conn,array $p,int $school,st
     [$from,$to]=edu_chat_universal_period($conn,$school,$p);
     $types.='ss';$params[]=$from;$params[]=$to;
     $cancel=edu_chat_column_exists($conn,'asistencia','is_cancelled')?' AND COALESCE(a.is_cancelled,0)=0':'';
+    // El reporte oficial cuenta incidencias por alumno+día, no por cantidad de filas.
+    // Así una doble marcación "Tarde" el mismo día sigue siendo una sola tardanza.
     return " LEFT JOIN (
         SELECT a.student_id,
-               SUM(LOWER(TRIM(a.estado))='tarde') late_count,
-               SUM(LOWER(TRIM(a.estado)) IN ('ausente','ausente justificada','ausencia justificada')) absent_count,
-               SUM(LOWER(TRIM(a.estado)) IN ('presente','normal','temprano')) present_count,
+               COUNT(DISTINCT CASE WHEN LOWER(TRIM(a.estado))='tarde' THEN a.fecha END) late_count,
+               COUNT(DISTINCT CASE WHEN LOWER(TRIM(a.estado)) IN ('ausente','ausente justificada','ausencia justificada') THEN a.fecha END) absent_count,
+               COUNT(DISTINCT CASE WHEN LOWER(TRIM(a.estado)) IN ('presente','normal','temprano','tarde') THEN a.fecha END) present_count,
                COUNT(DISTINCT a.fecha) attendance_days
         FROM asistencia a
         WHERE a.tipo='Entrada' AND a.fecha BETWEEN ? AND ?$cancel
