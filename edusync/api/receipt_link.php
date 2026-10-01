@@ -16,6 +16,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
     exit;
 }
 
+include_once __DIR__ . '/../session_config.php';
 include __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/receipt_share_token.php';
 
@@ -39,6 +40,24 @@ try {
         ], 400);
     }
 
+    $sessionStudentId = (int)($_SESSION['student_id'] ?? 0);
+    $sessionSchoolId = (int)($_SESSION['student_school_id'] ?? ($_SESSION['login_school_id'] ?? 0));
+    $sessionDni = trim((string)($_SESSION['student_dni'] ?? ''));
+
+    if (empty($_SESSION['student_logged_in']) || $sessionStudentId <= 0) {
+        receipt_link_out([
+            'status' => 'error',
+            'message' => 'La sesión del estudiante no es válida. Inicia sesión nuevamente.'
+        ], 401);
+    }
+
+    if ($sessionSchoolId !== $schoolId || $sessionDni !== $dni) {
+        receipt_link_out([
+            'status' => 'error',
+            'message' => 'La sesión no corresponde al estudiante solicitado.'
+        ], 403);
+    }
+
     if ($operationId <= 0 && $paymentId <= 0 && $debtId <= 0) {
         receipt_link_out([
             'status' => 'error',
@@ -60,6 +79,13 @@ try {
     }
 
     $studentId = (int)$student['id'];
+    if ($studentId !== $sessionStudentId) {
+        receipt_link_out([
+            'status' => 'error',
+            'message' => 'La sesión no corresponde al estudiante solicitado.'
+        ], 403);
+    }
+
     $owned = false;
 
     if ($operationId > 0) {
