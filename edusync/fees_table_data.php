@@ -1,10 +1,66 @@
 <?php
 ob_start();ini_set('display_errors',0);include_once __DIR__.'/includes/session_check.php';include __DIR__.'/db_connect.php';header('Content-Type: application/json; charset=utf-8');
 function out($x){if(ob_get_length())ob_clean();echo json_encode($x,JSON_UNESCAPED_UNICODE);exit;}function bindAll($s,$t,&$p){$a=[$t];foreach($p as &$v)$a[]=&$v;call_user_func_array([$s,'bind_param'],$a);}
-$draw=(int)($_GET['draw']??1);$school=(int)($_SESSION['login_school_id']??0);if(!$school||empty($_SESSION['login_id']))out(['draw'=>$draw,'recordsTotal'=>0,'recordsFiltered'=>0,'data'=>[]]);$col=$conn->query("SHOW COLUMNS FROM student_ef_list LIKE 'debt_status'");if(!$col||!$col->num_rows)out(['draw'=>$draw,'recordsTotal'=>0,'recordsFiltered'=>0,'data'=>[],'migration_required'=>true,'error'=>'Ejecute sql/fees_module_upgrade.sql.']);
-$start=max(0,(int)($_GET['start']??0));$length=min(100,max(10,(int)($_GET['length']??15)));$search=trim($_GET['search']['value']??'');$year=(int)($_GET['academic_year_id']??0);$level=trim($_GET['level']??'');$payment=trim($_GET['payment_status']??'');$debtStatus=trim($_GET['debt_status']??'');$dueStatus=trim($_GET['due_status']??'');$studentStatus=trim($_GET['student_status']??'Activo');
-$where=['s.school_id=?'];$types='i';$params=[$school];if($year){$where[]='c.academic_year_id=?';$types.='i';$params[]=$year;}if($level){$where[]='s.nivel=?';$types.='s';$params[]=$level;}if($studentStatus){$where[]='s.status=?';$types.='s';$params[]=$studentStatus;}if($debtStatus){$where[]='ef.debt_status=?';$types.='s';$params[]=$debtStatus;}if($dueStatus==='overdue')$where[]="ef.due_date<CURDATE() AND ef.debt_status='Activa'";elseif($dueStatus==='soon')$where[]="ef.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL 7 DAY) AND ef.debt_status='Activa'";elseif($dueStatus==='none')$where[]='ef.due_date IS NULL';if($search){$like='%'.$search.'%';$where[]='(s.name LIKE ? OR s.id_no LIKE ? OR c.course LIKE ? OR ef.billing_period LIKE ?)';$types.='ssss';array_push($params,$like,$like,$like,$like);}$whereSql=implode(' AND ',$where);
-$base="SELECT ef.id,ef.total_fee,ef.discounted_amount,ef.debt_status,ef.due_date,ef.billing_period,s.id_no,s.name student_name,s.nivel,s.grado,s.seccion,c.course,ay.year,(SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.ef_id=ef.id AND p.payment_status='Confirmado') paid,COALESCE(ef.discounted_amount,ef.total_fee) amount FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id INNER JOIN courses c ON c.id=ef.course_id INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE $whereSql";$paymentWhere='';if($payment==='pending')$paymentWhere=' WHERE q.paid=0 AND q.amount>0';elseif($payment==='partial')$paymentWhere=' WHERE q.paid>0 AND q.paid<q.amount';elseif($payment==='paid')$paymentWhere=' WHERE q.amount>0 AND q.paid>=q.amount';elseif($payment==='exempt')$paymentWhere=' WHERE q.amount<=0 AND q.discounted_amount IS NOT NULL AND q.total_fee>0';
+$draw=(int)($_GET['draw']??1);$school=(int)($_SESSION['login_school_id']??0);if(!$school||empty($_SESSION['login_id']))out(['draw'=>$draw,'recordsTotal'=>0,'recordsFiltered'=>0,'data'=>[]]);$col=$conn->query("SHOW COLUMNS FROM student_ef_list LIKE 'debt_status'");if(!$col||!$col->num_rows)out(['draw'=>$draw,'recordsTotal'=>0,'recordsFiltered'=>0,'data'=>[],'migration_required'=>true,'error'=>'Ejecute sql/fees_module_upgrade.sql.']);$receiptCol=$conn->query("SHOW COLUMNS FROM student_ef_list LIKE 'comprobante_id'");$receiptExpr=($receiptCol&&$receiptCol->num_rows)?'ef.comprobante_id':'NULL';
+$start=max(0,(int)($_GET['start']??0));$length=min(100,max(10,(int)($_GET['length']??15)));$search=trim($_GET['search']['value']??'');$year=(int)($_GET['academic_year_id']??0);$level=trim($_GET['level']??'');$payment=trim($_GET['payment_status']??'pending');$debtStatus=trim($_GET['debt_status']??'');$dueStatus=trim($_GET['due_status']??'');$studentStatus=trim($_GET['student_status']??'Activo');
+$where=['s.school_id=?'];$types='i';$params=[$school];if($year){$where[]='c.academic_year_id=?';$types.='i';$params[]=$year;}if($level){$where[]='s.nivel=?';$types.='s';$params[]=$level;}if($studentStatus){$where[]='s.status=?';$types.='s';$params[]=$studentStatus;}if($debtStatus){$where[]='ef.debt_status=?';$types.='s';$params[]=$debtStatus;}if($dueStatus==='overdue')$where[]="(ef.due_date IS NULL OR ef.due_date='' OR ef.due_date<CURDATE()) AND ef.debt_status='Activa'";elseif($dueStatus==='soon')$where[]="ef.due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(),INTERVAL 7 DAY) AND ef.debt_status='Activa'";elseif($dueStatus==='none')$where[]='ef.due_date IS NULL';if($search){$like='%'.$search.'%';$where[]='(s.name LIKE ? OR s.id_no LIKE ? OR c.course LIKE ? OR ef.billing_period LIKE ?)';$types.='ssss';array_push($params,$like,$like,$like,$like);}$whereSql=implode(' AND ',$where);
+$base="SELECT ef.id,ef.total_fee,ef.discounted_amount,$receiptExpr comprobante_id,ef.debt_status,ef.due_date,ef.billing_period,s.id_no,s.name student_name,s.nivel,s.grado,s.seccion,c.course,ay.year,(SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.ef_id=ef.id AND p.payment_status='Confirmado') paid,COALESCE(ef.discounted_amount,ef.total_fee) amount FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id INNER JOIN courses c ON c.id=ef.course_id INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE $whereSql";$paymentWhere='';if($payment==='pending')$paymentWhere=' WHERE q.paid=0 AND q.amount>0';elseif($payment==='partial')$paymentWhere=' WHERE q.paid>0 AND q.paid<q.amount';elseif($payment==='paid')$paymentWhere=' WHERE q.amount>0 AND q.paid>=q.amount';elseif($payment==='exempt')$paymentWhere=' WHERE q.amount<=0 AND q.discounted_amount IS NOT NULL AND q.total_fee>0';
 $t=$conn->prepare('SELECT COUNT(*) total FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id WHERE s.school_id=?');$t->bind_param('i',$school);$t->execute();$total=(int)$t->get_result()->fetch_assoc()['total'];$t->close();$count=$conn->prepare("SELECT COUNT(*) total FROM ($base) q$paymentWhere");bindAll($count,$types,$params);$count->execute();$filtered=(int)$count->get_result()->fetch_assoc()['total'];$count->close();
 $map=['id','id_no','student_name','course','amount','paid','due_date','debt_status','id'];$oc=(int)($_GET['order'][0]['column']??2);$od=strtolower($_GET['order'][0]['dir']??'asc')==='desc'?'DESC':'ASC';$order=$map[$oc]??'student_name';$stmt=$conn->prepare("SELECT q.*,q.amount-q.paid balance FROM ($base) q$paymentWhere ORDER BY $order $od LIMIT $start,$length");bindAll($stmt,$types,$params);$stmt->execute();$r=$stmt->get_result();$data=[];
-while($x=$r->fetch_assoc()){$id=(int)$x['id'];$balance=(float)$x['balance'];$paid=(float)$x['paid'];$amount=(float)$x['amount'];$original=(float)$x['total_fee'];$exempt=$x['discounted_amount']!==null&&$original>0&&$amount<=.009;$ps=$exempt?'Exonerada':($paid<=0?'Pendiente':($paid+0.001>=$amount?'Pagada':'Parcial'));$pb=$ps==='Exonerada'?'info':($ps==='Pagada'?'success':($ps==='Parcial'?'warning':'danger'));$db=$x['debt_status']==='Activa'?'primary':($x['debt_status']==='Suspendida'?'warning':'secondary');$due=$x['due_date']?date('d/m/Y',strtotime($x['due_date'])):'Sin fecha';$dc=$x['due_date']&&$x['due_date']<date('Y-m-d')&&$balance>0?'text-danger font-weight-bold':'text-muted';$amountDetail=$exempt?'<div class="small text-muted">Original: S/ '.number_format($original,2).'</div><div class="small text-info font-weight-bold">Descuento: 100%</div>':'<div class="small text-muted">Pagado: S/ '.number_format($paid,2).'</div>';$actions='<div class="ed-row-actions"><button class="btn btn-sm btn-outline-primary ed-action-primary view_payment" type="button" data-id="'.$id.'" title="Ver pagos"><i class="fa fa-eye"></i><span class="ed-action-label">Ver</span></button><div class="dropdown"><button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" title="Más acciones"><i class="fa fa-ellipsis-v"></i></button><div class="dropdown-menu dropdown-menu-right ed-action-menu"><button class="dropdown-item edit_fees" type="button" data-id="'.$id.'"><i class="fa fa-edit text-primary"></i>Editar deuda</button><div class="dropdown-divider"></div><button class="dropdown-item delete-fee ed-action-danger" type="button" data-id="'.$id.'"><i class="fa fa-trash"></i>Eliminar deuda</button></div></div></div>';$data[]=['<input type="checkbox" class="fee-checkbox" value="'.$id.'">',htmlspecialchars($x['id_no']),'<strong>'.htmlspecialchars($x['student_name']).'</strong><div class="small text-muted">'.htmlspecialchars($x['nivel'].' · '.$x['grado'].' '.$x['seccion']).'</div>','<strong>'.htmlspecialchars($x['course']).'</strong><div class="small text-muted">'.htmlspecialchars($x['year'].($x['billing_period']?' · '.$x['billing_period']:'')).'</div>','S/ '.number_format($amount,2).$amountDetail,'<strong class="'.($balance>0?'text-danger':'text-success').'">S/ '.number_format(max(0,$balance),2).'</strong><div><span class="badge badge-'.$pb.'">'.$ps.'</span></div>','<span class="'.$dc.'">'.$due.'</span>','<span class="badge badge-'.$db.'">'.htmlspecialchars($x['debt_status']).'</span>',$actions];}$stmt->close();out(['draw'=>$draw,'recordsTotal'=>$total,'recordsFiltered'=>$filtered,'data'=>$data]);
+while($x=$r->fetch_assoc()){
+    $id=(int)$x['id'];
+    $balance=(float)$x['balance'];
+    $paid=(float)$x['paid'];
+    $amount=(float)$x['amount'];
+    $original=(float)$x['total_fee'];
+    $status=(string)$x['debt_status'];
+    $exempt=$x['discounted_amount']!==null&&$original>0&&$amount<=.009;
+    $ps=$exempt?'Exonerada':($paid<=0?'Pendiente':($paid+0.001>=$amount?'Pagada':'Parcial'));
+    $pb=$ps==='Exonerada'?'info':($ps==='Pagada'?'success':($ps==='Parcial'?'warning':'danger'));
+    $db=$status==='Activa'?'primary':($status==='Suspendida'?'warning':'secondary');
+    $isOverdue=$status==='Activa'&&$balance>0&&(!$x['due_date']||$x['due_date']<date('Y-m-d'));
+    $due=$x['due_date']?date('d/m/Y',strtotime($x['due_date'])):'Sin fecha';
+    if($isOverdue&&!$x['due_date'])$due.=' · Vencida';
+    $dc=$isOverdue?'text-danger font-weight-bold':'text-muted';
+    $amountDetail=$exempt
+        ?'<div class="small text-muted">Original: S/ '.number_format($original,2).'</div><div class="small text-info font-weight-bold">Descuento: 100%</div>'
+        :'<div class="small text-muted">Pagado: S/ '.number_format($paid,2).'</div>';
+
+    $hasHistory=$paid>.009||!empty($x['comprobante_id'])||$x['discounted_amount']!==null;
+    $canDelete=!$hasHistory&&$status!=='Anulada';
+
+    $menu='';
+    if($status!=='Anulada'){
+        $menu.='<button class="dropdown-item edit_fees" type="button" data-id="'.$id.'"><i class="fa fa-edit text-primary"></i>Editar deuda</button>';
+        $menu.='<button class="dropdown-item debt-row-action" type="button" data-id="'.$id.'" data-operation="due_date" data-label="cambiar el vencimiento" data-due="'.htmlspecialchars((string)$x['due_date']).'"><i class="fa fa-calendar-alt text-primary"></i>Cambiar vencimiento</button>';
+        $menu.='<div class="dropdown-divider"></div>';
+        if($status==='Activa'){
+            $menu.='<button class="dropdown-item debt-row-action" type="button" data-id="'.$id.'" data-operation="suspend" data-label="suspender"><i class="fa fa-pause-circle text-warning"></i>Suspender</button>';
+        }elseif($status==='Suspendida'){
+            $menu.='<button class="dropdown-item debt-row-action" type="button" data-id="'.$id.'" data-operation="activate" data-label="reactivar"><i class="fa fa-play-circle text-success"></i>Reactivar</button>';
+        }
+        if(in_array($status,['Activa','Suspendida'],true)){
+            $menu.='<button class="dropdown-item debt-row-action" type="button" data-id="'.$id.'" data-operation="cancel" data-label="anular esta deuda"><i class="fa fa-ban text-danger"></i>Anular deuda</button>';
+        }
+        if($canDelete){
+            $menu.='<div class="dropdown-divider"></div><button class="dropdown-item delete-fee ed-action-danger" type="button" data-id="'.$id.'"><i class="fa fa-trash"></i>Eliminar registro</button>';
+        }
+    }else{
+        $menu.='<span class="dropdown-item-text text-muted"><i class="fa fa-lock mr-1"></i>Deuda anulada: solo consulta</span>';
+    }
+
+    $actions='<div class="ed-row-actions"><button class="btn btn-sm btn-outline-primary ed-action-primary view_payment" type="button" data-id="'.$id.'" title="Ver pagos"><i class="fa fa-eye"></i><span class="ed-action-label">Ver</span></button><div class="dropdown"><button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" title="Más acciones"><i class="fa fa-ellipsis-v"></i></button><div class="dropdown-menu dropdown-menu-right ed-action-menu">'.$menu.'</div></div></div>';
+
+    $data[]=[
+        $status==='Anulada'?'':'<input type="checkbox" class="fee-checkbox" value="'.$id.'">',
+        htmlspecialchars($x['id_no']),
+        '<strong>'.htmlspecialchars($x['student_name']).'</strong><div class="small text-muted">'.htmlspecialchars($x['nivel'].' · '.$x['grado'].' '.$x['seccion']).'</div>',
+        '<strong>'.htmlspecialchars($x['course']).'</strong><div class="small text-muted">'.htmlspecialchars($x['year'].($x['billing_period']?' · '.$x['billing_period']:'')).'</div>',
+        'S/ '.number_format($amount,2).$amountDetail,
+        '<strong class="'.($balance>0?'text-danger':'text-success').'">S/ '.number_format(max(0,$balance),2).'</strong><div><span class="badge badge-'.$pb.'">'.$ps.'</span></div>',
+        '<span class="'.$dc.'">'.$due.'</span>',
+        '<span class="badge badge-'.$db.'">'.htmlspecialchars($status).'</span>',
+        $actions
+    ];
+}
+$stmt->close();out(['draw'=>$draw,'recordsTotal'=>$total,'recordsFiltered'=>$filtered,'data'=>$data]);

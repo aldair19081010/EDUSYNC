@@ -277,7 +277,7 @@
             </div>
         </div>
 
-        <div class="card border-0 bg-light mb-3"><div class="card-body py-3"><div class="form-group mb-0"><label>Fecha de vencimiento (opcional)</label><input type="date" id="bulk-due-date" class="form-control"><small class="form-text text-muted">Los conceptos se tomarán automáticamente del año académico activo.</small></div></div></div>
+        <div class="card border-0 bg-light mb-3"><div class="card-body py-3"><div class="form-group mb-0"><label>Fecha de vencimiento (opcional)</label><input type="date" id="bulk-due-date" class="form-control"><small class="form-text text-muted">Si no indicas una fecha, las deudas se considerarán vencidas desde su asignación. Los conceptos se tomarán automáticamente del año académico activo.</small></div></div></div>
 
         <!-- Botones de Acción -->
         <div class="text-right">

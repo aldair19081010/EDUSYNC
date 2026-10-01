@@ -133,7 +133,7 @@ if (isset($_GET['id'])) {
 
 		<div class="form-section">
 			<div class="form-section-title"><i class="fa fa-calendar-alt"></i> Vencimiento</div>
-			<div class="form-group mb-0"><label for="due_date">Fecha de vencimiento</label><input type="date" id="due_date" name="due_date" class="form-control" value="<?php echo htmlspecialchars($due_date ?? ''); ?>"><small class="form-text text-muted">El año se obtiene automáticamente del concepto activo seleccionado.</small></div>
+			<div class="form-group mb-0"><label for="due_date">Fecha de vencimiento</label><input type="date" id="due_date" name="due_date" class="form-control" value="<?php echo htmlspecialchars($due_date ?? ''); ?>"><small class="form-text text-muted">Si no indicas una fecha, la deuda se considerará vencida desde su asignación. El año se obtiene automáticamente del concepto activo seleccionado.</small></div>
 		</div>
 		
 		<!-- Sección: Concepto de Pago -->

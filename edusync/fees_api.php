@@ -25,7 +25,7 @@ if($action==='save'){
     $grades=array_filter(array_map('trim',explode(',',(string)$ctx['grades'])));if($ctx['level']!==$ctx['nivel']||($grades&&!in_array($ctx['grado'],$grades,true)))dfResponse(['status'=>0,'message'=>'El concepto no corresponde al nivel y grado del estudiante.']);
     $dup=$conn->prepare('SELECT id FROM student_ef_list WHERE student_id=? AND course_id=? AND id<>? AND debt_status<>\'Anulada\' LIMIT 1');$dup->bind_param('iii',$student,$course,$id);$dup->execute();$duplicate=$dup->get_result()->fetch_assoc();$dup->close();if($duplicate)dfResponse(['status'=>2,'message'=>'El estudiante ya tiene este concepto asignado.']);
     $amount=(float)$ctx['total_amount'];$year=(int)$ctx['academic_year_id'];$issue=date('Y-m-d');$due=$due?:null;
-    if($id){$old=dfDebt($conn,$id,$school);if(!$old)dfResponse(['status'=>0,'message'=>'Deuda no encontrada.'],404);if((float)$old['paid']>0||!empty($old['comprobante_id']))dfResponse(['status'=>0,'message'=>'Una deuda con pagos o comprobante no puede cambiar de estudiante o concepto.']);$s=$conn->prepare('UPDATE student_ef_list SET student_id=?,course_id=?,total_fee=?,due_date=? WHERE id=?');$s->bind_param('iidsi',$student,$course,$amount,$due,$id);$ok=$s->execute();$s->close();}
+    if($id){$old=dfDebt($conn,$id,$school);if(!$old)dfResponse(['status'=>0,'message'=>'Deuda no encontrada.'],404);if(($old['debt_status']??'Activa')==='Anulada')dfResponse(['status'=>0,'message'=>'Una deuda anulada es definitiva y no puede editarse.']);if((float)$old['paid']>0||!empty($old['comprobante_id']))dfResponse(['status'=>0,'message'=>'Una deuda con pagos o comprobante no puede cambiar de estudiante o concepto.']);$s=$conn->prepare('UPDATE student_ef_list SET student_id=?,course_id=?,total_fee=?,due_date=? WHERE id=?');$s->bind_param('iidsi',$student,$course,$amount,$due,$id);$ok=$s->execute();$s->close();}
     else{$s=$conn->prepare("INSERT INTO student_ef_list(student_id,course_id,total_fee,debt_status,issue_date,due_date) VALUES(?,?,?,'Activa',?,?)");$s->bind_param('iidss',$student,$course,$amount,$issue,$due);$ok=$s->execute();$id=$s->insert_id;$s->close();}
     if(!$ok)dfResponse(['status'=>0,'message'=>'No se pudo guardar la deuda.']);dfAudit($conn,$school,$id,$student,$course,$year,$isEdit?'debt_updated':'debt_created',['amount'=>$amount,'due_date'=>$due]);dfResponse(['status'=>1,'message'=>'Deuda guardada correctamente.']);
 }
@@ -40,14 +40,109 @@ if($action==='bulk_assign'){
     dfResponse(['status'=>$inserted?1:0,'inserted'=>$inserted,'duplicates'=>$duplicates,'incompatible'=>$incompatible,'message'=>"Se crearon $inserted deudas. $duplicates duplicadas y $incompatible incompatibles fueron omitidas."]);
 }
 if($action==='bulk_action'){
-    $ids=json_decode($_POST['ids']??'[]',true);$ids=array_values(array_unique(array_filter(array_map('intval',is_array($ids)?$ids:[]))));$operation=trim($_POST['operation']??'');$reason=trim($_POST['reason']??'');$due=trim($_POST['due_date']??'');
-    if(!$ids||count($ids)>200||!in_array($operation,['suspend','activate','cancel','due_date','delete'],true))dfResponse(['status'=>0,'message'=>'Acción masiva inválida.']);if($operation==='cancel'&&strlen($reason)<3)dfResponse(['status'=>0,'message'=>'Indique el motivo de anulación.']);if($operation==='due_date'&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$due))dfResponse(['status'=>0,'message'=>'Indique una fecha de vencimiento válida.']);
-    $processed=0;$skipped=0;$errors=[];$conn->begin_transaction();try{foreach($ids as $id){$d=dfDebt($conn,$id,$school);if(!$d||$d['year_status']!=='Activo'){$skipped++;continue;}$paid=(float)$d['paid'];$hasHistory=$paid>0||!empty($d['comprobante_id'])||!empty($d['discounted_amount']);
-        if($operation==='delete'){if($hasHistory){$skipped++;continue;}$s=$conn->prepare('DELETE FROM student_ef_list WHERE id=?');$s->bind_param('i',$id);}
-        elseif($operation==='cancel'){$s=$conn->prepare("UPDATE student_ef_list SET debt_status='Anulada',cancelled_at=NOW(),cancelled_by=?,cancellation_reason=? WHERE id=?");$s->bind_param('isi',$user,$reason,$id);}
-        elseif($operation==='suspend'){$s=$conn->prepare("UPDATE student_ef_list SET debt_status='Suspendida' WHERE id=? AND debt_status='Activa'");$s->bind_param('i',$id);}
-        elseif($operation==='activate'){$s=$conn->prepare("UPDATE student_ef_list SET debt_status='Activa',cancelled_at=NULL,cancelled_by=NULL,cancellation_reason=NULL WHERE id=? AND debt_status IN('Suspendida','Anulada')");$s->bind_param('i',$id);}
-        else{$s=$conn->prepare('UPDATE student_ef_list SET due_date=? WHERE id=?');$s->bind_param('si',$due,$id);}if(!$s->execute())throw new Exception($s->error);if($s->affected_rows)$processed++;else$skipped++;$s->close();dfAudit($conn,$school,$id,(int)$d['student_id'],(int)$d['course_id'],(int)$d['academic_year_id'],'debt_'.$operation,['reason'=>$reason,'due_date'=>$due]);} $conn->commit();}catch(Throwable $e){$conn->rollback();error_log('[fees] bulk: '.$e->getMessage());dfResponse(['status'=>0,'message'=>'No se pudo completar la acción masiva.']);}dfResponse(['status'=>1,'processed'=>$processed,'skipped'=>$skipped,'message'=>"Se procesaron $processed deudas.".($skipped?" $skipped fueron omitidas por seguridad.":'')]);
+    $ids=json_decode($_POST['ids']??'[]',true);
+    $ids=array_values(array_unique(array_filter(array_map('intval',is_array($ids)?$ids:[]))));
+    $operation=trim($_POST['operation']??'');
+    $reason=trim($_POST['reason']??'');
+    $due=trim($_POST['due_date']??'');
+
+    if(!$ids||count($ids)>200||!in_array($operation,['suspend','activate','cancel','due_date','delete'],true)){
+        dfResponse(['status'=>0,'message'=>'Acción de deuda inválida.']);
+    }
+    if($operation==='cancel'&&strlen($reason)<3){
+        dfResponse(['status'=>0,'message'=>'Indique el motivo de anulación.']);
+    }
+    if($operation==='due_date'&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$due)){
+        dfResponse(['status'=>0,'message'=>'Indique una fecha de vencimiento válida.']);
+    }
+
+    $processed=0;
+    $skipped=0;
+    $conn->begin_transaction();
+
+    try{
+        foreach($ids as $id){
+            $d=dfDebt($conn,$id,$school);
+            if(!$d||$d['year_status']!=='Activo'){
+                $skipped++;
+                continue;
+            }
+
+            $status=(string)($d['debt_status']??'Activa');
+            $paid=(float)$d['paid'];
+            $hasHistory=$paid>.009
+                || !empty($d['comprobante_id'])
+                || $d['discounted_amount']!==null;
+
+            if($operation==='delete'){
+                if($status==='Anulada'||$hasHistory){
+                    $skipped++;
+                    continue;
+                }
+                $s=$conn->prepare('DELETE FROM student_ef_list WHERE id=? AND debt_status IN(\'Activa\',\'Suspendida\')');
+                $s->bind_param('i',$id);
+            }elseif($operation==='cancel'){
+                if(!in_array($status,['Activa','Suspendida'],true)){
+                    $skipped++;
+                    continue;
+                }
+                $s=$conn->prepare("UPDATE student_ef_list SET debt_status='Anulada',cancelled_at=NOW(),cancelled_by=?,cancellation_reason=? WHERE id=? AND debt_status IN('Activa','Suspendida')");
+                $s->bind_param('isi',$user,$reason,$id);
+            }elseif($operation==='suspend'){
+                if($status!=='Activa'){
+                    $skipped++;
+                    continue;
+                }
+                $s=$conn->prepare("UPDATE student_ef_list SET debt_status='Suspendida' WHERE id=? AND debt_status='Activa'");
+                $s->bind_param('i',$id);
+            }elseif($operation==='activate'){
+                if($status!=='Suspendida'){
+                    $skipped++;
+                    continue;
+                }
+                $s=$conn->prepare("UPDATE student_ef_list SET debt_status='Activa',cancelled_at=NULL,cancelled_by=NULL,cancellation_reason=NULL WHERE id=? AND debt_status='Suspendida'");
+                $s->bind_param('i',$id);
+            }else{
+                if(!in_array($status,['Activa','Suspendida'],true)){
+                    $skipped++;
+                    continue;
+                }
+                $s=$conn->prepare("UPDATE student_ef_list SET due_date=? WHERE id=? AND debt_status IN('Activa','Suspendida')");
+                $s->bind_param('si',$due,$id);
+            }
+
+            if(!$s->execute())throw new Exception($s->error);
+
+            if($s->affected_rows){
+                $processed++;
+                dfAudit(
+                    $conn,
+                    $school,
+                    $id,
+                    (int)$d['student_id'],
+                    (int)$d['course_id'],
+                    (int)$d['academic_year_id'],
+                    'debt_'.$operation,
+                    ['reason'=>$reason,'due_date'=>$due,'previous_status'=>$status]
+                );
+            }else{
+                $skipped++;
+            }
+            $s->close();
+        }
+        $conn->commit();
+    }catch(Throwable $e){
+        $conn->rollback();
+        error_log('[fees] bulk: '.$e->getMessage());
+        dfResponse(['status'=>0,'message'=>'No se pudo completar la acción de deuda.']);
+    }
+
+    dfResponse([
+        'status'=>1,
+        'processed'=>$processed,
+        'skipped'=>$skipped,
+        'message'=>"Se procesaron $processed deudas.".($skipped?" $skipped fueron omitidas por seguridad.":'')
+    ]);
 }
 if($action==='audit'){$year=(int)($_GET['academic_year_id']??0);$s=$conn->prepare("SELECT l.*,COALESCE(u.name,'Sistema') user_name,COALESCE(st.name,'Estudiante eliminado') student_name,COALESCE(c.course,'Concepto eliminado') concept_name FROM debt_audit_log l LEFT JOIN users u ON u.id=l.user_id LEFT JOIN student st ON st.id=l.student_id LEFT JOIN courses c ON c.id=l.course_id WHERE l.school_id=? AND(l.academic_year_id=? OR ?=0) ORDER BY l.created_at DESC LIMIT 150");$s->bind_param('iii',$school,$year,$year);$s->execute();$items=[];$r=$s->get_result();while($x=$r->fetch_assoc())$items[]=$x;$s->close();dfResponse(['status'=>1,'audit'=>$items]);}
 dfResponse(['status'=>0,'message'=>'Acción no reconocida.'],404);
