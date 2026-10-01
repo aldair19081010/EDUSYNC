@@ -1,5 +1,9 @@
 <?php
 ini_set('display_errors', 0);
+header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Referrer-Policy: no-referrer');
+header('X-Content-Type-Options: nosniff');
 require_once __DIR__ . '/includes/receipt_share_token.php';
 
 $token = trim((string)($_GET['token'] ?? ''));
