@@ -11,10 +11,10 @@ if (!$isPublicReceipt) {
         exit('<div class="alert alert-danger">No tiene permisos para consultar recibos.</div>');
     }
 }
-$schoolId = $isPublicReceipt ? (int)$publicReceiptContext['school_id'] : (int)($_SESSION['login_school_id'] ?? 0);
-$paymentId = $isPublicReceipt ? 0 : (int)($_GET['pid'] ?? 0);
-$debtId = $isPublicReceipt ? 0 : (int)($_GET['ef_id'] ?? 0);
-$operationId = $isPublicReceipt ? (int)$publicReceiptContext['operation_id'] : (int)($_GET['operation_id'] ?? 0);
+$schoolId = $isPublicReceipt ? (int)($publicReceiptContext['school_id'] ?? 0) : (int)($_SESSION['login_school_id'] ?? 0);
+$paymentId = $isPublicReceipt ? (int)($publicReceiptContext['payment_id'] ?? 0) : (int)($_GET['pid'] ?? 0);
+$debtId = $isPublicReceipt ? (int)($publicReceiptContext['debt_id'] ?? 0) : (int)($_GET['ef_id'] ?? 0);
+$operationId = $isPublicReceipt ? (int)($publicReceiptContext['operation_id'] ?? 0) : (int)($_GET['operation_id'] ?? 0);
 $hasOperations = false;
 $operation = null;
 $concepts = [];
