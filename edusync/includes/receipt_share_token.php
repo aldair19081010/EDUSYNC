@@ -14,12 +14,9 @@ function receipt_share_base64url_decode(string $value): string|false {
 }
 
 function receipt_share_secret(): string {
-    $tmpDir = __DIR__ . '/../tmp';
-    if (!is_dir($tmpDir)) {
-        @mkdir($tmpDir, 0700, true);
-    }
-
-    $secretFile = $tmpDir . '/receipt_share_secret.key';
+    $tmpDir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR);
+    $scope = substr(hash('sha256', __DIR__), 0, 16);
+    $secretFile = $tmpDir . DIRECTORY_SEPARATOR . 'edusync_receipt_' . $scope . '.key';
 
     if (!is_file($secretFile)) {
         $secret = bin2hex(random_bytes(32));
