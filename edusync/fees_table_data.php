@@ -40,10 +40,10 @@ while($x=$r->fetch_assoc()){
             $menu.='<button class="dropdown-item debt-row-action" type="button" data-id="'.$id.'" data-operation="activate" data-label="reactivar"><i class="fa fa-play-circle text-success"></i>Reactivar</button>';
         }
         if(in_array($status,['Activa','Suspendida'],true)){
-            $menu.='<button class="dropdown-item debt-row-action" type="button" data-id="'.$id.'" data-operation="cancel" data-label="anular"><i class="fa fa-ban text-danger"></i>Anular</button>';
+            $menu.='<button class="dropdown-item debt-row-action" type="button" data-id="'.$id.'" data-operation="cancel" data-label="anular esta deuda"><i class="fa fa-ban text-danger"></i>Anular deuda</button>';
         }
         if($canDelete){
-            $menu.='<div class="dropdown-divider"></div><button class="dropdown-item delete-fee ed-action-danger" type="button" data-id="'.$id.'"><i class="fa fa-trash"></i>Eliminar definitivamente</button>';
+            $menu.='<div class="dropdown-divider"></div><button class="dropdown-item delete-fee ed-action-danger" type="button" data-id="'.$id.'"><i class="fa fa-trash"></i>Eliminar registro</button>';
         }
     }else{
         $menu.='<span class="dropdown-item-text text-muted"><i class="fa fa-lock mr-1"></i>Deuda anulada: solo consulta</span>';
