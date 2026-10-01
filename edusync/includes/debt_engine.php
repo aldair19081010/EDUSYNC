@@ -37,7 +37,7 @@ function debt_engine_financial_state(array $row) {
     if ($discountedValue !== null && $total > 0 && $effective <= EDUSYNC_DEBT_TOLERANCE) return 'Exonerada';
     if ($effective > 0 && $paid + EDUSYNC_DEBT_TOLERANCE >= $effective) return 'Pagada';
     if ($paid > EDUSYNC_DEBT_TOLERANCE) return 'Parcial';
-    if ($dueDate !== '' && $dueDate < date('Y-m-d')) return 'Vencida';
+    if ($dueDate === '' || $dueDate < date('Y-m-d')) return 'Vencida';
     return 'Pendiente';
 }
 
@@ -172,8 +172,10 @@ function debt_engine_get_student_debts($conn, $studentId, $schoolId = 0) {
         $normalized['is_overdue'] = (
             $normalized['debt_status'] === 'Activa'
             && $balance > EDUSYNC_DEBT_TOLERANCE
-            && !empty($normalized['due_date'])
-            && $normalized['due_date'] < date('Y-m-d')
+            && (
+                empty($normalized['due_date'])
+                || $normalized['due_date'] < date('Y-m-d')
+            )
         );
 
         $rows[] = $normalized;
