@@ -7,6 +7,7 @@ header('X-Content-Type-Options: nosniff');
 require_once __DIR__ . '/includes/receipt_share_token.php';
 
 $token = trim((string)($_GET['token'] ?? ''));
+$embed = !empty($_GET['embed']);
 $payload = null;
 
 try {
@@ -98,10 +99,13 @@ $publicReceiptContext = [
         .table-responsive{width:100%;overflow-x:auto}
         .alert{padding:10px 12px;border-radius:8px;margin-top:12px}
         .alert-info{background:#eff8ff;color:#175cd3}.alert-danger{background:#fef3f2;color:#b42318}
+        body.receipt-embed{background:#fff;padding:0}
+        body.receipt-embed .receipt-public-actions{display:none!important}
+        body.receipt-embed .receipt-sheet{max-width:none;margin:0}
         @media print{body{background:#fff;padding:0}.receipt-public-actions{display:none!important}}
     </style>
 </head>
-<body>
+<body class="<?php echo $embed ? 'receipt-embed' : ''; ?>">
 <div class="receipt-public-actions no-print">
     <button class="receipt-share" type="button" onclick="shareReceipt()">Compartir</button>
     <button class="receipt-print" type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
