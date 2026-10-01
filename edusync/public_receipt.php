@@ -99,9 +99,19 @@ $publicReceiptContext = [
         .table-responsive{width:100%;overflow-x:auto}
         .alert{padding:10px 12px;border-radius:8px;margin-top:12px}
         .alert-info{background:#eff8ff;color:#175cd3}.alert-danger{background:#fef3f2;color:#b42318}
-        body.receipt-embed{background:#fff;padding:0}
+        body.receipt-embed{background:#fff;padding:12px;overflow:auto}
         body.receipt-embed .receipt-public-actions{display:none!important}
-        body.receipt-embed .receipt-sheet{max-width:none;margin:0}
+        body.receipt-embed .receipt-sheet{
+            width:1280px!important;
+            min-width:1280px!important;
+            max-width:1280px!important;
+            margin:0 auto!important;
+            padding:22px!important
+        }
+        body.receipt-embed .receipt-header{align-items:center!important}
+        body.receipt-embed .receipt-title{text-align:right!important}
+        body.receipt-embed .receipt-meta{grid-template-columns:repeat(4,1fr)!important}
+        body.receipt-embed .receipt-summary table{width:390px!important}
         @media print{body{background:#fff;padding:0}.receipt-public-actions{display:none!important}}
     </style>
 </head>
