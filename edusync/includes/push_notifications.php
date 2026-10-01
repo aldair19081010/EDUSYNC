@@ -165,7 +165,7 @@ function push_log_delivery(
     if (!$stmt) return;
 
     $stmt->bind_param(
-        'iiisiiss',
+        'iiisisis',
         $schoolId,
         $studentId,
         $attendanceId,
