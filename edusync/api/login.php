@@ -58,13 +58,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['login_name'] = $student['name']; // Para compatibilidad con home.php
         $_SESSION['login_school_id'] = $school_id; // Para compatibilidad con home.php
         
+        $session_id_value = session_id();
+        session_write_close();
+
         echo json_encode([
-            'status' => 'ok', 
+            'status' => 'ok',
             'message' => 'Login exitoso',
             'student_id' => $student['id'],
             'dni' => $dni,
-            'nombre' => $student['name']
-        ]);
+            'nombre' => $student['name'],
+            'session_id' => $session_id_value
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     } else {
         echo json_encode(['status' => 'error', 'message' => 'Contraseña incorrecta']);
     }
