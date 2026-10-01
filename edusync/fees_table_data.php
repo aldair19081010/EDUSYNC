@@ -52,7 +52,7 @@ while($x=$r->fetch_assoc()){
     $actions='<div class="ed-row-actions"><button class="btn btn-sm btn-outline-primary ed-action-primary view_payment" type="button" data-id="'.$id.'" title="Ver pagos"><i class="fa fa-eye"></i><span class="ed-action-label">Ver</span></button><div class="dropdown"><button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" title="Más acciones"><i class="fa fa-ellipsis-v"></i></button><div class="dropdown-menu dropdown-menu-right ed-action-menu">'.$menu.'</div></div></div>';
 
     $data[]=[
-        '<input type="checkbox" class="fee-checkbox" value="'.$id.'">',
+        $status==='Anulada'?'':'<input type="checkbox" class="fee-checkbox" value="'.$id.'">',
         htmlspecialchars($x['id_no']),
         '<strong>'.htmlspecialchars($x['student_name']).'</strong><div class="small text-muted">'.htmlspecialchars($x['nivel'].' · '.$x['grado'].' '.$x['seccion']).'</div>',
         '<strong>'.htmlspecialchars($x['course']).'</strong><div class="small text-muted">'.htmlspecialchars($x['year'].($x['billing_period']?' · '.$x['billing_period']:'')).'</div>',
