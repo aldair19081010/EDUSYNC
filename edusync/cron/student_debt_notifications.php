@@ -69,7 +69,9 @@ if (!$result) {
 $stats = [
     'candidates' => 0,
     'created' => 0,
+    'retried' => 0,
     'duplicates' => 0,
+    'pending_push' => 0,
     'sent' => 0,
     'failed' => 0,
 ];
@@ -117,9 +119,17 @@ while ($row = $result->fetch_assoc()) {
 
         if (!empty($send['duplicate'])) {
             $stats['duplicates']++;
-        } else {
+        } elseif (!empty($send['event_created'])) {
             $stats['created']++;
+        } elseif (!empty($send['retry'])) {
+            $stats['retried']++;
         }
+
+        if (empty($send['configured'])
+            && (int)($send['pending_devices'] ?? 0) > 0) {
+            $stats['pending_push']++;
+        }
+
         $stats['sent'] += (int)($send['sent'] ?? 0);
         $stats['failed'] += (int)($send['failed'] ?? 0);
     } catch (Throwable $e) {
