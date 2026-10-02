@@ -18,10 +18,24 @@ if (PHP_SAPI !== 'cli') {
 
 date_default_timezone_set('America/Lima');
 
+$options = getopt('', ['student-id:', 'debt-id:', 'credentials:']);
+$studentFilter = max(0, (int)($options['student-id'] ?? 0));
+$debtFilter = max(0, (int)($options['debt-id'] ?? 0));
+$credentialsPath = trim((string)($options['credentials'] ?? ''));
+
+if ($credentialsPath !== '') {
+    putenv('EDUSYNC_FIREBASE_CREDENTIALS=' . $credentialsPath);
+    $_ENV['EDUSYNC_FIREBASE_CREDENTIALS'] = $credentialsPath;
+}
+
 require_once __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/push_notifications.php';
 
 $conn->query("SET time_zone = '-05:00'");
+
+$extraWhere = '';
+if ($studentFilter > 0) $extraWhere .= ' AND ef.student_id=' . $studentFilter;
+if ($debtFilter > 0) $extraWhere .= ' AND ef.id=' . $debtFilter;
 
 $sql = "
     SELECT
@@ -40,7 +54,7 @@ $sql = "
         ON c.id=ef.course_id
     LEFT JOIN payments p
         ON p.ef_id=ef.id
-    WHERE ef.debt_status='Activa'
+    WHERE ef.debt_status='Activa' $extraWhere
     GROUP BY
         ef.id,
         ef.student_id,
