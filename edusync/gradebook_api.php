@@ -280,12 +280,9 @@ if ($action === 'save') {
             if($gradingSystem==='numeric'&&$currentValue!==''&&$value!==''&&is_numeric($currentValue)&&is_numeric($value))$changedForPush=abs((float)$currentValue-(float)$value)>=0.0001;
             if($changedForPush&&$value!==''){
                 $isNewGrade=$currentValue==='';
-                $shouldNotifyGrade=$isNewGrade||$notificationSource!=='autosave';
-                if($shouldNotifyGrade){
-                    if(!isset($gradePushChanges[$studentId]))$gradePushChanges[$studentId]=['created'=>0,'updated'=>0,'evaluation_ids'=>[]];
-                    if($isNewGrade)$gradePushChanges[$studentId]['created']++;else$gradePushChanges[$studentId]['updated']++;
-                    $gradePushChanges[$studentId]['evaluation_ids'][$evaluationId]=true;
-                }
+                if(!isset($gradePushChanges[$studentId]))$gradePushChanges[$studentId]=['created'=>0,'updated'=>0,'evaluation_ids'=>[]];
+                if($isNewGrade)$gradePushChanges[$studentId]['created']++;else$gradePushChanges[$studentId]['updated']++;
+                $gradePushChanges[$studentId]['evaluation_ids'][$evaluationId]=true;
             }
 
             if($historyReady){$userId=(int)($_SESSION['login_id']??0);$history=$conn->prepare("INSERT INTO evaluation_grade_history (school_id,academic_year_id,evaluation_id,student_id,competency_id,previous_grade,new_grade,changed_by,source) VALUES (?,?,?,?,?,?,?,?, 'Libro de notas')");$history->bind_param('iiiiissi',$schoolId,$academicYearId,$evaluationId,$studentId,$competencyId,$currentValue,$value,$userId);if(!$history->execute())throw new RuntimeException($history->error);$history->close();}
