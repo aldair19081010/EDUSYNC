@@ -15,6 +15,13 @@ function push_table_exists(mysqli $db, string $table): bool {
     return $q && $q->num_rows > 0;
 }
 
+function push_column_exists(mysqli $db, string $table, string $column): bool {
+    $safeTable = $db->real_escape_string($table);
+    $safeColumn = $db->real_escape_string($column);
+    $q = $db->query("SHOW COLUMNS FROM `$safeTable` LIKE '$safeColumn'");
+    return $q && $q->num_rows > 0;
+}
+
 function push_base64url(string $value): string {
     return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
 }
