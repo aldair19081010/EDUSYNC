@@ -826,6 +826,11 @@ function push_send_grade_notification(
         $body = $verb . ' una calificación en ' . $courseName
             . ' · ' . $evaluationNames[0] . '.';
         $type = $isNew ? 'grade_created' : 'grade_updated';
+    } elseif ($createdCount > 0 && $updatedCount === 0) {
+        $title = 'Nuevas calificaciones';
+        $body = 'Se registraron ' . $createdCount
+            . ' calificaciones en ' . $courseName . '.';
+        $type = 'grades_created';
     } else {
         $title = 'Calificaciones actualizadas';
         $body = 'Se actualizaron ' . $total
@@ -841,10 +846,12 @@ function push_send_grade_notification(
         $title,
         $body,
         'grades',
-        'grade_alerts',
+        'payment_alerts',
         'grades',
         null,
-        null,
+        ($createdCount > 0 && $updatedCount === 0)
+            ? 'grade-created:' . $studentId . ':' . hash('sha256', implode(',', $evaluationIds))
+            : null,
         [
             'course' => $courseName,
             'evaluation_ids' => implode(',', $evaluationIds),
