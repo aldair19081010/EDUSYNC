@@ -710,3 +710,41 @@ function push_send_debt_notification(
         ]
     );
 }
+
+
+function push_send_bulk_debt_notification(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    array $debtIds,
+    int $count,
+    float $totalBalance
+): array {
+    $debtIds = array_values(array_unique(array_filter(array_map('intval', $debtIds))));
+    sort($debtIds);
+
+    $title = $count === 1 ? 'Pago vencido' : 'Pagos vencidos';
+    $body = $count === 1
+        ? 'Se asignó una obligación pendiente por S/ ' . number_format($totalBalance, 2, '.', '') . '.'
+        : 'Se asignaron ' . $count . ' obligaciones pendientes por S/ ' . number_format($totalBalance, 2, '.', '') . '.';
+
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        'debt_bulk_overdue',
+        $title,
+        $body,
+        'debts',
+        'debt_alerts',
+        'debt_bulk',
+        null,
+        'debt-bulk:' . $studentId . ':' . hash('sha256', implode(',', $debtIds)),
+        [
+            'debt_ids' => implode(',', $debtIds),
+            'count' => (string)$count,
+            'balance' => number_format($totalBalance, 2, '.', ''),
+            'stage' => 'overdue',
+        ]
+    );
+}
