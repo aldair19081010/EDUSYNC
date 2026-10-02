@@ -111,6 +111,63 @@ Class Action {
 			error_log('[debt push] ' . $e->getMessage());
 		}
 	}
+	private function notify_bulk_assigned_debts($school_id, $student_id, $debt_ids) {
+		$school_id = intval($school_id);
+		$student_id = intval($student_id);
+		$debt_ids = array_values(array_unique(array_filter(array_map('intval', (array)$debt_ids))));
+		if ($school_id <= 0 || $student_id <= 0 || count($debt_ids) === 0) return;
+
+		try {
+			require_once __DIR__ . '/includes/push_notifications.php';
+
+			if (count($debt_ids) === 1) {
+				$this->notify_debt_if_due($debt_ids[0]);
+				return;
+			}
+
+			$list = implode(',', $debt_ids);
+			$stmt = $this->db->prepare(
+				"SELECT
+					COUNT(*) debt_count,
+					COALESCE(SUM(
+						GREATEST(
+							0,
+							COALESCE(ef.discounted_amount,ef.total_fee)
+							- COALESCE((
+								SELECT SUM(p.amount)
+								FROM payments p
+								WHERE p.ef_id=ef.id
+								  AND p.payment_status='Confirmado'
+							),0)
+						)
+					),0) total_balance
+				FROM student_ef_list ef
+				WHERE ef.id IN ($list)
+				  AND ef.student_id=?
+				  AND ef.debt_status='Activa'"
+			);
+			if (!$stmt) return;
+			$stmt->bind_param('i', $student_id);
+			$stmt->execute();
+			$row = $stmt->get_result()->fetch_assoc();
+			$stmt->close();
+
+			$count = intval($row['debt_count'] ?? 0);
+			$total = (float)($row['total_balance'] ?? 0);
+			if ($count <= 0 || $total <= 0.009) return;
+
+			push_send_bulk_debt_notification(
+				$this->db,
+				$school_id,
+				$student_id,
+				$debt_ids,
+				$count,
+				$total
+			);
+		} catch (Throwable $e) {
+			error_log('[bulk debt push] ' . $e->getMessage());
+		}
+	}
 	private function audit_student($student_id, $school_id, $action, $details = []) {
 		$user_id = intval($_SESSION['login_id'] ?? 0) ?: null;
 		$ip_address = $_SERVER['REMOTE_ADDR'] ?? null;
@@ -897,6 +954,7 @@ function bulk_assign_fees(){
 	$assigned_count = 0;
 	$skipped_count = 0;
 	$errors = array();
+	$assigned_by_student = array();
 	
 	// Iterar sobre los estudiantes
 	foreach ($students_arr as $student_id) {
@@ -965,12 +1023,27 @@ function bulk_assign_fees(){
 			
 			if ($this->db->query($insert_query)) {
 				$assigned_count++;
+				$new_debt_id = intval($this->db->insert_id);
+				if (!isset($assigned_by_student[$student_id])) {
+					$assigned_by_student[$student_id] = array();
+				}
+				$assigned_by_student[$student_id][] = $new_debt_id;
 			} else {
 				$errors[] = "Error al asignar concepto $course_id al estudiante $student_id: " . $this->db->error;
 			}
 		}
 	}
 	
+	// Las deudas ya están guardadas. El push se envía después y no afecta
+	// el resultado de la asignación si Firebase no está disponible.
+	foreach ($assigned_by_student as $assigned_student_id => $assigned_debt_ids) {
+		$this->notify_bulk_assigned_debts(
+			$school_id,
+			$assigned_student_id,
+			$assigned_debt_ids
+		);
+	}
+
 	// Preparar mensaje de respuesta
 	$message = "Se asignaron $assigned_count deudas exitosamente";
 	if ($skipped_count > 0) {
