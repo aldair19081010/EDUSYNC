@@ -40,18 +40,6 @@ function dfSendDebtPush($db,$school,$student,$debt,$concept,$amount,$due){
             $due?substr((string)$due,0,10):null,
             $stage
         );
-        error_log('[fees debt push] '.json_encode([
-            'debt_id'=>(int)$debt,
-            'student_id'=>(int)$student,
-            'stage'=>$stage,
-            'configured'=>(bool)($result['configured']??false),
-            'devices'=>(int)($result['devices']??0),
-            'pending_devices'=>(int)($result['pending_devices']??0),
-            'sent'=>(int)($result['sent']??0),
-            'failed'=>(int)($result['failed']??0),
-            'duplicate'=>(bool)($result['duplicate']??false),
-            'event_id'=>(int)($result['event_id']??0),
-        ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
         return $result;
     }catch(Throwable $e){
         error_log('[fees debt push] '.$e->getMessage());
@@ -117,18 +105,6 @@ if($action==='bulk_assign'){
                     $stage,
                     $due?:null
                 );
-                error_log('[fees bulk debt push] '.json_encode([
-                    'student_id'=>(int)$assignedStudent,
-                    'count'=>$count,
-                    'stage'=>$stage,
-                    'configured'=>(bool)($result['configured']??false),
-                    'devices'=>(int)($result['devices']??0),
-                    'pending_devices'=>(int)($result['pending_devices']??0),
-                    'sent'=>(int)($result['sent']??0),
-                    'failed'=>(int)($result['failed']??0),
-                    'duplicate'=>(bool)($result['duplicate']??false),
-                    'event_id'=>(int)($result['event_id']??0),
-                ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
             }
             $pushSummary['students']++;
             $pushSummary['sent']+=(int)($result['sent']??0);
