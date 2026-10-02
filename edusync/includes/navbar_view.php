@@ -107,6 +107,7 @@ if ($login_type === 1) {
             'heading' => 'Comunicaciones',
             'items' => [
                 ['page' => 'announcements', 'label' => 'Comunicados', 'icon' => 'fa-bullhorn'],
+                ['page' => 'collections', 'label' => 'Cobranza', 'icon' => 'fa-hand-holding-usd'],
                 ['page' => 'notifications', 'label' => 'Notificaciones', 'icon' => 'fa-bell'],
             ],
         ],
