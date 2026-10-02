@@ -678,7 +678,14 @@ function push_send_debt_notification(
     $amount = 'S/ ' . number_format($balance, 2, '.', '');
     $concept = trim($concept) !== '' ? trim($concept) : 'Obligación pendiente';
 
-    if ($stage === 'upcoming3') {
+    if ($stage === 'assigned') {
+        $title = 'Nueva deuda asignada';
+        $body = $concept . ' · ' . $amount;
+        if ($dueDate) {
+            $body .= ' · vence el ' . date('d/m/Y', strtotime((string)$dueDate));
+        }
+        $body .= '.';
+    } elseif ($stage === 'upcoming3') {
         $title = 'Pago próximo a vencer';
         $body = $concept . ' · ' . $amount . ' vence el ' . date('d/m/Y', strtotime((string)$dueDate)) . '.';
     } elseif ($stage === 'due_today') {
