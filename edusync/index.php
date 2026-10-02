@@ -37,7 +37,7 @@ $allowed_pages = [
     // Facturación Electrónica
     'comprobantes', 'config_facturacion', 'facturacion_deudas',
     // Notifications
-    'notifications', 'announcements',
+    'notifications', 'announcements', 'collections',
     'student_low_grades',
     // Teacher pages
     'my_courses',
