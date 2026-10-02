@@ -5,10 +5,8 @@
  * Run once per day from CLI:
  * php edusync/cron/student_debt_notifications.php
  *
- * Stages are deduplicated by debt:
- * - 3 days before due date
- * - due date
- * - first run after it becomes overdue
+ * Sends one automatic notification only on the exact due date.
+ * Debt assignment notifications are handled separately when the debt is created.
  */
 
 if (PHP_SAPI !== 'cli') {
@@ -87,12 +85,9 @@ $sql = "
         ef.total_fee
     HAVING
         (effective_amount-paid_amount)>0.009
-        AND (
-            due_date IS NULL
-            OR due_date=''
-            OR due_date<CURDATE()
-            OR DATEDIFF(due_date,CURDATE()) IN (0,3)
-        )
+        AND due_date IS NOT NULL
+        AND due_date<>''
+        AND DATE(due_date)=CURDATE()
     ORDER BY s.school_id,ef.student_id,ef.id
 ";
 
@@ -125,23 +120,17 @@ while ($row = $result->fetch_assoc()) {
     $stats['candidates']++;
 
     $dueDateRaw = trim((string)($row['due_date'] ?? ''));
-    $stage = 'overdue';
+    if ($dueDateRaw === '') continue;
 
-    if ($dueDateRaw !== '') {
-        $dueDate = DateTimeImmutable::createFromFormat('Y-m-d', substr($dueDateRaw, 0, 10));
-        if ($dueDate) {
-            $days = (int)$today->diff($dueDate)->format('%r%a');
-            if ($days === 3) {
-                $stage = 'upcoming3';
-            } elseif ($days === 0) {
-                $stage = 'due_today';
-            } elseif ($days < 0) {
-                $stage = 'overdue';
-            } else {
-                continue;
-            }
-        }
+    $dueDate = DateTimeImmutable::createFromFormat(
+        'Y-m-d',
+        substr($dueDateRaw, 0, 10)
+    );
+    if (!$dueDate || $dueDate->format('Y-m-d') !== $today->format('Y-m-d')) {
+        continue;
     }
+
+    $stage = 'due_today';
 
     $effective = (float)$row['effective_amount'];
     $paid = (float)$row['paid_amount'];
