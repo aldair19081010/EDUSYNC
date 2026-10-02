@@ -192,6 +192,7 @@ $ready = $q && $q->num_rows > 0;
         <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span>&times;</span></button>
       </div>
       <div class="modal-body">
+        <div id="ca-compose-error" class="alert alert-warning d-none"></div>
         <div class="row">
           <div class="col-lg-7">
             <div class="ca-section-label">1. Contenido</div>
@@ -293,6 +294,7 @@ $ready = $q && $q->num_rows > 0;
         <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
       </div>
       <div class="modal-body">
+        <div id="ca-confirm-error" class="alert alert-danger d-none"></div>
         <div class="mb-3 text-muted small">El comunicado se enviará inmediatamente y quedará disponible en la app EduSync.</div>
         <div class="ca-confirm-box">
           <div class="ca-confirm-row"><span>Título</span><strong id="ca-confirm-title">—</strong></div>
@@ -301,7 +303,7 @@ $ready = $q && $q->num_rows > 0;
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-light border" data-dismiss="modal">Volver</button>
+        <button id="ca-back-compose" type="button" class="btn btn-light border">Volver</button>
         <button id="ca-confirm-send" type="button" class="btn btn-primary"><i class="fas fa-paper-plane mr-1"></i>Enviar comunicado</button>
       </div>
     </div>
@@ -683,47 +685,63 @@ $ready = $q && $q->num_rows > 0;
 
   $('#ca-open-compose').on('click',function(){
     hideAlert();
+    $('#ca-compose-error,#ca-confirm-error').addClass('d-none').text('');
     resetCompose();
     $('#ca-compose-modal').modal('show');
   });
 
   $('#ca-review-send').on('click',function(){
     const error=validateCompose();
-    if(error){showAlert(error,'warning');return;}
+    if(error){
+      $('#ca-compose-error').removeClass('d-none').text(error);
+      return;
+    }
+    $('#ca-compose-error').addClass('d-none').text('');
     pendingSend=buildPayload();
     $('#ca-confirm-title').text(pendingSend.title);
     $('#ca-confirm-audience').text(audienceLabel());
     $('#ca-confirm-count').text(recipientRows().length);
-    $('#ca-confirm-modal').modal('show');
+    $('#ca-compose-modal').one('hidden.bs.modal',function(){
+      $('#ca-confirm-modal').modal('show');
+    }).modal('hide');
+  });
+
+  $('#ca-back-compose').on('click',function(){
+    $('#ca-confirm-error').addClass('d-none').text('');
+    $('#ca-confirm-modal').one('hidden.bs.modal',function(){
+      $('#ca-compose-modal').modal('show');
+    }).modal('hide');
   });
 
   $('#ca-confirm-send').on('click',function(){
     if(!pendingSend)return;
     const button=$(this).prop('disabled',true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Enviando...');
+    $('#ca-confirm-error').addClass('d-none').text('');
     $.post(api,pendingSend,null,'json').done(r=>{
       if(!r||Number(r.status)!==1){
-        showAlert((r&&r.message)||'No se pudo enviar el comunicado.','danger');
+        $('#ca-confirm-error').removeClass('d-none').text((r&&r.message)||'No se pudo enviar el comunicado.');
         return;
       }
       $('#ca-confirm-modal').modal('hide');
-      $('#ca-compose-modal').modal('hide');
-      const recipients=Number(r.recipients||0),sent=Number(r.push_sent||0),failed=Number(r.push_failed||0);
+      const recipients=Number(r.recipients||0);
+      const withDevices=Number(r.students_with_devices||0);
+      const withoutDevice=Math.max(0,recipients-withDevices);
+      const sent=Number(r.push_sent||0),failed=Number(r.push_failed||0);
       let message='<strong><i class="fas fa-check-circle mr-1"></i>Comunicado enviado.</strong> '+recipients+' estudiante(s) destinatarios · '+sent+' push enviados.';
-      if(failed>0)message+=' <span class="ml-1">'+failed+' fallidos.</span>';
-      showAlert(message,failed>0?'warning':'success');
+      if(withoutDevice>0)message+=' <span class="ml-1">'+withoutDevice+' sin dispositivo registrado.</span>';
+      if(failed>0)message+=' <span class="ml-1">'+failed+' push fallidos.</span>';
+      showAlert(message,(failed>0||withoutDevice>0)?'warning':'success');
       pendingSend=null;
+      resetCompose();
       loadSummary();
       loadHistory();
-    }).fail(x=>showAlert((x.responseJSON||{}).message||'No se pudo enviar el comunicado.','danger'))
-      .always(()=>button.prop('disabled',false).html('<i class="fas fa-paper-plane mr-1"></i>Enviar comunicado'));
+    }).fail(x=>{
+      $('#ca-confirm-error').removeClass('d-none').text((x.responseJSON||{}).message||'No se pudo enviar el comunicado.');
+    }).always(()=>button.prop('disabled',false).html('<i class="fas fa-paper-plane mr-1"></i>Enviar comunicado'));
   });
 
   $('#ca-refresh').on('click',function(){loadSummary();loadHistory();});
   $(document).on('click','.ca-detail-btn',function(){openDetail(Number($(this).data('id')||0));});
-
-  $('#ca-confirm-modal').on('hidden.bs.modal',function(){
-    if(!$('#ca-compose-modal').hasClass('show')&&pendingSend===null)return;
-  });
 
   if(ready){
     loadOptions();
