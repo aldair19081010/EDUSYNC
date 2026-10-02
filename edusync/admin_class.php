@@ -95,7 +95,7 @@ Class Action {
 
 			if ($stage === null) return;
 
-			push_send_debt_notification(
+			$push_result = push_send_debt_notification(
 				$this->db,
 				(int)$row['school_id'],
 				(int)$row['student_id'],
@@ -107,6 +107,18 @@ Class Action {
 					: null,
 				$stage
 			);
+			error_log('[debt push result] ' . json_encode([
+				'debt_id' => (int)$row['id'],
+				'student_id' => (int)$row['student_id'],
+				'stage' => $stage,
+				'configured' => (bool)($push_result['configured'] ?? false),
+				'devices' => (int)($push_result['devices'] ?? 0),
+				'pending_devices' => (int)($push_result['pending_devices'] ?? 0),
+				'sent' => (int)($push_result['sent'] ?? 0),
+				'failed' => (int)($push_result['failed'] ?? 0),
+				'duplicate' => (bool)($push_result['duplicate'] ?? false),
+				'event_id' => (int)($push_result['event_id'] ?? 0),
+			], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 		} catch (Throwable $e) {
 			error_log('[debt push] ' . $e->getMessage());
 		}
@@ -156,7 +168,7 @@ Class Action {
 			$total = (float)($row['total_balance'] ?? 0);
 			if ($count <= 0 || $total <= 0.009) return;
 
-			push_send_bulk_debt_notification(
+			$push_result = push_send_bulk_debt_notification(
 				$this->db,
 				$school_id,
 				$student_id,
@@ -164,6 +176,17 @@ Class Action {
 				$count,
 				$total
 			);
+			error_log('[bulk debt push result] ' . json_encode([
+				'student_id' => $student_id,
+				'debt_ids' => $debt_ids,
+				'configured' => (bool)($push_result['configured'] ?? false),
+				'devices' => (int)($push_result['devices'] ?? 0),
+				'pending_devices' => (int)($push_result['pending_devices'] ?? 0),
+				'sent' => (int)($push_result['sent'] ?? 0),
+				'failed' => (int)($push_result['failed'] ?? 0),
+				'duplicate' => (bool)($push_result['duplicate'] ?? false),
+				'event_id' => (int)($push_result['event_id'] ?? 0),
+			], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 		} catch (Throwable $e) {
 			error_log('[bulk debt push] ' . $e->getMessage());
 		}
