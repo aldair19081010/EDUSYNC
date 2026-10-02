@@ -35,3 +35,27 @@ CREATE TABLE IF NOT EXISTS push_notification_log (
     INDEX idx_push_log_attendance (attendance_id),
     INDEX idx_push_log_status (delivery_status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+-- Centro de notificaciones del estudiante.
+CREATE TABLE IF NOT EXISTS student_notification_events (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    school_id INT NOT NULL,
+    student_id INT NOT NULL,
+    notification_type VARCHAR(40) NOT NULL,
+    title VARCHAR(160) NOT NULL,
+    body VARCHAR(600) NOT NULL,
+    screen VARCHAR(40) NOT NULL DEFAULT '',
+    entity_type VARCHAR(40) NULL,
+    entity_id BIGINT NULL,
+    dedupe_key VARCHAR(190) NULL,
+    data_json LONGTEXT NULL,
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+    read_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NULL,
+    UNIQUE KEY uniq_student_notification_dedupe (school_id, student_id, dedupe_key),
+    INDEX idx_student_notification_feed (school_id, student_id, created_at),
+    INDEX idx_student_notification_unread (school_id, student_id, is_read, created_at),
+    INDEX idx_student_notification_type (notification_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
