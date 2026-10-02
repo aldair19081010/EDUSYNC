@@ -510,6 +510,9 @@ if ($action === 'detail') {
         $isRead = (bool)($row['is_read'] ?? false);
         if ($isRead) $counts['read']++;
 
+        $concepts = json_decode((string)($row['concepts_json'] ?? ''), true);
+        if (!is_array($concepts)) $concepts = [];
+
         $recipients[] = [
             'student_id' => (int)$row['student_id'],
             'student_name' => (string)$row['student_name'],
@@ -519,6 +522,7 @@ if ($action === 'detail') {
             'section' => (string)($row['seccion'] ?? 'U'),
             'debt_count' => (int)$row['debt_count'],
             'balance' => (float)$row['balance'],
+            'concepts' => array_values(array_unique(array_map('strval', $concepts))),
             'active_devices' => $devices,
             'sent_count' => $sent,
             'failed_count' => $failed,
