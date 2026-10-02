@@ -278,10 +278,14 @@ if ($action === 'save') {
 
             $changedForPush=$currentValue!==mb_strtoupper(trim((string)$value),'UTF-8');
             if($gradingSystem==='numeric'&&$currentValue!==''&&$value!==''&&is_numeric($currentValue)&&is_numeric($value))$changedForPush=abs((float)$currentValue-(float)$value)>=0.0001;
-            if($notificationSource!=='autosave'&&$changedForPush&&$value!==''){
-                if(!isset($gradePushChanges[$studentId]))$gradePushChanges[$studentId]=['created'=>0,'updated'=>0,'evaluation_ids'=>[]];
-                if($currentValue==='')$gradePushChanges[$studentId]['created']++;else$gradePushChanges[$studentId]['updated']++;
-                $gradePushChanges[$studentId]['evaluation_ids'][$evaluationId]=true;
+            if($changedForPush&&$value!==''){
+                $isNewGrade=$currentValue==='';
+                $shouldNotifyGrade=$isNewGrade||$notificationSource!=='autosave';
+                if($shouldNotifyGrade){
+                    if(!isset($gradePushChanges[$studentId]))$gradePushChanges[$studentId]=['created'=>0,'updated'=>0,'evaluation_ids'=>[]];
+                    if($isNewGrade)$gradePushChanges[$studentId]['created']++;else$gradePushChanges[$studentId]['updated']++;
+                    $gradePushChanges[$studentId]['evaluation_ids'][$evaluationId]=true;
+                }
             }
 
             if($historyReady){$userId=(int)($_SESSION['login_id']??0);$history=$conn->prepare("INSERT INTO evaluation_grade_history (school_id,academic_year_id,evaluation_id,student_id,competency_id,previous_grade,new_grade,changed_by,source) VALUES (?,?,?,?,?,?,?,?, 'Libro de notas')");$history->bind_param('iiiiissi',$schoolId,$academicYearId,$evaluationId,$studentId,$competencyId,$currentValue,$value,$userId);if(!$history->execute())throw new RuntimeException($history->error);$history->close();}
@@ -295,7 +299,7 @@ if ($action === 'save') {
     }catch(Throwable $error){$conn->rollback();gradebook_response(['status'=>0,'message'=>$error->getMessage()]);}
 
     $pushSummary=['students'=>0,'sent'=>0,'failed'=>0];
-    if($notificationSource!=='autosave'&&$gradePushChanges){
+    if($gradePushChanges){
         try{
             require_once __DIR__.'/includes/push_notifications.php';
             foreach($gradePushChanges as $pushStudentId=>$pushData){
