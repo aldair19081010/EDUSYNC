@@ -25,6 +25,13 @@ function caTableExists(mysqli $db, string $table): bool {
     return $q && $q->num_rows > 0;
 }
 
+function caColumnExists(mysqli $db, string $table, string $column): bool {
+    $safeTable = $db->real_escape_string($table);
+    $safeColumn = $db->real_escape_string($column);
+    $q = $db->query("SHOW COLUMNS FROM `$safeTable` LIKE '$safeColumn'");
+    return $q && $q->num_rows > 0;
+}
+
 function caBind(mysqli_stmt $stmt, string $types, array &$params): void {
     if ($types === '') return;
     $args = [$types];
@@ -137,6 +144,152 @@ if ($action === 'options') {
         'grades' => $grades,
         'sections' => $sections,
         'students' => $students,
+    ]);
+}
+
+if ($action === 'summary') {
+    $summary = [
+        'total' => 0,
+        'month_total' => 0,
+        'month_recipients' => 0,
+        'month_push_sent' => 0,
+        'month_push_failed' => 0,
+    ];
+
+    $stmt = $conn->prepare(
+        "SELECT
+            COUNT(*) total,
+            SUM(created_at>=DATE_FORMAT(CURDATE(),'%Y-%m-01')) month_total,
+            COALESCE(SUM(CASE WHEN created_at>=DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN recipient_count ELSE 0 END),0) month_recipients,
+            COALESCE(SUM(CASE WHEN created_at>=DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN push_sent_count ELSE 0 END),0) month_push_sent,
+            COALESCE(SUM(CASE WHEN created_at>=DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN push_failed_count ELSE 0 END),0) month_push_failed
+         FROM student_announcements
+         WHERE school_id=?"
+    );
+    if ($stmt) {
+        $stmt->bind_param('i', $schoolId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc() ?: [];
+        $stmt->close();
+        foreach ($summary as $key => $value) {
+            $summary[$key] = (int)($row[$key] ?? 0);
+        }
+    }
+
+    caOut(['status' => 1, 'summary' => $summary]);
+}
+
+if ($action === 'detail') {
+    $announcementId = max(0, (int)($_GET['id'] ?? 0));
+    if ($announcementId <= 0) {
+        caOut(['status' => 0, 'message' => 'Comunicado inválido.'], 422);
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT a.*,u.name created_by_name,s.name student_name
+         FROM student_announcements a
+         LEFT JOIN users u ON u.id=a.created_by AND u.school_id=a.school_id
+         LEFT JOIN student s ON s.id=a.audience_student_id AND s.school_id=a.school_id
+         WHERE a.id=? AND a.school_id=?
+         LIMIT 1"
+    );
+    if (!$stmt) caOut(['status' => 0, 'message' => 'No se pudo consultar el comunicado.'], 500);
+    $stmt->bind_param('ii', $announcementId, $schoolId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) caOut(['status' => 0, 'message' => 'El comunicado no existe.'], 404);
+
+    $delivery = [];
+    $eventAware = caTableExists($conn, 'push_notification_log')
+        && caColumnExists($conn, 'push_notification_log', 'notification_event_id');
+
+    if (caTableExists($conn, 'student_notification_events')) {
+        $sql = "SELECT
+                    e.id event_id,
+                    e.student_id,
+                    e.is_read,
+                    e.read_at,
+                    st.name student_name,
+                    st.id_no dni,
+                    st.nivel,
+                    st.grado,
+                    COALESCE(NULLIF(TRIM(st.seccion),''),'U') seccion,
+                    (SELECT COUNT(*) FROM student_device_tokens dt
+                     WHERE dt.school_id=e.school_id AND dt.student_id=e.student_id AND dt.is_active=1) active_devices";
+        if ($eventAware) {
+            $sql .= ",
+                    (SELECT COUNT(*) FROM push_notification_log pl
+                     WHERE pl.notification_event_id=e.id AND pl.delivery_status='sent') sent_count,
+                    (SELECT COUNT(*) FROM push_notification_log pl
+                     WHERE pl.notification_event_id=e.id AND pl.delivery_status='failed') failed_count";
+        } else {
+            $sql .= ",0 sent_count,0 failed_count";
+        }
+        $sql .= "
+                FROM student_notification_events e
+                INNER JOIN student st ON st.id=e.student_id AND st.school_id=e.school_id
+                WHERE e.school_id=?
+                  AND e.entity_type='announcement'
+                  AND e.entity_id=?
+                ORDER BY st.nivel,st.grado,seccion,st.name";
+
+        $d = $conn->prepare($sql);
+        if ($d) {
+            $d->bind_param('ii', $schoolId, $announcementId);
+            $d->execute();
+            $result = $d->get_result();
+            while ($student = $result->fetch_assoc()) {
+                $sentCount = (int)($student['sent_count'] ?? 0);
+                $failedCount = (int)($student['failed_count'] ?? 0);
+                $activeDevices = (int)($student['active_devices'] ?? 0);
+                if ($sentCount > 0) $state = 'sent';
+                elseif ($failedCount > 0) $state = 'failed';
+                elseif ($activeDevices <= 0) $state = 'no_device';
+                else $state = 'pending';
+
+                $delivery[] = [
+                    'student_id' => (int)$student['student_id'],
+                    'student_name' => (string)$student['student_name'],
+                    'dni' => (string)($student['dni'] ?? ''),
+                    'level' => (string)($student['nivel'] ?? ''),
+                    'grade' => (string)($student['grado'] ?? ''),
+                    'section' => (string)($student['seccion'] ?? 'U'),
+                    'active_devices' => $activeDevices,
+                    'sent_count' => $sentCount,
+                    'failed_count' => $failedCount,
+                    'is_read' => (bool)$student['is_read'],
+                    'read_at' => $student['read_at'],
+                    'state' => $state,
+                ];
+            }
+            $d->close();
+        }
+    }
+
+    $counts = ['sent'=>0,'failed'=>0,'no_device'=>0,'pending'=>0,'read'=>0];
+    foreach ($delivery as $item) {
+        $state = $item['state'];
+        if (isset($counts[$state])) $counts[$state]++;
+        if (!empty($item['is_read'])) $counts['read']++;
+    }
+
+    caOut([
+        'status' => 1,
+        'announcement' => [
+            'id' => (int)$row['id'],
+            'title' => (string)$row['title'],
+            'content' => (string)$row['content'],
+            'audience' => caAudienceLabel($row),
+            'recipient_count' => (int)$row['recipient_count'],
+            'push_sent_count' => (int)$row['push_sent_count'],
+            'push_failed_count' => (int)$row['push_failed_count'],
+            'created_by_name' => (string)($row['created_by_name'] ?? 'Administración'),
+            'created_at' => (string)$row['created_at'],
+        ],
+        'delivery' => $delivery,
+        'counts' => $counts,
+        'event_aware_delivery' => $eventAware,
     ]);
 }
 
