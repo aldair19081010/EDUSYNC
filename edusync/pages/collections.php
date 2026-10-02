@@ -614,7 +614,7 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
             html+='<tr>'+
                 '<td><strong>'+esc(r.student_name)+'</strong><div class="small text-muted">'+esc(r.dni||'')+'</div></td>'+
                 '<td>'+esc(r.level+' · '+r.grade+' '+r.section)+'</td>'+
-                '<td>'+Number(r.debt_count||0)+'</td>'+
+                '<td><strong>'+Number(r.debt_count||0)+'</strong><div class="small text-muted">'+esc((r.concepts||[]).slice(0,2).join(', '))+((r.concepts||[]).length>2?'…':'')+'</div></td>'+
                 '<td class="text-right font-weight-bold text-danger cn-money">'+money(r.balance)+'</td>'+
                 '<td>'+stateBadge(r.state)+'</td>'+
                 '<td>'+(r.is_read?'<span class="text-success small"><i class="fas fa-check-double mr-1"></i>Leído</span>':'<span class="text-muted small">No leído</span>')+'</td>'+
