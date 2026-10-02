@@ -233,29 +233,54 @@ function push_log_delivery(
     ?int $deviceTokenId,
     string $deliveryStatus,
     int $providerCode,
-    string $providerMessage
+    string $providerMessage,
+    int $notificationEventId = 0
 ): void {
     if (!push_table_exists($db, 'push_notification_log')) return;
 
     $providerMessage = mb_substr($providerMessage, 0, 500, 'UTF-8');
-    $stmt = $db->prepare(
-        'INSERT INTO push_notification_log
-        (school_id,student_id,attendance_id,notification_type,device_token_id,delivery_status,provider_code,provider_message)
-        VALUES(?,?,NULLIF(?,0),?,NULLIF(?,0),?,?,?)'
-    );
-    if (!$stmt) return;
 
-    $stmt->bind_param(
-        'iiisisis',
-        $schoolId,
-        $studentId,
-        $attendanceId,
-        $notificationType,
-        $deviceTokenId,
-        $deliveryStatus,
-        $providerCode,
-        $providerMessage
-    );
+    if (push_column_exists($db, 'push_notification_log', 'notification_event_id')) {
+        $stmt = $db->prepare(
+            'INSERT INTO push_notification_log
+            (school_id,student_id,attendance_id,notification_event_id,notification_type,device_token_id,delivery_status,provider_code,provider_message)
+            VALUES(?,?,NULLIF(?,0),NULLIF(?,0),?,NULLIF(?,0),?,?,?)'
+        );
+        if (!$stmt) return;
+
+        $stmt->bind_param(
+            'iiiisisis',
+            $schoolId,
+            $studentId,
+            $attendanceId,
+            $notificationEventId,
+            $notificationType,
+            $deviceTokenId,
+            $deliveryStatus,
+            $providerCode,
+            $providerMessage
+        );
+    } else {
+        $stmt = $db->prepare(
+            'INSERT INTO push_notification_log
+            (school_id,student_id,attendance_id,notification_type,device_token_id,delivery_status,provider_code,provider_message)
+            VALUES(?,?,NULLIF(?,0),?,NULLIF(?,0),?,?,?)'
+        );
+        if (!$stmt) return;
+
+        $stmt->bind_param(
+            'iiisisis',
+            $schoolId,
+            $studentId,
+            $attendanceId,
+            $notificationType,
+            $deviceTokenId,
+            $deliveryStatus,
+            $providerCode,
+            $providerMessage
+        );
+    }
+
     $stmt->execute();
     $stmt->close();
 }
