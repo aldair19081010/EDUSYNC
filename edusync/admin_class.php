@@ -2044,7 +2044,7 @@ function save_payment(){
 		extract($_POST);
 		$evaluation_id=intval($_POST['evaluation_id']??0);$school_id=intval($_SESSION['login_school_id']??0);$teacher_id=intval($_SESSION['login_teacher_id']??0);$login_type=intval($_SESSION['login_type']??0);
 		if($evaluation_id<=0||$school_id<=0||$teacher_id<=0||$login_type!==2)return json_encode(['status'=>0,'message'=>'No tiene permisos para guardar estas notas.']);
-		$has_status=$this->db->query("SHOW COLUMNS FROM evaluations LIKE 'status'");$status_select=($has_status&&$has_status->num_rows)?',e.status':'';$owner=$this->db->query("SELECT e.id$status_select FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$evaluation_id AND e.teacher_id=$teacher_id AND tc.teacher_id=$teacher_id AND tc.school_id=$school_id LIMIT 1");$owner_row=$owner?$owner->fetch_assoc():null;if(!$owner_row)return json_encode(['status'=>0,'message'=>'La evaluación no existe o no le pertenece.']);if(isset($owner_row['status'])&&$owner_row['status']==='Anulada')return json_encode(['status'=>0,'message'=>'La evaluación está anulada y sus notas son de solo lectura.']);
+		$has_status=$this->db->query("SHOW COLUMNS FROM evaluations LIKE 'status'");$status_select=($has_status&&$has_status->num_rows)?',e.status':'';$owner=$this->db->query("SELECT e.id,e.title,e.bimestre,e.academic_year_id,ac.name course_name,ay.year academic_year$status_select FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=e.academic_year_id WHERE e.id=$evaluation_id AND e.teacher_id=$teacher_id AND tc.teacher_id=$teacher_id AND tc.school_id=$school_id LIMIT 1");$owner_row=$owner?$owner->fetch_assoc():null;if(!$owner_row)return json_encode(['status'=>0,'message'=>'La evaluación no existe o no le pertenece.']);if(isset($owner_row['status'])&&$owner_row['status']==='Anulada')return json_encode(['status'=>0,'message'=>'La evaluación está anulada y sus notas son de solo lectura.']);
 		
 		if (!isset($grades) || !is_array($grades)) {
 			return json_encode(['status' => 0, 'message' => 'No hay notas para guardar.']);
@@ -2076,6 +2076,8 @@ function save_payment(){
 
 		// Determinar si se está usando sistema de letras o numérico
 		$grading_system = $_POST['grading_system_used'] ?? 'numeric';
+		$notification_source = trim((string)($_POST['notification_source'] ?? 'manual'));
+		$grade_push_changes = [];
 		$history_table = $this->db->query("SHOW TABLES LIKE 'evaluation_grade_history'");
 		$history_stmt = null;
 		if ($history_table && $history_table->num_rows > 0) {
@@ -2127,6 +2129,17 @@ function save_payment(){
 					}
 				}
 				$new_grade_history = (string)$grade_value;
+				$changed_for_push = mb_strtoupper(trim($previous_grade), 'UTF-8') !== mb_strtoupper(trim($new_grade_history), 'UTF-8');
+				if ($grading_system !== 'letters' && $previous_grade !== '' && $new_grade_history !== '' && is_numeric($previous_grade) && is_numeric($new_grade_history)) {
+					$changed_for_push = abs((float)$previous_grade - (float)$new_grade_history) >= 0.0001;
+				}
+				if ($notification_source !== 'autosave' && $changed_for_push && $new_grade_history !== '') {
+					if (!isset($grade_push_changes[$student_id])) {
+						$grade_push_changes[$student_id] = ['created'=>0,'updated'=>0];
+					}
+					if ($previous_grade === '') $grade_push_changes[$student_id]['created']++;
+					else $grade_push_changes[$student_id]['updated']++;
+				}
 				if ($history_stmt && $previous_grade !== $new_grade_history) {
 					$history_year_id = (int)($eval_row['academic_year_id'] ?? 0);
 					$history_user_id = (int)($_SESSION['login_id'] ?? 0);
@@ -2136,11 +2149,37 @@ function save_payment(){
 			}
 		}
 		if ($history_stmt) $history_stmt->close();
+
+		$push_summary = ['students'=>0,'sent'=>0,'failed'=>0];
+		if ($notification_source !== 'autosave' && $grade_push_changes) {
+			try {
+				require_once __DIR__ . '/includes/push_notifications.php';
+				foreach ($grade_push_changes as $push_student_id => $push_data) {
+					$push = push_send_grade_notification(
+						$this->db,
+						$school_id,
+						(int)$push_student_id,
+						(string)($owner_row['course_name'] ?? 'Curso'),
+						[(string)($owner_row['title'] ?? 'Evaluación')],
+						(int)$push_data['created'],
+						(int)$push_data['updated'],
+						(int)($owner_row['bimestre'] ?? 0),
+						(int)($owner_row['academic_year'] ?? date('Y')),
+						[$evaluation_id]
+					);
+					$push_summary['students']++;
+					$push_summary['sent'] += (int)($push['sent'] ?? 0);
+					$push_summary['failed'] += (int)($push['failed'] ?? 0);
+				}
+			} catch (Throwable $push_error) {
+				error_log('[evaluation grade push] ' . $push_error->getMessage());
+			}
+		}
         
         // Generar notificaciones de notas bajas después de guardar las notas
         $this->generate_low_grade_notifications($evaluation_id);
 		$this->audit_evaluation($evaluation_id,$school_id,(int)($eval_row['academic_year_id']??0),$teacher_id,'grades_saved',['grading_system'=>$grading_system]);
-        return json_encode(['status' => 1, 'message' => 'Notas guardadas exitosamente.']);
+        return json_encode(['status' => 1, 'message' => 'Notas guardadas exitosamente.', 'push' => $push_summary]);
 	}
     // --- REGLAS DE ASISTENCIA ---
     function save_attendance_settings() {
