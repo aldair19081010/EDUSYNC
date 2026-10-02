@@ -49,6 +49,59 @@ $studentId = (int)$_SESSION['student_id'];
 $schoolId = (int)$_SESSION['student_school_id'];
 $action = trim((string)($_REQUEST['action'] ?? 'list'));
 
+if ($action === 'announcement_detail') {
+    if (!snTableExists($conn, 'student_announcements')) {
+        snOut([
+            'status' => 'error',
+            'migration_required' => true,
+            'message' => 'Falta actualizar sql/student_announcements.sql.'
+        ], 409);
+    }
+
+    $announcementId = max(0, (int)($_GET['announcement_id'] ?? 0));
+    if ($announcementId <= 0) {
+        snOut(['status' => 'error', 'message' => 'Comunicado inválido.'], 422);
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT a.id,a.title,a.content,a.created_at,u.name sender_name
+         FROM student_announcements a
+         INNER JOIN student_notification_events e
+           ON e.school_id=a.school_id
+          AND e.student_id=?
+          AND e.entity_type='announcement'
+          AND e.entity_id=a.id
+         LEFT JOIN users u
+           ON u.id=a.created_by
+          AND u.school_id=a.school_id
+         WHERE a.id=? AND a.school_id=?
+         LIMIT 1"
+    );
+    if (!$stmt) {
+        snOut(['status' => 'error', 'message' => 'No se pudo consultar el comunicado.'], 500);
+    }
+
+    $stmt->bind_param('iii', $studentId, $announcementId, $schoolId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$row) {
+        snOut(['status' => 'error', 'message' => 'Este comunicado no está disponible para tu cuenta.'], 404);
+    }
+
+    snOut([
+        'status' => 'ok',
+        'announcement' => [
+            'id' => (int)$row['id'],
+            'title' => (string)$row['title'],
+            'content' => (string)$row['content'],
+            'sender_name' => (string)($row['sender_name'] ?? 'Administración'),
+            'created_at' => (string)$row['created_at'],
+        ],
+    ]);
+}
+
 if ($action === 'list') {
     $limit = max(1, min(100, (int)($_GET['limit'] ?? 50)));
     $beforeId = max(0, (int)($_GET['before_id'] ?? 0));
