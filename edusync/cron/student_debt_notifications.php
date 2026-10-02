@@ -18,12 +18,33 @@ if (PHP_SAPI !== 'cli') {
 
 date_default_timezone_set('America/Lima');
 
-$options = getopt('', ['student-id:', 'debt-id:', 'credentials:']);
+$options = getopt('', ['school-id:', 'student-id:', 'debt-id:', 'credentials:']);
+$schoolFilter = max(0, (int)($options['school-id'] ?? 0));
 $studentFilter = max(0, (int)($options['student-id'] ?? 0));
 $debtFilter = max(0, (int)($options['debt-id'] ?? 0));
 $credentialsPath = trim((string)($options['credentials'] ?? ''));
 
+$startedAt = new DateTimeImmutable();
+$lockPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+    . DIRECTORY_SEPARATOR
+    . 'edusync_student_debt_notifications.lock';
+$lockHandle = @fopen($lockPath, 'c');
+if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    echo json_encode([
+        'status' => 'locked',
+        'message' => 'Ya existe otra ejecución activa del cron de deudas.',
+        'started_at' => $startedAt->format(DATE_ATOM),
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
+    exit(0);
+}
+
 if ($credentialsPath !== '') {
+    if (!is_file($credentialsPath) || !is_readable($credentialsPath)) {
+        fwrite(STDERR, "[debt notifications] Firebase credentials file not readable: {$credentialsPath}\n");
+        flock($lockHandle, LOCK_UN);
+        fclose($lockHandle);
+        exit(3);
+    }
     putenv('EDUSYNC_FIREBASE_CREDENTIALS=' . $credentialsPath);
     $_ENV['EDUSYNC_FIREBASE_CREDENTIALS'] = $credentialsPath;
 }
@@ -34,6 +55,7 @@ require_once __DIR__ . '/../includes/push_notifications.php';
 $conn->query("SET time_zone = '-05:00'");
 
 $extraWhere = '';
+if ($schoolFilter > 0) $extraWhere .= ' AND s.school_id=' . $schoolFilter;
 if ($studentFilter > 0) $extraWhere .= ' AND ef.student_id=' . $studentFilter;
 if ($debtFilter > 0) $extraWhere .= ' AND ef.id=' . $debtFilter;
 
@@ -77,10 +99,17 @@ $sql = "
 $result = $conn->query($sql);
 if (!$result) {
     fwrite(STDERR, "[debt notifications] SQL error: {$conn->error}\n");
+    flock($lockHandle, LOCK_UN);
+    fclose($lockHandle);
     exit(1);
 }
 
 $stats = [
+    'status' => 'ok',
+    'started_at' => $startedAt->format(DATE_ATOM),
+    'school_id' => $schoolFilter ?: null,
+    'student_id' => $studentFilter ?: null,
+    'debt_id' => $debtFilter ?: null,
     'candidates' => 0,
     'created' => 0,
     'retried' => 0,
@@ -155,4 +184,13 @@ while ($row = $result->fetch_assoc()) {
     }
 }
 
+$stats['finished_at'] = (new DateTimeImmutable())->format(DATE_ATOM);
+
 echo json_encode($stats, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
+
+flock($lockHandle, LOCK_UN);
+fclose($lockHandle);
+
+if ($stats['failed'] > 0) exit(2);
+if ($stats['pending_push'] > 0) exit(3);
+exit(0);
