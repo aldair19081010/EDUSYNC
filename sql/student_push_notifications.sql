@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS student_notification_events (
     screen VARCHAR(40) NOT NULL DEFAULT '',
     entity_type VARCHAR(40) NULL,
     entity_id BIGINT NULL,
-    dedupe_key VARCHAR(190) NULL,
+    dedupe_key VARCHAR(160) NULL,
     data_json LONGTEXT NULL,
     is_read TINYINT(1) NOT NULL DEFAULT 0,
     read_at DATETIME NULL,
