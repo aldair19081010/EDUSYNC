@@ -341,7 +341,40 @@ if ($action === 'save') {
     }
     paymentAudit($conn, $schoolId, $operationId, 0, $correctionOf > 0 ? 'payment_corrected' : 'payment_created', ['receipt' => $receipt, 'amount' => $conceptTotal, 'concepts' => count($validated), 'discount_amount' => $discountTotal, 'corrected_from_id' => $correctionOf, 'reason' => $correctionReason]);
     if ($correctionOf > 0) paymentAudit($conn, $schoolId, $correctionOf, 0, 'payment_replaced', ['replacement_operation_id' => $operationId, 'reason' => $correctionReason]);
-    paymentOut(['status' => 1, 'message' => ($correctionOf > 0 ? 'Pago corregido correctamente. El recibo original quedó anulado.' : 'Pago registrado correctamente.') . ($discountTotal > 0 ? ' Descuento aplicado: S/ ' . number_format($discountTotal, 2) . '.' : ''), 'operation_id' => $operationId, 'receipt' => $receipt, 'payments' => $paymentIds]);
+
+    $paymentPush = ['configured' => false, 'devices' => 0, 'sent' => 0, 'failed' => 0];
+    if ($correctionOf === 0) {
+        try {
+            require_once __DIR__ . '/includes/push_notifications.php';
+            $conceptNames = array_values(array_filter(array_map(
+                static function ($item) {
+                    return trim((string)($item['concept_name'] ?? ''));
+                },
+                $validated
+            )));
+            $paymentPush = push_send_payment_notification(
+                $conn,
+                $schoolId,
+                $studentId,
+                (int)$operationId,
+                (float)$conceptTotal,
+                $conceptNames,
+                $paymentDate,
+                $receipt
+            );
+        } catch (Throwable $pushError) {
+            error_log('[payment push] ' . $pushError->getMessage());
+        }
+    }
+
+    paymentOut([
+        'status' => 1,
+        'message' => ($correctionOf > 0 ? 'Pago corregido correctamente. El recibo original quedó anulado.' : 'Pago registrado correctamente.') . ($discountTotal > 0 ? ' Descuento aplicado: S/ ' . number_format($discountTotal, 2) . '.' : ''),
+        'operation_id' => $operationId,
+        'receipt' => $receipt,
+        'payments' => $paymentIds,
+        'push' => $paymentPush
+    ]);
 }
 
 if ($action === 'cancel') {
