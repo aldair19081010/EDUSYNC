@@ -237,11 +237,12 @@ function push_send_attendance_notification(
     $displayTime = push_format_time($time);
 
     if ($isExit) {
-        $body = $studentName . ' salió del colegio a las ' . $displayTime . '.';
+        $body = $studentName . ' registró su salida · ' . $displayTime;
     } elseif (mb_strtolower(trim($status), 'UTF-8') === 'tarde') {
-        $body = $studentName . ' registró su ingreso a las ' . $displayTime . ' · Tarde.';
+        $title = 'Entrada registrada · Tarde';
+        $body = $studentName . ' registró su entrada · ' . $displayTime;
     } else {
-        $body = $studentName . ' ingresó al colegio a las ' . $displayTime . '.';
+        $body = $studentName . ' registró su entrada · ' . $displayTime;
     }
 
     $endpoint = 'https://fcm.googleapis.com/v1/projects/'
