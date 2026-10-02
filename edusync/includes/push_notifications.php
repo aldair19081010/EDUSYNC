@@ -725,33 +725,63 @@ function push_send_bulk_debt_notification(
     int $studentId,
     array $debtIds,
     int $count,
-    float $totalBalance
+    float $totalBalance,
+    string $stage = 'overdue',
+    ?string $dueDate = null
 ): array {
     $debtIds = array_values(array_unique(array_filter(array_map('intval', $debtIds))));
     sort($debtIds);
 
-    $title = $count === 1 ? 'Pago vencido' : 'Pagos vencidos';
-    $body = $count === 1
-        ? 'Se asignó una obligación pendiente por S/ ' . number_format($totalBalance, 2, '.', '') . '.'
-        : 'Se asignaron ' . $count . ' obligaciones pendientes por S/ ' . number_format($totalBalance, 2, '.', '') . '.';
+    $amount = 'S/ ' . number_format($totalBalance, 2, '.', '');
+
+    if ($stage === 'assigned') {
+        $title = $count === 1 ? 'Nueva deuda asignada' : 'Nuevas deudas asignadas';
+        $body = $count === 1
+            ? 'Se asignó una obligación por ' . $amount
+            : 'Se asignaron ' . $count . ' obligaciones por ' . $amount;
+        if ($dueDate) {
+            $body .= ' · vencen el ' . date('d/m/Y', strtotime($dueDate));
+        }
+        $body .= '.';
+    } elseif ($stage === 'upcoming3') {
+        $title = $count === 1 ? 'Pago próximo a vencer' : 'Pagos próximos a vencer';
+        $body = $count === 1
+            ? 'Tienes una obligación por ' . $amount
+            : 'Tienes ' . $count . ' obligaciones por ' . $amount;
+        if ($dueDate) {
+            $body .= ' · vencen el ' . date('d/m/Y', strtotime($dueDate));
+        }
+        $body .= '.';
+    } elseif ($stage === 'due_today') {
+        $title = $count === 1 ? 'Pago vence hoy' : 'Pagos vencen hoy';
+        $body = $count === 1
+            ? 'Tienes una obligación por ' . $amount . ' que vence hoy.'
+            : 'Tienes ' . $count . ' obligaciones por ' . $amount . ' que vencen hoy.';
+    } else {
+        $title = $count === 1 ? 'Pago vencido' : 'Pagos vencidos';
+        $body = $count === 1
+            ? 'Se asignó una obligación pendiente por ' . $amount . '.'
+            : 'Se asignaron ' . $count . ' obligaciones pendientes por ' . $amount . '.';
+    }
 
     return push_send_student_event(
         $db,
         $schoolId,
         $studentId,
-        'debt_bulk_overdue',
+        'debt_bulk_' . $stage,
         $title,
         $body,
         'debts',
         'payment_alerts',
         'debt_bulk',
         null,
-        'debt-bulk:' . $studentId . ':' . hash('sha256', implode(',', $debtIds)),
+        'debt-bulk:' . $studentId . ':' . $stage . ':' . hash('sha256', implode(',', $debtIds)),
         [
             'debt_ids' => implode(',', $debtIds),
             'count' => (string)$count,
             'balance' => number_format($totalBalance, 2, '.', ''),
-            'stage' => 'overdue',
+            'due_date' => (string)$dueDate,
+            'stage' => $stage,
         ]
     );
 }
