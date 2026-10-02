@@ -862,3 +862,36 @@ function push_send_grade_notification(
         ]
     );
 }
+
+
+function push_send_announcement_notification(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    int $announcementId,
+    string $title,
+    string $content
+): array {
+    $title = trim($title) !== '' ? trim($title) : 'Comunicado institucional';
+    $preview = trim(preg_replace('/\s+/u', ' ', $content));
+    if (mb_strlen($preview, 'UTF-8') > 180) {
+        $preview = rtrim(mb_substr($preview, 0, 177, 'UTF-8')) . '...';
+    }
+
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        'announcement',
+        $title,
+        $preview,
+        'announcements',
+        'announcement_alerts',
+        'announcement',
+        $announcementId,
+        'announcement:' . $announcementId,
+        [
+            'announcement_id' => (string)$announcementId,
+        ]
+    );
+}
