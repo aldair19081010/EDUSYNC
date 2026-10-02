@@ -28,6 +28,89 @@ Class Action {
 		}
 		call_user_func_array([$stmt, 'bind_param'], $bind);
 	}
+	private function notify_debt_if_due($debt_id) {
+		$debt_id = intval($debt_id);
+		if ($debt_id <= 0) return;
+
+		try {
+			require_once __DIR__ . '/includes/push_notifications.php';
+
+			$stmt = $this->db->prepare(
+				"SELECT
+					ef.id,
+					ef.student_id,
+					s.school_id,
+					COALESCE(NULLIF(TRIM(c.course),''),'Obligación pendiente') concept_name,
+					ef.due_date,
+					ef.debt_status,
+					COALESCE(ef.discounted_amount,ef.total_fee) effective_amount,
+					COALESCE((
+						SELECT SUM(p.amount)
+						FROM payments p
+						WHERE p.ef_id=ef.id
+						  AND p.payment_status='Confirmado'
+					),0) paid_amount
+				FROM student_ef_list ef
+				INNER JOIN student s ON s.id=ef.student_id
+				LEFT JOIN courses c ON c.id=ef.course_id
+				WHERE ef.id=?
+				LIMIT 1"
+			);
+			if (!$stmt) return;
+
+			$stmt->bind_param('i', $debt_id);
+			$stmt->execute();
+			$row = $stmt->get_result()->fetch_assoc();
+			$stmt->close();
+
+			if (!$row || ($row['debt_status'] ?? 'Activa') !== 'Activa') return;
+
+			$balance = max(
+				0,
+				round((float)$row['effective_amount'] - (float)$row['paid_amount'], 2)
+			);
+			if ($balance <= 0.009) return;
+
+			$due_date = trim((string)($row['due_date'] ?? ''));
+			$stage = null;
+
+			// Regla financiera vigente en EduSync:
+			// una deuda activa sin fecha de vencimiento se considera vencida.
+			if ($due_date === '' || $due_date === '0000-00-00') {
+				$stage = 'overdue';
+			} else {
+				$due = DateTimeImmutable::createFromFormat(
+					'Y-m-d',
+					substr($due_date, 0, 10)
+				);
+				$today = new DateTimeImmutable('today');
+
+				if ($due) {
+					$days = (int)$today->diff($due)->format('%r%a');
+					if ($days < 0) $stage = 'overdue';
+					elseif ($days === 0) $stage = 'due_today';
+					elseif ($days === 3) $stage = 'upcoming3';
+				}
+			}
+
+			if ($stage === null) return;
+
+			push_send_debt_notification(
+				$this->db,
+				(int)$row['school_id'],
+				(int)$row['student_id'],
+				(int)$row['id'],
+				(string)$row['concept_name'],
+				$balance,
+				($due_date !== '' && $due_date !== '0000-00-00')
+					? substr($due_date, 0, 10)
+					: null,
+				$stage
+			);
+		} catch (Throwable $e) {
+			error_log('[debt push] ' . $e->getMessage());
+		}
+	}
 	private function audit_student($student_id, $school_id, $action, $details = []) {
 		$user_id = intval($_SESSION['login_id'] ?? 0) ?: null;
 		$ip_address = $_SERVER['REMOTE_ADDR'] ?? null;
@@ -548,11 +631,17 @@ Class Action {
 		}
 		if(empty($id)){
 			$save = $this->db->query("INSERT INTO student_ef_list set $data");
+			$saved_debt_id = $save ? intval($this->db->insert_id) : 0;
 		}else{
 			$save = $this->db->query("UPDATE student_ef_list set $data where id = $id");
+			$saved_debt_id = $save ? intval($id) : 0;
 		}
-		if($save)
+		if($save){
+			// La deuda ya quedó guardada. El push es un efecto posterior y
+			// nunca debe convertir un guardado correcto en un error.
+			$this->notify_debt_if_due($saved_debt_id);
 			return 1;
+		}
 	}
 	function delete_fees(){
 		extract($_POST);
