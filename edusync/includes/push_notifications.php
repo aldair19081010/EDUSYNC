@@ -143,6 +143,87 @@ function push_format_time(string $time): string {
     return $displayHour . ':' . $minute . ' ' . $suffix;
 }
 
+function push_create_student_event(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    string $notificationType,
+    string $title,
+    string $body,
+    string $screen,
+    ?string $entityType,
+    ?int $entityId,
+    ?string $dedupeKey,
+    array $data = []
+): array {
+    if (!push_table_exists($db, 'student_notification_events')) {
+        return ['id' => 0, 'created' => true];
+    }
+
+    $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $entityIdValue = $entityId ?? 0;
+    $dedupe = $dedupeKey !== null && trim($dedupeKey) !== '' ? trim($dedupeKey) : null;
+
+    if ($dedupe !== null) {
+        $existing = $db->prepare(
+            'SELECT id FROM student_notification_events
+             WHERE school_id=? AND student_id=? AND dedupe_key=? LIMIT 1'
+        );
+        if ($existing) {
+            $existing->bind_param('iis', $schoolId, $studentId, $dedupe);
+            $existing->execute();
+            $row = $existing->get_result()->fetch_assoc();
+            $existing->close();
+            if ($row) return ['id' => (int)$row['id'], 'created' => false];
+        }
+    }
+
+    $stmt = $db->prepare(
+        'INSERT INTO student_notification_events
+        (school_id,student_id,notification_type,title,body,screen,entity_type,entity_id,dedupe_key,data_json)
+        VALUES(?,?,?,?,?,?,?,NULLIF(?,0),?,?)'
+    );
+    if (!$stmt) return ['id' => 0, 'created' => true];
+
+    $stmt->bind_param(
+        'iisssssiss',
+        $schoolId,
+        $studentId,
+        $notificationType,
+        $title,
+        $body,
+        $screen,
+        $entityType,
+        $entityIdValue,
+        $dedupe,
+        $json
+    );
+
+    if (!$stmt->execute()) {
+        if ((int)$stmt->errno === 1062 && $dedupe !== null) {
+            $stmt->close();
+            $existing = $db->prepare(
+                'SELECT id FROM student_notification_events
+                 WHERE school_id=? AND student_id=? AND dedupe_key=? LIMIT 1'
+            );
+            if ($existing) {
+                $existing->bind_param('iis', $schoolId, $studentId, $dedupe);
+                $existing->execute();
+                $row = $existing->get_result()->fetch_assoc();
+                $existing->close();
+                return ['id' => (int)($row['id'] ?? 0), 'created' => false];
+            }
+            return ['id' => 0, 'created' => false];
+        }
+        $stmt->close();
+        return ['id' => 0, 'created' => true];
+    }
+
+    $id = (int)$stmt->insert_id;
+    $stmt->close();
+    return ['id' => $id, 'created' => true];
+}
+
 function push_log_delivery(
     mysqli $db,
     int $schoolId,
@@ -513,4 +594,275 @@ function push_send_payment_notification(
     }
 
     return $result;
+}
+
+
+function push_send_student_event(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    string $notificationType,
+    string $title,
+    string $body,
+    string $screen,
+    string $channelId,
+    ?string $entityType,
+    ?int $entityId,
+    ?string $dedupeKey,
+    array $data = []
+): array {
+    $result = [
+        'configured' => false,
+        'devices' => 0,
+        'sent' => 0,
+        'failed' => 0,
+        'event_id' => 0,
+        'duplicate' => false,
+    ];
+
+    $event = push_create_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        $notificationType,
+        $title,
+        $body,
+        $screen,
+        $entityType,
+        $entityId,
+        $dedupeKey,
+        $data
+    );
+    $result['event_id'] = (int)$event['id'];
+    if (!$event['created']) {
+        $result['duplicate'] = true;
+        return $result;
+    }
+
+    if (!push_table_exists($db, 'student_device_tokens')) return $result;
+
+    $credentials = push_load_firebase_credentials();
+    if (!$credentials) {
+        error_log('[push] Firebase no configurado: faltan credenciales del service account.');
+        return $result;
+    }
+
+    $projectId = trim((string)($credentials['project_id'] ?? ''));
+    $accessToken = push_firebase_access_token($credentials);
+    if ($projectId === '' || !$accessToken) {
+        error_log('[push] Firebase no configurado correctamente o no se pudo obtener OAuth.');
+        return $result;
+    }
+
+    $result['configured'] = true;
+
+    $stmt = $db->prepare(
+        'SELECT id,fcm_token
+         FROM student_device_tokens
+         WHERE school_id=? AND student_id=? AND is_active=1
+         ORDER BY last_seen_at DESC'
+    );
+    if (!$stmt) return $result;
+
+    $stmt->bind_param('ii', $schoolId, $studentId);
+    $stmt->execute();
+    $query = $stmt->get_result();
+    $devices = [];
+    while ($row = $query->fetch_assoc()) $devices[] = $row;
+    $stmt->close();
+
+    $result['devices'] = count($devices);
+    if (!$devices) return $result;
+
+    $payloadData = array_merge($data, [
+        'type' => $notificationType,
+        'screen' => $screen,
+        'student_id' => (string)$studentId,
+        'school_id' => (string)$schoolId,
+        'notification_event_id' => (string)$result['event_id'],
+    ]);
+
+    $endpoint = 'https://fcm.googleapis.com/v1/projects/'
+        . rawurlencode($projectId)
+        . '/messages:send';
+
+    foreach ($devices as $device) {
+        $deviceTokenId = (int)$device['id'];
+        $token = trim((string)$device['fcm_token']);
+        if ($token === '') continue;
+
+        $payload = [
+            'message' => [
+                'token' => $token,
+                'notification' => [
+                    'title' => $title,
+                    'body' => $body,
+                ],
+                'data' => array_map(
+                    static fn($value) => is_scalar($value) || $value === null
+                        ? (string)$value
+                        : json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    $payloadData
+                ),
+                'android' => [
+                    'priority' => 'HIGH',
+                    'notification' => [
+                        'channel_id' => $channelId,
+                        'sound' => 'default',
+                        'icon' => 'ic_notification',
+                        'color' => '#1565C0',
+                    ],
+                ],
+            ],
+        ];
+
+        $response = push_http_post(
+            $endpoint,
+            [
+                'Authorization: Bearer ' . $accessToken,
+                'Content-Type: application/json; charset=utf-8',
+            ],
+            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+        );
+
+        if ($response['ok']) {
+            $result['sent']++;
+            push_log_delivery(
+                $db,
+                $schoolId,
+                $studentId,
+                0,
+                $notificationType,
+                $deviceTokenId,
+                'sent',
+                $response['code'],
+                ''
+            );
+            continue;
+        }
+
+        $result['failed']++;
+        $providerMessage = $response['body'] !== ''
+            ? $response['body']
+            : $response['error'];
+
+        push_log_delivery(
+            $db,
+            $schoolId,
+            $studentId,
+            0,
+            $notificationType,
+            $deviceTokenId,
+            'failed',
+            $response['code'],
+            $providerMessage
+        );
+
+        $upper = strtoupper($providerMessage);
+        if ($response['code'] === 404
+            || strpos($upper, 'UNREGISTERED') !== false
+            || strpos($upper, 'NOT_FOUND') !== false) {
+            $disable = $db->prepare(
+                'UPDATE student_device_tokens SET is_active=0 WHERE id=? AND school_id=?'
+            );
+            if ($disable) {
+                $disable->bind_param('ii', $deviceTokenId, $schoolId);
+                $disable->execute();
+                $disable->close();
+            }
+        }
+    }
+
+    return $result;
+}
+
+function push_send_attendance_state_notification(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    int $attendanceId,
+    string $date,
+    string $oldStatus,
+    string $newStatus,
+    string $time = ''
+): array {
+    $newStatus = trim($newStatus);
+    $oldStatus = trim($oldStatus);
+
+    if ($oldStatus === '') {
+        $title = 'Estado de asistencia registrado';
+        $body = 'Tu asistencia del ' . date('d/m/Y', strtotime($date)) . ' quedó como ' . $newStatus . '.';
+        $dedupe = 'attendance:' . $attendanceId . ':created:' . mb_strtolower($newStatus, 'UTF-8');
+    } else {
+        $title = 'Asistencia actualizada';
+        $body = 'Tu asistencia del ' . date('d/m/Y', strtotime($date)) . ' cambió de ' . $oldStatus . ' a ' . $newStatus . '.';
+        $dedupe = 'attendance:' . $attendanceId . ':status:' . mb_strtolower($newStatus, 'UTF-8');
+    }
+
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        'attendance_status',
+        $title,
+        $body,
+        'attendance',
+        'attendance_alerts',
+        'attendance',
+        $attendanceId,
+        $dedupe,
+        [
+            'attendance_id' => (string)$attendanceId,
+            'date' => $date,
+            'time' => $time,
+            'old_status' => $oldStatus,
+            'status' => $newStatus,
+        ]
+    );
+}
+
+function push_send_debt_notification(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    int $debtId,
+    string $concept,
+    float $balance,
+    ?string $dueDate,
+    string $stage
+): array {
+    $amount = 'S/ ' . number_format($balance, 2, '.', '');
+    $concept = trim($concept) !== '' ? trim($concept) : 'Obligación pendiente';
+
+    if ($stage === 'upcoming3') {
+        $title = 'Pago próximo a vencer';
+        $body = $concept . ' · ' . $amount . ' vence el ' . date('d/m/Y', strtotime((string)$dueDate)) . '.';
+    } elseif ($stage === 'due_today') {
+        $title = 'Pago vence hoy';
+        $body = $concept . ' · ' . $amount . ' vence hoy.';
+    } else {
+        $title = 'Pago vencido';
+        $body = $concept . ' · ' . $amount . ' está pendiente.';
+    }
+
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        'debt_' . $stage,
+        $title,
+        $body,
+        'debts',
+        'debt_alerts',
+        'debt',
+        $debtId,
+        'debt:' . $debtId . ':' . $stage,
+        [
+            'debt_id' => (string)$debtId,
+            'concept' => $concept,
+            'balance' => number_format($balance, 2, '.', ''),
+            'due_date' => (string)$dueDate,
+            'stage' => $stage,
+        ]
+    );
 }
