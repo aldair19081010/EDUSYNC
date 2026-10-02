@@ -445,6 +445,7 @@ function push_send_student_event(
     $endpoint = 'https://fcm.googleapis.com/v1/projects/'
         . rawurlencode($projectId)
         . '/messages:send';
+    $logAttendanceId = $entityType === 'attendance' ? (int)($entityId ?? 0) : 0;
 
     foreach ($devices as $device) {
         $deviceTokenId = (int)$device['id'];
@@ -491,7 +492,7 @@ function push_send_student_event(
                 $db,
                 $schoolId,
                 $studentId,
-                0,
+                $logAttendanceId,
                 $notificationType,
                 $deviceTokenId,
                 'sent',
@@ -510,7 +511,7 @@ function push_send_student_event(
             $db,
             $schoolId,
             $studentId,
-            0,
+            $logAttendanceId,
             $notificationType,
             $deviceTokenId,
             'failed',
