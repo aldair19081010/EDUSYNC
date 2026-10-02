@@ -399,9 +399,13 @@ function push_send_student_event(
     $result = [
         'configured' => false,
         'devices' => 0,
+        'pending_devices' => 0,
+        'already_sent' => 0,
         'sent' => 0,
         'failed' => 0,
         'event_id' => 0,
+        'event_created' => false,
+        'retry' => false,
         'duplicate' => false,
     ];
 
@@ -419,27 +423,10 @@ function push_send_student_event(
         $data
     );
     $result['event_id'] = (int)$event['id'];
-    if (!$event['created']) {
-        $result['duplicate'] = true;
-        return $result;
-    }
+    $result['event_created'] = !empty($event['created']);
+    $result['retry'] = !$result['event_created'];
 
     if (!push_table_exists($db, 'student_device_tokens')) return $result;
-
-    $credentials = push_load_firebase_credentials();
-    if (!$credentials) {
-        error_log('[push] Firebase no configurado: faltan credenciales del service account.');
-        return $result;
-    }
-
-    $projectId = trim((string)($credentials['project_id'] ?? ''));
-    $accessToken = push_firebase_access_token($credentials);
-    if ($projectId === '' || !$accessToken) {
-        error_log('[push] Firebase no configurado correctamente o no se pudo obtener OAuth.');
-        return $result;
-    }
-
-    $result['configured'] = true;
 
     $stmt = $db->prepare(
         'SELECT id,fcm_token
@@ -459,6 +446,68 @@ function push_send_student_event(
     $result['devices'] = count($devices);
     if (!$devices) return $result;
 
+    $eventAwareLog = $result['event_id'] > 0
+        && push_table_exists($db, 'push_notification_log')
+        && push_column_exists($db, 'push_notification_log', 'notification_event_id');
+
+    if (!$result['event_created'] && !$eventAwareLog) {
+        // Sin la migración de reintentos no existe una forma segura de distinguir
+        // un evento ya entregado de uno pendiente. Evitamos duplicar notificaciones.
+        $result['duplicate'] = true;
+        $result['retry'] = false;
+        return $result;
+    }
+
+    $pendingDevices = [];
+    foreach ($devices as $device) {
+        $deviceTokenId = (int)$device['id'];
+
+        if ($eventAwareLog) {
+            $delivered = $db->prepare(
+                "SELECT id
+                 FROM push_notification_log
+                 WHERE notification_event_id=?
+                   AND device_token_id=?
+                   AND delivery_status='sent'
+                 LIMIT 1"
+            );
+            if ($delivered) {
+                $delivered->bind_param('ii', $result['event_id'], $deviceTokenId);
+                $delivered->execute();
+                $wasSent = (bool)$delivered->get_result()->fetch_assoc();
+                $delivered->close();
+                if ($wasSent) {
+                    $result['already_sent']++;
+                    continue;
+                }
+            }
+        }
+
+        $pendingDevices[] = $device;
+    }
+
+    $result['pending_devices'] = count($pendingDevices);
+    if (!$pendingDevices) {
+        $result['duplicate'] = true;
+        $result['retry'] = false;
+        return $result;
+    }
+
+    $credentials = push_load_firebase_credentials();
+    if (!$credentials) {
+        error_log('[push] Firebase no configurado: faltan credenciales del service account.');
+        return $result;
+    }
+
+    $projectId = trim((string)($credentials['project_id'] ?? ''));
+    $accessToken = push_firebase_access_token($credentials);
+    if ($projectId === '' || !$accessToken) {
+        error_log('[push] Firebase no configurado correctamente o no se pudo obtener OAuth.');
+        return $result;
+    }
+
+    $result['configured'] = true;
+
     $payloadData = array_merge($data, [
         'type' => $notificationType,
         'screen' => $screen,
@@ -472,7 +521,7 @@ function push_send_student_event(
         . '/messages:send';
     $logAttendanceId = $entityType === 'attendance' ? (int)($entityId ?? 0) : 0;
 
-    foreach ($devices as $device) {
+    foreach ($pendingDevices as $device) {
         $deviceTokenId = (int)$device['id'];
         $token = trim((string)$device['fcm_token']);
         if ($token === '') continue;
@@ -522,7 +571,8 @@ function push_send_student_event(
                 $deviceTokenId,
                 'sent',
                 $response['code'],
-                ''
+                '',
+                $result['event_id']
             );
             continue;
         }
@@ -541,7 +591,8 @@ function push_send_student_event(
             $deviceTokenId,
             'failed',
             $response['code'],
-            $providerMessage
+            $providerMessage,
+            $result['event_id']
         );
 
         $upper = strtoupper($providerMessage);
