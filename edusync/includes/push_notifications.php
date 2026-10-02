@@ -895,3 +895,54 @@ function push_send_announcement_notification(
         ]
     );
 }
+
+
+function push_send_collection_notification(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    int $campaignId,
+    array $debtIds,
+    array $conceptNames,
+    int $debtCount,
+    float $totalBalance
+): array {
+    $debtIds = array_values(array_unique(array_filter(array_map('intval', $debtIds))));
+    $conceptNames = array_values(array_unique(array_filter(array_map(
+        static fn($value) => trim((string)$value),
+        $conceptNames
+    ))));
+
+    $amount = 'S/ ' . number_format($totalBalance, 2, '.', '');
+
+    if ($debtCount <= 1) {
+        $title = 'Pago pendiente';
+        $concept = $conceptNames[0] ?? 'obligación pendiente';
+        $body = 'Tienes un saldo pendiente de ' . $amount . ' por ' . $concept
+            . '. Ingresa a Mis Deudas para revisar el detalle.';
+    } else {
+        $title = 'Pagos pendientes';
+        $body = 'Tienes ' . $debtCount . ' obligaciones pendientes por un total de '
+            . $amount . '. Ingresa a Mis Deudas para revisar el detalle.';
+    }
+
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        'collection_notice',
+        $title,
+        $body,
+        'debts',
+        'payment_alerts',
+        'collection_campaign',
+        $campaignId,
+        'collection:' . $campaignId . ':' . $studentId,
+        [
+            'campaign_id' => (string)$campaignId,
+            'debt_ids' => implode(',', $debtIds),
+            'debt_count' => (string)$debtCount,
+            'balance' => number_format($totalBalance, 2, '.', ''),
+        ]
+    );
+}
