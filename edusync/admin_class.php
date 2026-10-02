@@ -2135,14 +2135,11 @@ function save_payment(){
 				}
 				if ($changed_for_push && $new_grade_history !== '') {
 					$is_new_grade = $previous_grade === '';
-					$should_notify_grade = $is_new_grade || $notification_source !== 'autosave';
-					if ($should_notify_grade) {
-						if (!isset($grade_push_changes[$student_id])) {
-							$grade_push_changes[$student_id] = ['created'=>0,'updated'=>0];
-						}
-						if ($is_new_grade) $grade_push_changes[$student_id]['created']++;
-						else $grade_push_changes[$student_id]['updated']++;
+					if (!isset($grade_push_changes[$student_id])) {
+						$grade_push_changes[$student_id] = ['created'=>0,'updated'=>0];
 					}
+					if ($is_new_grade) $grade_push_changes[$student_id]['created']++;
+					else $grade_push_changes[$student_id]['updated']++;
 				}
 				if ($history_stmt && $previous_grade !== $new_grade_history) {
 					$history_year_id = (int)($eval_row['academic_year_id'] ?? 0);
