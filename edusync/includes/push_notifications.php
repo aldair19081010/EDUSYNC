@@ -271,48 +271,6 @@ function push_send_attendance_notification(
     string $time,
     string $status
 ): array {
-    $result = [
-        'configured' => false,
-        'devices' => 0,
-        'sent' => 0,
-        'failed' => 0,
-    ];
-
-    if (!push_table_exists($db, 'student_device_tokens')) return $result;
-
-    $credentials = push_load_firebase_credentials();
-    if (!$credentials) {
-        error_log('[push] Firebase no configurado: faltan credenciales del service account.');
-        return $result;
-    }
-
-    $projectId = trim((string)($credentials['project_id'] ?? ''));
-    $accessToken = push_firebase_access_token($credentials);
-    if ($projectId === '' || !$accessToken) {
-        error_log('[push] Firebase no configurado correctamente o no se pudo obtener OAuth.');
-        return $result;
-    }
-
-    $result['configured'] = true;
-
-    $stmt = $db->prepare(
-        'SELECT id,fcm_token
-         FROM student_device_tokens
-         WHERE school_id=? AND student_id=? AND is_active=1
-         ORDER BY last_seen_at DESC'
-    );
-    if (!$stmt) return $result;
-
-    $stmt->bind_param('ii', $schoolId, $studentId);
-    $stmt->execute();
-    $query = $stmt->get_result();
-    $devices = [];
-    while ($row = $query->fetch_assoc()) $devices[] = $row;
-    $stmt->close();
-
-    $result['devices'] = count($devices);
-    if (!$devices) return $result;
-
     $isExit = mb_strtolower(trim($kind), 'UTF-8') === 'salida';
     $title = $isExit ? 'Salida registrada' : 'Entrada registrada';
     $displayTime = push_format_time($time);
@@ -326,105 +284,27 @@ function push_send_attendance_notification(
         $body = $studentName . ' registró su entrada · ' . $displayTime;
     }
 
-    $endpoint = 'https://fcm.googleapis.com/v1/projects/'
-        . rawurlencode($projectId)
-        . '/messages:send';
-
-    foreach ($devices as $device) {
-        $deviceId = (int)$device['id'];
-        $token = trim((string)$device['fcm_token']);
-        if ($token === '') continue;
-
-        $payload = [
-            'message' => [
-                'token' => $token,
-                'notification' => [
-                    'title' => $title,
-                    'body' => $body,
-                ],
-                'data' => [
-                    'type' => 'attendance',
-                    'screen' => 'attendance',
-                    'attendance_type' => $isExit ? 'Salida' : 'Entrada',
-                    'attendance_id' => (string)$attendanceId,
-                    'student_id' => (string)$studentId,
-                    'school_id' => (string)$schoolId,
-                    'date' => $date,
-                    'time' => $time,
-                    'status' => $status,
-                ],
-                'android' => [
-                    'priority' => 'HIGH',
-                    'notification' => [
-                        'channel_id' => 'attendance_alerts',
-                        'sound' => 'default',
-                        'icon' => 'ic_notification',
-                        'color' => '#1565C0',
-                    ],
-                ],
-            ],
-        ];
-
-        $response = push_http_post(
-            $endpoint,
-            [
-                'Authorization: Bearer ' . $accessToken,
-                'Content-Type: application/json; charset=utf-8',
-            ],
-            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-        );
-
-        if ($response['ok']) {
-            $result['sent']++;
-            push_log_delivery(
-                $db,
-                $schoolId,
-                $studentId,
-                $attendanceId,
-                'attendance_' . ($isExit ? 'exit' : 'entry'),
-                $deviceId,
-                'sent',
-                $response['code'],
-                ''
-            );
-            continue;
-        }
-
-        $result['failed']++;
-        $providerMessage = $response['body'] !== ''
-            ? $response['body']
-            : $response['error'];
-
-        push_log_delivery(
-            $db,
-            $schoolId,
-            $studentId,
-            $attendanceId,
-            'attendance_' . ($isExit ? 'exit' : 'entry'),
-            $deviceId,
-            'failed',
-            $response['code'],
-            $providerMessage
-        );
-
-        $upper = strtoupper($providerMessage);
-        if ($response['code'] === 404
-            || strpos($upper, 'UNREGISTERED') !== false
-            || strpos($upper, 'NOT_FOUND') !== false) {
-            $disable = $db->prepare(
-                'UPDATE student_device_tokens SET is_active=0 WHERE id=? AND school_id=?'
-            );
-            if ($disable) {
-                $disable->bind_param('ii', $deviceId, $schoolId);
-                $disable->execute();
-                $disable->close();
-            }
-        }
-    }
-
-    return $result;
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        'attendance_' . ($isExit ? 'exit' : 'entry'),
+        $title,
+        $body,
+        'attendance',
+        'attendance_alerts',
+        'attendance',
+        $attendanceId,
+        'attendance:' . $attendanceId . ':' . ($isExit ? 'exit' : 'entry'),
+        [
+            'attendance_type' => $isExit ? 'Salida' : 'Entrada',
+            'attendance_id' => (string)$attendanceId,
+            'date' => $date,
+            'time' => $time,
+            'status' => $status,
+        ]
+    );
 }
-
 
 function push_send_payment_notification(
     mysqli $db,
@@ -436,48 +316,6 @@ function push_send_payment_notification(
     string $paymentDate,
     string $receipt
 ): array {
-    $result = [
-        'configured' => false,
-        'devices' => 0,
-        'sent' => 0,
-        'failed' => 0,
-    ];
-
-    if (!push_table_exists($db, 'student_device_tokens')) return $result;
-
-    $credentials = push_load_firebase_credentials();
-    if (!$credentials) {
-        error_log('[push] Firebase no configurado: faltan credenciales del service account.');
-        return $result;
-    }
-
-    $projectId = trim((string)($credentials['project_id'] ?? ''));
-    $accessToken = push_firebase_access_token($credentials);
-    if ($projectId === '' || !$accessToken) {
-        error_log('[push] Firebase no configurado correctamente o no se pudo obtener OAuth.');
-        return $result;
-    }
-
-    $result['configured'] = true;
-
-    $stmt = $db->prepare(
-        'SELECT id,fcm_token
-         FROM student_device_tokens
-         WHERE school_id=? AND student_id=? AND is_active=1
-         ORDER BY last_seen_at DESC'
-    );
-    if (!$stmt) return $result;
-
-    $stmt->bind_param('ii', $schoolId, $studentId);
-    $stmt->execute();
-    $query = $stmt->get_result();
-    $devices = [];
-    while ($row = $query->fetch_assoc()) $devices[] = $row;
-    $stmt->close();
-
-    $result['devices'] = count($devices);
-    if (!$devices) return $result;
-
     $cleanConcepts = [];
     foreach ($conceptNames as $conceptName) {
         $value = trim((string)$conceptName);
@@ -497,105 +335,27 @@ function push_send_payment_notification(
     $title = 'Pago registrado';
     $body = 'S/ ' . number_format($amount, 2, '.', '') . ' · ' . $conceptLabel;
 
-    $endpoint = 'https://fcm.googleapis.com/v1/projects/'
-        . rawurlencode($projectId)
-        . '/messages:send';
-
-    foreach ($devices as $device) {
-        $deviceTokenId = (int)$device['id'];
-        $token = trim((string)$device['fcm_token']);
-        if ($token === '') continue;
-
-        $payload = [
-            'message' => [
-                'token' => $token,
-                'notification' => [
-                    'title' => $title,
-                    'body' => $body,
-                ],
-                'data' => [
-                    'type' => 'payment',
-                    'screen' => 'payments',
-                    'operation_id' => (string)$operationId,
-                    'student_id' => (string)$studentId,
-                    'school_id' => (string)$schoolId,
-                    'amount' => number_format($amount, 2, '.', ''),
-                    'concept' => $conceptLabel,
-                    'receipt' => $receipt,
-                    'date' => $paymentDate,
-                ],
-                'android' => [
-                    'priority' => 'HIGH',
-                    'notification' => [
-                        'channel_id' => 'payment_alerts',
-                        'sound' => 'default',
-                        'icon' => 'ic_notification',
-                        'color' => '#1565C0',
-                    ],
-                ],
-            ],
-        ];
-
-        $response = push_http_post(
-            $endpoint,
-            [
-                'Authorization: Bearer ' . $accessToken,
-                'Content-Type: application/json; charset=utf-8',
-            ],
-            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-        );
-
-        if ($response['ok']) {
-            $result['sent']++;
-            push_log_delivery(
-                $db,
-                $schoolId,
-                $studentId,
-                0,
-                'payment_created',
-                $deviceTokenId,
-                'sent',
-                $response['code'],
-                ''
-            );
-            continue;
-        }
-
-        $result['failed']++;
-        $providerMessage = $response['body'] !== ''
-            ? $response['body']
-            : $response['error'];
-
-        push_log_delivery(
-            $db,
-            $schoolId,
-            $studentId,
-            0,
-            'payment_created',
-            $deviceTokenId,
-            'failed',
-            $response['code'],
-            $providerMessage
-        );
-
-        $upper = strtoupper($providerMessage);
-        if ($response['code'] === 404
-            || strpos($upper, 'UNREGISTERED') !== false
-            || strpos($upper, 'NOT_FOUND') !== false) {
-            $disable = $db->prepare(
-                'UPDATE student_device_tokens SET is_active=0 WHERE id=? AND school_id=?'
-            );
-            if ($disable) {
-                $disable->bind_param('ii', $deviceTokenId, $schoolId);
-                $disable->execute();
-                $disable->close();
-            }
-        }
-    }
-
-    return $result;
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        'payment_created',
+        $title,
+        $body,
+        'payments',
+        'payment_alerts',
+        'payment_operation',
+        $operationId,
+        'payment:' . $operationId,
+        [
+            'operation_id' => (string)$operationId,
+            'amount' => number_format($amount, 2, '.', ''),
+            'concept' => $conceptLabel,
+            'receipt' => $receipt,
+            'date' => $paymentDate,
+        ]
+    );
 }
-
 
 function push_send_student_event(
     mysqli $db,
