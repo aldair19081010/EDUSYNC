@@ -13,6 +13,52 @@ function dfBind($stmt, $types, &$params) { $args = [$types]; foreach ($params as
 function dfAudit($db, $school, $debt, $student, $course, $year, $action, $details = []) { $user=(int)($_SESSION['login_id']??0); $ip=$_SERVER['REMOTE_ADDR']??null; $json=json_encode($details,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); $s=$db->prepare('INSERT INTO debt_audit_log(school_id,academic_year_id,debt_id,student_id,course_id,user_id,action,details,ip_address) VALUES(?,NULLIF(?,0),NULLIF(?,0),NULLIF(?,0),NULLIF(?,0),NULLIF(?,0),?,?,?)'); if($s){$s->bind_param('iiiiiisss',$school,$year,$debt,$student,$course,$user,$action,$json,$ip);$s->execute();$s->close();} }
 function dfDebt($db,$id,$school){$s=$db->prepare('SELECT ef.*,s.school_id,c.academic_year_id,ay.status year_status,(SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.ef_id=ef.id) paid FROM student_ef_list ef INNER JOIN student s ON s.id=ef.student_id INNER JOIN courses c ON c.id=ef.course_id INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE ef.id=? AND s.school_id=? LIMIT 1');$s->bind_param('ii',$id,$school);$s->execute();$r=$s->get_result()->fetch_assoc();$s->close();return $r?:null;}
 
+function dfDebtNotificationStage($due){
+    $due=trim((string)$due);
+    if($due===''||$due==='0000-00-00')return 'overdue';
+    $date=DateTimeImmutable::createFromFormat('Y-m-d',substr($due,0,10));
+    if(!$date)return 'assigned';
+    $today=new DateTimeImmutable('today');
+    $days=(int)$today->diff($date)->format('%r%a');
+    if($days<0)return 'overdue';
+    if($days===0)return 'due_today';
+    if($days<=3)return 'upcoming3';
+    return 'assigned';
+}
+
+function dfSendDebtPush($db,$school,$student,$debt,$concept,$amount,$due){
+    try{
+        require_once __DIR__.'/includes/push_notifications.php';
+        $stage=dfDebtNotificationStage($due);
+        $result=push_send_debt_notification(
+            $db,
+            (int)$school,
+            (int)$student,
+            (int)$debt,
+            (string)$concept,
+            (float)$amount,
+            $due?substr((string)$due,0,10):null,
+            $stage
+        );
+        error_log('[fees debt push] '.json_encode([
+            'debt_id'=>(int)$debt,
+            'student_id'=>(int)$student,
+            'stage'=>$stage,
+            'configured'=>(bool)($result['configured']??false),
+            'devices'=>(int)($result['devices']??0),
+            'pending_devices'=>(int)($result['pending_devices']??0),
+            'sent'=>(int)($result['sent']??0),
+            'failed'=>(int)($result['failed']??0),
+            'duplicate'=>(bool)($result['duplicate']??false),
+            'event_id'=>(int)($result['event_id']??0),
+        ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return $result;
+    }catch(Throwable $e){
+        error_log('[fees debt push] '.$e->getMessage());
+        return ['configured'=>false,'devices'=>0,'sent'=>0,'failed'=>1];
+    }
+}
+
 $school=(int)($_SESSION['login_school_id']??0); $user=(int)($_SESSION['login_id']??0); $type=(int)($_SESSION['login_type']??0); $action=$_GET['action']??'';
 if(!$school||!$user||$type!==1) dfResponse(['status'=>0,'message'=>'No tiene permisos para gestionar deudas.'],403);
 if(!dfReady($conn)) dfResponse(['status'=>0,'migration_required'=>true,'message'=>'Ejecute sql/fees_module_upgrade.sql antes de utilizar el módulo.'],409);
@@ -20,24 +66,80 @@ $writes=['save','bulk_assign','bulk_action']; if(in_array($action,$writes,true))
 
 if($action==='save'){
     $id=(int)($_POST['id']??0);$isEdit=$id>0;$student=(int)($_POST['student_id']??0);$course=(int)($_POST['course_id']??0);$due=trim($_POST['due_date']??'');
-    $s=$conn->prepare("SELECT s.nivel,s.grado,s.status student_status,c.total_amount,c.level,c.grades,c.concept_status,c.academic_year_id,ay.status year_status FROM student s INNER JOIN courses c ON c.id=? INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE s.id=? AND s.school_id=? AND ay.school_id=? LIMIT 1");$s->bind_param('iiii',$course,$student,$school,$school);$s->execute();$ctx=$s->get_result()->fetch_assoc();$s->close();
+    $s=$conn->prepare("SELECT s.nivel,s.grado,s.status student_status,c.course,c.total_amount,c.level,c.grades,c.concept_status,c.academic_year_id,ay.status year_status FROM student s INNER JOIN courses c ON c.id=? INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE s.id=? AND s.school_id=? AND ay.school_id=? LIMIT 1");$s->bind_param('iiii',$course,$student,$school,$school);$s->execute();$ctx=$s->get_result()->fetch_assoc();$s->close();
     if(!$ctx)dfResponse(['status'=>0,'message'=>'El estudiante o concepto no pertenece a la institución.']);if($ctx['student_status']!=='Activo')dfResponse(['status'=>0,'message'=>'Solo se pueden asignar deudas a estudiantes activos.']);if($ctx['concept_status']!=='Activo')dfResponse(['status'=>0,'message'=>'El concepto está suspendido o archivado.']);if($ctx['year_status']!=='Activo')dfResponse(['status'=>0,'message'=>'Solo se pueden modificar deudas del año académico activo.']);
     $grades=array_filter(array_map('trim',explode(',',(string)$ctx['grades'])));if($ctx['level']!==$ctx['nivel']||($grades&&!in_array($ctx['grado'],$grades,true)))dfResponse(['status'=>0,'message'=>'El concepto no corresponde al nivel y grado del estudiante.']);
     $dup=$conn->prepare('SELECT id FROM student_ef_list WHERE student_id=? AND course_id=? AND id<>? AND debt_status<>\'Anulada\' LIMIT 1');$dup->bind_param('iii',$student,$course,$id);$dup->execute();$duplicate=$dup->get_result()->fetch_assoc();$dup->close();if($duplicate)dfResponse(['status'=>2,'message'=>'El estudiante ya tiene este concepto asignado.']);
     $amount=(float)$ctx['total_amount'];$year=(int)$ctx['academic_year_id'];$issue=date('Y-m-d');$due=$due?:null;
     if($id){$old=dfDebt($conn,$id,$school);if(!$old)dfResponse(['status'=>0,'message'=>'Deuda no encontrada.'],404);if(($old['debt_status']??'Activa')==='Anulada')dfResponse(['status'=>0,'message'=>'Una deuda anulada es definitiva y no puede editarse.']);if((float)$old['paid']>0||!empty($old['comprobante_id']))dfResponse(['status'=>0,'message'=>'Una deuda con pagos o comprobante no puede cambiar de estudiante o concepto.']);$s=$conn->prepare('UPDATE student_ef_list SET student_id=?,course_id=?,total_fee=?,due_date=? WHERE id=?');$s->bind_param('iidsi',$student,$course,$amount,$due,$id);$ok=$s->execute();$s->close();}
     else{$s=$conn->prepare("INSERT INTO student_ef_list(student_id,course_id,total_fee,debt_status,issue_date,due_date) VALUES(?,?,?,'Activa',?,?)");$s->bind_param('iidss',$student,$course,$amount,$issue,$due);$ok=$s->execute();$id=$s->insert_id;$s->close();}
-    if(!$ok)dfResponse(['status'=>0,'message'=>'No se pudo guardar la deuda.']);dfAudit($conn,$school,$id,$student,$course,$year,$isEdit?'debt_updated':'debt_created',['amount'=>$amount,'due_date'=>$due]);dfResponse(['status'=>1,'message'=>'Deuda guardada correctamente.']);
+    if(!$ok)dfResponse(['status'=>0,'message'=>'No se pudo guardar la deuda.']);
+    dfAudit($conn,$school,$id,$student,$course,$year,$isEdit?'debt_updated':'debt_created',['amount'=>$amount,'due_date'=>$due]);
+    $debtPush=dfSendDebtPush($conn,$school,$student,$id,(string)($ctx['course']??'Obligación pendiente'),$amount,$due);
+    dfResponse(['status'=>1,'message'=>'Deuda guardada correctamente.','push'=>$debtPush]);
 }
 if($action==='bulk_assign'){
     $students=$_POST['students']??[];$courses=$_POST['concepts']??[];$students=array_values(array_unique(array_filter(array_map('intval',is_array($students)?$students:[]))));$courses=array_values(array_unique(array_filter(array_map('intval',is_array($courses)?$courses:[]))));$due=trim($_POST['due_date']??'');$period=trim($_POST['billing_period']??'');
     if(!$students||!$courses||count($students)*count($courses)>1000)dfResponse(['status'=>0,'message'=>'Seleccione estudiantes y conceptos (máximo 1000 combinaciones).']);
-    $inserted=0;$duplicates=0;$incompatible=0;$conn->begin_transaction();try{
-        $studentStmt=$conn->prepare("SELECT nivel,grado,status FROM student WHERE id=? AND school_id=? LIMIT 1");$courseStmt=$conn->prepare("SELECT c.total_amount,c.level,c.grades,c.concept_status,c.academic_year_id,ay.status year_status FROM courses c INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE c.id=? AND ay.school_id=? LIMIT 1");$dupStmt=$conn->prepare("SELECT id FROM student_ef_list WHERE student_id=? AND course_id=? AND debt_status<>'Anulada' LIMIT 1");$ins=$conn->prepare("INSERT INTO student_ef_list(student_id,course_id,total_fee,debt_status,issue_date,due_date,billing_period) VALUES(?,?,?,'Activa',CURDATE(),?,?)");
-        foreach($students as $student){$studentStmt->bind_param('ii',$student,$school);$studentStmt->execute();$st=$studentStmt->get_result()->fetch_assoc();if(!$st||$st['status']!=='Activo'){$incompatible+=count($courses);continue;}foreach($courses as $course){$courseStmt->bind_param('ii',$course,$school);$courseStmt->execute();$co=$courseStmt->get_result()->fetch_assoc();$grades=$co?array_filter(array_map('trim',explode(',',(string)$co['grades']))):[];if(!$co||$co['concept_status']!=='Activo'||$co['year_status']!=='Activo'||$co['level']!==$st['nivel']||($grades&&!in_array($st['grado'],$grades,true))){$incompatible++;continue;}$dupStmt->bind_param('ii',$student,$course);$dupStmt->execute();if($dupStmt->get_result()->fetch_assoc()){$duplicates++;continue;}$amount=(float)$co['total_amount'];$dueVal=$due?:null;$periodVal=$period?:null;$ins->bind_param('iidss',$student,$course,$amount,$dueVal,$periodVal);if(!$ins->execute())throw new Exception($ins->error);$debt=$ins->insert_id;$inserted++;dfAudit($conn,$school,$debt,$student,$course,(int)$co['academic_year_id'],'debt_bulk_created',['amount'=>$amount,'due_date'=>$dueVal,'period'=>$periodVal]);}}
+    $inserted=0;$duplicates=0;$incompatible=0;$assignedByStudent=[];$conn->begin_transaction();try{
+        $studentStmt=$conn->prepare("SELECT nivel,grado,status FROM student WHERE id=? AND school_id=? LIMIT 1");$courseStmt=$conn->prepare("SELECT c.course,c.total_amount,c.level,c.grades,c.concept_status,c.academic_year_id,ay.status year_status FROM courses c INNER JOIN academic_year ay ON ay.id=c.academic_year_id WHERE c.id=? AND ay.school_id=? LIMIT 1");$dupStmt=$conn->prepare("SELECT id FROM student_ef_list WHERE student_id=? AND course_id=? AND debt_status<>'Anulada' LIMIT 1");$ins=$conn->prepare("INSERT INTO student_ef_list(student_id,course_id,total_fee,debt_status,issue_date,due_date,billing_period) VALUES(?,?,?,'Activa',CURDATE(),?,?)");
+        foreach($students as $student){$studentStmt->bind_param('ii',$student,$school);$studentStmt->execute();$st=$studentStmt->get_result()->fetch_assoc();if(!$st||$st['status']!=='Activo'){$incompatible+=count($courses);continue;}foreach($courses as $course){$courseStmt->bind_param('ii',$course,$school);$courseStmt->execute();$co=$courseStmt->get_result()->fetch_assoc();$grades=$co?array_filter(array_map('trim',explode(',',(string)$co['grades']))):[];if(!$co||$co['concept_status']!=='Activo'||$co['year_status']!=='Activo'||$co['level']!==$st['nivel']||($grades&&!in_array($st['grado'],$grades,true))){$incompatible++;continue;}$dupStmt->bind_param('ii',$student,$course);$dupStmt->execute();if($dupStmt->get_result()->fetch_assoc()){$duplicates++;continue;}$amount=(float)$co['total_amount'];$dueVal=$due?:null;$periodVal=$period?:null;$ins->bind_param('iidss',$student,$course,$amount,$dueVal,$periodVal);if(!$ins->execute())throw new Exception($ins->error);$debt=$ins->insert_id;$inserted++;if(!isset($assignedByStudent[$student]))$assignedByStudent[$student]=[];$assignedByStudent[$student][]=['debt_id'=>(int)$debt,'concept'=>(string)($co['course']??'Obligación pendiente'),'amount'=>$amount,'due_date'=>$dueVal];dfAudit($conn,$school,$debt,$student,$course,(int)$co['academic_year_id'],'debt_bulk_created',['amount'=>$amount,'due_date'=>$dueVal,'period'=>$periodVal]);}}
         $studentStmt->close();$courseStmt->close();$dupStmt->close();$ins->close();$conn->commit();
     }catch(Throwable $e){$conn->rollback();error_log('[fees] bulk assign: '.$e->getMessage());dfResponse(['status'=>0,'message'=>'No se pudo completar la asignación masiva.']);}
-    dfResponse(['status'=>$inserted?1:0,'inserted'=>$inserted,'duplicates'=>$duplicates,'incompatible'=>$incompatible,'message'=>"Se crearon $inserted deudas. $duplicates duplicadas y $incompatible incompatibles fueron omitidas."]);
+
+    $pushSummary=['students'=>0,'sent'=>0,'failed'=>0];
+    foreach($assignedByStudent as $assignedStudent=>$debts){
+        try{
+            require_once __DIR__.'/includes/push_notifications.php';
+            $count=count($debts);
+            if($count===1){
+                $item=$debts[0];
+                $result=dfSendDebtPush(
+                    $conn,
+                    $school,
+                    (int)$assignedStudent,
+                    (int)$item['debt_id'],
+                    (string)$item['concept'],
+                    (float)$item['amount'],
+                    $item['due_date']
+                );
+            }else{
+                $ids=[];$total=0.0;
+                foreach($debts as $item){$ids[]=(int)$item['debt_id'];$total+=(float)$item['amount'];}
+                $stage=dfDebtNotificationStage($due);
+                $result=push_send_bulk_debt_notification(
+                    $conn,
+                    $school,
+                    (int)$assignedStudent,
+                    $ids,
+                    $count,
+                    $total,
+                    $stage,
+                    $due?:null
+                );
+                error_log('[fees bulk debt push] '.json_encode([
+                    'student_id'=>(int)$assignedStudent,
+                    'count'=>$count,
+                    'stage'=>$stage,
+                    'configured'=>(bool)($result['configured']??false),
+                    'devices'=>(int)($result['devices']??0),
+                    'pending_devices'=>(int)($result['pending_devices']??0),
+                    'sent'=>(int)($result['sent']??0),
+                    'failed'=>(int)($result['failed']??0),
+                    'duplicate'=>(bool)($result['duplicate']??false),
+                    'event_id'=>(int)($result['event_id']??0),
+                ],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+            }
+            $pushSummary['students']++;
+            $pushSummary['sent']+=(int)($result['sent']??0);
+            $pushSummary['failed']+=(int)($result['failed']??0);
+        }catch(Throwable $pushError){
+            $pushSummary['failed']++;
+            error_log('[fees bulk debt push] '.$pushError->getMessage());
+        }
+    }
+
+    dfResponse(['status'=>$inserted?1:0,'inserted'=>$inserted,'duplicates'=>$duplicates,'incompatible'=>$incompatible,'push'=>$pushSummary,'message'=>"Se crearon $inserted deudas. $duplicates duplicadas y $incompatible incompatibles fueron omitidas."]);
 }
 if($action==='bulk_action'){
     $ids=json_decode($_POST['ids']??'[]',true);
