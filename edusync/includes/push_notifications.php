@@ -785,3 +785,73 @@ function push_send_bulk_debt_notification(
         ]
     );
 }
+
+
+function push_send_grade_notification(
+    mysqli $db,
+    int $schoolId,
+    int $studentId,
+    string $courseName,
+    array $evaluationNames,
+    int $createdCount,
+    int $updatedCount,
+    int $bimester,
+    int $academicYear,
+    array $evaluationIds = []
+): array {
+    $courseName = trim($courseName) !== '' ? trim($courseName) : 'tu curso';
+    $evaluationNames = array_values(array_unique(array_filter(array_map(
+        static fn($value) => trim((string)$value),
+        $evaluationNames
+    ))));
+    $evaluationIds = array_values(array_unique(array_filter(array_map('intval', $evaluationIds))));
+    $total = max(0, $createdCount) + max(0, $updatedCount);
+
+    if ($total <= 0) {
+        return [
+            'configured' => false,
+            'devices' => 0,
+            'pending_devices' => 0,
+            'sent' => 0,
+            'failed' => 0,
+            'event_id' => 0,
+            'duplicate' => false,
+        ];
+    }
+
+    if ($total === 1 && count($evaluationNames) === 1) {
+        $isNew = $createdCount > 0;
+        $title = $isNew ? 'Nueva calificación' : 'Calificación actualizada';
+        $verb = $isNew ? 'Se registró' : 'Se actualizó';
+        $body = $verb . ' una calificación en ' . $courseName
+            . ' · ' . $evaluationNames[0] . '.';
+        $type = $isNew ? 'grade_created' : 'grade_updated';
+    } else {
+        $title = 'Calificaciones actualizadas';
+        $body = 'Se actualizaron ' . $total
+            . ' calificaciones en ' . $courseName . '.';
+        $type = 'grades_updated';
+    }
+
+    return push_send_student_event(
+        $db,
+        $schoolId,
+        $studentId,
+        $type,
+        $title,
+        $body,
+        'grades',
+        'grade_alerts',
+        'grades',
+        null,
+        null,
+        [
+            'course' => $courseName,
+            'evaluation_ids' => implode(',', $evaluationIds),
+            'bimestre' => (string)$bimester,
+            'year' => (string)$academicYear,
+            'created_count' => (string)$createdCount,
+            'updated_count' => (string)$updatedCount,
+        ]
+    );
+}
