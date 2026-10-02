@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS push_notification_log (
     school_id INT NOT NULL,
     student_id INT NOT NULL,
     attendance_id INT NULL,
+    notification_event_id BIGINT NULL,
     notification_type VARCHAR(40) NOT NULL,
     device_token_id BIGINT NULL,
     delivery_status VARCHAR(20) NOT NULL,
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS push_notification_log (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_push_log_student (school_id, student_id, created_at),
     INDEX idx_push_log_attendance (attendance_id),
+    INDEX idx_push_log_event_device (notification_event_id, device_token_id, delivery_status),
     INDEX idx_push_log_status (delivery_status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
