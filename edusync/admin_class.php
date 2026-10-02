@@ -2133,12 +2133,16 @@ function save_payment(){
 				if ($grading_system !== 'letters' && $previous_grade !== '' && $new_grade_history !== '' && is_numeric($previous_grade) && is_numeric($new_grade_history)) {
 					$changed_for_push = abs((float)$previous_grade - (float)$new_grade_history) >= 0.0001;
 				}
-				if ($notification_source !== 'autosave' && $changed_for_push && $new_grade_history !== '') {
-					if (!isset($grade_push_changes[$student_id])) {
-						$grade_push_changes[$student_id] = ['created'=>0,'updated'=>0];
+				if ($changed_for_push && $new_grade_history !== '') {
+					$is_new_grade = $previous_grade === '';
+					$should_notify_grade = $is_new_grade || $notification_source !== 'autosave';
+					if ($should_notify_grade) {
+						if (!isset($grade_push_changes[$student_id])) {
+							$grade_push_changes[$student_id] = ['created'=>0,'updated'=>0];
+						}
+						if ($is_new_grade) $grade_push_changes[$student_id]['created']++;
+						else $grade_push_changes[$student_id]['updated']++;
 					}
-					if ($previous_grade === '') $grade_push_changes[$student_id]['created']++;
-					else $grade_push_changes[$student_id]['updated']++;
 				}
 				if ($history_stmt && $previous_grade !== $new_grade_history) {
 					$history_year_id = (int)($eval_row['academic_year_id'] ?? 0);
@@ -2151,7 +2155,7 @@ function save_payment(){
 		if ($history_stmt) $history_stmt->close();
 
 		$push_summary = ['students'=>0,'sent'=>0,'failed'=>0];
-		if ($notification_source !== 'autosave' && $grade_push_changes) {
+		if ($grade_push_changes) {
 			try {
 				require_once __DIR__ . '/includes/push_notifications.php';
 				foreach ($grade_push_changes as $push_student_id => $push_data) {
