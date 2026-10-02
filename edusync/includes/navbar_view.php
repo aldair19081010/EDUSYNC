@@ -104,6 +104,13 @@ if ($login_type === 1) {
             ],
         ],
         [
+            'heading' => 'Comunicaciones',
+            'items' => [
+                ['page' => 'announcements', 'label' => 'Comunicados', 'icon' => 'fa-bullhorn'],
+                ['page' => 'notifications', 'label' => 'Notificaciones', 'icon' => 'fa-bell'],
+            ],
+        ],
+        [
             'heading' => 'Sistema',
             'items' => [
                 ['page' => 'users', 'label' => 'Usuarios', 'icon' => 'fa-users-cog'],
