@@ -57,8 +57,8 @@ function student_school_logo_url(string $logoPath): string {
     $host = $_SERVER['HTTP_HOST'] ?? '';
     if ($host === '') return $logoPath;
 
-    $script = str_replace('\\\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
-    $appBase = rtrim(str_replace('\\\\', '/', dirname(dirname($script))), '/.');
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+    $appBase = rtrim(str_replace('\\', '/', dirname(dirname($script))), '/.');
     return $scheme . '://' . $host
         . ($appBase !== '' ? '/' . ltrim($appBase, '/') : '')
         . '/' . ltrim($logoPath, '/');
