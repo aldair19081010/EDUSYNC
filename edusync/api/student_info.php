@@ -31,7 +31,8 @@ $q = $conn->query("
         s.grado,
         s.seccion,
         s.address AS direccion,
-        sc.name AS colegio
+        sc.name AS colegio,
+        sc.logo_path AS school_logo_path
     FROM student s
     LEFT JOIN schools sc ON sc.id = s.school_id
     WHERE s.id_no = '$dni'
@@ -43,6 +44,27 @@ if (!$q || $q->num_rows == 0) {
 }
 
 $data = $q->fetch_assoc();
+
+function student_school_logo_url(string $logoPath): string {
+    $logoPath = trim($logoPath);
+    if ($logoPath === '') return '';
+
+    if (preg_match('~^https?://~i', $logoPath)) return $logoPath;
+
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $scheme = $isHttps ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if ($host === '') return $logoPath;
+
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+    $appBase = rtrim(str_replace('\\', '/', dirname(dirname($script))), '/.');
+    return $scheme . '://' . $host
+        . ($appBase !== '' ? '/' . ltrim($appBase, '/') : '')
+        . '/' . ltrim($logoPath, '/');
+}
+
+$schoolLogo = student_school_logo_url((string)($data['school_logo_path'] ?? ''));
 
 // Formato de respuesta JSON
 $response = [
@@ -56,7 +78,8 @@ $response = [
         'telefono' => $data['telefono'],
         'email' => $data['email'],
         'direccion' => $data['direccion'],
-        'colegio' => $data['colegio']
+        'colegio' => $data['colegio'],
+        'school_logo' => $schoolLogo
     ]
 ];
 
