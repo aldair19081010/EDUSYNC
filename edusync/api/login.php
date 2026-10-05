@@ -49,7 +49,7 @@ if ($schoolId <= 0 || $dni === '' || $password === '') {
     student_login_reply([
         'status' => 'error',
         'message' => 'Completa colegio, DNI/código y contraseña.'
-    ], 422);
+    ]);
 }
 
 $schoolStmt = $conn->prepare('SELECT id FROM schools WHERE id = ? LIMIT 1');
@@ -68,7 +68,7 @@ if (!$school) {
     student_login_reply([
         'status' => 'error',
         'message' => 'Colegio no encontrado.'
-    ], 404);
+    ]);
 }
 
 $columnCheck = $conn->query("SHOW COLUMNS FROM student LIKE 'portal_password_hash'");
@@ -98,7 +98,7 @@ if (!$student) {
     student_login_reply([
         'status' => 'error',
         'message' => 'Estudiante no encontrado.'
-    ], 404);
+    ]);
 }
 
 $storedHash = trim((string)($student['portal_password_hash'] ?? ''));
@@ -110,7 +110,7 @@ if (!$passwordOk) {
     student_login_reply([
         'status' => 'error',
         'message' => 'Contraseña incorrecta.'
-    ], 401);
+    ]);
 }
 
 $_SESSION['student_logged_in'] = true;
