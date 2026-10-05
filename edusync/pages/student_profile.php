@@ -58,7 +58,7 @@ $passwordChangedAt = trim((string)($student['password_changed_at'] ?? ''));
 
             <div class="form-group">
                 <label for="student_phone" class="control-label">Teléfono</label>
-                <input type="text" id="student_phone" class="form-control" value="<?php echo htmlspecialchars($student['phone'] ?? ''); ?>" readonly>
+                <input type="text" id="student_phone" class="form-control" value="<?php echo htmlspecialchars($student['contact'] ?? $student['phone'] ?? ''); ?>" readonly>
             </div>
 
             <div class="form-group">
