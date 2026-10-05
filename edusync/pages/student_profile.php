@@ -1,4 +1,6 @@
 <?php
+date_default_timezone_set('America/Lima');
+
 // Iniciar sesión si no está iniciada (necesario para modales)
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.save_path', dirname(__DIR__) . '/tmp');
@@ -41,6 +43,18 @@ if (!$student) {
 
 $hasCustomPassword = !empty($student['portal_password_hash']);
 $passwordChangedAt = trim((string)($student['password_changed_at'] ?? ''));
+$passwordChangedAtDisplay = '';
+
+if ($passwordChangedAt !== '') {
+    try {
+        $passwordChangedAtDisplay = (new DateTimeImmutable(
+            $passwordChangedAt,
+            new DateTimeZone('America/Lima')
+        ))->format('d/m/Y H:i');
+    } catch (Exception $e) {
+        $passwordChangedAtDisplay = '';
+    }
+}
 ?>
 
 <div class="container-fluid">
@@ -174,9 +188,9 @@ $passwordChangedAt = trim((string)($student['password_changed_at'] ?? ''));
                         </button>
                     </form>
 
-                    <div id="student-password-changed-at" class="small text-muted mt-2 <?php echo $passwordChangedAt === '' ? 'd-none' : ''; ?>">
-                        <?php if ($passwordChangedAt !== ''): ?>
-                            Último cambio: <?php echo htmlspecialchars(date('d/m/Y H:i', strtotime($passwordChangedAt))); ?>
+                    <div id="student-password-changed-at" class="small text-muted mt-2 <?php echo $passwordChangedAtDisplay === '' ? 'd-none' : ''; ?>">
+                        <?php if ($passwordChangedAtDisplay !== ''): ?>
+                            Último cambio: <?php echo htmlspecialchars($passwordChangedAtDisplay); ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -290,7 +304,10 @@ $passwordChangedAt = trim((string)($student['password_changed_at'] ?? ''));
             $('#student-password-status').text('Personalizada');
 
             var changedAt = $('#student-password-changed-at');
-            changedAt.removeClass('d-none').text('Contraseña actualizada en esta sesión.');
+            var changedAtText = resp.password_changed_at_display
+                ? 'Último cambio: ' + resp.password_changed_at_display
+                : 'Contraseña actualizada en esta sesión.';
+            changedAt.removeClass('d-none').text(changedAtText);
         }).fail(function(xhr) {
             var response = xhr.responseJSON || {};
             fail(response.message || 'No se pudo conectar con el servidor.');
