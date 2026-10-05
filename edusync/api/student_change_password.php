@@ -173,9 +173,13 @@ if (!$newHash) {
     ], 500);
 }
 
+$limaTimezone = new DateTimeZone('America/Lima');
+$passwordChangedAt = (new DateTimeImmutable('now', $limaTimezone))
+    ->format('Y-m-d H:i:s');
+
 $update = $conn->prepare(
     'UPDATE student
-     SET portal_password_hash = ?, password_changed_at = NOW()
+     SET portal_password_hash = ?, password_changed_at = ?
      WHERE id = ? AND school_id = ?'
 );
 if (!$update) {
@@ -185,7 +189,7 @@ if (!$update) {
     ], 500);
 }
 
-$update->bind_param('sii', $newHash, $studentId, $schoolId);
+$update->bind_param('ssii', $newHash, $passwordChangedAt, $studentId, $schoolId);
 $ok = $update->execute();
 $update->close();
 
@@ -199,5 +203,9 @@ if (!$ok) {
 student_password_reply([
     'status' => 'ok',
     'message' => 'Contraseña actualizada correctamente.',
-    'password_changed_at' => date('Y-m-d H:i:s')
+    'password_changed_at' => $passwordChangedAt,
+    'password_changed_at_display' => (new DateTimeImmutable(
+        $passwordChangedAt,
+        $limaTimezone
+    ))->format('d/m/Y H:i')
 ]);
