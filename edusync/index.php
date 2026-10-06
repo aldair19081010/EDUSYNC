@@ -135,6 +135,8 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <?php
         $users_ui_css_version = @filemtime(__DIR__ . '/css/ui_consistency.css') ?: time();
         $users_ui_refinements_version = @filemtime(__DIR__ . '/css/ui_refinements.css') ?: time();
+        $users_ui_report_tables_version = @filemtime(__DIR__ . '/css/ui_report_tables.css') ?: time();
+        $users_ui_grades_individual_version = @filemtime(__DIR__ . '/css/ui_grades_individual.css') ?: time();
         $users_ui_modals_version = @filemtime(__DIR__ . '/css/ui_modals.css') ?: time();
         $users_ui_feedback_version = @filemtime(__DIR__ . '/css/ui_feedback.css') ?: time();
         $users_ui_responsive_version = @filemtime(__DIR__ . '/css/ui_responsive.css') ?: time();
@@ -143,6 +145,8 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- Usuarios y Accesos carga la capa visual global desde HEAD para evitar FOUC/reacomodos. -->
     <link data-edusync-ui-consistency="1" href="css/ui_consistency.css?v=<?php echo rawurlencode((string)$users_ui_css_version); ?>" rel="stylesheet">
     <link data-edusync-ui-refinements="1" href="css/ui_refinements.css?v=<?php echo rawurlencode((string)$users_ui_refinements_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-report-tables="1" href="css/ui_report_tables.css?v=<?php echo rawurlencode((string)$users_ui_report_tables_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-grades-individual="1" href="css/ui_grades_individual.css?v=<?php echo rawurlencode((string)$users_ui_grades_individual_version); ?>" rel="stylesheet">
     <link data-edusync-ui-modals="1" href="css/ui_modals.css?v=<?php echo rawurlencode((string)$users_ui_modals_version); ?>" rel="stylesheet">
     <link data-edusync-ui-feedback="1" href="css/ui_feedback.css?v=<?php echo rawurlencode((string)$users_ui_feedback_version); ?>" rel="stylesheet">
     <link data-edusync-ui-responsive="1" href="css/ui_responsive.css?v=<?php echo rawurlencode((string)$users_ui_responsive_version); ?>" rel="stylesheet">
