@@ -304,9 +304,9 @@ function user_role_badge($row) {
                             </td>
                             <td class="text-center">
                                 <?php if ($status === 'Activo'): ?>
-                                    <span class="badge badge-success px-2 py-2"><span class="status-dot status-active"></span>Activo</span>
+                                    <span class="badge badge-success px-2 py-2">Activo</span>
                                 <?php else: ?>
-                                    <span class="badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>
+                                    <span class="badge badge-secondary px-2 py-2">Inactivo</span>
                                 <?php endif; ?>
                             </td>
                             <td class="text-center ed-actions-cell">
