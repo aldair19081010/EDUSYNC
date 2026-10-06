@@ -31,6 +31,16 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 .policy-control-stat{border:1px solid #e5e9f0;border-radius:.55rem;padding:.7rem .45rem;text-align:center;height:100%}
 .policy-control-stat strong{display:block;font-size:1.35rem;color:#344767}
 .policy-control-stat span{font-size:.7rem;color:#7b8499}
+.policy-exception-row{align-items:flex-start}
+.policy-exception-row .form-group{margin-bottom:0}
+.policy-exception-action-label{display:block;visibility:hidden;margin-bottom:.5rem;font-weight:700}
+.policy-exception-action .btn{width:100%;white-space:nowrap;height:38px}
+.policy-exception-hint{min-height:18px}
+@media(max-width:991.98px){
+    .policy-exception-row .form-group,.policy-exception-action{margin-bottom:1rem}
+    .policy-exception-action-label{display:none}
+    .policy-exception-action .btn{width:auto}
+}
 @media(max-width:767.98px){.policy-manage-nav{display:grid;grid-template-columns:1fr}.policy-manage-tab{text-align:left;width:100%}}
 </style>
 
@@ -160,8 +170,8 @@ if (!empty($advanced_policy['temporary_access_until'])) {
         <div class="policy-manage-pane p-3 p-md-4" id="policy-pane-exceptions">
             <div class="policy-section-title">Accesos autorizados individualmente</div>
             <div class="policy-compact-box mb-3">
-                <div class="row align-items-end">
-                    <div class="col-lg-5 form-group">
+                <div class="row policy-exception-row">
+                    <div class="col-lg-4 form-group">
                         <label class="font-weight-bold">Estudiante</label>
                         <select class="form-control" id="gradeExceptionStudent" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
                             <option value="">Seleccionar estudiante...</option>
@@ -171,18 +181,25 @@ if (!empty($advanced_policy['temporary_access_until'])) {
                                 <?php endif; ?>
                             <?php endforeach; ?>
                         </select>
+                        <small class="form-text policy-exception-hint">&nbsp;</small>
                     </div>
-                    <div class="col-lg-3 form-group">
+                    <div class="col-lg-2 form-group">
                         <label class="font-weight-bold">Válida hasta</label>
                         <input type="date" class="form-control" id="gradeExceptionExpiry" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                        <small class="form-text text-muted">Vacío = sin límite.</small>
+                        <small class="form-text text-muted policy-exception-hint">Vacío = sin límite.</small>
                     </div>
                     <div class="col-lg-4 form-group">
                         <label class="font-weight-bold">Motivo</label>
                         <input type="text" class="form-control" id="gradeExceptionReason" maxlength="500" placeholder="Ej.: autorización de Dirección" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                        <small class="form-text policy-exception-hint">&nbsp;</small>
+                    </div>
+                    <div class="col-lg-2 policy-exception-action">
+                        <label class="policy-exception-action-label">Acción</label>
+                        <button type="button" class="btn btn-success" id="addGradeException" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                            <i class="fas fa-plus mr-1"></i>Autorizar
+                        </button>
                     </div>
                 </div>
-                <div class="text-right"><button type="button" class="btn btn-success" id="addGradeException" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-plus mr-1"></i>Autorizar acceso</button></div>
             </div>
             <div class="table-responsive">
                 <table class="table table-sm table-hover table-bordered mb-0" id="gradeExceptionsTable">
