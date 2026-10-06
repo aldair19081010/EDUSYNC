@@ -114,7 +114,7 @@ if ($login_type === 1) {
         [
             'heading' => 'Sistema',
             'items' => [
-                ['page' => 'users', 'label' => 'Usuarios', 'icon' => 'fa-users-cog'],
+                ['page' => 'users', 'label' => 'Usuarios y Accesos', 'icon' => 'fa-users-cog'],
             ],
         ],
     ];
