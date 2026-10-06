@@ -19,13 +19,23 @@ $migration_ready = ($status_check && $status_check->num_rows > 0 && $audit_check
 
 $student_hash_check = $conn->query("SHOW COLUMNS FROM student LIKE 'portal_password_hash'");
 $student_changed_check = $conn->query("SHOW COLUMNS FROM student LIKE 'password_changed_at'");
+$student_last_login_check = $conn->query("SHOW COLUMNS FROM student LIKE 'portal_last_login_at'");
 $student_audit_check = $conn->query("SHOW TABLES LIKE 'student_access_audit_log'");
 $grade_policy_check = $conn->query("SHOW TABLES LIKE 'school_grade_access_policy'");
+$grade_policy_concepts_check = $conn->query("SHOW TABLES LIKE 'school_grade_access_policy_concepts'");
+$grade_exception_check = $conn->query("SHOW TABLES LIKE 'student_grade_access_exception'");
+$grade_policy_audit_check = $conn->query("SHOW TABLES LIKE 'grade_access_policy_audit_log'");
+$grade_grace_check = $conn->query("SHOW COLUMNS FROM school_grade_access_policy LIKE 'grace_days'");
 $access_migration_ready = (
     $student_hash_check && $student_hash_check->num_rows > 0
     && $student_changed_check && $student_changed_check->num_rows > 0
+    && $student_last_login_check && $student_last_login_check->num_rows > 0
     && $student_audit_check && $student_audit_check->num_rows > 0
     && $grade_policy_check && $grade_policy_check->num_rows > 0
+    && $grade_policy_concepts_check && $grade_policy_concepts_check->num_rows > 0
+    && $grade_exception_check && $grade_exception_check->num_rows > 0
+    && $grade_policy_audit_check && $grade_policy_audit_check->num_rows > 0
+    && $grade_grace_check && $grade_grace_check->num_rows > 0
 );
 
 $student_hash_select = ($student_hash_check && $student_hash_check->num_rows > 0)
@@ -34,10 +44,13 @@ $student_hash_select = ($student_hash_check && $student_hash_check->num_rows > 0
 $student_changed_select = ($student_changed_check && $student_changed_check->num_rows > 0)
     ? 'password_changed_at'
     : "NULL AS password_changed_at";
+$student_last_login_select = ($student_last_login_check && $student_last_login_check->num_rows > 0)
+    ? 'portal_last_login_at'
+    : "NULL AS portal_last_login_at";
 
 $stmt_students = $conn->prepare(
     "SELECT id, id_no, name, nivel, grado, seccion, status,
-            {$student_hash_select}, {$student_changed_select}
+            {$student_hash_select}, {$student_changed_select}, {$student_last_login_select}
      FROM student
      WHERE school_id = ?
      ORDER BY nivel ASC, grado ASC, seccion ASC, name ASC"
@@ -112,7 +125,11 @@ if ($grade_policy_check && $grade_policy_check->num_rows > 0) {
 }
 
 $status_select = $migration_ready ? 'u.status' : "'Activo' AS status";
-$sql_users = "SELECT u.id, u.name, u.username, u.type, u.is_director, u.teacher_id, {$status_select},
+$user_last_login_check = $conn->query("SHOW COLUMNS FROM users LIKE 'last_login_at'");
+$user_last_login_select = ($user_last_login_check && $user_last_login_check->num_rows > 0)
+    ? 'u.last_login_at'
+    : "NULL AS last_login_at";
+$sql_users = "SELECT u.id, u.name, u.username, u.type, u.is_director, u.teacher_id, {$status_select}, {$user_last_login_select},
                      t.name AS teacher_name, t.status AS teacher_status
               FROM users u
               LEFT JOIN teacher t ON t.id = u.teacher_id AND t.school_id = u.school_id
@@ -269,6 +286,15 @@ function user_role_badge($row) {
                         $status = $row['status'] ?? 'Activo';
                         $teacher_name = trim((string)($row['teacher_name'] ?? ''));
                         $is_self = ((int)$row['id'] === $login_id);
+                        $user_last_login = trim((string)($row['last_login_at'] ?? ''));
+                        $user_last_login_display = 'Nunca';
+                        if ($user_last_login !== '') {
+                            try {
+                                $user_last_login_display = (new DateTimeImmutable($user_last_login, new DateTimeZone('America/Lima')))->format('d/m/Y H:i');
+                            } catch (Exception $e) {
+                                $user_last_login_display = $user_last_login;
+                            }
+                        }
                     ?>
                         <tr id="user-row-<?php echo (int)$row['id']; ?>"
                             data-user-id="<?php echo (int)$row['id']; ?>"
@@ -283,7 +309,10 @@ function user_role_badge($row) {
                                     <div><strong><?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?></strong><?php if ($is_self): ?><div><span class="badge ed-badge badge-light border">Tu cuenta</span></div><?php endif; ?></div>
                                 </div>
                             </td>
-                            <td><span class="text-dark"><i class="far fa-user mr-1 text-muted"></i><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span></td>
+                            <td>
+                                <span class="text-dark"><i class="far fa-user mr-1 text-muted"></i><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                <div class="small text-muted mt-1"><i class="far fa-clock mr-1"></i>Último acceso: <?php echo htmlspecialchars($user_last_login_display, ENT_QUOTES, 'UTF-8'); ?></div>
+                            </td>
                             <td class="text-center"><span class="badge ed-badge <?php echo user_role_badge($row); ?> px-2 py-2"><?php echo htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8'); ?></span></td>
                             <td>
                                 <?php if ((int)$row['type'] === 2): ?>
@@ -441,6 +470,15 @@ function user_role_badge($row) {
                                     $changed_display = $changed_at;
                                 }
                             }
+                            $student_last_login = trim((string)($student['portal_last_login_at'] ?? ''));
+                            $student_last_login_display = 'Nunca';
+                            if ($student_last_login !== '') {
+                                try {
+                                    $student_last_login_display = (new DateTimeImmutable($student_last_login, new DateTimeZone('America/Lima')))->format('d/m/Y H:i');
+                                } catch (Exception $e) {
+                                    $student_last_login_display = $student_last_login;
+                                }
+                            }
                             $student_status = trim((string)($student['status'] ?? 'Activo'));
                         ?>
                             <tr id="student-access-row-<?php echo (int)$student['id']; ?>"
@@ -473,7 +511,10 @@ function user_role_badge($row) {
                                         <span class="student-access-badge default"><i class="fas fa-id-card"></i>DNI</span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="student-access-changed"><span class="small"><?php echo htmlspecialchars($changed_display, ENT_QUOTES, 'UTF-8'); ?></span></td>
+                                <td class="student-access-changed">
+                                    <span class="small d-block">Clave: <?php echo htmlspecialchars($changed_display, ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <span class="small text-muted d-block">Último acceso: <?php echo htmlspecialchars($student_last_login_display, ENT_QUOTES, 'UTF-8'); ?></span>
+                                </td>
                                 <td class="text-center">
                                     <span class="badge ed-badge <?php echo $student_status === 'Activo' ? 'badge-success' : 'badge-secondary'; ?> px-2 py-2"><?php echo htmlspecialchars($student_status !== '' ? $student_status : 'Activo', ENT_QUOTES, 'UTF-8'); ?></span>
                                 </td>
@@ -564,6 +605,8 @@ function user_role_badge($row) {
                 </div>
             </form>
         </div>
+
+        <?php include __DIR__ . '/../includes/grade_access_policy_admin_panel.php'; ?>
     </div>
 </div>
 
@@ -1432,7 +1475,13 @@ function user_role_badge($row) {
                     block_grades_by_debt:enabled?1:0,
                     minimum_debt_concepts:minimum,
                     debt_scope:$('#debt_scope').val(),
-                    block_message:$('#block_message').val()
+                    block_message:$('#block_message').val(),
+                    grace_days:$('#gradeGraceDays').val()||0,
+                    temporary_access_until:$('#gradeTemporaryUntil').val()||'',
+                    grace_message:$('#gradeGraceMessage').val()||'',
+                    temporary_message:$('#gradeTemporaryMessage').val()||'',
+                    exception_message:$('#gradeExceptionMessage').val()||'',
+                    concept_ids:$('#gradeConceptIds').val()||[]
                 },
                 function(resp){
                     btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar política');
