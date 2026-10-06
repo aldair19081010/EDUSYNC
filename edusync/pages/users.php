@@ -557,7 +557,7 @@ function user_role_badge($row) {
 
         <div class="card policy-card ed-content-card mb-4">
             <div class="card-header bg-white py-3 ed-content-card-header">
-                <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-lock text-warning mr-2"></i>Política institucional de acceso a notas</h6>
+                <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-lock text-warning mr-2"></i>Política general</h6>
                 <div class="small text-muted">Cada colegio decide si la deuda restringe la visualización de calificaciones y bajo qué condiciones.</div>
             </div>
             <form id="gradeAccessPolicyForm">
@@ -597,11 +597,6 @@ function user_role_badge($row) {
                         <div class="font-weight-bold text-warning mb-1"><i class="fas fa-eye mr-1"></i>Así funcionará</div>
                         <div id="gradePolicyPreview" class="small text-gray-800"></div>
                     </div>
-                </div>
-                <div class="card-footer bg-white text-right">
-                    <button type="submit" class="btn btn-primary" id="saveGradePolicy" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                        <i class="fas fa-save mr-1"></i>Guardar política
-                    </button>
                 </div>
             </form>
         </div>
