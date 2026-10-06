@@ -77,7 +77,7 @@ function load_teacher_for_user($conn, $teacher_id, $school_id) {
 
 function user_api_public_user($conn, $id, $school_id) {
     $stmt = $conn->prepare(
-        "SELECT u.id, u.name, u.username, u.type, u.is_director, u.teacher_id, u.status,
+        "SELECT u.id, u.name, u.username, u.type, u.is_director, u.teacher_id, u.status, u.last_login_at,
                 t.name AS teacher_name, t.status AS teacher_status
          FROM users u
          LEFT JOIN teacher t ON t.id = u.teacher_id AND t.school_id = u.school_id
