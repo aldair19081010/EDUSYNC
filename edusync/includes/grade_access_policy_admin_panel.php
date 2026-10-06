@@ -34,9 +34,47 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 .policy-exception-action .btn{width:100%;white-space:nowrap;height:38px}
 .policy-exception-hint{min-height:18px}
 #policy-pane-exceptions .select2-container{width:100%!important}
-#policy-pane-exceptions .select2-container--bootstrap .select2-selection--single{height:38px;line-height:38px}
-#policy-pane-exceptions .select2-container--bootstrap .select2-selection--single .select2-selection__rendered{line-height:36px}
-#policy-pane-exceptions .select2-container--bootstrap .select2-selection--single .select2-selection__arrow{height:36px}
+#policy-pane-exceptions .select2-container--default .select2-selection--single{
+    min-height:38px!important;
+    border:1px solid #d8deea!important;
+    border-radius:var(--edu-radius-sm,.45rem)!important;
+    background:#fff!important;
+    box-shadow:none!important;
+}
+#policy-pane-exceptions .select2-container--default .select2-selection--single .select2-selection__rendered{
+    line-height:36px!important;
+    padding-left:.75rem!important;
+    padding-right:2rem!important;
+    color:#5a6575!important;
+}
+#policy-pane-exceptions .select2-container--default .select2-selection--single .select2-selection__arrow{
+    height:36px!important;
+    right:.35rem!important;
+}
+#policy-pane-exceptions .select2-container--default.select2-container--focus .select2-selection--single,
+#policy-pane-exceptions .select2-container--default.select2-container--open .select2-selection--single{
+    border-color:#9cbcf9!important;
+    box-shadow:0 0 0 .14rem rgba(66,133,244,.13)!important;
+}
+#policy-pane-exceptions .select2-dropdown{
+    border:1px solid #d8deea!important;
+    border-radius:var(--edu-radius-sm,.45rem)!important;
+    box-shadow:var(--edu-shadow-lg,0 .5rem 1.25rem rgba(31,45,61,.14))!important;
+    overflow:hidden;
+}
+#policy-pane-exceptions .select2-search--dropdown{padding:.55rem!important;background:#fff}
+#policy-pane-exceptions .select2-search--dropdown .select2-search__field{
+    min-height:36px;
+    border:1px solid #d8deea!important;
+    border-radius:var(--edu-radius-sm,.45rem)!important;
+    padding:.4rem .65rem;
+    outline:0;
+}
+#policy-pane-exceptions .select2-results__option{padding:.55rem .7rem;font-size:.84rem;color:#49566a}
+#policy-pane-exceptions .select2-results__option--highlighted[aria-selected]{
+    background:#eef4ff!important;
+    color:#344767!important;
+}
 .policy-step{border:1px solid #e4e8ef;border-radius:.65rem;padding:1rem;margin-bottom:1rem;background:#fff}
 .policy-step-head{display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.9rem}
 .policy-step-number{width:28px;height:28px;border-radius:50%;background:#eef3ff;color:#4e73df;display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex:0 0 28px}
@@ -274,10 +312,10 @@ if (!empty($advanced_policy['temporary_access_until'])) {
         var select=$('#gradeExceptionStudent');
         if(!select.length || !$.fn.select2 || select.hasClass('select2-hidden-accessible')) return;
         select.select2({
-            theme:'bootstrap',
             width:'100%',
             placeholder:select.data('placeholder')||'Buscar estudiante...',
             allowClear:true,
+            dropdownParent:$('#policy-pane-exceptions'),
             language:{
                 noResults:function(){ return 'No se encontraron estudiantes'; },
                 searching:function(){ return 'Buscando...'; }
