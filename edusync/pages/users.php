@@ -169,22 +169,22 @@ function user_role_badge($row) {
 }
 ?>
 
+<style>
+.user-hero{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.6rem;padding:1.1rem 1.3rem;margin-bottom:1rem}.user-hero h1{font-size:1.35rem;font-weight:700;color:#344767;margin:0}.user-hero p{font-size:.84rem;color:#7b8499;margin:.2rem 0 0}.user-stat{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:0 2px 7px rgba(31,45,61,.04);height:100%}.user-stat .card-body{padding:1rem}.user-stat .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#858796;font-weight:700}.user-stat .number{font-size:1.55rem;color:#344767;font-weight:700;line-height:1.2}.user-stat .meta{font-size:.72rem;color:#858796}.users-toolbar{display:flex;gap:.65rem;flex-wrap:wrap;align-items:end}.users-toolbar .form-group{margin-bottom:0;min-width:180px}.users-table-card{border:1px solid #e3e6f0;border-radius:.6rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}#usersTable td,#usersTable th{vertical-align:middle}.user-name-cell{display:flex;align-items:center;gap:.65rem}.user-avatar-placeholder{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#f1f4f9;color:#4e73df;font-weight:700;flex:0 0 36px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.status-active{background:#1cc88a}.status-inactive{background:#e74a3b}.dropdown-menu .dropdown-item i{width:20px}.password-box{font-family:monospace;font-size:1rem}.history-item{border-left:3px solid #4e73df;padding:.7rem .85rem;margin-bottom:.75rem;background:#f8f9fc;border-radius:.25rem}.history-item .history-title{font-weight:700;color:#344767}.history-item .history-meta{font-size:.75rem;color:#858796}.teacher-warning{font-size:.78rem}.user-modal-section{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.45rem;padding:.75rem;margin-bottom:1rem}
+.access-tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;padding:.35rem;background:#f1f4f9;border:1px solid #e3e6f0;border-radius:.65rem}.access-tab{border:0;background:transparent;color:#6c7587;font-weight:700;font-size:.82rem;padding:.65rem .9rem;border-radius:.5rem;transition:.18s ease}.access-tab:hover{background:#fff;color:#4e73df}.access-tab.active{background:#fff;color:#4e73df;box-shadow:0 2px 8px rgba(31,45,61,.08)}.access-panel{display:none}.access-panel.active{display:block}
+.student-access-meta{font-size:.78rem;color:#7b8499}.student-access-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700}.student-access-badge.custom{background:#eafaf4;color:#14855f}.student-access-badge.default{background:#fff8e1;color:#8b6b00}.policy-card{border:1px solid #e3e6f0;border-radius:.65rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}.policy-preview{border-left:4px solid #f6c23e;background:#fffaf0;border-radius:.4rem;padding:.85rem 1rem}.policy-status{font-size:.76rem;font-weight:700}.policy-help{font-size:.78rem;color:#7b8499;line-height:1.45}#studentAccessTable td,#studentAccessTable th{vertical-align:middle}
+@media(max-width:767px){.users-toolbar .form-group{min-width:100%;width:100%}.user-hero{padding:1rem}.user-stat{margin-bottom:.5rem}.access-tabs{display:grid;grid-template-columns:1fr}.access-tab{width:100%}}
+</style>
 
-
-<div class="container-fluid px-0 users-access-shell">
-    <div class="user-hero ed-page-header">
-        <div class="ed-page-heading">
-            <div class="ed-page-icon"><i class="fas fa-users-cog"></i></div>
-            <div>
-                <h1 class="ed-page-title">Usuarios y Accesos</h1>
-                <p class="ed-page-subtitle">Gestiona cuentas del personal, accesos de estudiantes y políticas institucionales de seguridad.</p>
-            </div>
+<div class="container-fluid px-0">
+    <div class="user-hero d-sm-flex align-items-center justify-content-between">
+        <div>
+            <h1><i class="fas fa-users-cog mr-2 text-primary"></i>Usuarios y Accesos</h1>
+            <p>Gestiona cuentas del personal, accesos de estudiantes y políticas institucionales de seguridad.</p>
         </div>
-        <div class="ed-page-actions">
-            <button class="btn btn-primary btn-sm" id="new_user" <?php echo $migration_ready ? '' : 'disabled'; ?>>
-                <i class="fas fa-user-plus mr-1"></i>Nuevo usuario
-            </button>
-        </div>
+        <button class="btn btn-primary btn-sm mt-2 mt-sm-0" id="new_user" <?php echo $migration_ready ? '' : 'disabled'; ?>>
+            <i class="fas fa-user-plus mr-1"></i> Nuevo usuario
+        </button>
     </div>
 
     <?php if (!$migration_ready): ?>
@@ -194,7 +194,7 @@ function user_role_badge($row) {
         </div>
     <?php endif; ?>
 
-    <div class="users-access-tabs" role="tablist" aria-label="Secciones de usuarios y accesos">
+    <div class="access-tabs" role="tablist" aria-label="Secciones de usuarios y accesos">
         <button type="button" class="access-tab active" data-access-panel="personal">
             <i class="fas fa-user-shield mr-1"></i>Personal
         </button>
@@ -208,28 +208,25 @@ function user_role_badge($row) {
     </div>
 
     <div id="access-personal-panel" class="access-panel active">
-    <div class="row users-kpi-row mb-3">
-        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Total usuarios</div><div class="number ed-stat-value" id="userStatTotal"><?php echo $total_users; ?></div><div class="meta ed-stat-meta">Cuentas registradas</div></div></div>
+    <div class="row mb-3">
+        <div class="col-xl col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat"><div class="card-body"><div class="label">Total usuarios</div><div class="number" id="userStatTotal"><?php echo $total_users; ?></div><div class="meta">Cuentas registradas</div></div></div>
         </div>
-        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Administradores</div><div class="number ed-stat-value" id="userStatAdmins"><?php echo $total_admin; ?></div><div class="meta ed-stat-meta">Gestión del sistema</div></div></div>
+        <div class="col-xl col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat"><div class="card-body"><div class="label">Administración</div><div class="number" id="userStatAdmins"><?php echo $total_admin; ?></div><div class="meta"><span id="userStatDirectors"><?php echo $total_directors; ?></span> director(es)</div></div></div>
         </div>
-        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Directores</div><div class="number ed-stat-value text-primary" id="userStatDirectors"><?php echo $total_directors; ?></div><div class="meta ed-stat-meta">Dirección institucional</div></div></div>
+        <div class="col-xl col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat"><div class="card-body"><div class="label">Docentes</div><div class="number" id="userStatTeachers"><?php echo $total_teachers; ?></div><div class="meta">Cuentas vinculadas</div></div></div>
         </div>
-        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Docentes</div><div class="number ed-stat-value" id="userStatTeachers"><?php echo $total_teachers; ?></div><div class="meta ed-stat-meta">Cuentas docentes</div></div></div>
+        <div class="col-xl col-md-6 col-sm-6 mb-2">
+            <div class="card user-stat"><div class="card-body"><div class="label">Auxiliares</div><div class="number" id="userStatAux"><?php echo $total_aux; ?></div><div class="meta">Personal auxiliar</div></div></div>
         </div>
-        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Auxiliares</div><div class="number ed-stat-value" id="userStatAux"><?php echo $total_aux; ?></div><div class="meta ed-stat-meta">Personal auxiliar</div></div></div>
-        </div>
-        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Inactivos</div><div class="number ed-stat-value text-muted" id="userStatInactive"><?php echo $total_inactive; ?></div><div class="meta ed-stat-meta">Sin acceso</div></div></div>
+        <div class="col-xl col-md-6 col-sm-6 mb-2">
+            <div class="card user-stat"><div class="card-body"><div class="label">Inactivos</div><div class="number" id="userStatInactive"><?php echo $total_inactive; ?></div><div class="meta">Sin acceso al sistema</div></div></div>
         </div>
     </div>
 
-    <div class="card users-table-card ed-content-card mb-4">
+    <div class="card users-table-card mb-4">
         <div class="card-header bg-white py-3">
             <div class="users-toolbar">
                 <div class="form-group">
@@ -250,12 +247,12 @@ function user_role_badge($row) {
                         <option value="Inactivo">Inactivo</option>
                     </select>
                 </div>
-                <div class="users-toolbar-note"><i class="fas fa-shield-alt mr-1"></i>Solo administradores pueden modificar cuentas.</div>
+                <div class="ml-sm-auto small text-muted pt-2"><i class="fas fa-shield-alt mr-1"></i>Solo administradores pueden modificar cuentas.</div>
             </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover table-bordered ed-table" id="usersTable" width="100%">
+                <table class="table table-hover table-bordered" id="usersTable" width="100%">
                     <thead class="thead-light">
                         <tr>
                             <th>Nombre</th>
@@ -279,9 +276,7 @@ function user_role_badge($row) {
                             data-status="<?php echo htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>"
                             data-type="<?php echo (int)$row['type']; ?>"
                             data-director="<?php echo (int)$row['is_director']; ?>"
-                            data-teacher="<?php echo (int)($row['teacher_id'] ?? 0); ?>"
-                            data-name="<?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?>"
-                            data-username="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>">
+                            data-teacher="<?php echo (int)($row['teacher_id'] ?? 0); ?>">
                             <td>
                                 <div class="user-name-cell">
                                     <span class="user-avatar-placeholder"><?php echo htmlspecialchars(mb_strtoupper(mb_substr(trim($row['name']),0,1)), ENT_QUOTES, 'UTF-8'); ?></span>
@@ -304,16 +299,15 @@ function user_role_badge($row) {
                             </td>
                             <td class="text-center">
                                 <?php if ($status === 'Activo'): ?>
-                                    <span class="badge badge-success px-2 py-2">Activo</span>
+                                    <span class="badge badge-success px-2 py-2"><span class="status-dot status-active"></span>Activo</span>
                                 <?php else: ?>
-                                    <span class="badge badge-secondary px-2 py-2">Inactivo</span>
+                                    <span class="badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>
                                 <?php endif; ?>
                             </td>
-                            <td class="text-center ed-actions-cell">
-                                <div class="ed-row-actions">
-                                    <div class="dropdown">
-                                    <button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" <?php echo $migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
-                                    <div class="dropdown-menu dropdown-menu-right ed-action-menu">
+                            <td class="text-center">
+                                <div class="dropdown">
+                                    <button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown" <?php echo $migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
+                                    <div class="dropdown-menu dropdown-menu-right shadow">
                                         <a class="dropdown-item edit-user" href="#"
                                            data-id="<?php echo (int)$row['id']; ?>"
                                            data-name="<?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?>"
@@ -329,7 +323,6 @@ function user_role_badge($row) {
                                             <div class="dropdown-divider"></div>
                                             <a class="dropdown-item text-danger delete-permanent" href="#" data-id="<?php echo (int)$row['id']; ?>" data-name="<?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?>"><i class="fas fa-trash-alt text-danger"></i>Eliminar definitivamente</a>
                                         <?php endif; ?>
-                                    </div>
                                     </div>
                                 </div>
                             </td>
@@ -350,22 +343,22 @@ function user_role_badge($row) {
             </div>
         <?php endif; ?>
 
-        <div class="row users-kpi-row mb-3">
+        <div class="row mb-3">
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Estudiantes</div><div class="number ed-stat-value" id="studentStatTotal"><?php echo (int)$total_student_access; ?></div><div class="meta ed-stat-meta">Registrados en el colegio</div></div></div>
+                <div class="card user-stat"><div class="card-body"><div class="label">Estudiantes</div><div class="number" id="studentStatTotal"><?php echo (int)$total_student_access; ?></div><div class="meta">Registrados en el colegio</div></div></div>
             </div>
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Contraseña propia</div><div class="number ed-stat-value text-success" id="studentStatCustom"><?php echo (int)$total_student_custom_password; ?></div><div class="meta ed-stat-meta">Acceso personalizado</div></div></div>
+                <div class="card user-stat"><div class="card-body"><div class="label">Contraseña propia</div><div class="number text-success" id="studentStatCustom"><?php echo (int)$total_student_custom_password; ?></div><div class="meta">Acceso personalizado</div></div></div>
             </div>
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Acceso con DNI</div><div class="number ed-stat-value text-warning" id="studentStatDni"><?php echo (int)$total_student_default_password; ?></div><div class="meta ed-stat-meta">Usan DNI como clave actual</div></div></div>
+                <div class="card user-stat"><div class="card-body"><div class="label">Acceso con DNI</div><div class="number text-warning" id="studentStatDni"><?php echo (int)$total_student_default_password; ?></div><div class="meta">Usan DNI como clave actual</div></div></div>
             </div>
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">No activos</div><div class="number ed-stat-value text-muted" id="studentStatInactive"><?php echo (int)$total_student_inactive; ?></div><div class="meta ed-stat-meta">Retirados, egresados u otros</div></div></div>
+                <div class="card user-stat"><div class="card-body"><div class="label">No activos</div><div class="number text-muted" id="studentStatInactive"><?php echo (int)$total_student_inactive; ?></div><div class="meta">Retirados, egresados u otros</div></div></div>
             </div>
         </div>
 
-        <div class="card users-table-card ed-content-card mb-4">
+        <div class="card users-table-card mb-4">
             <div class="card-header bg-white py-3">
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
                     <div>
@@ -423,7 +416,7 @@ function user_role_badge($row) {
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover table-bordered ed-table" id="studentAccessTable" width="100%">
+                    <table class="table table-hover table-bordered" id="studentAccessTable" width="100%">
                         <thead class="thead-light">
                             <tr>
                                 <th>Estudiante</th>
@@ -484,11 +477,10 @@ function user_role_badge($row) {
                                 <td class="text-center">
                                     <span class="badge <?php echo $student_status === 'Activo' ? 'badge-success' : 'badge-secondary'; ?> px-2 py-2"><?php echo htmlspecialchars($student_status !== '' ? $student_status : 'Activo', ENT_QUOTES, 'UTF-8'); ?></span>
                                 </td>
-                                <td class="text-center ed-actions-cell">
-                                    <div class="ed-row-actions">
-                                        <div class="dropdown">
-                                        <button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
-                                        <div class="dropdown-menu dropdown-menu-right ed-action-menu">
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
+                                        <div class="dropdown-menu dropdown-menu-right shadow">
                                             <a class="dropdown-item student-reset-password" href="#"
                                                data-id="<?php echo (int)$student['id']; ?>"
                                                data-name="<?php echo htmlspecialchars((string)$student['name'], ENT_QUOTES, 'UTF-8'); ?>"
@@ -502,7 +494,6 @@ function user_role_badge($row) {
                                                data-name="<?php echo htmlspecialchars((string)$student['name'], ENT_QUOTES, 'UTF-8'); ?>">
                                                 <i class="fas fa-history text-info"></i>Ver historial de acceso
                                             </a>
-                                        </div>
                                         </div>
                                     </div>
                                 </td>
@@ -523,7 +514,7 @@ function user_role_badge($row) {
             </div>
         <?php endif; ?>
 
-        <div class="card policy-card ed-content-card mb-4">
+        <div class="card policy-card mb-4">
             <div class="card-header bg-white py-3">
                 <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-lock text-warning mr-2"></i>Política institucional de acceso a notas</h6>
                 <div class="small text-muted">Cada colegio decide si la deuda restringe la visualización de calificaciones y bajo qué condiciones.</div>
@@ -595,7 +586,7 @@ function user_role_badge($row) {
             <div class="col-md-6 form-group mb-md-0"><label class="font-weight-bold">Rol <span class="text-danger">*</span></label><select class="form-control" name="type" id="user_type" required><option value="">Seleccionar...</option><option value="1">Administrador</option><option value="2">Docente</option><option value="3">Auxiliar</option></select></div>
             <div class="col-md-6 form-group mb-0"><label class="font-weight-bold">Estado</label><select class="form-control" name="status" id="user_status"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div>
           </div>
-          <div class="form-group mt-3 mb-0" id="directorWrap" style="display:none"><div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="is_director" name="is_director" value="1"><label class="custom-control-label" for="is_director"><strong>Director institucional</strong><br><small class="text-muted">La cuenta se identificará como Director. Si el rol es Docente, conservará también su vinculación académica.</small></label></div></div>
+          <div class="form-group mt-3 mb-0" id="directorWrap" style="display:none"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="is_director" name="is_director" value="1"><label class="custom-control-label" for="is_director"><strong>Este usuario es Director</strong><br><small class="text-muted">Se identificará como Director. Si es docente, conserva su vinculación académica.</small></label></div></div>
           <div class="form-group mt-3 mb-0" id="teacherWrap" style="display:none"><label class="font-weight-bold">Docente vinculado <span class="text-danger">*</span></label><select class="form-control" name="teacher_id" id="teacher_id"><option value="">Seleccionar docente...</option><?php foreach ($teachers as $t): ?><option value="<?php echo (int)$t['id']; ?>" data-status="<?php echo htmlspecialchars($t['status'] ?? 'Activo', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($t['name'], ENT_QUOTES, 'UTF-8'); ?><?php echo (($t['status'] ?? 'Activo') !== 'Activo') ? ' (Inactivo)' : ''; ?></option><?php endforeach; ?></select><div class="teacher-warning text-muted mt-1"><i class="fas fa-link mr-1"></i>Cada docente puede tener una sola cuenta.</div></div>
         </div>
         <div class="row">
@@ -748,13 +739,7 @@ function user_role_badge($row) {
 
     function escapeAttr(value){
         return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){
-            return {
-                '&':'&amp;',
-                '<':'&lt;',
-                '>':'&gt;',
-                '"':'&quot;',
-                "'":'&#039;'
-            }[ch];
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch];
         });
     }
 
@@ -774,9 +759,14 @@ function user_role_badge($row) {
         return 'badge-secondary';
     }
 
-    function userInitial(name){
-        var value=String(name||'').trim();
-        return value ? value.charAt(0).toUpperCase() : 'U';
+    function findUserRow(id){
+        if(!table) return $();
+        return $(table.rows().nodes()).filter('[data-user-id="'+Number(id||0)+'"]').first();
+    }
+
+    function findStudentRow(id){
+        if(!studentTable) return $();
+        return $(studentTable.rows().nodes()).filter('[data-student-id="'+Number(id||0)+'"]').first();
     }
 
     function buildUserCells(user){
@@ -791,15 +781,15 @@ function user_role_badge($row) {
         var status=String(user.status||'Activo');
         var isSelf=Boolean(user.is_self)||id===loginId;
         var role=userRoleLabel(user);
+        var initial=name.trim()?name.trim().charAt(0).toUpperCase():'U';
 
-        var nameHtml=
-            '<div class="user-name-cell">'
-            +'<span class="user-avatar-placeholder">'+escapeHtml(userInitial(name))+'</span>'
+        var nameHtml='<div class="user-name-cell">'
+            +'<span class="user-avatar-placeholder">'+escapeHtml(initial)+'</span>'
             +'<div><strong>'+escapeHtml(name)+'</strong>'
             +(isSelf?'<div><span class="badge badge-light border">Tu cuenta</span></div>':'')
             +'</div></div>';
 
-        var userHtml='<span class="text-dark"><i class="far fa-user mr-1 text-muted"></i>'+escapeHtml(username)+'</span>';
+        var usernameHtml='<span class="text-dark"><i class="far fa-user mr-1 text-muted"></i>'+escapeHtml(username)+'</span>';
         var roleHtml='<span class="badge '+userRoleBadgeClass(user)+' px-2 py-2">'+escapeHtml(role)+'</span>';
 
         var linkHtml='<span class="text-muted">—</span>';
@@ -813,76 +803,49 @@ function user_role_badge($row) {
         }
 
         var statusHtml=status==='Activo'
-            ? '<span class="badge badge-success px-2 py-2">Activo</span>'
-            : '<span class="badge badge-secondary px-2 py-2">Inactivo</span>';
+            ? '<span class="badge badge-success px-2 py-2"><span class="status-dot status-active"></span>Activo</span>'
+            : '<span class="badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>';
 
-        var commonData=
-            ' data-id="'+id+'"'
-            +' data-name="'+escapeAttr(name)+'"'
-            +' data-username="'+escapeAttr(username)+'"'
-            +' data-type="'+type+'"'
-            +' data-director="'+isDirector+'"'
-            +' data-teacher="'+teacherId+'"'
-            +' data-status="'+escapeAttr(status)+'"';
+        var editData=' data-id="'+id+'" data-name="'+escapeAttr(name)+'" data-username="'+escapeAttr(username)+'" data-type="'+type+'" data-director="'+isDirector+'" data-teacher="'+teacherId+'" data-status="'+escapeAttr(status)+'"';
 
-        var actions=
-            '<div class="ed-row-actions"><div class="dropdown">'
-            +'<button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false"><i class="fas fa-ellipsis-v"></i></button>'
-            +'<div class="dropdown-menu dropdown-menu-right ed-action-menu">'
-            +'<a class="dropdown-item edit-user" href="#"'+commonData+'><i class="fas fa-edit text-primary"></i>Editar</a>'
+        var actionsHtml='<div class="dropdown">'
+            +'<button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>'
+            +'<div class="dropdown-menu dropdown-menu-right shadow">'
+            +'<a class="dropdown-item edit-user" href="#"'+editData+'><i class="fas fa-edit text-primary"></i>Editar</a>'
             +'<a class="dropdown-item reset-password" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-key text-warning"></i>Restablecer contraseña</a>'
             +'<a class="dropdown-item toggle-status'+(isSelf?' disabled text-muted':'')+'" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'" data-status="'+escapeAttr(status)+'"><i class="fas '+(status==='Activo'?'fa-user-slash text-danger':'fa-user-check text-success')+'"></i>'+(status==='Activo'?'Desactivar usuario':'Activar usuario')+'</a>'
             +'<a class="dropdown-item user-history" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-history text-info"></i>Ver historial</a>'
-            +(status==='Inactivo'&&!isSelf
-                ?'<div class="dropdown-divider"></div><a class="dropdown-item ed-action-danger delete-permanent" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-trash-alt"></i>Eliminar definitivamente</a>'
-                :'')
-            +'</div></div></div>';
+            +(status==='Inactivo'&&!isSelf?'<div class="dropdown-divider"></div><a class="dropdown-item text-danger delete-permanent" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-trash-alt text-danger"></i>Eliminar definitivamente</a>':'')
+            +'</div></div>';
 
-        return [nameHtml,userHtml,roleHtml,linkHtml,statusHtml,actions];
+        return [nameHtml,usernameHtml,roleHtml,linkHtml,statusHtml,actionsHtml];
     }
 
     function applyUserRowData($row,user){
-        if(!$row||!$row.length) return;
-        var role=userRoleLabel(user);
-        var status=String(user.status||'Activo');
-
-        $row
-            .attr('id','user-row-'+Number(user.id||0))
-            .attr('data-user-id',Number(user.id||0))
-            .attr('data-role',role)
-            .attr('data-status',status)
-            .attr('data-type',Number(user.type||0))
-            .attr('data-director',Number(user.is_director||0))
-            .attr('data-teacher',Number(user.teacher_id||0))
-            .attr('data-name',String(user.name||''))
-            .attr('data-username',String(user.username||''));
-
+        if(!$row.length) return;
+        $row.attr({
+            id:'user-row-'+Number(user.id||0),
+            'data-user-id':Number(user.id||0),
+            'data-role':userRoleLabel(user),
+            'data-status':String(user.status||'Activo'),
+            'data-type':Number(user.type||0),
+            'data-director':Number(user.is_director||0),
+            'data-teacher':Number(user.teacher_id||0)
+        });
         $row.data({
             userId:Number(user.id||0),
-            role:role,
-            status:status,
+            role:userRoleLabel(user),
+            status:String(user.status||'Activo'),
             type:Number(user.type||0),
             director:Number(user.is_director||0),
-            teacher:Number(user.teacher_id||0),
-            name:String(user.name||''),
-            username:String(user.username||'')
+            teacher:Number(user.teacher_id||0)
         });
-    }
-
-    function pulseRow($row){
-        if(!$row||!$row.length) return;
-        $row.removeClass('user-live-pulse');
-        void $row[0].offsetWidth;
-        $row.addClass('user-live-pulse');
-        window.setTimeout(function(){
-            $row.removeClass('user-live-pulse');
-        },700);
     }
 
     function refreshPersonalStats(){
         if(!table) return;
-
         var total=0,admins=0,directors=0,teachers=0,aux=0,inactive=0;
+
         $(table.rows().nodes()).each(function(){
             var $row=$(this);
             total++;
@@ -910,30 +873,24 @@ function user_role_badge($row) {
 
         var id=Number(user.id||0);
         var cells=buildUserCells(user);
-        var $row=$('#user-row-'+id);
+        var $row=findUserRow(id);
 
         if($row.length){
-            var rowApi=table.row($row);
-            rowApi.data(cells);
-            applyUserRowData($(rowApi.node()),user);
-            rowApi.invalidate('dom').draw(false);
-            $row=$('#user-row-'+id);
-        }else{
-            var added=table.row.add(cells);
-            added.draw(false);
-            $row=$(added.node());
+            table.row($row).data(cells).draw(false);
+            $row=findUserRow(id);
             applyUserRowData($row,user);
-            added.invalidate('dom').draw(false);
-            $row=$('#user-row-'+id);
+        }else{
+            var rowApi=table.row.add(cells);
+            rowApi.draw(false);
+            $row=$(rowApi.node());
+            applyUserRowData($row,user);
         }
 
         refreshPersonalStats();
-        pulseRow($row);
     }
 
     function removeUserRow(id){
-        if(!table) return;
-        var $row=$('#user-row-'+Number(id||0));
+        var $row=findUserRow(id);
         if(!$row.length) return;
         table.row($row).remove().draw(false);
         refreshPersonalStats();
@@ -941,16 +898,14 @@ function user_role_badge($row) {
 
     function refreshStudentStats(){
         if(!studentTable) return;
-
         var total=0,custom=0,dni=0,inactive=0;
+
         $(studentTable.rows().nodes()).each(function(){
             var $row=$(this);
             total++;
-            var access=String($row.attr('data-password')||'DNI');
-            var status=String($row.attr('data-status')||'Activo');
-            if(access==='Personalizada') custom++;
+            if(String($row.attr('data-password')||'DNI')==='Personalizada') custom++;
             else dni++;
-            if(status!=='Activo') inactive++;
+            if(String($row.attr('data-status')||'Activo')!=='Activo') inactive++;
         });
 
         $('#studentStatTotal,#studentAccessTabCount').text(total);
@@ -960,9 +915,7 @@ function user_role_badge($row) {
     }
 
     function updateStudentAccessRow(studentId,mode,changedDisplay){
-        if(!studentTable) return;
-
-        var $row=$('#student-access-row-'+Number(studentId||0));
+        var $row=findStudentRow(studentId);
         if(!$row.length) return;
 
         var personalized=mode==='temporary';
@@ -971,15 +924,11 @@ function user_role_badge($row) {
             ? '<span class="student-access-badge custom"><i class="fas fa-key"></i>Personalizada</span>'
             : '<span class="student-access-badge default"><i class="fas fa-id-card"></i>DNI</span>';
 
-        $row
-            .attr('data-password',accessLabel)
-            .data('password',accessLabel);
+        $row.attr('data-password',accessLabel).data('password',accessLabel);
         $row.find('.student-access-mode').html(accessHtml);
         $row.find('.student-access-changed').html('<span class="small">'+escapeHtml(changedDisplay||'Ahora')+'</span>');
-
         studentTable.row($row).invalidate('dom').draw(false);
         refreshStudentStats();
-        pulseRow($('#student-access-row-'+Number(studentId||0)));
     }
 
     function api(data, success, fail){
