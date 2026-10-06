@@ -134,11 +134,19 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <?php if ($page === 'users'): ?>
     <?php
         $users_ui_css_version = @filemtime(__DIR__ . '/css/ui_consistency.css') ?: time();
+        $users_ui_refinements_version = @filemtime(__DIR__ . '/css/ui_refinements.css') ?: time();
+        $users_ui_modals_version = @filemtime(__DIR__ . '/css/ui_modals.css') ?: time();
+        $users_ui_feedback_version = @filemtime(__DIR__ . '/css/ui_feedback.css') ?: time();
         $users_ui_responsive_version = @filemtime(__DIR__ . '/css/ui_responsive.css') ?: time();
+        $users_ui_table_actions_version = @filemtime(__DIR__ . '/css/ui_table_actions.css') ?: time();
     ?>
-    <!-- Usuarios y Accesos usa el estilo final desde el primer render para evitar saltos visuales. -->
+    <!-- Usuarios y Accesos carga la capa visual global desde HEAD para evitar FOUC/reacomodos. -->
     <link data-edusync-ui-consistency="1" href="css/ui_consistency.css?v=<?php echo rawurlencode((string)$users_ui_css_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-refinements="1" href="css/ui_refinements.css?v=<?php echo rawurlencode((string)$users_ui_refinements_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-modals="1" href="css/ui_modals.css?v=<?php echo rawurlencode((string)$users_ui_modals_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-feedback="1" href="css/ui_feedback.css?v=<?php echo rawurlencode((string)$users_ui_feedback_version); ?>" rel="stylesheet">
     <link data-edusync-ui-responsive="1" href="css/ui_responsive.css?v=<?php echo rawurlencode((string)$users_ui_responsive_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-table-actions="1" href="css/ui_table_actions.css?v=<?php echo rawurlencode((string)$users_ui_table_actions_version); ?>" rel="stylesheet">
     <?php endif; ?>
     <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
@@ -188,7 +196,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
         <div id="content-wrapper" class="d-flex flex-column">
 
             <!-- Main Content -->
-            <div id="content">
+            <div id="content"<?php if ($page === 'users'): ?> class="ed-app-content"<?php endif; ?>>
 
                 <?php include 'includes/topbar.php'; ?>
 
