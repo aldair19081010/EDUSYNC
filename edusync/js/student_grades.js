@@ -222,9 +222,25 @@
         }
         function loadGrades() {
             app.setAttribute('aria-busy','true');
-            $('#sg-debt-alert').addClass('d-none');
+            $('#sg-debt-alert,#sg-policy-notice').addClass('d-none');
             $.ajax({url:endpoint,method:'GET',dataType:'json',cache:false}).done(function (resp) {
-                if (resp && resp.status === 'ok' && resp.data) { state.data = resp.data; hydrateStudent(resp.data); populateYears(resp.data); return; }
+                if (resp && resp.status === 'ok' && resp.data) {
+                    state.data = resp.data;
+                    hydrateStudent(resp.data);
+                    var access=resp.data.access_policy||{};
+                    if(access.message && ['grace_period','student_exception','temporary_access'].indexOf(access.reason)>=0){
+                        var title=access.reason==='grace_period'?'Periodo de gracia activo'
+                            :(access.reason==='student_exception'?'Acceso autorizado':'Acceso temporal habilitado');
+                        $('#sg-policy-notice-title').text(title);
+                        $('#sg-policy-notice-message').text(access.message);
+                        $('#sg-policy-notice')
+                            .toggleClass('alert-warning',access.reason==='grace_period')
+                            .toggleClass('alert-info',access.reason!=='grace_period')
+                            .removeClass('d-none');
+                    }
+                    populateYears(resp.data);
+                    return;
+                }
                 if (resp && resp.reason === 'debt') {
                     $('#sg-debt-message').text((resp.message || 'Regulariza las cuotas pendientes para consultar las notas.') + (resp.total_pendiente_ultimas ? ' Monto pendiente considerado: S/ ' + resp.total_pendiente_ultimas + '.' : ''));
                     $('#sg-debt-alert').removeClass('d-none'); $summary.empty(); $nav.empty();
