@@ -33,6 +33,10 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 .policy-exception-action-label{display:block;visibility:hidden;margin-bottom:.5rem;font-weight:700}
 .policy-exception-action .btn{width:100%;white-space:nowrap;height:38px}
 .policy-exception-hint{min-height:18px}
+#policy-pane-exceptions .select2-container{width:100%!important}
+#policy-pane-exceptions .select2-container--bootstrap .select2-selection--single{height:38px;line-height:38px}
+#policy-pane-exceptions .select2-container--bootstrap .select2-selection--single .select2-selection__rendered{line-height:36px}
+#policy-pane-exceptions .select2-container--bootstrap .select2-selection--single .select2-selection__arrow{height:36px}
 .policy-step{border:1px solid #e4e8ef;border-radius:.65rem;padding:1rem;margin-bottom:1rem;background:#fff}
 .policy-step-head{display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.9rem}
 .policy-step-number{width:28px;height:28px;border-radius:50%;background:#eef3ff;color:#4e73df;display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex:0 0 28px}
@@ -184,8 +188,8 @@ if (!empty($advanced_policy['temporary_access_until'])) {
                 <div class="row policy-exception-row">
                     <div class="col-lg-4 form-group">
                         <label class="font-weight-bold">Estudiante</label>
-                        <select class="form-control" id="gradeExceptionStudent" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                            <option value="">Seleccionar estudiante...</option>
+                        <select class="form-control" id="gradeExceptionStudent" data-placeholder="Buscar por nombre o DNI..." <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                            <option value=""></option>
                             <?php foreach ($students_access as $student): ?>
                                 <?php if (($student['status'] ?? 'Activo') === 'Activo'): ?>
                                     <option value="<?php echo (int)$student['id']; ?>"><?php echo htmlspecialchars((string)$student['name'] . ' · ' . (string)$student['id_no'] . ' · ' . (string)$student['grado'] . ' ' . (string)$student['seccion'], ENT_QUOTES, 'UTF-8'); ?></option>
@@ -266,12 +270,31 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 <script>
 (function($){
     var policyCsrf = <?php echo json_encode($csrf_token); ?>;
+    function initGradeExceptionSelect2(){
+        var select=$('#gradeExceptionStudent');
+        if(!select.length || !$.fn.select2 || select.hasClass('select2-hidden-accessible')) return;
+        select.select2({
+            theme:'bootstrap',
+            width:'100%',
+            placeholder:select.data('placeholder')||'Buscar estudiante...',
+            allowClear:true,
+            language:{
+                noResults:function(){ return 'No se encontraron estudiantes'; },
+                searching:function(){ return 'Buscando...'; }
+            }
+        });
+    }
+
     $('.policy-manage-tab').on('click',function(){
         var pane=$(this).data('policy-pane');
         $('.policy-manage-tab').removeClass('active');
         $(this).addClass('active');
         $('.policy-manage-pane').removeClass('active');
         $('#policy-pane-'+pane).addClass('active');
+
+        if(pane==='exceptions'){
+            window.setTimeout(initGradeExceptionSelect2,0);
+        }
     });
 
     $('#togglePolicyMessages').on('click',function(){
@@ -322,7 +345,8 @@ if (!empty($advanced_policy['temporary_access_until'])) {
                 +'<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger remove-grade-exception" data-id="'+Number(x.id||0)+'"><i class="fas fa-times"></i></button></td>'
                 +'</tr>'
             );
-            $('#gradeExceptionStudent,#gradeExceptionExpiry,#gradeExceptionReason').val('');
+            $('#gradeExceptionExpiry,#gradeExceptionReason').val('');
+            $('#gradeExceptionStudent').val(null).trigger('change');
             refreshGradeExceptionCount();
             policyToast(r.message,'success');
         }).fail(function(xhr){
