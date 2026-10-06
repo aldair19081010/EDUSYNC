@@ -277,13 +277,24 @@ function debt_engine_year_summary(array $debts) {
     return array_values($years);
 }
 
-function debt_engine_guard_summary($conn, $studentId, $schoolId = 0) {
+function debt_engine_guard_summary(
+    $conn,
+    $studentId,
+    $schoolId = 0,
+    $minimumConcepts = 2,
+    $scope = 'overdue'
+) {
+    $minimumConcepts = max(1, (int)$minimumConcepts);
+    $scope = $scope === 'pending' ? 'pending' : 'overdue';
+
     $result = [
         'available' => debt_engine_available($conn),
         'count' => 0,
         'total' => 0.0,
         'student_id' => (int)$studentId,
-        'blocked' => false
+        'blocked' => false,
+        'minimum_concepts' => $minimumConcepts,
+        'scope' => $scope
     ];
 
     if (!$result['available'] || (int)$studentId <= 0) return $result;
@@ -291,10 +302,17 @@ function debt_engine_guard_summary($conn, $studentId, $schoolId = 0) {
     $pending = debt_engine_pending_debts(
         debt_engine_get_student_debts($conn, (int)$studentId, (int)$schoolId)
     );
+
+    if ($scope === 'overdue') {
+        $pending = array_values(array_filter($pending, static function ($debt) {
+            return !empty($debt['is_overdue']);
+        }));
+    }
+
     $summary = debt_engine_summary($pending);
 
     $result['count'] = (int)$summary['count_concepts'];
     $result['total'] = (float)$summary['total_debt'];
-    $result['blocked'] = $result['count'] >= 2;
+    $result['blocked'] = $result['count'] >= $minimumConcepts;
     return $result;
 }
