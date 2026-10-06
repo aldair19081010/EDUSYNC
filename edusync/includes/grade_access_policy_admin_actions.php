@@ -73,16 +73,15 @@ if ($action === 'save_grade_access_policy') {
 
     if ($courseIds) {
         $valid = [];
-        $placeholders = implode(',', array_fill(0, count($courseIds), '?'));
-        $types = 'i' . str_repeat('i', count($courseIds));
-        $params = array_merge([$school_id], $courseIds);
-        $sql = "SELECT c.id
-                FROM courses c
-                INNER JOIN academic_year ay ON ay.id = c.academic_year_id
-                WHERE ay.school_id = ? AND c.id IN ({$placeholders})";
-        $stmt = $conn->prepare($sql);
+        $idSql = implode(',', array_map('intval', $courseIds));
+        $stmt = $conn->prepare(
+            "SELECT c.id
+             FROM courses c
+             INNER JOIN academic_year ay ON ay.id = c.academic_year_id
+             WHERE ay.school_id = ? AND c.id IN ({$idSql})"
+        );
         if (!$stmt) user_api_reply(0, 'No se pudieron validar los conceptos de pago.');
-        $stmt->bind_param($types, ...$params);
+        $stmt->bind_param('i', $school_id);
         $stmt->execute();
         $res = $stmt->get_result();
         while ($row = $res->fetch_assoc()) $valid[] = (int)$row['id'];
