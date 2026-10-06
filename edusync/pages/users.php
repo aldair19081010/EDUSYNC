@@ -702,6 +702,7 @@ function user_role_badge($row) {
     var csrfToken = <?php echo json_encode($csrf_token); ?>;
     var migrationReady = <?php echo $migration_ready ? 'true' : 'false'; ?>;
     var accessMigrationReady = <?php echo $access_migration_ready ? 'true' : 'false'; ?>;
+    var loginId = <?php echo (int)$login_id; ?>;
     var table = null;
     var studentTable = null;
 
@@ -745,8 +746,240 @@ function user_role_badge($row) {
         }
     }
 
-    function refresh(){
-        window.location.reload();
+    function escapeAttr(value){
+        return String(value == null ? '' : value).replace(/[&<>"']/g,function(ch){
+            return {
+                '&':'&amp;',
+                '<':'&lt;',
+                '>':'&gt;',
+                '"':'&quot;',
+                "'":'&#039;'
+            }[ch];
+        });
+    }
+
+    function userRoleLabel(user){
+        if(Number(user.is_director||0)===1) return 'Director';
+        if(Number(user.type||0)===1) return 'Administrador';
+        if(Number(user.type||0)===2) return 'Docente';
+        if(Number(user.type||0)===3) return 'Auxiliar';
+        return 'Otro';
+    }
+
+    function userRoleBadgeClass(user){
+        if(Number(user.is_director||0)===1) return 'badge-primary';
+        if(Number(user.type||0)===1) return 'badge-danger';
+        if(Number(user.type||0)===2) return 'badge-info';
+        if(Number(user.type||0)===3) return 'badge-success';
+        return 'badge-secondary';
+    }
+
+    function userInitial(name){
+        var value=String(name||'').trim();
+        return value ? value.charAt(0).toUpperCase() : 'U';
+    }
+
+    function buildUserCells(user){
+        var id=Number(user.id||0);
+        var name=String(user.name||'');
+        var username=String(user.username||'');
+        var type=Number(user.type||0);
+        var isDirector=Number(user.is_director||0);
+        var teacherId=Number(user.teacher_id||0);
+        var teacherName=String(user.teacher_name||'').trim();
+        var teacherStatus=String(user.teacher_status||'Activo');
+        var status=String(user.status||'Activo');
+        var isSelf=Boolean(user.is_self)||id===loginId;
+        var role=userRoleLabel(user);
+
+        var nameHtml=
+            '<div class="user-name-cell">'
+            +'<span class="user-avatar-placeholder">'+escapeHtml(userInitial(name))+'</span>'
+            +'<div><strong>'+escapeHtml(name)+'</strong>'
+            +(isSelf?'<div><span class="badge badge-light border">Tu cuenta</span></div>':'')
+            +'</div></div>';
+
+        var userHtml='<span class="text-dark"><i class="far fa-user mr-1 text-muted"></i>'+escapeHtml(username)+'</span>';
+        var roleHtml='<span class="badge '+userRoleBadgeClass(user)+' px-2 py-2">'+escapeHtml(role)+'</span>';
+
+        var linkHtml='<span class="text-muted">—</span>';
+        if(type===2){
+            if(teacherName){
+                linkHtml='<div><i class="fas fa-chalkboard-teacher mr-1 text-info"></i>'+escapeHtml(teacherName)+'</div>'
+                    +(teacherStatus!=='Activo'?'<span class="badge badge-warning mt-1">Docente inactivo</span>':'');
+            }else{
+                linkHtml='<span class="text-danger"><i class="fas fa-unlink mr-1"></i>Sin docente vinculado</span>';
+            }
+        }
+
+        var statusHtml=status==='Activo'
+            ? '<span class="badge badge-success px-2 py-2">Activo</span>'
+            : '<span class="badge badge-secondary px-2 py-2">Inactivo</span>';
+
+        var commonData=
+            ' data-id="'+id+'"'
+            +' data-name="'+escapeAttr(name)+'"'
+            +' data-username="'+escapeAttr(username)+'"'
+            +' data-type="'+type+'"'
+            +' data-director="'+isDirector+'"'
+            +' data-teacher="'+teacherId+'"'
+            +' data-status="'+escapeAttr(status)+'"';
+
+        var actions=
+            '<div class="ed-row-actions"><div class="dropdown">'
+            +'<button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false"><i class="fas fa-ellipsis-v"></i></button>'
+            +'<div class="dropdown-menu dropdown-menu-right ed-action-menu">'
+            +'<a class="dropdown-item edit-user" href="#"'+commonData+'><i class="fas fa-edit text-primary"></i>Editar</a>'
+            +'<a class="dropdown-item reset-password" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-key text-warning"></i>Restablecer contraseña</a>'
+            +'<a class="dropdown-item toggle-status'+(isSelf?' disabled text-muted':'')+'" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'" data-status="'+escapeAttr(status)+'"><i class="fas '+(status==='Activo'?'fa-user-slash text-danger':'fa-user-check text-success')+'"></i>'+(status==='Activo'?'Desactivar usuario':'Activar usuario')+'</a>'
+            +'<a class="dropdown-item user-history" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-history text-info"></i>Ver historial</a>'
+            +(status==='Inactivo'&&!isSelf
+                ?'<div class="dropdown-divider"></div><a class="dropdown-item ed-action-danger delete-permanent" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-trash-alt"></i>Eliminar definitivamente</a>'
+                :'')
+            +'</div></div></div>';
+
+        return [nameHtml,userHtml,roleHtml,linkHtml,statusHtml,actions];
+    }
+
+    function applyUserRowData($row,user){
+        if(!$row||!$row.length) return;
+        var role=userRoleLabel(user);
+        var status=String(user.status||'Activo');
+
+        $row
+            .attr('id','user-row-'+Number(user.id||0))
+            .attr('data-user-id',Number(user.id||0))
+            .attr('data-role',role)
+            .attr('data-status',status)
+            .attr('data-type',Number(user.type||0))
+            .attr('data-director',Number(user.is_director||0))
+            .attr('data-teacher',Number(user.teacher_id||0))
+            .attr('data-name',String(user.name||''))
+            .attr('data-username',String(user.username||''));
+
+        $row.data({
+            userId:Number(user.id||0),
+            role:role,
+            status:status,
+            type:Number(user.type||0),
+            director:Number(user.is_director||0),
+            teacher:Number(user.teacher_id||0),
+            name:String(user.name||''),
+            username:String(user.username||'')
+        });
+    }
+
+    function pulseRow($row){
+        if(!$row||!$row.length) return;
+        $row.removeClass('user-live-pulse');
+        void $row[0].offsetWidth;
+        $row.addClass('user-live-pulse');
+        window.setTimeout(function(){
+            $row.removeClass('user-live-pulse');
+        },700);
+    }
+
+    function refreshPersonalStats(){
+        if(!table) return;
+
+        var total=0,admins=0,directors=0,teachers=0,aux=0,inactive=0;
+        $(table.rows().nodes()).each(function(){
+            var $row=$(this);
+            total++;
+            var role=String($row.attr('data-role')||'');
+            var status=String($row.attr('data-status')||'Activo');
+
+            if(role==='Director') directors++;
+            else if(role==='Administrador') admins++;
+            else if(role==='Docente') teachers++;
+            else if(role==='Auxiliar') aux++;
+
+            if(status!=='Activo') inactive++;
+        });
+
+        $('#userStatTotal').text(total);
+        $('#userStatAdmins').text(admins);
+        $('#userStatDirectors').text(directors);
+        $('#userStatTeachers').text(teachers);
+        $('#userStatAux').text(aux);
+        $('#userStatInactive').text(inactive);
+    }
+
+    function upsertUserRow(user){
+        if(!table||!user) return;
+
+        var id=Number(user.id||0);
+        var cells=buildUserCells(user);
+        var $row=$('#user-row-'+id);
+
+        if($row.length){
+            var rowApi=table.row($row);
+            rowApi.data(cells);
+            applyUserRowData($(rowApi.node()),user);
+            rowApi.invalidate('dom').draw(false);
+            $row=$('#user-row-'+id);
+        }else{
+            var added=table.row.add(cells);
+            added.draw(false);
+            $row=$(added.node());
+            applyUserRowData($row,user);
+            added.invalidate('dom').draw(false);
+            $row=$('#user-row-'+id);
+        }
+
+        refreshPersonalStats();
+        pulseRow($row);
+    }
+
+    function removeUserRow(id){
+        if(!table) return;
+        var $row=$('#user-row-'+Number(id||0));
+        if(!$row.length) return;
+        table.row($row).remove().draw(false);
+        refreshPersonalStats();
+    }
+
+    function refreshStudentStats(){
+        if(!studentTable) return;
+
+        var total=0,custom=0,dni=0,inactive=0;
+        $(studentTable.rows().nodes()).each(function(){
+            var $row=$(this);
+            total++;
+            var access=String($row.attr('data-password')||'DNI');
+            var status=String($row.attr('data-status')||'Activo');
+            if(access==='Personalizada') custom++;
+            else dni++;
+            if(status!=='Activo') inactive++;
+        });
+
+        $('#studentStatTotal,#studentAccessTabCount').text(total);
+        $('#studentStatCustom').text(custom);
+        $('#studentStatDni').text(dni);
+        $('#studentStatInactive').text(inactive);
+    }
+
+    function updateStudentAccessRow(studentId,mode,changedDisplay){
+        if(!studentTable) return;
+
+        var $row=$('#student-access-row-'+Number(studentId||0));
+        if(!$row.length) return;
+
+        var personalized=mode==='temporary';
+        var accessLabel=personalized?'Personalizada':'DNI';
+        var accessHtml=personalized
+            ? '<span class="student-access-badge custom"><i class="fas fa-key"></i>Personalizada</span>'
+            : '<span class="student-access-badge default"><i class="fas fa-id-card"></i>DNI</span>';
+
+        $row
+            .attr('data-password',accessLabel)
+            .data('password',accessLabel);
+        $row.find('.student-access-mode').html(accessHtml);
+        $row.find('.student-access-changed').html('<span class="small">'+escapeHtml(changedDisplay||'Ahora')+'</span>');
+
+        studentTable.row($row).invalidate('dom').draw(false);
+        refreshStudentStats();
+        pulseRow($('#student-access-row-'+Number(studentId||0)));
     }
 
     function api(data, success, fail){
@@ -791,10 +1024,11 @@ function user_role_badge($row) {
 
     function syncRoleFields(){
         var type=$('#user_type').val();
-        $('#directorWrap').toggle(type==='1');
+        var canBeDirector=(type==='1'||type==='2');
+        $('#directorWrap').toggle(canBeDirector);
         $('#teacherWrap').toggle(type==='2');
         $('#teacher_id').prop('required',type==='2');
-        if(type!=='1') $('#is_director').prop('checked',false);
+        if(!canBeDirector) $('#is_director').prop('checked',false);
         if(type!=='2') $('#teacher_id').val('');
     }
 
@@ -915,6 +1149,9 @@ function user_role_badge($row) {
             $('#studentLevelFilter,#studentGradeFilter,#studentSectionFilter,#studentStatusFilter,#studentPasswordFilter').on('change',function(){
                 studentTable.draw();
             });
+
+            refreshPersonalStats();
+            refreshStudentStats();
         }
 
         $('#new_user').on('click',function(){
@@ -1003,12 +1240,13 @@ function user_role_badge($row) {
                 data:data,
                 dataType:'json'
             }).done(function(resp){
+                btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar usuario');
                 if(resp&&resp.status==1){
+                    if(resp.user) upsertUserRow(resp.user);
                     notify(resp.message,'success');
-                    setTimeout(refresh,350);
+                    $('#userModal').modal('hide');
                 }else{
                     notify((resp&&resp.message)||'No se pudo guardar.','danger');
-                    btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar usuario');
                 }
             }).fail(function(){
                 notify('Error de conexión.','danger');
@@ -1025,8 +1263,8 @@ function user_role_badge($row) {
             api(
                 {action:'toggle_status',id:b.data('id')},
                 function(resp){
+                    if(resp.user) upsertUserRow(resp.user);
                     notify(resp.message,'success');
-                    setTimeout(refresh,350);
                 }
             );
         });
@@ -1171,9 +1409,13 @@ function user_role_badge($row) {
                 },
                 function(resp){
                     btn.prop('disabled',false);
+                    updateStudentAccessRow(
+                        $('#student_reset_id').val(),
+                        resp.mode||mode,
+                        resp.password_changed_at_display||resp.password_changed_at||'Ahora'
+                    );
                     notify(resp.message,'success');
                     $('#studentResetPasswordModal').modal('hide');
-                    setTimeout(refresh,450);
                 },
                 function(){btn.prop('disabled',false);}
             );
@@ -1263,8 +1505,8 @@ function user_role_badge($row) {
             api(
                 {action:'delete_permanent',id:b.data('id')},
                 function(resp){
+                    removeUserRow(resp.id||b.data('id'));
                     notify(resp.message,'success');
-                    setTimeout(refresh,350);
                 }
             );
         });
