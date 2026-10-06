@@ -177,10 +177,22 @@ $student_dni = $_SESSION['student_dni'] ?? '';
         caption.textContent=`${debts.length} obligación${debts.length===1?'':'es'} pendiente${debts.length===1?'':'s'} en el filtro seleccionado.`;
     }
     function renderWarning(){
-        const globalSummary=responseData?.summary||{};
         if(responseData?.block_grades){
+            const count=Number(responseData?.grades_block_count||0);
+            const total=Number(responseData?.grades_block_total||0);
+            const scope=responseData?.grades_block_scope==='pending'
+                ? 'obligación pendiente'
+                : 'obligación vencida';
+            const message=responseData?.grades_block_message
+                || 'Las calificaciones están temporalmente restringidas por obligaciones de pago.';
             warning.classList.remove('d-none');
-            warning.innerHTML=`<i class="fas fa-lock mr-2"></i><strong>Tienes ${Number(globalSummary.count_concepts||0)} obligaciones pendientes.</strong> Tu saldo total pendiente es ${money(globalSummary.total_debt)}. Regulariza tu situación para volver a consultar Mis Notas.`;
+            warning.innerHTML=
+                '<div><i class="fas fa-lock mr-2"></i><strong>Acceso a notas restringido</strong></div>'
+                +'<div class="small mt-1">'+escapeHtml(message)+'</div>'
+                +'<div class="small mt-1 text-muted">'
+                +count+' '+scope+(count===1?'':'s')
+                +' consideradas por la política · '+money(total)
+                +'</div>';
         }else{
             warning.classList.add('d-none');
             warning.innerHTML='';
