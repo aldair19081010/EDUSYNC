@@ -2,9 +2,6 @@
 require_once __DIR__ . '/grade_access_policy_service.php';
 
 $advanced_policy = grade_policy_load($conn, (int)$school_id);
-$grade_policy_concepts = grade_policy_available_concepts($conn, (int)$school_id);
-$grade_policy_selected = grade_policy_selected_course_ids($conn, (int)$school_id);
-$grade_policy_selected_lookup = array_fill_keys(array_map('intval', $grade_policy_selected), true);
 $grade_policy_exceptions = grade_policy_list_exceptions($conn, (int)$school_id, false);
 
 $temp_value = '';
@@ -115,39 +112,9 @@ if (!empty($advanced_policy['temporary_access_until'])) {
                     </div>
                 </div>
 
-                <div class="policy-step">
-                    <div class="policy-step-head">
-                        <span class="policy-step-number">3</span>
-                        <div>
-                            <div class="policy-step-title">Definir qué deudas se toman en cuenta</div>
-                            <div class="policy-step-desc">La cantidad configurada arriba se calculará usando todas las deudas, salvo que quieras limitarla a conceptos específicos.</div>
-                        </div>
-                    </div>
-
-                    <div class="custom-control custom-switch">
-                        <input type="checkbox" class="custom-control-input" id="limitGradeDebtConcepts" <?php echo !empty($grade_policy_selected) ? 'checked' : ''; ?> <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                        <label class="custom-control-label" for="limitGradeDebtConcepts">
-                            <strong>Usar solo conceptos específicos</strong>
-                            <div class="policy-option-note mt-1">Desactivado = cuentan todas las deudas. Actívalo solo si, por ejemplo, quieres que cuenten únicamente las pensiones.</div>
-                        </label>
-                    </div>
-
-                    <div id="gradeConceptSelectorWrap" class="mt-3 <?php echo empty($grade_policy_selected) ? 'd-none' : ''; ?>">
-                        <label class="font-weight-bold">Conceptos que sí contarán</label>
-                        <select class="form-control" id="gradeConceptIds" multiple size="<?php echo min(7, max(4, count($grade_policy_concepts))); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                            <?php foreach ($grade_policy_concepts as $concept): ?>
-                                <option value="<?php echo (int)$concept['id']; ?>" <?php echo isset($grade_policy_selected_lookup[(int)$concept['id']]) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars((string)$concept['course'] . ' · ' . (string)$concept['level'] . ' · ' . (string)$concept['year'], ENT_QUOTES, 'UTF-8'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <small class="form-text text-muted">Solo las deudas de los conceptos seleccionados sumarán para alcanzar el número mínimo configurado arriba.</small>
-                    </div>
-                </div>
-
                 <div class="policy-step policy-temporary-box">
                     <div class="policy-step-head">
-                        <span class="policy-step-number">4</span>
+                        <span class="policy-step-number">3</span>
                         <div>
                             <div class="policy-step-title">Permitir notas temporalmente a todos</div>
                             <div class="policy-step-desc">Úsalo solo cuando quieras suspender el bloqueo por unas horas o días, por ejemplo durante entrega de libretas. No modifica las deudas.</div>
@@ -164,7 +131,7 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 
                 <div class="policy-step">
                     <div class="policy-step-head">
-                        <span class="policy-step-number">5</span>
+                        <span class="policy-step-number">4</span>
                         <div>
                             <div class="policy-step-title">Definir el mensaje para la familia</div>
                             <div class="policy-step-desc">Este es el texto principal que verá la familia cuando sus notas estén restringidas.</div>
@@ -310,12 +277,6 @@ if (!empty($advanced_policy['temporary_access_until'])) {
     $('#togglePolicyMessages').on('click',function(){
         $('#policyMessagePanel').toggleClass('open');
         $('#policyMessagesChevron').toggleClass('fa-chevron-down fa-chevron-up');
-    });
-
-    $('#limitGradeDebtConcepts').on('change',function(){
-        var limited=$(this).is(':checked');
-        $('#gradeConceptSelectorWrap').toggleClass('d-none',!limited);
-        if(!limited) $('#gradeConceptIds').val([]);
     });
 
     function refreshGradeExceptionCount(){
