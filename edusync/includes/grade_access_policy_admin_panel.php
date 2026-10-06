@@ -56,23 +56,49 @@ if (!empty($advanced_policy['temporary_access_until'])) {
     border-color:#9cbcf9!important;
     box-shadow:0 0 0 .14rem rgba(66,133,244,.13)!important;
 }
-#policy-pane-exceptions .select2-dropdown{
+.ed-grade-student-dropdown{
+    z-index:2050!important;
     border:1px solid #d8deea!important;
     border-radius:var(--edu-radius-sm,.45rem)!important;
+    background:#fff!important;
     box-shadow:var(--edu-shadow-lg,0 .5rem 1.25rem rgba(31,45,61,.14))!important;
     overflow:hidden;
 }
-#policy-pane-exceptions .select2-search--dropdown{padding:.55rem!important;background:#fff}
-#policy-pane-exceptions .select2-search--dropdown .select2-search__field{
+.ed-grade-student-dropdown .select2-search--dropdown{
+    padding:.55rem!important;
+    background:#fff!important;
+    border-bottom:1px solid #edf0f5;
+}
+.ed-grade-student-dropdown .select2-search--dropdown .select2-search__field{
+    width:100%!important;
     min-height:36px;
     border:1px solid #d8deea!important;
     border-radius:var(--edu-radius-sm,.45rem)!important;
-    padding:.4rem .65rem;
+    padding:.4rem .65rem!important;
+    color:#49566a!important;
     outline:0;
+    box-shadow:none!important;
 }
-#policy-pane-exceptions .select2-results__option{padding:.55rem .7rem;font-size:.84rem;color:#49566a}
-#policy-pane-exceptions .select2-results__option--highlighted[aria-selected]{
+.ed-grade-student-dropdown .select2-search--dropdown .select2-search__field:focus{
+    border-color:#9cbcf9!important;
+    box-shadow:0 0 0 .14rem rgba(66,133,244,.13)!important;
+}
+.ed-grade-student-dropdown .select2-results__options{
+    max-height:260px!important;
+}
+.ed-grade-student-dropdown .select2-results__option{
+    padding:.58rem .75rem!important;
+    font-size:.84rem!important;
+    line-height:1.35!important;
+    color:#49566a!important;
+    background:#fff;
+}
+.ed-grade-student-dropdown .select2-results__option--highlighted[aria-selected]{
     background:#eef4ff!important;
+    color:#344767!important;
+}
+.ed-grade-student-dropdown .select2-results__option[aria-selected="true"]{
+    background:#f5f8fd!important;
     color:#344767!important;
 }
 .policy-step{border:1px solid #e4e8ef;border-radius:.65rem;padding:1rem;margin-bottom:1rem;background:#fff}
@@ -315,7 +341,8 @@ if (!empty($advanced_policy['temporary_access_until'])) {
             width:'100%',
             placeholder:select.data('placeholder')||'Buscar estudiante...',
             allowClear:true,
-            dropdownParent:$('#policy-pane-exceptions'),
+            dropdownParent:$(document.body),
+            dropdownCssClass:'ed-grade-student-dropdown',
             language:{
                 noResults:function(){ return 'No se encontraron estudiantes'; },
                 searching:function(){ return 'Buscando...'; }
@@ -325,6 +352,9 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 
     $('.policy-manage-tab').on('click',function(){
         var pane=$(this).data('policy-pane');
+        if(pane!=='exceptions' && $('#gradeExceptionStudent').hasClass('select2-hidden-accessible')){
+            $('#gradeExceptionStudent').select2('close');
+        }
         $('.policy-manage-tab').removeClass('active');
         $(this).addClass('active');
         $('.policy-manage-pane').removeClass('active');
