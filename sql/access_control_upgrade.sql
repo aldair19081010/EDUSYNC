@@ -60,14 +60,6 @@ ALTER TABLE school_grade_access_policy
     ADD COLUMN IF NOT EXISTS temporary_message VARCHAR(500) NOT NULL DEFAULT 'La institución ha habilitado temporalmente la consulta de calificaciones.' AFTER temporary_access_until,
     ADD COLUMN IF NOT EXISTS exception_message VARCHAR(500) NOT NULL DEFAULT 'Tu acceso a calificaciones está habilitado por una excepción autorizada por la institución.' AFTER temporary_message;
 
-CREATE TABLE IF NOT EXISTS school_grade_access_policy_concepts (
-    school_id INT(11) NOT NULL,
-    course_id INT(11) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (school_id, course_id),
-    KEY idx_grade_policy_concept_course (course_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 CREATE TABLE IF NOT EXISTS student_grade_access_exception (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     school_id INT(11) NOT NULL,
