@@ -440,7 +440,14 @@ try {
     grades_reply('ok','',[
         'alumno'=>$studentName,'dni'=>$studentDni,'nivel'=>(string)($student['nivel'] ?? ''),'grado'=>(string)($student['grado'] ?? ''),'seccion'=>(string)($student['seccion'] ?? ''),
         'anio_academico_actual'=>$currentYear,'años_disponibles'=>$yearsAvailable,'años_academicos'=>$yearsWithGrades,
-        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode
+        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode,
+        'access_policy'=>[
+            'reason'=>(string)($debt['reason'] ?? 'allowed'),
+            'message'=>(string)($debt['message'] ?? ''),
+            'grace_days'=>(int)($debt['grace_days'] ?? 0),
+            'grace_count'=>(int)($debt['grace_count'] ?? 0),
+            'temporary_access_until'=>$debt['temporary_access_until'] ?? null
+        ]
     ]);
 } catch (Throwable $e) {
     error_log('EduSync my_grades.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
