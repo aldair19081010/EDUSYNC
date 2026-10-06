@@ -181,6 +181,7 @@ if ($csrf === '' || $session_csrf === '' || !hash_equals($session_csrf, $csrf)) 
 }
 
 $action = $_POST['action'] ?? '';
+require_once __DIR__ . '/includes/grade_access_policy_admin_actions.php';
 
 if ($action === 'save') {
     $id = intval($_POST['id'] ?? 0);
