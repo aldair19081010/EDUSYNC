@@ -169,14 +169,17 @@ function user_role_badge($row) {
 ?>
 
 <style>
-.user-hero{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.6rem;padding:1.1rem 1.3rem;margin-bottom:1rem}.user-hero h1{font-size:1.35rem;font-weight:700;color:#344767;margin:0}.user-hero p{font-size:.84rem;color:#7b8499;margin:.2rem 0 0}.user-stat{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:0 2px 7px rgba(31,45,61,.04);height:100%}.user-stat .card-body{padding:1rem}.user-stat .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#858796;font-weight:700}.user-stat .number{font-size:1.55rem;color:#344767;font-weight:700;line-height:1.2}.user-stat .meta{font-size:.72rem;color:#858796}.users-toolbar{display:flex;gap:.65rem;flex-wrap:wrap;align-items:end}.users-toolbar .form-group{margin-bottom:0;min-width:180px}.users-table-card{border:1px solid #e3e6f0;border-radius:.6rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}#usersTable td,#usersTable th{vertical-align:middle}.user-name-cell{display:flex;align-items:center;gap:.65rem}.user-avatar-placeholder{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#f1f4f9;color:#4e73df;font-weight:700;flex:0 0 36px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.status-active{background:#1cc88a}.status-inactive{background:#e74a3b}.dropdown-menu .dropdown-item i{width:20px}.password-box{font-family:monospace;font-size:1rem}.history-item{border-left:3px solid #4e73df;padding:.7rem .85rem;margin-bottom:.75rem;background:#f8f9fc;border-radius:.25rem}.history-item .history-title{font-weight:700;color:#344767}.history-item .history-meta{font-size:.75rem;color:#858796}.teacher-warning{font-size:.78rem}.user-modal-section{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.45rem;padding:.75rem;margin-bottom:1rem}@media(max-width:767px){.users-toolbar .form-group{min-width:100%;width:100%}.user-hero{padding:1rem}.user-stat{margin-bottom:.5rem}}
+.user-hero{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.6rem;padding:1.1rem 1.3rem;margin-bottom:1rem}.user-hero h1{font-size:1.35rem;font-weight:700;color:#344767;margin:0}.user-hero p{font-size:.84rem;color:#7b8499;margin:.2rem 0 0}.user-stat{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:0 2px 7px rgba(31,45,61,.04);height:100%}.user-stat .card-body{padding:1rem}.user-stat .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#858796;font-weight:700}.user-stat .number{font-size:1.55rem;color:#344767;font-weight:700;line-height:1.2}.user-stat .meta{font-size:.72rem;color:#858796}.users-toolbar{display:flex;gap:.65rem;flex-wrap:wrap;align-items:end}.users-toolbar .form-group{margin-bottom:0;min-width:180px}.users-table-card{border:1px solid #e3e6f0;border-radius:.6rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}#usersTable td,#usersTable th{vertical-align:middle}.user-name-cell{display:flex;align-items:center;gap:.65rem}.user-avatar-placeholder{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#f1f4f9;color:#4e73df;font-weight:700;flex:0 0 36px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.status-active{background:#1cc88a}.status-inactive{background:#e74a3b}.dropdown-menu .dropdown-item i{width:20px}.password-box{font-family:monospace;font-size:1rem}.history-item{border-left:3px solid #4e73df;padding:.7rem .85rem;margin-bottom:.75rem;background:#f8f9fc;border-radius:.25rem}.history-item .history-title{font-weight:700;color:#344767}.history-item .history-meta{font-size:.75rem;color:#858796}.teacher-warning{font-size:.78rem}.user-modal-section{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.45rem;padding:.75rem;margin-bottom:1rem}
+.access-tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;padding:.35rem;background:#f1f4f9;border:1px solid #e3e6f0;border-radius:.65rem}.access-tab{border:0;background:transparent;color:#6c7587;font-weight:700;font-size:.82rem;padding:.65rem .9rem;border-radius:.5rem;transition:.18s ease}.access-tab:hover{background:#fff;color:#4e73df}.access-tab.active{background:#fff;color:#4e73df;box-shadow:0 2px 8px rgba(31,45,61,.08)}.access-panel{display:none}.access-panel.active{display:block}
+.student-access-meta{font-size:.78rem;color:#7b8499}.student-access-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700}.student-access-badge.custom{background:#eafaf4;color:#14855f}.student-access-badge.default{background:#fff8e1;color:#8b6b00}.policy-card{border:1px solid #e3e6f0;border-radius:.65rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}.policy-preview{border-left:4px solid #f6c23e;background:#fffaf0;border-radius:.4rem;padding:.85rem 1rem}.policy-status{font-size:.76rem;font-weight:700}.policy-help{font-size:.78rem;color:#7b8499;line-height:1.45}#studentAccessTable td,#studentAccessTable th{vertical-align:middle}
+@media(max-width:767px){.users-toolbar .form-group{min-width:100%;width:100%}.user-hero{padding:1rem}.user-stat{margin-bottom:.5rem}.access-tabs{display:grid;grid-template-columns:1fr}.access-tab{width:100%}}
 </style>
 
 <div class="container-fluid px-0">
     <div class="user-hero d-sm-flex align-items-center justify-content-between">
         <div>
-            <h1><i class="fas fa-users-cog mr-2 text-primary"></i>Gestión de usuarios</h1>
-            <p>Administra accesos, roles, cuentas docentes, estados y seguridad del personal.</p>
+            <h1><i class="fas fa-users-cog mr-2 text-primary"></i>Usuarios y Accesos</h1>
+            <p>Gestiona cuentas del personal, accesos de estudiantes y políticas institucionales de seguridad.</p>
         </div>
         <button class="btn btn-primary btn-sm mt-2 mt-sm-0" id="new_user" <?php echo $migration_ready ? '' : 'disabled'; ?>>
             <i class="fas fa-user-plus mr-1"></i> Nuevo usuario
@@ -190,6 +193,20 @@ function user_role_badge($row) {
         </div>
     <?php endif; ?>
 
+    <div class="access-tabs" role="tablist" aria-label="Secciones de usuarios y accesos">
+        <button type="button" class="access-tab active" data-access-panel="personal">
+            <i class="fas fa-user-shield mr-1"></i>Personal
+        </button>
+        <button type="button" class="access-tab" data-access-panel="students">
+            <i class="fas fa-user-graduate mr-1"></i>Estudiantes
+            <span class="badge badge-light ml-1"><?php echo (int)$total_student_access; ?></span>
+        </button>
+        <button type="button" class="access-tab" data-access-panel="policy">
+            <i class="fas fa-lock mr-1"></i>Política de notas
+        </button>
+    </div>
+
+    <div id="access-personal-panel" class="access-panel active">
     <div class="row mb-3">
         <div class="col-xl col-md-4 col-sm-6 mb-2">
             <div class="card user-stat"><div class="card-body"><div class="label">Total usuarios</div><div class="number"><?php echo $total_users; ?></div><div class="meta">Cuentas registradas</div></div></div>
@@ -307,6 +324,237 @@ function user_role_badge($row) {
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+    </div>
+
+    <div id="access-students-panel" class="access-panel">
+        <?php if (!$access_migration_ready): ?>
+            <div class="alert alert-warning shadow-sm">
+                <strong><i class="fas fa-database mr-2"></i>Actualización requerida.</strong>
+                Ejecuta <code>sql/access_control_upgrade.sql</code> para administrar contraseñas estudiantiles e historial.
+            </div>
+        <?php endif; ?>
+
+        <div class="row mb-3">
+            <div class="col-xl-3 col-md-6 mb-2">
+                <div class="card user-stat"><div class="card-body"><div class="label">Estudiantes</div><div class="number"><?php echo (int)$total_student_access; ?></div><div class="meta">Registrados en el colegio</div></div></div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-2">
+                <div class="card user-stat"><div class="card-body"><div class="label">Contraseña propia</div><div class="number text-success"><?php echo (int)$total_student_custom_password; ?></div><div class="meta">Acceso personalizado</div></div></div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-2">
+                <div class="card user-stat"><div class="card-body"><div class="label">Acceso con DNI</div><div class="number text-warning"><?php echo (int)$total_student_default_password; ?></div><div class="meta">Usan DNI como clave actual</div></div></div>
+            </div>
+            <div class="col-xl-3 col-md-6 mb-2">
+                <div class="card user-stat"><div class="card-body"><div class="label">No activos</div><div class="number text-muted"><?php echo (int)$total_student_inactive; ?></div><div class="meta">Retirados, egresados u otros</div></div></div>
+            </div>
+        </div>
+
+        <div class="card users-table-card mb-4">
+            <div class="card-header bg-white py-3">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
+                    <div>
+                        <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-user-graduate text-primary mr-2"></i>Accesos de estudiantes</h6>
+                        <div class="small text-muted">El usuario del estudiante es su DNI/código. Desde aquí puedes restablecer su contraseña sin modificar su matrícula.</div>
+                    </div>
+                    <div class="small text-muted mt-2 mt-lg-0"><i class="fas fa-shield-alt mr-1"></i>Los restablecimientos quedan auditados.</div>
+                </div>
+                <div class="users-toolbar mt-3">
+                    <div class="form-group">
+                        <label class="small font-weight-bold mb-1">Nivel</label>
+                        <select class="form-control form-control-sm" id="studentLevelFilter">
+                            <option value="">Todos</option>
+                            <?php foreach ($student_levels as $value): ?>
+                                <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small font-weight-bold mb-1">Grado</label>
+                        <select class="form-control form-control-sm" id="studentGradeFilter">
+                            <option value="">Todos</option>
+                            <?php foreach ($student_grades as $value): ?>
+                                <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small font-weight-bold mb-1">Sección</label>
+                        <select class="form-control form-control-sm" id="studentSectionFilter">
+                            <option value="">Todas</option>
+                            <?php foreach ($student_sections as $value): ?>
+                                <option value="<?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small font-weight-bold mb-1">Estado</label>
+                        <select class="form-control form-control-sm" id="studentStatusFilter">
+                            <option value="">Todos</option>
+                            <option value="Activo">Activo</option>
+                            <option value="Retirado">Retirado</option>
+                            <option value="Egresado">Egresado</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="small font-weight-bold mb-1">Tipo de acceso</label>
+                        <select class="form-control form-control-sm" id="studentPasswordFilter">
+                            <option value="">Todos</option>
+                            <option value="Personalizada">Contraseña propia</option>
+                            <option value="DNI">Acceso con DNI</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered" id="studentAccessTable" width="100%">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Estudiante</th>
+                                <th>DNI / código</th>
+                                <th>Ubicación académica</th>
+                                <th class="text-center">Acceso</th>
+                                <th>Último cambio</th>
+                                <th class="text-center">Estado</th>
+                                <th class="text-center" style="width:90px">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <?php foreach ($students_access as $student):
+                            $has_custom_password = trim((string)($student['portal_password_hash'] ?? '')) !== '';
+                            $password_mode = $has_custom_password ? 'Personalizada' : 'DNI';
+                            $changed_at = trim((string)($student['password_changed_at'] ?? ''));
+                            $changed_display = 'Nunca';
+                            if ($changed_at !== '') {
+                                try {
+                                    $changed_display = (new DateTimeImmutable($changed_at, new DateTimeZone('America/Lima')))->format('d/m/Y H:i');
+                                } catch (Exception $e) {
+                                    $changed_display = $changed_at;
+                                }
+                            }
+                            $student_status = trim((string)($student['status'] ?? 'Activo'));
+                        ?>
+                            <tr
+                                data-level="<?php echo htmlspecialchars((string)$student['nivel'], ENT_QUOTES, 'UTF-8'); ?>"
+                                data-grade="<?php echo htmlspecialchars((string)$student['grado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                data-section="<?php echo htmlspecialchars((string)$student['seccion'], ENT_QUOTES, 'UTF-8'); ?>"
+                                data-status="<?php echo htmlspecialchars($student_status, ENT_QUOTES, 'UTF-8'); ?>"
+                                data-password="<?php echo $password_mode; ?>">
+                                <td>
+                                    <div class="user-name-cell">
+                                        <span class="user-avatar-placeholder"><?php echo htmlspecialchars(mb_strtoupper(mb_substr(trim((string)$student['name']), 0, 1)), ENT_QUOTES, 'UTF-8'); ?></span>
+                                        <div>
+                                            <strong><?php echo htmlspecialchars((string)$student['name'], ENT_QUOTES, 'UTF-8'); ?></strong>
+                                            <div class="student-access-meta"><?php echo htmlspecialchars((string)$student['nivel'], ENT_QUOTES, 'UTF-8'); ?></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><span class="font-weight-bold"><?php echo htmlspecialchars((string)$student['id_no'], ENT_QUOTES, 'UTF-8'); ?></span></td>
+                                <td>
+                                    <?php echo htmlspecialchars(trim((string)$student['grado']) !== '' ? (string)$student['grado'] : '—', ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php if (trim((string)$student['seccion']) !== ''): ?>
+                                        <span class="text-muted">· <?php echo htmlspecialchars((string)$student['seccion'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-center">
+                                    <?php if ($has_custom_password): ?>
+                                        <span class="student-access-badge custom"><i class="fas fa-key"></i>Personalizada</span>
+                                    <?php else: ?>
+                                        <span class="student-access-badge default"><i class="fas fa-id-card"></i>DNI</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td><span class="small"><?php echo htmlspecialchars($changed_display, ENT_QUOTES, 'UTF-8'); ?></span></td>
+                                <td class="text-center">
+                                    <span class="badge <?php echo $student_status === 'Activo' ? 'badge-success' : 'badge-secondary'; ?> px-2 py-2"><?php echo htmlspecialchars($student_status !== '' ? $student_status : 'Activo', ENT_QUOTES, 'UTF-8'); ?></span>
+                                </td>
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
+                                        <div class="dropdown-menu dropdown-menu-right shadow">
+                                            <a class="dropdown-item student-reset-password" href="#"
+                                               data-id="<?php echo (int)$student['id']; ?>"
+                                               data-name="<?php echo htmlspecialchars((string)$student['name'], ENT_QUOTES, 'UTF-8'); ?>"
+                                               data-dni="<?php echo htmlspecialchars((string)$student['id_no'], ENT_QUOTES, 'UTF-8'); ?>"
+                                               data-grade="<?php echo htmlspecialchars((string)$student['grado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                               data-section="<?php echo htmlspecialchars((string)$student['seccion'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                <i class="fas fa-key text-warning"></i>Restablecer contraseña
+                                            </a>
+                                            <a class="dropdown-item student-access-history" href="#"
+                                               data-id="<?php echo (int)$student['id']; ?>"
+                                               data-name="<?php echo htmlspecialchars((string)$student['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                <i class="fas fa-history text-info"></i>Ver historial de acceso
+                                            </a>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="access-policy-panel" class="access-panel">
+        <?php if (!$access_migration_ready): ?>
+            <div class="alert alert-warning shadow-sm">
+                <strong><i class="fas fa-database mr-2"></i>Actualización requerida.</strong>
+                Ejecuta <code>sql/access_control_upgrade.sql</code> antes de guardar esta política.
+            </div>
+        <?php endif; ?>
+
+        <div class="card policy-card mb-4">
+            <div class="card-header bg-white py-3">
+                <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-lock text-warning mr-2"></i>Política institucional de acceso a notas</h6>
+                <div class="small text-muted">Cada colegio decide si la deuda restringe la visualización de calificaciones y bajo qué condiciones.</div>
+            </div>
+            <form id="gradeAccessPolicyForm">
+                <div class="card-body">
+                    <div class="custom-control custom-switch mb-4">
+                        <input type="checkbox" class="custom-control-input" id="block_grades_by_debt" name="block_grades_by_debt" value="1" <?php echo (int)$grade_policy['block_grades_by_debt'] === 1 ? 'checked' : ''; ?> <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                        <label class="custom-control-label" for="block_grades_by_debt">
+                            <strong>Bloquear visualización de notas por deuda</strong>
+                            <div class="policy-help">Al desactivarlo, las familias podrán consultar notas aunque tengan obligaciones pendientes.</div>
+                        </label>
+                    </div>
+
+                    <div id="gradePolicyControls">
+                        <div class="row">
+                            <div class="col-md-6 form-group">
+                                <label class="font-weight-bold">Deudas que cuentan para el bloqueo</label>
+                                <select class="form-control" id="debt_scope" name="debt_scope" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                                    <option value="overdue" <?php echo ($grade_policy['debt_scope'] ?? 'overdue') === 'overdue' ? 'selected' : ''; ?>>Solo conceptos vencidos</option>
+                                    <option value="pending" <?php echo ($grade_policy['debt_scope'] ?? '') === 'pending' ? 'selected' : ''; ?>>Todo concepto con saldo pendiente</option>
+                                </select>
+                                <small class="form-text text-muted">Recomendado: solo vencidos, para que una deuda futura no restrinja notas.</small>
+                            </div>
+                            <div class="col-md-6 form-group">
+                                <label class="font-weight-bold">Cantidad mínima de conceptos</label>
+                                <input type="number" min="1" max="20" class="form-control" id="minimum_debt_concepts" name="minimum_debt_concepts" value="<?php echo max(1, (int)$grade_policy['minimum_debt_concepts']); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                                <small class="form-text text-muted">Ejemplo: 2 significa que con 0 o 1 concepto no se bloquean las notas.</small>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold">Mensaje para la familia</label>
+                            <textarea class="form-control" rows="3" maxlength="500" id="block_message" name="block_message" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><?php echo htmlspecialchars((string)$grade_policy['block_message'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                            <small class="form-text text-muted"><span id="policyMessageCount">0</span>/500 caracteres</small>
+                        </div>
+                    </div>
+
+                    <div class="policy-preview">
+                        <div class="font-weight-bold text-warning mb-1"><i class="fas fa-eye mr-1"></i>Así funcionará</div>
+                        <div id="gradePolicyPreview" class="small text-gray-800"></div>
+                    </div>
+                </div>
+                <div class="card-footer bg-white text-right">
+                    <button type="submit" class="btn btn-primary" id="saveGradePolicy" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                        <i class="fas fa-save mr-1"></i>Guardar política
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
