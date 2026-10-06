@@ -200,7 +200,7 @@ function user_role_badge($row) {
         </button>
         <button type="button" class="access-tab" data-access-panel="students">
             <i class="fas fa-user-graduate mr-1"></i>Estudiantes
-            <span class="badge badge-light ml-1" id="studentAccessTabCount"><?php echo (int)$total_student_access; ?></span>
+            <span class="badge ed-badge badge-light ml-1" id="studentAccessTabCount"><?php echo (int)$total_student_access; ?></span>
         </button>
         <button type="button" class="access-tab" data-access-panel="policy">
             <i class="fas fa-lock mr-1"></i>Política de notas
@@ -280,16 +280,16 @@ function user_role_badge($row) {
                             <td>
                                 <div class="user-name-cell">
                                     <span class="user-avatar-placeholder"><?php echo htmlspecialchars(mb_strtoupper(mb_substr(trim($row['name']),0,1)), ENT_QUOTES, 'UTF-8'); ?></span>
-                                    <div><strong><?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?></strong><?php if ($is_self): ?><div><span class="badge badge-light border">Tu cuenta</span></div><?php endif; ?></div>
+                                    <div><strong><?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?></strong><?php if ($is_self): ?><div><span class="badge ed-badge badge-light border">Tu cuenta</span></div><?php endif; ?></div>
                                 </div>
                             </td>
                             <td><span class="text-dark"><i class="far fa-user mr-1 text-muted"></i><?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?></span></td>
-                            <td class="text-center"><span class="badge <?php echo user_role_badge($row); ?> px-2 py-2"><?php echo htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8'); ?></span></td>
+                            <td class="text-center"><span class="badge ed-badge <?php echo user_role_badge($row); ?> px-2 py-2"><?php echo htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8'); ?></span></td>
                             <td>
                                 <?php if ((int)$row['type'] === 2): ?>
                                     <?php if ($teacher_name !== ''): ?>
                                         <div><i class="fas fa-chalkboard-teacher mr-1 text-info"></i><?php echo htmlspecialchars($teacher_name, ENT_QUOTES, 'UTF-8'); ?></div>
-                                        <?php if (($row['teacher_status'] ?? 'Activo') !== 'Activo'): ?><span class="badge badge-warning mt-1">Docente inactivo</span><?php endif; ?>
+                                        <?php if (($row['teacher_status'] ?? 'Activo') !== 'Activo'): ?><span class="badge ed-badge badge-warning mt-1">Docente inactivo</span><?php endif; ?>
                                     <?php else: ?>
                                         <span class="text-danger"><i class="fas fa-unlink mr-1"></i>Sin docente vinculado</span>
                                     <?php endif; ?>
@@ -299,14 +299,14 @@ function user_role_badge($row) {
                             </td>
                             <td class="text-center">
                                 <?php if ($status === 'Activo'): ?>
-                                    <span class="badge badge-success px-2 py-2"><span class="status-dot status-active"></span>Activo</span>
+                                    <span class="badge ed-badge badge-success px-2 py-2"><span class="status-dot status-active"></span>Activo</span>
                                 <?php else: ?>
-                                    <span class="badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>
+                                    <span class="badge ed-badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>
                                 <?php endif; ?>
                             </td>
                             <td class="text-center">
                                 <div class="dropdown">
-                                    <button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown" <?php echo $migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
+                                    <button class="btn btn-light btn-sm border dropdown-toggle ed-icon-btn" type="button" data-toggle="dropdown" <?php echo $migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
                                     <div class="dropdown-menu dropdown-menu-right shadow">
                                         <a class="dropdown-item edit-user" href="#"
                                            data-id="<?php echo (int)$row['id']; ?>"
@@ -475,11 +475,11 @@ function user_role_badge($row) {
                                 </td>
                                 <td class="student-access-changed"><span class="small"><?php echo htmlspecialchars($changed_display, ENT_QUOTES, 'UTF-8'); ?></span></td>
                                 <td class="text-center">
-                                    <span class="badge <?php echo $student_status === 'Activo' ? 'badge-success' : 'badge-secondary'; ?> px-2 py-2"><?php echo htmlspecialchars($student_status !== '' ? $student_status : 'Activo', ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <span class="badge ed-badge <?php echo $student_status === 'Activo' ? 'badge-success' : 'badge-secondary'; ?> px-2 py-2"><?php echo htmlspecialchars($student_status !== '' ? $student_status : 'Activo', ENT_QUOTES, 'UTF-8'); ?></span>
                                 </td>
                                 <td class="text-center">
                                     <div class="dropdown">
-                                        <button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
+                                        <button class="btn btn-light btn-sm border dropdown-toggle ed-icon-btn" type="button" data-toggle="dropdown" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
                                         <div class="dropdown-menu dropdown-menu-right shadow">
                                             <a class="dropdown-item student-reset-password" href="#"
                                                data-id="<?php echo (int)$student['id']; ?>"
@@ -786,30 +786,30 @@ function user_role_badge($row) {
         var nameHtml='<div class="user-name-cell">'
             +'<span class="user-avatar-placeholder">'+escapeHtml(initial)+'</span>'
             +'<div><strong>'+escapeHtml(name)+'</strong>'
-            +(isSelf?'<div><span class="badge badge-light border">Tu cuenta</span></div>':'')
+            +(isSelf?'<div><span class="badge ed-badge badge-light border">Tu cuenta</span></div>':'')
             +'</div></div>';
 
         var usernameHtml='<span class="text-dark"><i class="far fa-user mr-1 text-muted"></i>'+escapeHtml(username)+'</span>';
-        var roleHtml='<span class="badge '+userRoleBadgeClass(user)+' px-2 py-2">'+escapeHtml(role)+'</span>';
+        var roleHtml='<span class="badge ed-badge '+userRoleBadgeClass(user)+' px-2 py-2">'+escapeHtml(role)+'</span>';
 
         var linkHtml='<span class="text-muted">—</span>';
         if(type===2){
             if(teacherName){
                 linkHtml='<div><i class="fas fa-chalkboard-teacher mr-1 text-info"></i>'+escapeHtml(teacherName)+'</div>'
-                    +(teacherStatus!=='Activo'?'<span class="badge badge-warning mt-1">Docente inactivo</span>':'');
+                    +(teacherStatus!=='Activo'?'<span class="badge ed-badge badge-warning mt-1">Docente inactivo</span>':'');
             }else{
                 linkHtml='<span class="text-danger"><i class="fas fa-unlink mr-1"></i>Sin docente vinculado</span>';
             }
         }
 
         var statusHtml=status==='Activo'
-            ? '<span class="badge badge-success px-2 py-2"><span class="status-dot status-active"></span>Activo</span>'
-            : '<span class="badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>';
+            ? '<span class="badge ed-badge badge-success px-2 py-2"><span class="status-dot status-active"></span>Activo</span>'
+            : '<span class="badge ed-badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>';
 
         var editData=' data-id="'+id+'" data-name="'+escapeAttr(name)+'" data-username="'+escapeAttr(username)+'" data-type="'+type+'" data-director="'+isDirector+'" data-teacher="'+teacherId+'" data-status="'+escapeAttr(status)+'"';
 
         var actionsHtml='<div class="dropdown">'
-            +'<button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>'
+            +'<button class="btn btn-light btn-sm border dropdown-toggle ed-icon-btn" type="button" data-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>'
             +'<div class="dropdown-menu dropdown-menu-right shadow">'
             +'<a class="dropdown-item edit-user" href="#"'+editData+'><i class="fas fa-edit text-primary"></i>Editar</a>'
             +'<a class="dropdown-item reset-password" href="#" data-id="'+id+'" data-name="'+escapeAttr(name)+'"><i class="fas fa-key text-warning"></i>Restablecer contraseña</a>'
