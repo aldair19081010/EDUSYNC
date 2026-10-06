@@ -131,6 +131,15 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- Custom styles for this template-->
     <link href="css/sb-admin-2.css" rel="stylesheet">
     <link href="css/custom.css" rel="stylesheet">
+    <?php if ($page === 'users'): ?>
+    <?php
+        $users_ui_css_version = @filemtime(__DIR__ . '/css/ui_consistency.css') ?: time();
+        $users_ui_responsive_version = @filemtime(__DIR__ . '/css/ui_responsive.css') ?: time();
+    ?>
+    <!-- Usuarios y Accesos usa el estilo final desde el primer render para evitar saltos visuales. -->
+    <link data-edusync-ui-consistency="1" href="css/ui_consistency.css?v=<?php echo rawurlencode((string)$users_ui_css_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-responsive="1" href="css/ui_responsive.css?v=<?php echo rawurlencode((string)$users_ui_responsive_version); ?>" rel="stylesheet">
+    <?php endif; ?>
     <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <!-- Select2 global -->
@@ -168,7 +177,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     </div>
 </head>
 
-<body id="page-top">
+<body id="page-top"<?php if ($page === 'users'): ?> data-edusync-ui="standard-v2" data-edusync-page="users"<?php endif; ?>>
 
     <!-- Page Wrapper -->
     <div id="wrapper">
