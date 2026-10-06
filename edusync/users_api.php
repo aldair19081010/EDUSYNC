@@ -75,6 +75,56 @@ function load_teacher_for_user($conn, $teacher_id, $school_id) {
     return $row ?: null;
 }
 
+function load_student_for_access($conn, $student_id, $school_id) {
+    if ($student_id <= 0) return null;
+    $stmt = $conn->prepare(
+        'SELECT id, school_id, id_no, name, nivel, grado, seccion, status
+         FROM student
+         WHERE id = ? AND school_id = ?
+         LIMIT 1'
+    );
+    if (!$stmt) return null;
+    $stmt->bind_param('ii', $student_id, $school_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return $row ?: null;
+}
+
+function student_access_audit($conn, $school_id, $student, $action, $details = []) {
+    if (!user_api_table_exists($conn, 'student_access_audit_log')) return;
+
+    $actor_user_id = intval($_SESSION['login_id'] ?? 0) ?: null;
+    $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+    $json = json_encode($details, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $student_id = intval($student['id'] ?? 0);
+    $student_dni = (string)($student['id_no'] ?? '');
+    $actor_id = intval($actor_user_id);
+
+    $stmt = $conn->prepare(
+        'INSERT INTO student_access_audit_log
+         (school_id, student_id, student_dni, actor_user_id, action, details, ip_address)
+         VALUES (?, ?, ?, NULLIF(?,0), ?, ?, ?)'
+    );
+    if (!$stmt) return;
+    $stmt->bind_param(
+        'iisisss',
+        $school_id,
+        $student_id,
+        $student_dni,
+        $actor_id,
+        $action,
+        $json,
+        $ip
+    );
+    $stmt->execute();
+    $stmt->close();
+}
+
+function grade_policy_default_message() {
+    return 'Las calificaciones están temporalmente restringidas por obligaciones de pago vencidas. Comunícate con la institución para regularizar tu situación.';
+}
+
 $login_id = intval($_SESSION['login_id'] ?? 0);
 $school_id = intval($_SESSION['login_school_id'] ?? 0);
 if (!$login_id || !$school_id) user_api_reply(0, 'Sesión no válida. Vuelve a iniciar sesión.');
@@ -258,6 +308,216 @@ if ($action === 'history') {
     }
     $stmt->close();
     user_api_reply(1, 'Historial cargado.', ['items' => $items, 'user' => ['id' => $id, 'name' => $target['name'], 'username' => $target['username']]]);
+}
+
+if ($action === 'reset_student_password') {
+    if (!user_api_column_exists($conn, 'student', 'portal_password_hash')
+        || !user_api_column_exists($conn, 'student', 'password_changed_at')
+        || !user_api_table_exists($conn, 'student_access_audit_log')) {
+        user_api_reply(
+            0,
+            'Falta actualizar la base de datos. Ejecuta sql/access_control_upgrade.sql.'
+        );
+    }
+
+    $student_id = intval($_POST['student_id'] ?? 0);
+    $mode = (string)($_POST['mode'] ?? 'dni');
+    $new_password = (string)($_POST['new_password'] ?? '');
+
+    if (!in_array($mode, ['dni', 'temporary'], true)) {
+        user_api_reply(0, 'Modo de restablecimiento no válido.');
+    }
+
+    $student = load_student_for_access($conn, $student_id, $school_id);
+    if (!$student) user_api_reply(0, 'Estudiante no encontrado.');
+
+    $limaTimezone = new DateTimeZone('America/Lima');
+    $changedAt = (new DateTimeImmutable('now', $limaTimezone))
+        ->format('Y-m-d H:i:s');
+
+    if ($mode === 'dni') {
+        $stmt = $conn->prepare(
+            'UPDATE student
+             SET portal_password_hash = NULL, password_changed_at = ?
+             WHERE id = ? AND school_id = ?'
+        );
+        $stmt->bind_param('sii', $changedAt, $student_id, $school_id);
+        $auditAction = 'PASSWORD_RESET_DNI';
+        $message = 'Acceso restablecido. El estudiante podrá ingresar con su DNI.';
+    } else {
+        if (strlen($new_password) < 8) {
+            user_api_reply(0, 'La contraseña temporal debe tener al menos 8 caracteres.');
+        }
+        if (!preg_match('/[A-Za-z]/', $new_password)
+            || !preg_match('/\d/', $new_password)) {
+            user_api_reply(0, 'La contraseña temporal debe incluir al menos una letra y un número.');
+        }
+        if (hash_equals((string)$student['id_no'], $new_password)) {
+            user_api_reply(0, 'La contraseña temporal no puede ser igual al DNI.');
+        }
+
+        $hash = password_hash($new_password, PASSWORD_DEFAULT);
+        $stmt = $conn->prepare(
+            'UPDATE student
+             SET portal_password_hash = ?, password_changed_at = ?
+             WHERE id = ? AND school_id = ?'
+        );
+        $stmt->bind_param('ssii', $hash, $changedAt, $student_id, $school_id);
+        $auditAction = 'PASSWORD_RESET_TEMPORARY';
+        $message = 'Contraseña temporal asignada correctamente.';
+    }
+
+    if (!$stmt) user_api_reply(0, 'No se pudo preparar el restablecimiento.');
+    $ok = $stmt->execute();
+    $stmt->close();
+    if (!$ok) user_api_reply(0, 'No se pudo restablecer el acceso del estudiante.');
+
+    student_access_audit(
+        $conn,
+        $school_id,
+        $student,
+        $auditAction,
+        [
+            'name' => (string)$student['name'],
+            'nivel' => (string)($student['nivel'] ?? ''),
+            'grado' => (string)($student['grado'] ?? ''),
+            'seccion' => (string)($student['seccion'] ?? ''),
+            'changed_at' => $changedAt
+        ]
+    );
+
+    user_api_reply(
+        1,
+        $message,
+        [
+            'password_changed_at' => $changedAt,
+            'mode' => $mode
+        ]
+    );
+}
+
+if ($action === 'student_history') {
+    if (!user_api_table_exists($conn, 'student_access_audit_log')) {
+        user_api_reply(
+            0,
+            'Falta actualizar la base de datos. Ejecuta sql/access_control_upgrade.sql.'
+        );
+    }
+
+    $student_id = intval($_POST['student_id'] ?? 0);
+    $student = load_student_for_access($conn, $student_id, $school_id);
+    if (!$student) user_api_reply(0, 'Estudiante no encontrado.');
+
+    $stmt = $conn->prepare(
+        "SELECT l.action, l.details, l.ip_address, l.created_at,
+                COALESCE(a.name, CONCAT('Usuario #', l.actor_user_id), 'Sistema') AS actor_name
+         FROM student_access_audit_log l
+         LEFT JOIN users a ON a.id = l.actor_user_id
+         WHERE l.school_id = ? AND l.student_id = ?
+         ORDER BY l.id DESC
+         LIMIT 100"
+    );
+    $stmt->bind_param('ii', $school_id, $student_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $items = [];
+    while ($row = $res->fetch_assoc()) {
+        $details = json_decode($row['details'] ?? '', true);
+        $row['details'] = is_array($details) ? $details : [];
+        $items[] = $row;
+    }
+    $stmt->close();
+
+    user_api_reply(
+        1,
+        'Historial cargado.',
+        [
+            'items' => $items,
+            'student' => [
+                'id' => $student_id,
+                'name' => (string)$student['name'],
+                'dni' => (string)$student['id_no']
+            ]
+        ]
+    );
+}
+
+if ($action === 'save_grade_access_policy') {
+    if (!user_api_table_exists($conn, 'school_grade_access_policy')) {
+        user_api_reply(
+            0,
+            'Falta actualizar la base de datos. Ejecuta sql/access_control_upgrade.sql.'
+        );
+    }
+
+    $enabled = !empty($_POST['block_grades_by_debt']) ? 1 : 0;
+    $minimum = intval($_POST['minimum_debt_concepts'] ?? 2);
+    $scope = (string)($_POST['debt_scope'] ?? 'overdue');
+    $message = trim((string)($_POST['block_message'] ?? ''));
+
+    if ($minimum < 1 || $minimum > 20) {
+        user_api_reply(0, 'La cantidad de conceptos debe estar entre 1 y 20.');
+    }
+    if (!in_array($scope, ['overdue', 'pending'], true)) {
+        user_api_reply(0, 'Selecciona un tipo de deuda válido.');
+    }
+    if ($message === '') $message = grade_policy_default_message();
+    if (mb_strlen($message, 'UTF-8') > 500) {
+        user_api_reply(0, 'El mensaje no puede superar los 500 caracteres.');
+    }
+
+    $stmt = $conn->prepare(
+        'INSERT INTO school_grade_access_policy
+         (school_id, block_grades_by_debt, minimum_debt_concepts, debt_scope, block_message, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+            block_grades_by_debt = VALUES(block_grades_by_debt),
+            minimum_debt_concepts = VALUES(minimum_debt_concepts),
+            debt_scope = VALUES(debt_scope),
+            block_message = VALUES(block_message),
+            updated_by = VALUES(updated_by)'
+    );
+    if (!$stmt) user_api_reply(0, 'No se pudo preparar la configuración.');
+
+    $stmt->bind_param(
+        'iiissi',
+        $school_id,
+        $enabled,
+        $minimum,
+        $scope,
+        $message,
+        $login_id
+    );
+    $ok = $stmt->execute();
+    $stmt->close();
+
+    if (!$ok) user_api_reply(0, 'No se pudo guardar la política de acceso a notas.');
+
+    user_api_audit(
+        $conn,
+        $school_id,
+        0,
+        'POLITICA_NOTAS',
+        'GRADE_ACCESS_POLICY_UPDATED',
+        [
+            'enabled' => $enabled,
+            'minimum_debt_concepts' => $minimum,
+            'debt_scope' => $scope
+        ]
+    );
+
+    user_api_reply(
+        1,
+        'Política de acceso a notas actualizada.',
+        [
+            'policy' => [
+                'enabled' => (bool)$enabled,
+                'minimum_debt_concepts' => $minimum,
+                'debt_scope' => $scope,
+                'block_message' => $message
+            ]
+        ]
+    );
 }
 
 if ($action === 'delete_permanent') {
