@@ -64,45 +64,6 @@ function grade_policy_load($conn, $schoolId) {
     return $policy;
 }
 
-function grade_policy_selected_course_ids($conn, $schoolId) {
-    if (!grade_policy_table_exists($conn, 'school_grade_access_policy_concepts')) return [];
-    $stmt = $conn->prepare('SELECT course_id FROM school_grade_access_policy_concepts WHERE school_id = ? ORDER BY course_id');
-    if (!$stmt) return [];
-    $stmt->bind_param('i', $schoolId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $ids = [];
-    while ($row = $res->fetch_assoc()) $ids[] = (int)$row['course_id'];
-    $stmt->close();
-    return array_values(array_unique(array_filter($ids)));
-}
-
-function grade_policy_available_concepts($conn, $schoolId) {
-    if (!grade_policy_table_exists($conn, 'courses') || !grade_policy_table_exists($conn, 'academic_year')) return [];
-
-    $hasStatus = grade_policy_column_exists($conn, 'courses', 'concept_status');
-    $statusSql = $hasStatus ? " AND COALESCE(c.concept_status, 'Activo') = 'Activo'" : '';
-
-    $sql = "SELECT c.id, c.course, c.level, ay.year, ay.is_active
-            FROM courses c
-            INNER JOIN academic_year ay ON ay.id = c.academic_year_id
-            WHERE ay.school_id = ? {$statusSql}
-            ORDER BY ay.is_active DESC, ay.year DESC, c.level ASC, c.course ASC";
-    $stmt = $conn->prepare($sql);
-    if (!$stmt) return [];
-    $stmt->bind_param('i', $schoolId);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $rows = [];
-    while ($row = $res->fetch_assoc()) $rows[] = $row;
-    $stmt->close();
-
-    $active = array_values(array_filter($rows, static function ($row) {
-        return (int)($row['is_active'] ?? 0) === 1;
-    }));
-    return $active ?: $rows;
-}
-
 function grade_policy_active_exception($conn, $schoolId, $studentId) {
     if (!grade_policy_table_exists($conn, 'student_grade_access_exception')) return null;
     $now = grade_policy_now_lima()->format('Y-m-d H:i:s');
@@ -186,7 +147,6 @@ function grade_policy_evaluate($conn, $studentId, array $overridePolicy = []) {
     }
 
     $policy = array_merge(grade_policy_load($conn, $schoolId), $overridePolicy);
-    $selectedIds = grade_policy_selected_course_ids($conn, $schoolId);
     $exception = grade_policy_active_exception($conn, $schoolId, $studentId);
 
     $result = [
@@ -205,7 +165,6 @@ function grade_policy_evaluate($conn, $studentId, array $overridePolicy = []) {
         'grace_days' => max(0, (int)$policy['grace_days']),
         'policy_enabled' => (int)$policy['block_grades_by_debt'] === 1,
         'policy_configured' => !empty($policy['configured']),
-        'selected_course_ids' => $selectedIds,
         'exception' => $exception,
         'temporary_access_until' => $policy['temporary_access_until'] ?? null
     ];
@@ -216,12 +175,6 @@ function grade_policy_evaluate($conn, $studentId, array $overridePolicy = []) {
     }
 
     $pending = debt_engine_pending_debts(debt_engine_get_student_debts($conn, $studentId, $schoolId));
-    if ($selectedIds) {
-        $lookup = array_fill_keys(array_map('intval', $selectedIds), true);
-        $pending = array_values(array_filter($pending, static function ($debt) use ($lookup) {
-            return isset($lookup[(int)($debt['course_id'] ?? 0)]);
-        }));
-    }
 
     $scope = $result['scope'];
     $graceDays = $result['grace_days'];
