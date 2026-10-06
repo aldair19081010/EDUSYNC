@@ -555,53 +555,9 @@ function user_role_badge($row) {
             </div>
         <?php endif; ?>
 
-        <div class="card policy-card ed-content-card mb-4">
-            <div class="card-header bg-white py-3 ed-content-card-header">
-                <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-lock text-warning mr-2"></i>Política general</h6>
-                <div class="small text-muted">Cada colegio decide si la deuda restringe la visualización de calificaciones y bajo qué condiciones.</div>
-            </div>
-            <form id="gradeAccessPolicyForm">
-                <div class="card-body ed-content-card-body">
-                    <div class="custom-control custom-switch mb-4">
-                        <input type="checkbox" class="custom-control-input" id="block_grades_by_debt" name="block_grades_by_debt" value="1" <?php echo (int)$grade_policy['block_grades_by_debt'] === 1 ? 'checked' : ''; ?> <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                        <label class="custom-control-label" for="block_grades_by_debt">
-                            <strong>Bloquear visualización de notas por deuda</strong>
-                            <div class="policy-help">Al desactivarlo, las familias podrán consultar notas aunque tengan obligaciones pendientes.</div>
-                        </label>
-                    </div>
-
-                    <div id="gradePolicyControls">
-                        <div class="row">
-                            <div class="col-md-6 form-group">
-                                <label class="font-weight-bold">Deudas que cuentan para el bloqueo</label>
-                                <select class="form-control" id="debt_scope" name="debt_scope" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                                    <option value="overdue" <?php echo ($grade_policy['debt_scope'] ?? 'overdue') === 'overdue' ? 'selected' : ''; ?>>Solo conceptos vencidos</option>
-                                    <option value="pending" <?php echo ($grade_policy['debt_scope'] ?? '') === 'pending' ? 'selected' : ''; ?>>Todo concepto con saldo pendiente</option>
-                                </select>
-                                <small class="form-text text-muted">Recomendado: solo vencidos, para que una deuda futura no restrinja notas.</small>
-                            </div>
-                            <div class="col-md-6 form-group">
-                                <label class="font-weight-bold">Cantidad mínima de conceptos</label>
-                                <input type="number" min="1" max="20" class="form-control" id="minimum_debt_concepts" name="minimum_debt_concepts" value="<?php echo max(1, (int)$grade_policy['minimum_debt_concepts']); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                                <small class="form-text text-muted">Ejemplo: 2 significa que con 0 o 1 concepto no se bloquean las notas.</small>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="font-weight-bold">Mensaje para la familia</label>
-                            <textarea class="form-control" rows="3" maxlength="500" id="block_message" name="block_message" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><?php echo htmlspecialchars((string)$grade_policy['block_message'], ENT_QUOTES, 'UTF-8'); ?></textarea>
-                            <small class="form-text text-muted"><span id="policyMessageCount">0</span>/500 caracteres</small>
-                        </div>
-                    </div>
-
-                    <div class="policy-preview">
-                        <div class="font-weight-bold text-warning mb-1"><i class="fas fa-eye mr-1"></i>Así funcionará</div>
-                        <div id="gradePolicyPreview" class="small text-gray-800"></div>
-                    </div>
-                </div>
-            </form>
-        </div>
-
-        <?php include __DIR__ . '/../includes/grade_access_policy_admin_panel.php'; ?>
+        <form id="gradeAccessPolicyForm">
+            <?php include __DIR__ . '/../includes/grade_access_policy_admin_panel.php'; ?>
+        </form>
     </div>
 </div>
 
