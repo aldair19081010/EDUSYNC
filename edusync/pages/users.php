@@ -1010,8 +1010,6 @@ function user_role_badge($row) {
             : 'deudas vencidas';
         var minimum=parseInt($('#minimum_debt_concepts').val()||'2',10);
         var grace=parseInt($('#gradeGraceDays').val()||'0',10);
-        var limited=$('#limitGradeDebtConcepts').is(':checked');
-        var selected=$('#gradeConceptIds').val()||[];
         var message=$('#block_message').val()||'';
 
         if(!minimum || minimum<1) minimum=1;
@@ -1034,11 +1032,6 @@ function user_role_badge($row) {
             html+=' '+(grace>0
                 ? 'Cada deuda empezará a contar <strong>'+grace+' día'+(grace===1?'':'s')+'</strong> después de su vencimiento.'
                 : 'La deuda contará desde que quede vencida.');
-        }
-
-        html+=' <strong>'+(limited?'Solo los conceptos seleccionados':'Todas las deudas')+'</strong> se tomarán en cuenta.';
-        if(limited && !selected.length){
-            html+='<div class="mt-2 text-warning"><i class="fas fa-exclamation-triangle mr-1"></i>Selecciona al menos un concepto.</div>';
         }
 
         if(message){
@@ -1425,7 +1418,7 @@ function user_role_badge($row) {
             });
         });
 
-        $('#block_grades_by_debt,#debt_scope,#minimum_debt_concepts,#gradeGraceDays,#limitGradeDebtConcepts,#gradeConceptIds,#block_message')
+        $('#block_grades_by_debt,#debt_scope,#minimum_debt_concepts,#gradeGraceDays,#block_message')
             .on('change input',updateGradePolicyPreview);
         updateGradePolicyPreview();
 
@@ -1437,11 +1430,6 @@ function user_role_badge($row) {
             var minimum=parseInt($('#minimum_debt_concepts').val()||'0',10);
             if(minimum<1||minimum>20){
                 notify('La cantidad mínima debe estar entre 1 y 20.','warning');
-                return;
-            }
-
-            if($('#limitGradeDebtConcepts').is(':checked') && !($('#gradeConceptIds').val()||[]).length){
-                notify('Selecciona al menos un concepto o desactiva "Usar solo conceptos específicos".','warning');
                 return;
             }
 
@@ -1460,8 +1448,7 @@ function user_role_badge($row) {
                     temporary_access_until:$('#gradeTemporaryUntil').val()||'',
                     grace_message:$('#gradeGraceMessage').val()||'',
                     temporary_message:$('#gradeTemporaryMessage').val()||'',
-                    exception_message:$('#gradeExceptionMessage').val()||'',
-                    concept_ids:$('#gradeConceptIds').val()||[]
+                    exception_message:$('#gradeExceptionMessage').val()||''
                 },
                 function(resp){
                     btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar política');
