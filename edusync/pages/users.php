@@ -22,7 +22,6 @@ $student_changed_check = $conn->query("SHOW COLUMNS FROM student LIKE 'password_
 $student_last_login_check = $conn->query("SHOW COLUMNS FROM student LIKE 'portal_last_login_at'");
 $student_audit_check = $conn->query("SHOW TABLES LIKE 'student_access_audit_log'");
 $grade_policy_check = $conn->query("SHOW TABLES LIKE 'school_grade_access_policy'");
-$grade_policy_concepts_check = $conn->query("SHOW TABLES LIKE 'school_grade_access_policy_concepts'");
 $grade_exception_check = $conn->query("SHOW TABLES LIKE 'student_grade_access_exception'");
 $grade_policy_audit_check = $conn->query("SHOW TABLES LIKE 'grade_access_policy_audit_log'");
 $grade_grace_check = $conn->query("SHOW COLUMNS FROM school_grade_access_policy LIKE 'grace_days'");
@@ -32,7 +31,6 @@ $access_migration_ready = (
     && $student_last_login_check && $student_last_login_check->num_rows > 0
     && $student_audit_check && $student_audit_check->num_rows > 0
     && $grade_policy_check && $grade_policy_check->num_rows > 0
-    && $grade_policy_concepts_check && $grade_policy_concepts_check->num_rows > 0
     && $grade_exception_check && $grade_exception_check->num_rows > 0
     && $grade_policy_audit_check && $grade_policy_audit_check->num_rows > 0
     && $grade_grace_check && $grade_grace_check->num_rows > 0
