@@ -16,6 +16,7 @@ ob_start();
 include_once __DIR__ . '/../session_config.php';
 include __DIR__ . '/../db_connect.php';
 require_once __DIR__ . '/../includes/debt_engine.php';
+require_once __DIR__ . '/grade_debt_guard.php';
 
 if (ob_get_length()) ob_end_clean();
 header('Content-Type: application/json; charset=utf-8');
@@ -86,6 +87,7 @@ try {
     $pendingDebts = debt_engine_pending_debts($allDebts);
     $summary = debt_engine_summary($pendingDebts);
     $yearSummary = debt_engine_year_summary($pendingDebts);
+    $gradeAccess = grade_debt_blocks_grades($conn, $studentId);
 
     $currentYear = 'N/A';
     if (debt_engine_table_exists($conn, 'academic_year')) {
@@ -130,8 +132,13 @@ try {
         'anio_academico_actual' => $currentYear,
         'summary' => $summary,
         'resumen_por_año' => $yearSummary,
-        'block_grades' => $summary['count_concepts'] >= 2,
-        'grades_block_threshold' => 2
+        'block_grades' => (bool)$gradeAccess['blocked'],
+        'grades_block_enabled' => (bool)$gradeAccess['policy_enabled'],
+        'grades_block_threshold' => (int)$gradeAccess['minimum_concepts'],
+        'grades_block_scope' => (string)$gradeAccess['scope'],
+        'grades_block_count' => (int)$gradeAccess['count'],
+        'grades_block_total' => (float)$gradeAccess['total'],
+        'grades_block_message' => (string)$gradeAccess['message']
     ]);
 } catch (Throwable $e) {
     my_debts_log('Error inesperado', [
