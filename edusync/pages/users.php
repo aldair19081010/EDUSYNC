@@ -610,35 +610,168 @@ function user_role_badge($row) {
   </div></div>
 </div>
 
+
+<!-- Modal Reset estudiante -->
+<div class="modal fade" id="studentResetPasswordModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog" role="document"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title"><i class="fas fa-user-lock text-warning mr-2"></i>Restablecer acceso del estudiante</h5>
+      <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="student_reset_id">
+      <input type="hidden" id="student_reset_dni">
+      <div class="mb-3">
+        <div class="font-weight-bold" id="student_reset_name"></div>
+        <div class="small text-muted" id="student_reset_meta"></div>
+      </div>
+
+      <div class="custom-control custom-radio mb-3">
+        <input type="radio" class="custom-control-input student-reset-mode" id="student_reset_mode_dni" name="student_reset_mode" value="dni" checked>
+        <label class="custom-control-label" for="student_reset_mode_dni">
+          <strong>Usar DNI como contraseña</strong>
+          <div class="small text-muted">Se elimina la contraseña personalizada y el estudiante vuelve a ingresar con su DNI/código.</div>
+        </label>
+      </div>
+
+      <div class="custom-control custom-radio">
+        <input type="radio" class="custom-control-input student-reset-mode" id="student_reset_mode_temp" name="student_reset_mode" value="temporary">
+        <label class="custom-control-label" for="student_reset_mode_temp">
+          <strong>Asignar contraseña temporal</strong>
+          <div class="small text-muted">Crea una clave distinta al DNI para entregarla al estudiante o apoderado.</div>
+        </label>
+      </div>
+
+      <div id="studentTemporaryPasswordWrap" class="mt-3" style="display:none">
+        <label class="font-weight-bold">Contraseña temporal</label>
+        <div class="input-group">
+          <input type="text" class="form-control password-box" id="student_temporary_password">
+          <div class="input-group-append">
+            <button type="button" class="btn btn-outline-info" id="generateStudentPassword" title="Generar"><i class="fas fa-random"></i></button>
+            <button type="button" class="btn btn-outline-secondary" id="copyStudentPassword" title="Copiar"><i class="far fa-copy"></i></button>
+          </div>
+        </div>
+        <small class="form-text text-muted">Mínimo 8 caracteres, con al menos una letra y un número.</small>
+      </div>
+
+      <div class="alert alert-light border mt-3 mb-0 small">
+        <i class="fas fa-info-circle text-primary mr-1"></i>
+        Esta acción no modifica la matrícula, notas ni datos académicos del estudiante.
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+      <button type="button" class="btn btn-warning" id="confirmStudentResetPassword"><i class="fas fa-key mr-1"></i>Restablecer acceso</button>
+    </div>
+  </div></div>
+</div>
+
+<!-- Modal historial estudiante -->
+<div class="modal fade" id="studentAccessHistoryModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document"><div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title"><i class="fas fa-history text-info mr-2"></i>Historial de acceso · <span id="studentHistoryName"></span></h5>
+      <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+    </div>
+    <div class="modal-body" id="studentHistoryBody">
+      <div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button></div>
+  </div></div>
+</div>
+
 <script>
 (function($){
     var csrfToken = <?php echo json_encode($csrf_token); ?>;
     var migrationReady = <?php echo $migration_ready ? 'true' : 'false'; ?>;
+    var accessMigrationReady = <?php echo $access_migration_ready ? 'true' : 'false'; ?>;
     var table = null;
+    var studentTable = null;
 
     function notify(message, type){
         if (typeof window.alert_toast === 'function') window.alert_toast(message, type || 'info');
         else alert(message);
     }
-    function escapeHtml(value){ return $('<div>').text(value == null ? '' : value).html(); }
+
+    function escapeHtml(value){
+        return $('<div>').text(value == null ? '' : value).html();
+    }
+
     function generateStrongPassword(){
-        var upper='ABCDEFGHJKLMNPQRSTUVWXYZ', lower='abcdefghijkmnopqrstuvwxyz', nums='23456789', sym='!@#$%&*?';
-        var all=upper+lower+nums+sym, out=upper[Math.floor(Math.random()*upper.length)]+lower[Math.floor(Math.random()*lower.length)]+nums[Math.floor(Math.random()*nums.length)]+sym[Math.floor(Math.random()*sym.length)];
+        var upper='ABCDEFGHJKLMNPQRSTUVWXYZ';
+        var lower='abcdefghijkmnopqrstuvwxyz';
+        var nums='23456789';
+        var sym='!@#$%&*?';
+        var all=upper+lower+nums+sym;
+        var out=upper[Math.floor(Math.random()*upper.length)]
+            +lower[Math.floor(Math.random()*lower.length)]
+            +nums[Math.floor(Math.random()*nums.length)]
+            +sym[Math.floor(Math.random()*sym.length)];
         while(out.length<12) out += all[Math.floor(Math.random()*all.length)];
         return out.split('').sort(function(){return Math.random()-.5;}).join('');
     }
+
     function copyText(value){
-        if(!value){ notify('No hay contraseña para copiar.','warning'); return; }
-        if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(value).then(function(){notify('Contraseña copiada.','success');}); }
-        else { var tmp=$('<input>').val(value).appendTo('body').select(); document.execCommand('copy'); tmp.remove(); notify('Contraseña copiada.','success'); }
+        if(!value){
+            notify('No hay contraseña para copiar.','warning');
+            return;
+        }
+        if(navigator.clipboard && navigator.clipboard.writeText){
+            navigator.clipboard.writeText(value).then(function(){
+                notify('Contraseña copiada.','success');
+            });
+        } else {
+            var tmp=$('<input>').val(value).appendTo('body').select();
+            document.execCommand('copy');
+            tmp.remove();
+            notify('Contraseña copiada.','success');
+        }
     }
-    function refresh(){ window.location.reload(); }
-    function api(data, success){
+
+    function refresh(){
+        window.location.reload();
+    }
+
+    function api(data, success, fail){
         data.csrf_token = csrfToken;
-        $.ajax({url:'users_api.php',method:'POST',data:data,dataType:'json'}).done(function(resp){
-            if(resp && resp.status==1) success(resp); else notify((resp&&resp.message)||'No se pudo completar la operación.','danger');
-        }).fail(function(xhr){ var msg='Error de conexión.'; try{var r=JSON.parse(xhr.responseText); if(r.message)msg=r.message;}catch(e){} notify(msg,'danger'); });
+        $.ajax({
+            url:'users_api.php',
+            method:'POST',
+            data:data,
+            dataType:'json'
+        }).done(function(resp){
+            if(resp && resp.status==1){
+                success(resp);
+            } else {
+                var message=(resp&&resp.message)||'No se pudo completar la operación.';
+                notify(message,'danger');
+                if(typeof fail==='function') fail(resp);
+            }
+        }).fail(function(xhr){
+            var msg='Error de conexión.';
+            try{
+                var r=JSON.parse(xhr.responseText);
+                if(r.message) msg=r.message;
+            }catch(e){}
+            notify(msg,'danger');
+            if(typeof fail==='function') fail();
+        });
     }
+
+    function showAccessPanel(name){
+        $('.access-panel').removeClass('active');
+        $('#access-'+name+'-panel').addClass('active');
+        $('.access-tab').removeClass('active').filter('[data-access-panel="'+name+'"]').addClass('active');
+        $('#new_user').toggle(name==='personal');
+
+        if(name==='personal' && table){
+            setTimeout(function(){ table.columns.adjust(); },30);
+        }
+        if(name==='students' && studentTable){
+            setTimeout(function(){ studentTable.columns.adjust(); },30);
+        }
+    }
+
     function syncRoleFields(){
         var type=$('#user_type').val();
         $('#directorWrap').toggle(type==='1');
@@ -647,71 +780,476 @@ function user_role_badge($row) {
         if(type!=='1') $('#is_director').prop('checked',false);
         if(type!=='2') $('#teacher_id').val('');
     }
+
     function syncPasswordMatch(){
-        var p=$('#user_password').val(), r=$('#user_password_repeat').val();
-        if(!p&&!r){$('#passwordMatch').text('').removeClass('text-success text-danger');return;}
-        var ok=p===r; $('#passwordMatch').text(ok?'Las contraseñas coinciden.':'Las contraseñas no coinciden.').toggleClass('text-success',ok).toggleClass('text-danger',!ok);
+        var p=$('#user_password').val();
+        var r=$('#user_password_repeat').val();
+        if(!p&&!r){
+            $('#passwordMatch').text('').removeClass('text-success text-danger');
+            return;
+        }
+        var ok=p===r;
+        $('#passwordMatch')
+            .text(ok?'Las contraseñas coinciden.':'Las contraseñas no coinciden.')
+            .toggleClass('text-success',ok)
+            .toggleClass('text-danger',!ok);
+    }
+
+    function updateStudentResetMode(){
+        var mode=$('input[name="student_reset_mode"]:checked').val()||'dni';
+        var temporary=mode==='temporary';
+        $('#studentTemporaryPasswordWrap').toggle(temporary);
+        if(temporary && !$('#student_temporary_password').val()){
+            $('#student_temporary_password').val(generateStrongPassword());
+        }
+    }
+
+    function updateGradePolicyPreview(){
+        var enabled=$('#block_grades_by_debt').is(':checked');
+        var scope=$('#debt_scope').val()==='pending'
+            ? 'conceptos con saldo pendiente'
+            : 'conceptos vencidos';
+        var minimum=parseInt($('#minimum_debt_concepts').val()||'2',10);
+        if(!minimum || minimum<1) minimum=1;
+        var message=$('#block_message').val()||'';
+
+        $('#gradePolicyControls').toggleClass('text-muted',!enabled);
+        $('#policyMessageCount').text(message.length);
+
+        if(!enabled){
+            $('#gradePolicyPreview').html(
+                '<strong>Sin bloqueo:</strong> las notas permanecerán visibles aunque el estudiante tenga deudas.'
+            );
+            return;
+        }
+
+        $('#gradePolicyPreview').html(
+            'Las notas se restringirán cuando el estudiante acumule <strong>'
+            +minimum+'</strong> o más '+escapeHtml(scope)+'.'
+            +(message ? '<div class="mt-2 text-muted"><strong>Mensaje:</strong> '+escapeHtml(message)+'</div>' : '')
+        );
     }
 
     $(function(){
+        $('.access-tab').on('click',function(){
+            showAccessPanel($(this).data('access-panel'));
+        });
+
         if($.fn.DataTable){
-            table=$('#usersTable').DataTable({pageLength:25,order:[[0,'asc']],language:{search:'Buscar:',lengthMenu:'Mostrar _MENU_',info:'Mostrando _START_ a _END_ de _TOTAL_',infoEmpty:'Sin usuarios',zeroRecords:'No se encontraron usuarios',paginate:{previous:'Anterior',next:'Siguiente'}}});
-            $.fn.dataTable.ext.search.push(function(settings,data,index){
-                if(settings.nTable.id!=='usersTable') return true;
-                var row=table.row(index).node(); if(!row) return true;
-                var role=$('#roleFilter').val(), status=$('#statusFilter').val();
-                return (!role||$(row).data('role')===role) && (!status||$(row).data('status')===status);
+            table=$('#usersTable').DataTable({
+                pageLength:25,
+                order:[[0,'asc']],
+                language:{
+                    search:'Buscar:',
+                    lengthMenu:'Mostrar _MENU_',
+                    info:'Mostrando _START_ a _END_ de _TOTAL_',
+                    infoEmpty:'Sin usuarios',
+                    zeroRecords:'No se encontraron usuarios',
+                    paginate:{previous:'Anterior',next:'Siguiente'}
+                }
             });
-            $('#roleFilter,#statusFilter').on('change',function(){table.draw();});
+
+            studentTable=$('#studentAccessTable').DataTable({
+                pageLength:25,
+                order:[[0,'asc']],
+                language:{
+                    search:'Buscar estudiante o DNI:',
+                    lengthMenu:'Mostrar _MENU_',
+                    info:'Mostrando _START_ a _END_ de _TOTAL_ estudiantes',
+                    infoEmpty:'Sin estudiantes',
+                    zeroRecords:'No se encontraron estudiantes con esos criterios',
+                    paginate:{previous:'Anterior',next:'Siguiente'}
+                }
+            });
+
+            $.fn.dataTable.ext.search.push(function(settings,data,index){
+                if(settings.nTable.id==='usersTable'){
+                    var row=table.row(index).node();
+                    if(!row) return true;
+                    var role=$('#roleFilter').val();
+                    var status=$('#statusFilter').val();
+                    return (!role||$(row).data('role')===role)
+                        && (!status||$(row).data('status')===status);
+                }
+
+                if(settings.nTable.id==='studentAccessTable'){
+                    var studentRow=studentTable.row(index).node();
+                    if(!studentRow) return true;
+                    var level=$('#studentLevelFilter').val();
+                    var grade=$('#studentGradeFilter').val();
+                    var section=$('#studentSectionFilter').val();
+                    var studentStatus=$('#studentStatusFilter').val();
+                    var password=$('#studentPasswordFilter').val();
+
+                    return (!level||$(studentRow).data('level')===level)
+                        && (!grade||$(studentRow).data('grade')===grade)
+                        && (!section||$(studentRow).data('section')===section)
+                        && (!studentStatus||$(studentRow).data('status')===studentStatus)
+                        && (!password||$(studentRow).data('password')===password);
+                }
+
+                return true;
+            });
+
+            $('#roleFilter,#statusFilter').on('change',function(){
+                table.draw();
+            });
+
+            $('#studentLevelFilter,#studentGradeFilter,#studentSectionFilter,#studentStatusFilter,#studentPasswordFilter').on('change',function(){
+                studentTable.draw();
+            });
         }
 
         $('#new_user').on('click',function(){
             if(!migrationReady)return;
-            $('#userForm')[0].reset(); $('#user_id').val(''); $('#userModalTitle').text('Nuevo usuario'); $('#user_status').val('Activo'); $('#user_password').prop('required',true); $('#passwordRequired').show(); $('#passwordHint').text('Mínimo 8 caracteres.'); syncRoleFields(); syncPasswordMatch(); $('#userModal').modal('show');
+            $('#userForm')[0].reset();
+            $('#user_id').val('');
+            $('#userModalTitle').text('Nuevo usuario');
+            $('#user_status').val('Activo');
+            $('#user_password').prop('required',true);
+            $('#passwordRequired').show();
+            $('#passwordHint').text('Mínimo 8 caracteres.');
+            syncRoleFields();
+            syncPasswordMatch();
+            $('#userModal').modal('show');
         });
+
         $(document).on('click','.edit-user',function(e){
-            e.preventDefault(); var b=$(this);
-            $('#userForm')[0].reset(); $('#user_id').val(b.data('id')); $('#user_name').val(b.data('name')); $('#user_username').val(b.data('username')); $('#user_type').val(String(b.data('type'))); $('#user_status').val(b.data('status')); $('#is_director').prop('checked',String(b.data('director'))==='1'); $('#teacher_id').val(String(b.data('teacher')||'')); $('#user_password').prop('required',false).val(''); $('#user_password_repeat').val(''); $('#passwordRequired').hide(); $('#passwordHint').text('Déjala en blanco para mantener la contraseña actual.'); $('#userModalTitle').text('Editar usuario'); syncRoleFields(); if(String(b.data('type'))==='2') $('#teacher_id').val(String(b.data('teacher')||'')); syncPasswordMatch(); $('#userModal').modal('show');
+            e.preventDefault();
+            var b=$(this);
+            $('#userForm')[0].reset();
+            $('#user_id').val(b.data('id'));
+            $('#user_name').val(b.data('name'));
+            $('#user_username').val(b.data('username'));
+            $('#user_type').val(String(b.data('type')));
+            $('#user_status').val(b.data('status'));
+            $('#is_director').prop('checked',String(b.data('director'))==='1');
+            $('#teacher_id').val(String(b.data('teacher')||''));
+            $('#user_password').prop('required',false).val('');
+            $('#user_password_repeat').val('');
+            $('#passwordRequired').hide();
+            $('#passwordHint').text('Déjala en blanco para mantener la contraseña actual.');
+            $('#userModalTitle').text('Editar usuario');
+            syncRoleFields();
+            if(String(b.data('type'))==='2') $('#teacher_id').val(String(b.data('teacher')||''));
+            syncPasswordMatch();
+            $('#userModal').modal('show');
         });
+
         $('#user_type').on('change',syncRoleFields);
         $('#user_password,#user_password_repeat').on('input',syncPasswordMatch);
-        $('.toggle-pass').on('click',function(){var input=$($(this).data('target')),icon=$(this).find('i'); input.attr('type',input.attr('type')==='password'?'text':'password'); icon.toggleClass('fa-eye fa-eye-slash');});
-        $('#generatePassword').on('click',function(){var p=generateStrongPassword();$('#user_password,#user_password_repeat').val(p);syncPasswordMatch();});
-        $('#copyPassword').on('click',function(){copyText($('#user_password').val());});
+
+        $('.toggle-pass').on('click',function(){
+            var input=$($(this).data('target'));
+            var icon=$(this).find('i');
+            input.attr('type',input.attr('type')==='password'?'text':'password');
+            icon.toggleClass('fa-eye fa-eye-slash');
+        });
+
+        $('#generatePassword').on('click',function(){
+            var p=generateStrongPassword();
+            $('#user_password,#user_password_repeat').val(p);
+            syncPasswordMatch();
+        });
+
+        $('#copyPassword').on('click',function(){
+            copyText($('#user_password').val());
+        });
 
         $('#userForm').on('submit',function(e){
-            e.preventDefault(); var id=$('#user_id').val(), pass=$('#user_password').val(), repeat=$('#user_password_repeat').val();
-            if(!id && pass.length<8){notify('La contraseña inicial debe tener al menos 8 caracteres.','warning');return;}
-            if(pass && pass.length<8){notify('La contraseña debe tener al menos 8 caracteres.','warning');return;}
-            if(pass!==repeat){notify('Las contraseñas no coinciden.','warning');return;}
-            var btn=$('#saveUserBtn').prop('disabled',true).html('<i class="fas fa-spinner fa-spin mr-1"></i>Guardando...');
+            e.preventDefault();
+            var id=$('#user_id').val();
+            var pass=$('#user_password').val();
+            var repeat=$('#user_password_repeat').val();
+
+            if(!id && pass.length<8){
+                notify('La contraseña inicial debe tener al menos 8 caracteres.','warning');
+                return;
+            }
+            if(pass && pass.length<8){
+                notify('La contraseña debe tener al menos 8 caracteres.','warning');
+                return;
+            }
+            if(pass!==repeat){
+                notify('Las contraseñas no coinciden.','warning');
+                return;
+            }
+
+            var btn=$('#saveUserBtn')
+                .prop('disabled',true)
+                .html('<i class="fas fa-spinner fa-spin mr-1"></i>Guardando...');
             var data=$(this).serialize();
-            $.ajax({url:'users_api.php',method:'POST',data:data,dataType:'json'}).done(function(resp){if(resp&&resp.status==1){notify(resp.message,'success');setTimeout(refresh,350);}else{notify((resp&&resp.message)||'No se pudo guardar.','danger');btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar usuario');}}).fail(function(){notify('Error de conexión.','danger');btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar usuario');});
-        });
 
-        $(document).on('click','.toggle-status:not(.disabled)',function(e){
-            e.preventDefault(); var b=$(this), current=b.data('status'), next=current==='Activo'?'desactivar':'activar';
-            if(!confirm('¿Deseas '+next+' al usuario "'+b.data('name')+'"?'))return;
-            api({action:'toggle_status',id:b.data('id')},function(resp){notify(resp.message,'success');setTimeout(refresh,350);});
-        });
-
-        $(document).on('click','.reset-password',function(e){e.preventDefault();$('#reset_user_id').val($(this).data('id'));$('#reset_user_name').text($(this).data('name'));$('#reset_password').val(generateStrongPassword());$('#resetPasswordModal').modal('show');});
-        $('#generateResetPassword').on('click',function(){$('#reset_password').val(generateStrongPassword());});
-        $('#copyResetPassword').on('click',function(){copyText($('#reset_password').val());});
-        $('#confirmResetPassword').on('click',function(){var p=$('#reset_password').val();if(p.length<8){notify('La contraseña debe tener al menos 8 caracteres.','warning');return;}var btn=$(this).prop('disabled',true);api({action:'reset_password',id:$('#reset_user_id').val(),new_password:p},function(resp){btn.prop('disabled',false);notify(resp.message,'success');$('#resetPasswordModal').modal('hide');});setTimeout(function(){btn.prop('disabled',false);},1500);});
-
-        $(document).on('click','.user-history',function(e){
-            e.preventDefault(); var id=$(this).data('id'); $('#historyUserName').text($(this).data('name')); $('#historyBody').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>'); $('#historyModal').modal('show');
-            api({action:'history',id:id},function(resp){
-                if(!resp.items||!resp.items.length){$('#historyBody').html('<div class="text-center text-muted py-4"><i class="fas fa-history fa-2x mb-2 d-block"></i>Aún no hay movimientos registrados para esta cuenta.</div>');return;}
-                var labels={CREATED:'Usuario creado',UPDATED:'Datos actualizados',ACTIVATED:'Usuario activado',DEACTIVATED:'Usuario desactivado',PASSWORD_RESET:'Contraseña restablecida',DELETED:'Usuario eliminado'};
-                var html=''; resp.items.forEach(function(item){var detail='';if(item.action==='UPDATED'&&item.details&&item.details.password_changed) detail=' · Contraseña modificada';html+='<div class="history-item"><div class="history-title">'+escapeHtml(labels[item.action]||item.action)+detail+'</div><div class="history-meta"><i class="far fa-clock mr-1"></i>'+escapeHtml(item.created_at)+' · <i class="far fa-user mr-1"></i>'+escapeHtml(item.actor_name||'Sistema')+(item.ip_address?' · IP '+escapeHtml(item.ip_address):'')+'</div></div>';}); $('#historyBody').html(html);
+            $.ajax({
+                url:'users_api.php',
+                method:'POST',
+                data:data,
+                dataType:'json'
+            }).done(function(resp){
+                if(resp&&resp.status==1){
+                    notify(resp.message,'success');
+                    setTimeout(refresh,350);
+                }else{
+                    notify((resp&&resp.message)||'No se pudo guardar.','danger');
+                    btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar usuario');
+                }
+            }).fail(function(){
+                notify('Error de conexión.','danger');
+                btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar usuario');
             });
         });
 
+        $(document).on('click','.toggle-status:not(.disabled)',function(e){
+            e.preventDefault();
+            var b=$(this);
+            var current=b.data('status');
+            var next=current==='Activo'?'desactivar':'activar';
+            if(!confirm('¿Deseas '+next+' al usuario "'+b.data('name')+'"?'))return;
+            api(
+                {action:'toggle_status',id:b.data('id')},
+                function(resp){
+                    notify(resp.message,'success');
+                    setTimeout(refresh,350);
+                }
+            );
+        });
+
+        $(document).on('click','.reset-password',function(e){
+            e.preventDefault();
+            $('#reset_user_id').val($(this).data('id'));
+            $('#reset_user_name').text($(this).data('name'));
+            $('#reset_password').val(generateStrongPassword());
+            $('#resetPasswordModal').modal('show');
+        });
+
+        $('#generateResetPassword').on('click',function(){
+            $('#reset_password').val(generateStrongPassword());
+        });
+
+        $('#copyResetPassword').on('click',function(){
+            copyText($('#reset_password').val());
+        });
+
+        $('#confirmResetPassword').on('click',function(){
+            var p=$('#reset_password').val();
+            if(p.length<8){
+                notify('La contraseña debe tener al menos 8 caracteres.','warning');
+                return;
+            }
+            var btn=$(this).prop('disabled',true);
+            api(
+                {
+                    action:'reset_password',
+                    id:$('#reset_user_id').val(),
+                    new_password:p
+                },
+                function(resp){
+                    btn.prop('disabled',false);
+                    notify(resp.message,'success');
+                    $('#resetPasswordModal').modal('hide');
+                },
+                function(){btn.prop('disabled',false);}
+            );
+        });
+
+        $(document).on('click','.user-history',function(e){
+            e.preventDefault();
+            var id=$(this).data('id');
+            $('#historyUserName').text($(this).data('name'));
+            $('#historyBody').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>');
+            $('#historyModal').modal('show');
+
+            api({action:'history',id:id},function(resp){
+                if(!resp.items||!resp.items.length){
+                    $('#historyBody').html('<div class="text-center text-muted py-4"><i class="fas fa-history fa-2x mb-2 d-block"></i>Aún no hay movimientos registrados para esta cuenta.</div>');
+                    return;
+                }
+
+                var labels={
+                    CREATED:'Usuario creado',
+                    UPDATED:'Datos actualizados',
+                    ACTIVATED:'Usuario activado',
+                    DEACTIVATED:'Usuario desactivado',
+                    PASSWORD_RESET:'Contraseña restablecida',
+                    DELETED:'Usuario eliminado',
+                    GRADE_ACCESS_POLICY_UPDATED:'Política de notas actualizada'
+                };
+
+                var html='';
+                resp.items.forEach(function(item){
+                    var detail='';
+                    if(item.action==='UPDATED'&&item.details&&item.details.password_changed){
+                        detail=' · Contraseña modificada';
+                    }
+                    html+='<div class="history-item"><div class="history-title">'
+                        +escapeHtml(labels[item.action]||item.action)+detail
+                        +'</div><div class="history-meta"><i class="far fa-clock mr-1"></i>'
+                        +escapeHtml(item.created_at)
+                        +' · <i class="far fa-user mr-1"></i>'
+                        +escapeHtml(item.actor_name||'Sistema')
+                        +(item.ip_address?' · IP '+escapeHtml(item.ip_address):'')
+                        +'</div></div>';
+                });
+                $('#historyBody').html(html);
+            });
+        });
+
+        $(document).on('click','.student-reset-password',function(e){
+            e.preventDefault();
+            if(!accessMigrationReady) return;
+
+            var b=$(this);
+            $('#student_reset_id').val(b.data('id'));
+            $('#student_reset_dni').val(b.data('dni'));
+            $('#student_reset_name').text(b.data('name'));
+            $('#student_reset_meta').text(
+                'DNI/código: '+b.data('dni')
+                +(b.data('grade')?' · '+b.data('grade'):'')
+                +(b.data('section')?' '+b.data('section'):'')
+            );
+            $('#student_reset_mode_dni').prop('checked',true);
+            $('#student_temporary_password').val('');
+            updateStudentResetMode();
+            $('#studentResetPasswordModal').modal('show');
+        });
+
+        $('.student-reset-mode').on('change',updateStudentResetMode);
+
+        $('#generateStudentPassword').on('click',function(){
+            $('#student_temporary_password').val(generateStrongPassword());
+        });
+
+        $('#copyStudentPassword').on('click',function(){
+            copyText($('#student_temporary_password').val());
+        });
+
+        $('#confirmStudentResetPassword').on('click',function(){
+            var mode=$('input[name="student_reset_mode"]:checked').val()||'dni';
+            var password=$('#student_temporary_password').val();
+            var studentName=$('#student_reset_name').text();
+
+            if(mode==='temporary'){
+                if(password.length<8 || !/[A-Za-z]/.test(password) || !/\d/.test(password)){
+                    notify('La contraseña temporal debe tener al menos 8 caracteres, una letra y un número.','warning');
+                    return;
+                }
+                if(password===$('#student_reset_dni').val()){
+                    notify('La contraseña temporal no puede ser igual al DNI.','warning');
+                    return;
+                }
+            }
+
+            var question=mode==='dni'
+                ? '¿Restablecer el acceso de "'+studentName+'" para que vuelva a ingresar con su DNI?'
+                : '¿Asignar la contraseña temporal mostrada a "'+studentName+'"?';
+            if(!confirm(question)) return;
+
+            var btn=$(this).prop('disabled',true);
+            api(
+                {
+                    action:'reset_student_password',
+                    student_id:$('#student_reset_id').val(),
+                    mode:mode,
+                    new_password:mode==='temporary'?password:''
+                },
+                function(resp){
+                    btn.prop('disabled',false);
+                    notify(resp.message,'success');
+                    $('#studentResetPasswordModal').modal('hide');
+                    setTimeout(refresh,450);
+                },
+                function(){btn.prop('disabled',false);}
+            );
+        });
+
+        $(document).on('click','.student-access-history',function(e){
+            e.preventDefault();
+            var id=$(this).data('id');
+            $('#studentHistoryName').text($(this).data('name'));
+            $('#studentHistoryBody').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>');
+            $('#studentAccessHistoryModal').modal('show');
+
+            api({action:'student_history',student_id:id},function(resp){
+                if(!resp.items||!resp.items.length){
+                    $('#studentHistoryBody').html('<div class="text-center text-muted py-4"><i class="fas fa-history fa-2x mb-2 d-block"></i>Aún no hay restablecimientos registrados para este estudiante.</div>');
+                    return;
+                }
+
+                var labels={
+                    PASSWORD_RESET_DNI:'Acceso restablecido al DNI',
+                    PASSWORD_RESET_TEMPORARY:'Contraseña temporal asignada'
+                };
+                var html='';
+
+                resp.items.forEach(function(item){
+                    html+='<div class="history-item"><div class="history-title">'
+                        +escapeHtml(labels[item.action]||item.action)
+                        +'</div><div class="history-meta"><i class="far fa-clock mr-1"></i>'
+                        +escapeHtml(item.created_at)
+                        +' · <i class="far fa-user mr-1"></i>'
+                        +escapeHtml(item.actor_name||'Sistema')
+                        +(item.ip_address?' · IP '+escapeHtml(item.ip_address):'')
+                        +'</div></div>';
+                });
+
+                $('#studentHistoryBody').html(html);
+            });
+        });
+
+        $('#block_grades_by_debt,#debt_scope,#minimum_debt_concepts,#block_message')
+            .on('change input',updateGradePolicyPreview);
+        updateGradePolicyPreview();
+
+        $('#gradeAccessPolicyForm').on('submit',function(e){
+            e.preventDefault();
+            if(!accessMigrationReady) return;
+
+            var enabled=$('#block_grades_by_debt').is(':checked');
+            var minimum=parseInt($('#minimum_debt_concepts').val()||'0',10);
+            if(minimum<1||minimum>20){
+                notify('La cantidad mínima debe estar entre 1 y 20.','warning');
+                return;
+            }
+
+            var btn=$('#saveGradePolicy')
+                .prop('disabled',true)
+                .html('<i class="fas fa-spinner fa-spin mr-1"></i>Guardando...');
+
+            api(
+                {
+                    action:'save_grade_access_policy',
+                    block_grades_by_debt:enabled?1:0,
+                    minimum_debt_concepts:minimum,
+                    debt_scope:$('#debt_scope').val(),
+                    block_message:$('#block_message').val()
+                },
+                function(resp){
+                    btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar política');
+                    notify(resp.message,'success');
+                    updateGradePolicyPreview();
+                },
+                function(){
+                    btn.prop('disabled',false).html('<i class="fas fa-save mr-1"></i>Guardar política');
+                }
+            );
+        });
+
         $(document).on('click','.delete-permanent',function(e){
-            e.preventDefault(); var b=$(this); if(!confirm('ELIMINACIÓN DEFINITIVA\n\nSe eliminará la cuenta de "'+b.data('name')+'". Esta acción no se puede deshacer.\n\n¿Deseas continuar?'))return;
-            api({action:'delete_permanent',id:b.data('id')},function(resp){notify(resp.message,'success');setTimeout(refresh,350);});
+            e.preventDefault();
+            var b=$(this);
+            if(!confirm(
+                'ELIMINACIÓN DEFINITIVA\n\n'
+                +'Se eliminará la cuenta de "'+b.data('name')+'". '
+                +'Esta acción no se puede deshacer.\n\n¿Deseas continuar?'
+            )) return;
+
+            api(
+                {action:'delete_permanent',id:b.data('id')},
+                function(resp){
+                    notify(resp.message,'success');
+                    setTimeout(refresh,350);
+                }
+            );
         });
     });
 })(jQuery);
