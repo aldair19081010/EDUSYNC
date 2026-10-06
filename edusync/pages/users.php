@@ -141,9 +141,10 @@ $total_teachers = 0;
 $total_aux = 0;
 $total_inactive = 0;
 foreach ($users as $u) {
-    if ((int)$u['type'] === 1) {
+    if ((int)$u['is_director'] === 1) {
+        $total_directors++;
+    } elseif ((int)$u['type'] === 1) {
         $total_admin++;
-        if ((int)$u['is_director'] === 1) $total_directors++;
     } elseif ((int)$u['type'] === 2) {
         $total_teachers++;
     } elseif ((int)$u['type'] === 3) {
@@ -153,14 +154,14 @@ foreach ($users as $u) {
 }
 
 function user_role_label($row) {
-    if ((int)$row['type'] === 1 && (int)$row['is_director'] === 1) return 'Director';
+    if ((int)$row['is_director'] === 1) return 'Director';
     if ((int)$row['type'] === 1) return 'Administrador';
     if ((int)$row['type'] === 2) return 'Docente';
     if ((int)$row['type'] === 3) return 'Auxiliar';
     return 'Otro';
 }
 function user_role_badge($row) {
-    if ((int)$row['type'] === 1 && (int)$row['is_director'] === 1) return 'badge-primary';
+    if ((int)$row['is_director'] === 1) return 'badge-primary';
     if ((int)$row['type'] === 1) return 'badge-danger';
     if ((int)$row['type'] === 2) return 'badge-info';
     if ((int)$row['type'] === 3) return 'badge-success';
@@ -168,22 +169,22 @@ function user_role_badge($row) {
 }
 ?>
 
-<style>
-.user-hero{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.6rem;padding:1.1rem 1.3rem;margin-bottom:1rem}.user-hero h1{font-size:1.35rem;font-weight:700;color:#344767;margin:0}.user-hero p{font-size:.84rem;color:#7b8499;margin:.2rem 0 0}.user-stat{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:0 2px 7px rgba(31,45,61,.04);height:100%}.user-stat .card-body{padding:1rem}.user-stat .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#858796;font-weight:700}.user-stat .number{font-size:1.55rem;color:#344767;font-weight:700;line-height:1.2}.user-stat .meta{font-size:.72rem;color:#858796}.users-toolbar{display:flex;gap:.65rem;flex-wrap:wrap;align-items:end}.users-toolbar .form-group{margin-bottom:0;min-width:180px}.users-table-card{border:1px solid #e3e6f0;border-radius:.6rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}#usersTable td,#usersTable th{vertical-align:middle}.user-name-cell{display:flex;align-items:center;gap:.65rem}.user-avatar-placeholder{width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:#f1f4f9;color:#4e73df;font-weight:700;flex:0 0 36px}.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px}.status-active{background:#1cc88a}.status-inactive{background:#e74a3b}.dropdown-menu .dropdown-item i{width:20px}.password-box{font-family:monospace;font-size:1rem}.history-item{border-left:3px solid #4e73df;padding:.7rem .85rem;margin-bottom:.75rem;background:#f8f9fc;border-radius:.25rem}.history-item .history-title{font-weight:700;color:#344767}.history-item .history-meta{font-size:.75rem;color:#858796}.teacher-warning{font-size:.78rem}.user-modal-section{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.45rem;padding:.75rem;margin-bottom:1rem}
-.access-tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;padding:.35rem;background:#f1f4f9;border:1px solid #e3e6f0;border-radius:.65rem}.access-tab{border:0;background:transparent;color:#6c7587;font-weight:700;font-size:.82rem;padding:.65rem .9rem;border-radius:.5rem;transition:.18s ease}.access-tab:hover{background:#fff;color:#4e73df}.access-tab.active{background:#fff;color:#4e73df;box-shadow:0 2px 8px rgba(31,45,61,.08)}.access-panel{display:none}.access-panel.active{display:block}
-.student-access-meta{font-size:.78rem;color:#7b8499}.student-access-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700}.student-access-badge.custom{background:#eafaf4;color:#14855f}.student-access-badge.default{background:#fff8e1;color:#8b6b00}.policy-card{border:1px solid #e3e6f0;border-radius:.65rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}.policy-preview{border-left:4px solid #f6c23e;background:#fffaf0;border-radius:.4rem;padding:.85rem 1rem}.policy-status{font-size:.76rem;font-weight:700}.policy-help{font-size:.78rem;color:#7b8499;line-height:1.45}#studentAccessTable td,#studentAccessTable th{vertical-align:middle}
-@media(max-width:767px){.users-toolbar .form-group{min-width:100%;width:100%}.user-hero{padding:1rem}.user-stat{margin-bottom:.5rem}.access-tabs{display:grid;grid-template-columns:1fr}.access-tab{width:100%}}
-</style>
 
-<div class="container-fluid px-0">
-    <div class="user-hero d-sm-flex align-items-center justify-content-between">
-        <div>
-            <h1><i class="fas fa-users-cog mr-2 text-primary"></i>Usuarios y Accesos</h1>
-            <p>Gestiona cuentas del personal, accesos de estudiantes y políticas institucionales de seguridad.</p>
+
+<div class="container-fluid px-0 users-access-shell">
+    <div class="user-hero ed-page-header">
+        <div class="ed-page-heading">
+            <div class="ed-page-icon"><i class="fas fa-users-cog"></i></div>
+            <div>
+                <h1 class="ed-page-title">Usuarios y Accesos</h1>
+                <p class="ed-page-subtitle">Gestiona cuentas del personal, accesos de estudiantes y políticas institucionales de seguridad.</p>
+            </div>
         </div>
-        <button class="btn btn-primary btn-sm mt-2 mt-sm-0" id="new_user" <?php echo $migration_ready ? '' : 'disabled'; ?>>
-            <i class="fas fa-user-plus mr-1"></i> Nuevo usuario
-        </button>
+        <div class="ed-page-actions">
+            <button class="btn btn-primary btn-sm" id="new_user" <?php echo $migration_ready ? '' : 'disabled'; ?>>
+                <i class="fas fa-user-plus mr-1"></i>Nuevo usuario
+            </button>
+        </div>
     </div>
 
     <?php if (!$migration_ready): ?>
@@ -193,13 +194,13 @@ function user_role_badge($row) {
         </div>
     <?php endif; ?>
 
-    <div class="access-tabs" role="tablist" aria-label="Secciones de usuarios y accesos">
+    <div class="users-access-tabs" role="tablist" aria-label="Secciones de usuarios y accesos">
         <button type="button" class="access-tab active" data-access-panel="personal">
             <i class="fas fa-user-shield mr-1"></i>Personal
         </button>
         <button type="button" class="access-tab" data-access-panel="students">
             <i class="fas fa-user-graduate mr-1"></i>Estudiantes
-            <span class="badge badge-light ml-1"><?php echo (int)$total_student_access; ?></span>
+            <span class="badge badge-light ml-1" id="studentAccessTabCount"><?php echo (int)$total_student_access; ?></span>
         </button>
         <button type="button" class="access-tab" data-access-panel="policy">
             <i class="fas fa-lock mr-1"></i>Política de notas
@@ -207,25 +208,28 @@ function user_role_badge($row) {
     </div>
 
     <div id="access-personal-panel" class="access-panel active">
-    <div class="row mb-3">
-        <div class="col-xl col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat"><div class="card-body"><div class="label">Total usuarios</div><div class="number"><?php echo $total_users; ?></div><div class="meta">Cuentas registradas</div></div></div>
+    <div class="row users-kpi-row mb-3">
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Total usuarios</div><div class="number ed-stat-value" id="userStatTotal"><?php echo $total_users; ?></div><div class="meta ed-stat-meta">Cuentas registradas</div></div></div>
         </div>
-        <div class="col-xl col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat"><div class="card-body"><div class="label">Administración</div><div class="number"><?php echo $total_admin; ?></div><div class="meta"><?php echo $total_directors; ?> director(es)</div></div></div>
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Administradores</div><div class="number ed-stat-value" id="userStatAdmins"><?php echo $total_admin; ?></div><div class="meta ed-stat-meta">Gestión del sistema</div></div></div>
         </div>
-        <div class="col-xl col-md-4 col-sm-6 mb-2">
-            <div class="card user-stat"><div class="card-body"><div class="label">Docentes</div><div class="number"><?php echo $total_teachers; ?></div><div class="meta">Cuentas vinculadas</div></div></div>
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Directores</div><div class="number ed-stat-value text-primary" id="userStatDirectors"><?php echo $total_directors; ?></div><div class="meta ed-stat-meta">Dirección institucional</div></div></div>
         </div>
-        <div class="col-xl col-md-6 col-sm-6 mb-2">
-            <div class="card user-stat"><div class="card-body"><div class="label">Auxiliares</div><div class="number"><?php echo $total_aux; ?></div><div class="meta">Personal auxiliar</div></div></div>
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Docentes</div><div class="number ed-stat-value" id="userStatTeachers"><?php echo $total_teachers; ?></div><div class="meta ed-stat-meta">Cuentas docentes</div></div></div>
         </div>
-        <div class="col-xl col-md-6 col-sm-6 mb-2">
-            <div class="card user-stat"><div class="card-body"><div class="label">Inactivos</div><div class="number"><?php echo $total_inactive; ?></div><div class="meta">Sin acceso al sistema</div></div></div>
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Auxiliares</div><div class="number ed-stat-value" id="userStatAux"><?php echo $total_aux; ?></div><div class="meta ed-stat-meta">Personal auxiliar</div></div></div>
+        </div>
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-2">
+            <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Inactivos</div><div class="number ed-stat-value text-muted" id="userStatInactive"><?php echo $total_inactive; ?></div><div class="meta ed-stat-meta">Sin acceso</div></div></div>
         </div>
     </div>
 
-    <div class="card users-table-card mb-4">
+    <div class="card users-table-card ed-content-card mb-4">
         <div class="card-header bg-white py-3">
             <div class="users-toolbar">
                 <div class="form-group">
@@ -246,12 +250,12 @@ function user_role_badge($row) {
                         <option value="Inactivo">Inactivo</option>
                     </select>
                 </div>
-                <div class="ml-sm-auto small text-muted pt-2"><i class="fas fa-shield-alt mr-1"></i>Solo administradores pueden modificar cuentas.</div>
+                <div class="users-toolbar-note"><i class="fas fa-shield-alt mr-1"></i>Solo administradores pueden modificar cuentas.</div>
             </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover table-bordered" id="usersTable" width="100%">
+                <table class="table table-hover table-bordered ed-table" id="usersTable" width="100%">
                     <thead class="thead-light">
                         <tr>
                             <th>Nombre</th>
@@ -409,7 +413,7 @@ function user_role_badge($row) {
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover table-bordered" id="studentAccessTable" width="100%">
+                    <table class="table table-hover table-bordered ed-table" id="studentAccessTable" width="100%">
                         <thead class="thead-light">
                             <tr>
                                 <th>Estudiante</th>
@@ -506,7 +510,7 @@ function user_role_badge($row) {
             </div>
         <?php endif; ?>
 
-        <div class="card policy-card mb-4">
+        <div class="card policy-card ed-content-card mb-4">
             <div class="card-header bg-white py-3">
                 <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-lock text-warning mr-2"></i>Política institucional de acceso a notas</h6>
                 <div class="small text-muted">Cada colegio decide si la deuda restringe la visualización de calificaciones y bajo qué condiciones.</div>
