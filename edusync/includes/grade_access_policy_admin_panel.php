@@ -100,9 +100,12 @@ if (!empty($advanced_policy['temporary_access_until'])) {
                             <small class="form-text text-muted">Recomendado: solo vencidas.</small>
                         </div>
                         <div class="col-lg-4 form-group mb-lg-0">
-                            <label class="font-weight-bold">¿Cuántas debe tener?</label>
-                            <input type="number" min="1" max="20" class="form-control" id="minimum_debt_concepts" name="minimum_debt_concepts" value="<?php echo max(1, (int)$grade_policy['minimum_debt_concepts']); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                            <small class="form-text text-muted">Ej.: 2 = con una sola deuda todavía ve sus notas.</small>
+                            <label class="font-weight-bold">Bloquear desde</label>
+                            <div class="input-group">
+                                <input type="number" min="1" max="20" class="form-control" id="minimum_debt_concepts" name="minimum_debt_concepts" value="<?php echo max(1, (int)$grade_policy['minimum_debt_concepts']); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                                <div class="input-group-append"><span class="input-group-text">deudas</span></div>
+                            </div>
+                            <small class="form-text text-muted">Ej.: 2 = se bloquea al acumular 2 deudas que cumplan las condiciones.</small>
                         </div>
                         <div class="col-lg-4 form-group mb-0">
                             <label class="font-weight-bold">¿Cuántos días esperar?</label>
@@ -116,20 +119,30 @@ if (!empty($advanced_policy['temporary_access_until'])) {
                     <div class="policy-step-head">
                         <span class="policy-step-number">3</span>
                         <div>
-                            <div class="policy-step-title">Elegir qué conceptos de pago generan el bloqueo</div>
-                            <div class="policy-step-desc">Por ejemplo, puedes hacer que solo las pensiones afecten el acceso a notas y que otros conceptos no lo hagan.</div>
+                            <div class="policy-step-title">Definir qué deudas se toman en cuenta</div>
+                            <div class="policy-step-desc">La cantidad configurada arriba se calculará usando todas las deudas, salvo que quieras limitarla a conceptos específicos.</div>
                         </div>
                     </div>
-                    <select class="form-control" id="gradeConceptIds" multiple size="<?php echo min(7, max(4, count($grade_policy_concepts))); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                        <?php foreach ($grade_policy_concepts as $concept): ?>
-                            <option value="<?php echo (int)$concept['id']; ?>" <?php echo isset($grade_policy_selected_lookup[(int)$concept['id']]) ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars((string)$concept['course'] . ' · ' . (string)$concept['level'] . ' · ' . (string)$concept['year'], ENT_QUOTES, 'UTF-8'); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <small class="form-text text-muted">
-                        Si no seleccionas ninguno, <strong>todos los conceptos</strong> pueden generar bloqueo. En computadora puedes mantener Ctrl para seleccionar varios.
-                    </small>
+
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input" id="limitGradeDebtConcepts" <?php echo !empty($grade_policy_selected) ? 'checked' : ''; ?> <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                        <label class="custom-control-label" for="limitGradeDebtConcepts">
+                            <strong>Usar solo conceptos específicos</strong>
+                            <div class="policy-option-note mt-1">Desactivado = cuentan todas las deudas. Actívalo solo si, por ejemplo, quieres que cuenten únicamente las pensiones.</div>
+                        </label>
+                    </div>
+
+                    <div id="gradeConceptSelectorWrap" class="mt-3 <?php echo empty($grade_policy_selected) ? 'd-none' : ''; ?>">
+                        <label class="font-weight-bold">Conceptos que sí contarán</label>
+                        <select class="form-control" id="gradeConceptIds" multiple size="<?php echo min(7, max(4, count($grade_policy_concepts))); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                            <?php foreach ($grade_policy_concepts as $concept): ?>
+                                <option value="<?php echo (int)$concept['id']; ?>" <?php echo isset($grade_policy_selected_lookup[(int)$concept['id']]) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars((string)$concept['course'] . ' · ' . (string)$concept['level'] . ' · ' . (string)$concept['year'], ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="form-text text-muted">Solo las deudas de los conceptos seleccionados sumarán para alcanzar el número mínimo configurado arriba.</small>
+                    </div>
                 </div>
 
                 <div class="policy-step policy-temporary-box">
@@ -297,6 +310,12 @@ if (!empty($advanced_policy['temporary_access_until'])) {
     $('#togglePolicyMessages').on('click',function(){
         $('#policyMessagePanel').toggleClass('open');
         $('#policyMessagesChevron').toggleClass('fa-chevron-down fa-chevron-up');
+    });
+
+    $('#limitGradeDebtConcepts').on('change',function(){
+        var limited=$(this).is(':checked');
+        $('#gradeConceptSelectorWrap').toggleClass('d-none',!limited);
+        if(!limited) $('#gradeConceptIds').val([]);
     });
 
     function refreshGradeExceptionCount(){
