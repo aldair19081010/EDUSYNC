@@ -179,6 +179,12 @@ if (!empty($advanced_policy['temporary_access_until'])) {
             </div>
         </div>
     </div>
+    <div class="card-footer bg-white d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+        <div class="small text-muted mb-2 mb-md-0"><i class="fas fa-info-circle mr-1"></i>El botón guarda la política general y las reglas adicionales.</div>
+        <button type="button" class="btn btn-primary" id="saveGradePolicy" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+            <i class="fas fa-save mr-1"></i>Guardar cambios
+        </button>
+    </div>
 </div>
 
 <script>
@@ -213,7 +219,7 @@ if (!empty($advanced_policy['temporary_access_until'])) {
         else alert(message);
     }
 
-    $('#saveAdvancedGradePolicy').on('click',function(){
+    $('#saveGradePolicy').on('click',function(){
         $('#gradeAccessPolicyForm').trigger('submit');
     });
 
