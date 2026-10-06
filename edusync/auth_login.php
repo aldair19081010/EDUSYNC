@@ -65,6 +65,18 @@ if ((int)$row['type'] === 2) {
     }
 }
 
+$lastLoginCol = $conn->query("SHOW COLUMNS FROM users LIKE 'last_login_at'");
+if ($lastLoginCol && $lastLoginCol->num_rows > 0) {
+    $lastLoginAt = (new DateTimeImmutable('now', new DateTimeZone('America/Lima')))->format('Y-m-d H:i:s');
+    $loginUp = $conn->prepare('UPDATE users SET last_login_at = ? WHERE id = ? AND school_id = ?');
+    if ($loginUp) {
+        $uid = intval($row['id']);
+        $loginUp->bind_param('sii', $lastLoginAt, $uid, $school_id);
+        $loginUp->execute();
+        $loginUp->close();
+    }
+}
+
 // Migración automática: cuando un usuario con contraseña MD5 inicia sesión correctamente,
 // se reemplaza por password_hash sin obligar a cambiar todas las claves de golpe.
 if ($legacy_md5) {
