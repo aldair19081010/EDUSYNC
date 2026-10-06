@@ -75,6 +75,38 @@ function load_teacher_for_user($conn, $teacher_id, $school_id) {
     return $row ?: null;
 }
 
+function user_api_public_user($conn, $id, $school_id) {
+    $stmt = $conn->prepare(
+        "SELECT u.id, u.name, u.username, u.type, u.is_director, u.teacher_id, u.status,
+                t.name AS teacher_name, t.status AS teacher_status
+         FROM users u
+         LEFT JOIN teacher t ON t.id = u.teacher_id AND t.school_id = u.school_id
+         WHERE u.id = ? AND u.school_id = ?
+         LIMIT 1"
+    );
+    if (!$stmt) return null;
+    $stmt->bind_param('ii', $id, $school_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) return null;
+
+    if ((int)$row['is_director'] === 1) {
+        $row['role_label'] = 'Director';
+    } elseif ((int)$row['type'] === 1) {
+        $row['role_label'] = 'Administrador';
+    } elseif ((int)$row['type'] === 2) {
+        $row['role_label'] = 'Docente';
+    } elseif ((int)$row['type'] === 3) {
+        $row['role_label'] = 'Auxiliar';
+    } else {
+        $row['role_label'] = 'Otro';
+    }
+
+    $row['is_self'] = (int)$row['id'] === (int)($_SESSION['login_id'] ?? 0);
+    return $row;
+}
+
 function load_student_for_access($conn, $student_id, $school_id) {
     if ($student_id <= 0) return null;
     $stmt = $conn->prepare(
@@ -156,7 +188,7 @@ if ($action === 'save') {
     $username = trim((string)($_POST['username'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     $type = intval($_POST['type'] ?? 0);
-    $is_director = ($type === 1 && !empty($_POST['is_director'])) ? 1 : 0;
+    $is_director = (in_array($type, [1, 2], true) && !empty($_POST['is_director'])) ? 1 : 0;
     $teacher_id = ($type === 2) ? intval($_POST['teacher_id'] ?? 0) : 0;
     $status = (($_POST['status'] ?? 'Activo') === 'Inactivo') ? 'Inactivo' : 'Activo';
 
@@ -218,7 +250,11 @@ if ($action === 'save') {
         $stmt->close();
         if (!$ok) user_api_reply(0, 'No se pudo crear el usuario: ' . $error);
         user_api_audit($conn, $school_id, $new_id, $username, 'CREATED', ['name' => $name, 'type' => $type, 'is_director' => $is_director, 'teacher_id' => $teacher_id, 'status' => $status]);
-        user_api_reply(1, 'Usuario creado correctamente.', ['id' => $new_id]);
+        $created_user = user_api_public_user($conn, $new_id, $school_id);
+        user_api_reply(1, 'Usuario creado correctamente.', [
+            'id' => $new_id,
+            'user' => $created_user
+        ]);
     }
 
     if ($password !== '') {
@@ -239,7 +275,10 @@ if ($action === 'save') {
         'after' => ['name' => $name, 'username' => $username, 'type' => $type, 'is_director' => $is_director, 'teacher_id' => $teacher_id ?: null, 'status' => $status],
         'password_changed' => ($password !== '')
     ]);
-    user_api_reply(1, 'Usuario actualizado correctamente.');
+    $updated_user = user_api_public_user($conn, $id, $school_id);
+    user_api_reply(1, 'Usuario actualizado correctamente.', [
+        'user' => $updated_user
+    ]);
 }
 
 if ($action === 'toggle_status') {
@@ -265,7 +304,11 @@ if ($action === 'toggle_status') {
     if (!$ok) user_api_reply(0, 'No se pudo cambiar el estado.');
 
     user_api_audit($conn, $school_id, $id, $target['username'], $new_status === 'Activo' ? 'ACTIVATED' : 'DEACTIVATED', ['previous_status' => $target['status'], 'new_status' => $new_status]);
-    user_api_reply(1, 'Estado actualizado.', ['new_status' => $new_status]);
+    $updated_user = user_api_public_user($conn, $id, $school_id);
+    user_api_reply(1, 'Estado actualizado.', [
+        'new_status' => $new_status,
+        'user' => $updated_user
+    ]);
 }
 
 if ($action === 'reset_password') {
@@ -391,6 +434,7 @@ if ($action === 'reset_student_password') {
         $message,
         [
             'password_changed_at' => $changedAt,
+            'password_changed_at_display' => (new DateTimeImmutable($changedAt, $limaTimezone))->format('d/m/Y H:i'),
             'mode' => $mode
         ]
     );
@@ -535,7 +579,7 @@ if ($action === 'delete_permanent') {
     if (!$ok || $affected < 1) user_api_reply(0, 'No se pudo eliminar el usuario.');
 
     user_api_audit($conn, $school_id, $id, $target['username'], 'DELETED', ['name' => $target['name'], 'type' => intval($target['type']), 'teacher_id' => $target['teacher_id']]);
-    user_api_reply(1, 'Usuario eliminado definitivamente.');
+    user_api_reply(1, 'Usuario eliminado definitivamente.', ['id' => $id]);
 }
 
 user_api_reply(0, 'Acción no válida.');
