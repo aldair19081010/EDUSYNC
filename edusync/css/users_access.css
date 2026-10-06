@@ -1,0 +1,278 @@
+/*
+ * EduSync · Usuarios y Accesos
+ * Ajustes específicos sobre la capa visual standard-v2.
+ */
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-access-shell {
+    width:100%;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .user-hero {
+    margin-bottom:.9rem!important;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .user-hero .ed-page-heading {
+    flex:1 1 auto;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-access-tabs {
+    display:flex;
+    align-items:center;
+    gap:.25rem;
+    width:100%;
+    margin:0 0 1rem;
+    padding:0 0 .55rem;
+    overflow-x:auto;
+    background:transparent;
+    border:0;
+    border-bottom:1px solid var(--edu-border,#e3e6f0);
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-tab {
+    position:relative;
+    min-height:36px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.4rem;
+    flex:0 0 auto;
+    padding:.45rem .8rem;
+    background:transparent;
+    color:var(--edu-muted,#6e7891);
+    border:0;
+    border-radius:var(--edu-radius-sm,.42rem);
+    font-size:.82rem;
+    font-weight:700;
+    box-shadow:none;
+    transition:background-color .15s ease,color .15s ease;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-tab:hover,
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-tab:focus {
+    background:var(--edu-primary-soft,#eef4ff);
+    color:var(--edu-primary,#4285f4);
+    outline:0;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-tab.active {
+    background:var(--edu-primary-soft,#eef4ff);
+    color:var(--edu-primary,#4285f4);
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-tab.active::after {
+    content:"";
+    position:absolute;
+    left:.65rem;
+    right:.65rem;
+    bottom:-.58rem;
+    height:2px;
+    border-radius:2px;
+    background:var(--edu-primary,#4285f4);
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-tab .badge {
+    min-width:22px;
+    padding:.2rem .4rem;
+    background:#fff!important;
+    color:var(--edu-muted,#6e7891)!important;
+    border:1px solid var(--edu-border,#e3e6f0);
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-panel {
+    display:none;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-panel.active {
+    display:block;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-kpi-row {
+    margin-left:-.35rem;
+    margin-right:-.35rem;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-kpi-row > [class*="col-"] {
+    padding-left:.35rem;
+    padding-right:.35rem;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .user-stat {
+    min-height:82px;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-toolbar {
+    display:flex;
+    align-items:flex-end;
+    gap:.6rem;
+    flex-wrap:wrap;
+    width:100%;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-toolbar .form-group {
+    min-width:165px;
+    margin-bottom:0;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-toolbar .users-toolbar-note {
+    margin-left:auto;
+    padding-bottom:.35rem;
+    color:var(--edu-muted,#6e7891);
+    font-size:.76rem;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .user-name-cell {
+    display:flex;
+    align-items:center;
+    gap:.65rem;
+    min-width:170px;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .user-avatar-placeholder {
+    width:34px;
+    height:34px;
+    flex:0 0 34px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:.55rem;
+    background:var(--edu-primary-soft,#eef4ff);
+    color:var(--edu-primary,#4285f4);
+    font-size:.8rem;
+    font-weight:800;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .student-access-meta {
+    margin-top:.1rem;
+    color:var(--edu-muted,#6e7891);
+    font-size:.75rem;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .student-access-badge {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:.35rem;
+    min-width:102px;
+    padding:.32rem .55rem;
+    border-radius:.4rem;
+    font-size:.72rem;
+    font-weight:700;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .student-access-badge.custom {
+    background:#eafaf4;
+    color:#14855f;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .student-access-badge.default {
+    background:#fff8e1;
+    color:#7b5e00;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .user-modal-section {
+    margin-bottom:1rem;
+    padding:.8rem;
+    background:var(--edu-surface-soft,#f8f9fc);
+    border:1px solid var(--edu-border,#e3e6f0);
+    border-radius:var(--edu-radius-sm,.42rem);
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .teacher-warning,
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .policy-help {
+    color:var(--edu-muted,#6e7891);
+    font-size:.76rem;
+    line-height:1.4;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .password-box {
+    font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .policy-card {
+    max-width:900px;
+    margin-left:0;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .policy-preview {
+    margin-top:.35rem;
+    padding:.8rem .9rem;
+    background:#fffaf0;
+    border:1px solid #f7df9a;
+    border-left:3px solid var(--edu-warning,#f6c23e);
+    border-radius:var(--edu-radius-sm,.42rem);
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] .history-item {
+    margin-bottom:.65rem;
+    padding:.7rem .8rem;
+    background:var(--edu-surface-soft,#f8f9fc);
+    border:1px solid var(--edu-border-soft,#edf0f5);
+    border-left:3px solid var(--edu-primary,#4285f4);
+    border-radius:var(--edu-radius-sm,.42rem);
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] .history-item:last-child {
+    margin-bottom:0;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] .history-title {
+    color:var(--edu-heading,#233b52);
+    font-size:.84rem;
+    font-weight:700;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] .history-meta {
+    margin-top:.2rem;
+    color:var(--edu-muted,#6e7891);
+    font-size:.74rem;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .director-indicator {
+    display:inline-flex;
+    align-items:center;
+    gap:.3rem;
+}
+
+body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .user-live-pulse {
+    animation:usersAccessPulse .6s ease;
+}
+
+@keyframes usersAccessPulse {
+    0% { background:#eef4ff; }
+    100% { background:transparent; }
+}
+
+@media (max-width:991.98px) {
+    body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-toolbar .users-toolbar-note {
+        width:100%;
+        margin-left:0;
+        padding-bottom:0;
+    }
+}
+
+@media (max-width:767.98px) {
+    body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-toolbar .form-group {
+        min-width:calc(50% - .3rem);
+        flex:1 1 calc(50% - .3rem);
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .policy-card {
+        max-width:none;
+    }
+}
+
+@media (max-width:575.98px) {
+    body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-toolbar .form-group {
+        min-width:100%;
+        flex-basis:100%;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .users-access-tabs {
+        gap:.15rem;
+    }
+
+    body[data-edusync-ui="standard-v2"][data-edusync-page="users"] #content .access-tab {
+        padding:.42rem .65rem;
+        font-size:.78rem;
+    }
+}
