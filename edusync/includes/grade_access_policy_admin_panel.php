@@ -36,6 +36,12 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 .policy-exception-action-label{display:block;visibility:hidden;margin-bottom:.5rem;font-weight:700}
 .policy-exception-action .btn{width:100%;white-space:nowrap;height:38px}
 .policy-exception-hint{min-height:18px}
+.policy-step{border:1px solid #e4e8ef;border-radius:.65rem;padding:1rem;margin-bottom:1rem;background:#fff}
+.policy-step-head{display:flex;align-items:flex-start;gap:.75rem;margin-bottom:.9rem}
+.policy-step-number{width:28px;height:28px;border-radius:50%;background:#eef3ff;color:#4e73df;display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex:0 0 28px}
+.policy-step-title{font-weight:800;color:#344767;line-height:1.2}
+.policy-step-desc{font-size:.76rem;color:#7b8499;margin-top:.2rem;line-height:1.4}
+.policy-temporary-box{background:#f8fbff;border-color:#dfe9f7}
 @media(max-width:991.98px){
     .policy-exception-row .form-group,.policy-exception-action{margin-bottom:1rem}
     .policy-exception-action-label{display:none}
@@ -51,119 +57,144 @@ if (!empty($advanced_policy['temporary_access_until'])) {
     </div>
 
     <div class="policy-manage-nav" role="tablist">
-        <button type="button" class="policy-manage-tab active" data-policy-pane="general"><i class="fas fa-shield-alt mr-1"></i>General</button>
-        <button type="button" class="policy-manage-tab" data-policy-pane="rules"><i class="fas fa-sliders-h mr-1"></i>Reglas</button>
+        <button type="button" class="policy-manage-tab active" data-policy-pane="configuration"><i class="fas fa-sliders-h mr-1"></i>Configuración</button>
         <button type="button" class="policy-manage-tab" data-policy-pane="exceptions"><i class="fas fa-user-check mr-1"></i>Excepciones <span class="badge badge-light border ml-1" id="gradeExceptionCount"><?php echo count($grade_policy_exceptions); ?></span></button>
         <button type="button" class="policy-manage-tab" data-policy-pane="control"><i class="fas fa-chart-bar mr-1"></i>Control</button>
     </div>
 
     <div class="card-body p-0">
-        <div class="policy-manage-pane active p-3 p-md-4" id="policy-pane-general">
-            <div class="policy-section-title">Configuración principal</div>
+        <div class="policy-manage-pane active p-3 p-md-4" id="policy-pane-configuration">
 
-            <div class="policy-compact-box mb-3">
+            <div class="policy-step">
+                <div class="policy-step-head">
+                    <span class="policy-step-number">1</span>
+                    <div>
+                        <div class="policy-step-title">Activar la restricción por deuda</div>
+                        <div class="policy-step-desc">Decide si las deudas pueden impedir que una familia consulte las notas.</div>
+                    </div>
+                </div>
                 <div class="custom-control custom-switch">
                     <input type="checkbox" class="custom-control-input" id="block_grades_by_debt" name="block_grades_by_debt" value="1" <?php echo (int)$grade_policy['block_grades_by_debt'] === 1 ? 'checked' : ''; ?> <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
                     <label class="custom-control-label" for="block_grades_by_debt">
-                        <strong>Restringir notas por deuda</strong>
-                        <div class="policy-option-note mt-1">Si está desactivado, las familias podrán consultar sus notas aunque tengan obligaciones pendientes.</div>
+                        <strong>Restringir notas cuando el estudiante tenga deuda</strong>
                     </label>
                 </div>
             </div>
 
             <div id="gradePolicyControls">
-                <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <div class="policy-compact-box">
-                            <label class="font-weight-bold mb-1">Qué deuda cuenta</label>
-                            <select class="form-control" id="debt_scope" name="debt_scope" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                                <option value="overdue" <?php echo ($grade_policy['debt_scope'] ?? 'overdue') === 'overdue' ? 'selected' : ''; ?>>Solo conceptos vencidos</option>
-                                <option value="pending" <?php echo ($grade_policy['debt_scope'] ?? '') === 'pending' ? 'selected' : ''; ?>>Todo concepto con saldo pendiente</option>
-                            </select>
-                            <div class="policy-option-note mt-2">Lo recomendable es usar solo vencidos para no restringir por deudas futuras.</div>
+                <div class="policy-step">
+                    <div class="policy-step-head">
+                        <span class="policy-step-number">2</span>
+                        <div>
+                            <div class="policy-step-title">Definir cuándo se bloquean las notas</div>
+                            <div class="policy-step-desc">Estas tres condiciones trabajan juntas. El estudiante se bloquea solo cuando cumple lo configurado aquí.</div>
                         </div>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <div class="policy-compact-box">
-                            <label class="font-weight-bold mb-1">Cantidad mínima</label>
-                            <input type="number" min="1" max="20" class="form-control" id="minimum_debt_concepts" name="minimum_debt_concepts" value="<?php echo max(1, (int)$grade_policy['minimum_debt_concepts']); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                            <div class="policy-option-note mt-2">Ejemplo: con 2, un estudiante con una sola deuda todavía podrá ver sus notas.</div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="policy-compact-box mb-3">
-                    <label class="font-weight-bold mb-1">Mensaje cuando las notas estén restringidas</label>
-                    <textarea class="form-control" rows="3" maxlength="500" id="block_message" name="block_message" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><?php echo htmlspecialchars((string)$grade_policy['block_message'], ENT_QUOTES, 'UTF-8'); ?></textarea>
-                    <div class="policy-option-note mt-2"><span id="policyMessageCount">0</span>/500 caracteres</div>
-                </div>
-            </div>
-
-            <div class="policy-preview">
-                <div class="font-weight-bold text-warning mb-1"><i class="fas fa-eye mr-1"></i>Resumen</div>
-                <div id="gradePolicyPreview" class="small text-gray-800"></div>
-            </div>
-        </div>
-
-        <div class="policy-manage-pane p-3 p-md-4" id="policy-pane-rules">
-            <div class="policy-section-title">Condiciones complementarias</div>
-            <div class="row">
-                <div class="col-lg-4 mb-3">
-                    <div class="policy-compact-box">
-                        <label class="font-weight-bold mb-1">Días de gracia</label>
-                        <input type="number" class="form-control" id="gradeGraceDays" min="0" max="90" value="<?php echo (int)($advanced_policy['grace_days'] ?? 0); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                        <div class="policy-option-note mt-2">Días adicionales después del vencimiento antes de bloquear.</div>
-                    </div>
-                </div>
-                <div class="col-lg-8 mb-3">
-                    <div class="policy-compact-box">
-                        <label class="font-weight-bold mb-1">Apertura temporal para todos</label>
-                        <input type="datetime-local" class="form-control" id="gradeTemporaryUntil" value="<?php echo htmlspecialchars($temp_value, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                        <div class="policy-option-note mt-2">Mientras esté vigente todos podrán ver notas, sin alterar sus deudas.</div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="policy-compact-box mb-3">
-                <label class="font-weight-bold mb-1">Conceptos que pueden bloquear las notas</label>
-                <div class="policy-option-note mb-2">Selecciona solo los conceptos que deben influir. Sin selección se consideran todos.</div>
-                <select class="form-control" id="gradeConceptIds" multiple size="<?php echo min(7, max(4, count($grade_policy_concepts))); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
-                    <?php foreach ($grade_policy_concepts as $concept): ?>
-                        <option value="<?php echo (int)$concept['id']; ?>" <?php echo isset($grade_policy_selected_lookup[(int)$concept['id']]) ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars((string)$concept['course'] . ' · ' . (string)$concept['level'] . ' · ' . (string)$concept['year'], ENT_QUOTES, 'UTF-8'); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="policy-compact-box">
-                <div class="d-flex justify-content-between align-items-center policy-message-toggle" id="togglePolicyMessages">
-                    <div>
-                        <strong><i class="fas fa-comment-alt text-secondary mr-2"></i>Mensajes especiales</strong>
-                        <div class="policy-option-note">Opcional. Solo ábrelo si quieres cambiar los textos que verá la familia.</div>
-                    </div>
-                    <i class="fas fa-chevron-down text-muted" id="policyMessagesChevron"></i>
-                </div>
-                <div class="policy-message-panel" id="policyMessagePanel">
                     <div class="row">
                         <div class="col-lg-4 form-group mb-lg-0">
-                            <label class="small font-weight-bold">Periodo de gracia</label>
-                            <textarea class="form-control" id="gradeGraceMessage" rows="3" maxlength="500"><?php echo htmlspecialchars((string)($advanced_policy['grace_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                            <label class="font-weight-bold">¿Qué deudas cuentan?</label>
+                            <select class="form-control" id="debt_scope" name="debt_scope" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                                <option value="overdue" <?php echo ($grade_policy['debt_scope'] ?? 'overdue') === 'overdue' ? 'selected' : ''; ?>>Solo deudas vencidas</option>
+                                <option value="pending" <?php echo ($grade_policy['debt_scope'] ?? '') === 'pending' ? 'selected' : ''; ?>>Todas las deudas pendientes</option>
+                            </select>
+                            <small class="form-text text-muted">Recomendado: solo vencidas.</small>
                         </div>
                         <div class="col-lg-4 form-group mb-lg-0">
-                            <label class="small font-weight-bold">Apertura temporal</label>
-                            <textarea class="form-control" id="gradeTemporaryMessage" rows="3" maxlength="500"><?php echo htmlspecialchars((string)($advanced_policy['temporary_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                            <label class="font-weight-bold">¿Cuántas debe tener?</label>
+                            <input type="number" min="1" max="20" class="form-control" id="minimum_debt_concepts" name="minimum_debt_concepts" value="<?php echo max(1, (int)$grade_policy['minimum_debt_concepts']); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                            <small class="form-text text-muted">Ej.: 2 = con una sola deuda todavía ve sus notas.</small>
                         </div>
                         <div class="col-lg-4 form-group mb-0">
-                            <label class="small font-weight-bold">Excepción individual</label>
-                            <textarea class="form-control" id="gradeExceptionMessage" rows="3" maxlength="500"><?php echo htmlspecialchars((string)($advanced_policy['exception_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                            <label class="font-weight-bold">¿Cuántos días esperar?</label>
+                            <input type="number" class="form-control" id="gradeGraceDays" min="0" max="90" value="<?php echo (int)($advanced_policy['grace_days'] ?? 0); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                            <small class="form-text text-muted">0 = bloquear apenas la deuda esté vencida.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="policy-step">
+                    <div class="policy-step-head">
+                        <span class="policy-step-number">3</span>
+                        <div>
+                            <div class="policy-step-title">Elegir qué conceptos de pago generan el bloqueo</div>
+                            <div class="policy-step-desc">Por ejemplo, puedes hacer que solo las pensiones afecten el acceso a notas y que otros conceptos no lo hagan.</div>
+                        </div>
+                    </div>
+                    <select class="form-control" id="gradeConceptIds" multiple size="<?php echo min(7, max(4, count($grade_policy_concepts))); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                        <?php foreach ($grade_policy_concepts as $concept): ?>
+                            <option value="<?php echo (int)$concept['id']; ?>" <?php echo isset($grade_policy_selected_lookup[(int)$concept['id']]) ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars((string)$concept['course'] . ' · ' . (string)$concept['level'] . ' · ' . (string)$concept['year'], ENT_QUOTES, 'UTF-8'); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="form-text text-muted">
+                        Si no seleccionas ninguno, <strong>todos los conceptos</strong> pueden generar bloqueo. En computadora puedes mantener Ctrl para seleccionar varios.
+                    </small>
+                </div>
+
+                <div class="policy-step policy-temporary-box">
+                    <div class="policy-step-head">
+                        <span class="policy-step-number">4</span>
+                        <div>
+                            <div class="policy-step-title">Permitir notas temporalmente a todos</div>
+                            <div class="policy-step-desc">Úsalo solo cuando quieras suspender el bloqueo por unas horas o días, por ejemplo durante entrega de libretas. No modifica las deudas.</div>
+                        </div>
+                    </div>
+                    <div class="row align-items-end">
+                        <div class="col-lg-6 form-group mb-lg-0">
+                            <label class="font-weight-bold">Permitir acceso hasta</label>
+                            <input type="datetime-local" class="form-control" id="gradeTemporaryUntil" value="<?php echo htmlspecialchars($temp_value, ENT_QUOTES, 'UTF-8'); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                            <small class="form-text text-muted">Déjalo vacío si no deseas una apertura temporal.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="policy-step">
+                    <div class="policy-step-head">
+                        <span class="policy-step-number">5</span>
+                        <div>
+                            <div class="policy-step-title">Definir el mensaje para la familia</div>
+                            <div class="policy-step-desc">Este es el texto principal que verá la familia cuando sus notas estén restringidas.</div>
+                        </div>
+                    </div>
+                    <textarea class="form-control" rows="3" maxlength="500" id="block_message" name="block_message" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><?php echo htmlspecialchars((string)$grade_policy['block_message'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    <div class="policy-option-note mt-2"><span id="policyMessageCount">0</span>/500 caracteres</div>
+
+                    <div class="mt-3 pt-3 border-top">
+                        <div class="d-flex justify-content-between align-items-center policy-message-toggle" id="togglePolicyMessages">
+                            <div>
+                                <strong><i class="fas fa-comment-alt text-secondary mr-2"></i>Mensajes para casos especiales</strong>
+                                <div class="policy-option-note">Opcional: textos distintos para periodo de gracia, apertura temporal y excepción individual.</div>
+                            </div>
+                            <i class="fas fa-chevron-down text-muted" id="policyMessagesChevron"></i>
+                        </div>
+                        <div class="policy-message-panel" id="policyMessagePanel">
+                            <div class="row">
+                                <div class="col-lg-4 form-group mb-lg-0">
+                                    <label class="small font-weight-bold">Periodo de gracia</label>
+                                    <textarea class="form-control" id="gradeGraceMessage" rows="3" maxlength="500"><?php echo htmlspecialchars((string)($advanced_policy['grace_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                </div>
+                                <div class="col-lg-4 form-group mb-lg-0">
+                                    <label class="small font-weight-bold">Apertura temporal</label>
+                                    <textarea class="form-control" id="gradeTemporaryMessage" rows="3" maxlength="500"><?php echo htmlspecialchars((string)($advanced_policy['temporary_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                </div>
+                                <div class="col-lg-4 form-group mb-0">
+                                    <label class="small font-weight-bold">Excepción individual</label>
+                                    <textarea class="form-control" id="gradeExceptionMessage" rows="3" maxlength="500"><?php echo htmlspecialchars((string)($advanced_policy['exception_message'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="alert alert-light border mt-3 mb-0 py-2">
-                <i class="fas fa-sync-alt text-success mr-2"></i><strong>Desbloqueo automático:</strong> al regularizar la deuda, el sistema vuelve a habilitar las notas automáticamente.
+            <div class="policy-preview mb-3">
+                <div class="font-weight-bold text-warning mb-1"><i class="fas fa-eye mr-1"></i>Así quedará la política</div>
+                <div id="gradePolicyPreview" class="small text-gray-800"></div>
+            </div>
+
+            <div class="alert alert-light border mb-0 py-2">
+                <i class="fas fa-sync-alt text-success mr-2"></i><strong>Desbloqueo automático:</strong> cuando el estudiante regulariza la deuda y deja de cumplir estas condiciones, las notas se habilitan automáticamente.
             </div>
         </div>
 
