@@ -162,11 +162,18 @@ try {
 
     $debt = grade_debt_blocks_grades($conn, $studentId);
     if (!empty($debt['blocked'])) {
-        grades_reply('error', 'No es posible mostrar la información de notas porque existen 2 o más deudas pendientes.', [], [
-            'reason' => 'debt',
-            'debt_count' => (int)$debt['count'],
-            'total_pendiente_ultimas' => number_format((float)$debt['total'], 2, '.', '')
-        ]);
+        grades_reply(
+            'error',
+            (string)($debt['message'] ?? 'Las calificaciones están temporalmente restringidas por obligaciones de pago.'),
+            [],
+            [
+                'reason' => 'debt',
+                'debt_count' => (int)$debt['count'],
+                'debt_scope' => (string)($debt['scope'] ?? 'overdue'),
+                'minimum_debt_concepts' => (int)($debt['minimum_concepts'] ?? 2),
+                'total_pendiente_ultimas' => number_format((float)$debt['total'], 2, '.', '')
+            ]
+        );
     }
 
     $yearHasSchool = grades_has_column($conn, 'academic_year', 'school_id');
