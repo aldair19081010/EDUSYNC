@@ -560,36 +560,119 @@ function user_role_badge($row) {
 </div>
 
 <!-- Modal Crear/Editar -->
-<div class="modal fade" id="userModal" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-lg" role="document"><div class="modal-content">
-    <div class="modal-header bg-primary text-white"><h5 class="modal-title"><i class="fas fa-user-cog mr-2"></i><span id="userModalTitle">Nuevo usuario</span></h5><button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button></div>
-    <form id="userForm">
-      <div class="modal-body">
-        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
-        <input type="hidden" name="action" value="save">
-        <input type="hidden" name="id" id="user_id" value="">
-        <div id="userFormMsg"></div>
-        <div class="row">
-          <div class="col-md-6 form-group"><label class="font-weight-bold">Nombre completo <span class="text-danger">*</span></label><input type="text" class="form-control" name="name" id="user_name" required></div>
-          <div class="col-md-6 form-group"><label class="font-weight-bold">Usuario / correo <span class="text-danger">*</span></label><input type="text" class="form-control" name="username" id="user_username" required autocomplete="off"></div>
-        </div>
-        <div class="user-modal-section">
-          <div class="row">
-            <div class="col-md-6 form-group mb-md-0"><label class="font-weight-bold">Rol <span class="text-danger">*</span></label><select class="form-control" name="type" id="user_type" required><option value="">Seleccionar...</option><option value="1">Administrador</option><option value="2">Docente</option><option value="3">Auxiliar</option></select></div>
-            <div class="col-md-6 form-group mb-0"><label class="font-weight-bold">Estado</label><select class="form-control" name="status" id="user_status"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div>
-          </div>
-          <div class="form-group mt-3 mb-0" id="directorWrap" style="display:none"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="is_director" name="is_director" value="1"><label class="custom-control-label" for="is_director"><strong>Este usuario es Director</strong><br><small class="text-muted">Se identificará como Director. Si es docente, conserva su vinculación académica.</small></label></div></div>
-          <div class="form-group mt-3 mb-0" id="teacherWrap" style="display:none"><label class="font-weight-bold">Docente vinculado <span class="text-danger">*</span></label><select class="form-control" name="teacher_id" id="teacher_id"><option value="">Seleccionar docente...</option><?php foreach ($teachers as $t): ?><option value="<?php echo (int)$t['id']; ?>" data-status="<?php echo htmlspecialchars($t['status'] ?? 'Activo', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($t['name'], ENT_QUOTES, 'UTF-8'); ?><?php echo (($t['status'] ?? 'Activo') !== 'Activo') ? ' (Inactivo)' : ''; ?></option><?php endforeach; ?></select><div class="teacher-warning text-muted mt-1"><i class="fas fa-link mr-1"></i>Cada docente puede tener una sola cuenta.</div></div>
-        </div>
-        <div class="row">
-          <div class="col-md-6 form-group"><label class="font-weight-bold">Contraseña <span class="text-danger" id="passwordRequired">*</span></label><div class="input-group"><input type="password" class="form-control password-box" name="password" id="user_password" autocomplete="new-password"><div class="input-group-append"><button class="btn btn-outline-secondary toggle-pass" type="button" data-target="#user_password"><i class="fas fa-eye"></i></button></div></div><small class="form-text text-muted" id="passwordHint">Mínimo 8 caracteres.</small></div>
-          <div class="col-md-6 form-group"><label class="font-weight-bold">Repetir contraseña</label><input type="password" class="form-control password-box" id="user_password_repeat" autocomplete="new-password"><small id="passwordMatch" class="form-text"></small></div>
-        </div>
-        <div class="d-flex flex-wrap align-items-center"><button type="button" class="btn btn-outline-info btn-sm mr-2" id="generatePassword"><i class="fas fa-random mr-1"></i>Generar contraseña</button><button type="button" class="btn btn-outline-secondary btn-sm" id="copyPassword"><i class="far fa-copy mr-1"></i>Copiar</button><span class="small text-muted ml-2">Al editar, deja la contraseña vacía para conservar la actual.</span></div>
+<div class="modal fade ed-modal-standard ed-modal-user" id="userModal" tabindex="-1" role="dialog" aria-labelledby="userModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-user-cog text-primary mr-2"></i><span id="userModalTitle">Nuevo usuario</span>
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
       </div>
-      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button><button type="submit" class="btn btn-primary" id="saveUserBtn"><i class="fas fa-save mr-1"></i>Guardar usuario</button></div>
-    </form>
-  </div></div>
+
+      <form id="userForm" class="ed-modal-form">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
+          <input type="hidden" name="action" value="save">
+          <input type="hidden" name="id" id="user_id" value="">
+          <div id="userFormMsg"></div>
+
+          <div class="ed-modal-section">
+            <div class="ed-modal-section-title"><i class="fas fa-id-card"></i>Datos de la cuenta</div>
+            <div class="row">
+              <div class="col-md-6 form-group">
+                <label>Nombre completo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" name="name" id="user_name" required>
+              </div>
+              <div class="col-md-6 form-group">
+                <label>Usuario / correo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" name="username" id="user_username" required autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <div class="ed-modal-section">
+            <div class="ed-modal-section-title"><i class="fas fa-user-shield"></i>Rol y acceso</div>
+            <div class="row">
+              <div class="col-md-6 form-group">
+                <label>Rol <span class="text-danger">*</span></label>
+                <select class="form-control" name="type" id="user_type" required>
+                  <option value="">Seleccionar...</option>
+                  <option value="1">Administrador</option>
+                  <option value="2">Docente</option>
+                  <option value="3">Auxiliar</option>
+                </select>
+              </div>
+              <div class="col-md-6 form-group">
+                <label>Estado</label>
+                <select class="form-control" name="status" id="user_status">
+                  <option value="Activo">Activo</option>
+                  <option value="Inactivo">Inactivo</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group mb-0" id="directorWrap" style="display:none">
+              <div class="custom-control custom-checkbox">
+                <input type="checkbox" class="custom-control-input" id="is_director" name="is_director" value="1">
+                <label class="custom-control-label" for="is_director">
+                  <strong>Este usuario es Director</strong>
+                  <span class="d-block helper-text">Se identificará como Director. Si también es docente, conserva su vinculación académica.</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="ed-modal-subsection mt-3 mb-0" id="teacherWrap" style="display:none">
+              <div class="form-group mb-0">
+                <label>Docente vinculado <span class="text-danger">*</span></label>
+                <select class="form-control" name="teacher_id" id="teacher_id">
+                  <option value="">Seleccionar docente...</option>
+                  <?php foreach ($teachers as $t): ?>
+                    <option value="<?php echo (int)$t['id']; ?>" data-status="<?php echo htmlspecialchars($t['status'] ?? 'Activo', ENT_QUOTES, 'UTF-8'); ?>">
+                      <?php echo htmlspecialchars($t['name'], ENT_QUOTES, 'UTF-8'); ?><?php echo (($t['status'] ?? 'Activo') !== 'Activo') ? ' (Inactivo)' : ''; ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+                <div class="helper-text mt-1"><i class="fas fa-link mr-1"></i>Cada docente puede tener una sola cuenta vinculada.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ed-modal-section mb-0">
+            <div class="ed-modal-section-title"><i class="fas fa-key"></i>Seguridad</div>
+            <div class="row">
+              <div class="col-md-6 form-group">
+                <label>Contraseña <span class="text-danger" id="passwordRequired">*</span></label>
+                <div class="input-group">
+                  <input type="password" class="form-control password-box" name="password" id="user_password" autocomplete="new-password">
+                  <div class="input-group-append">
+                    <button class="btn btn-outline-secondary toggle-pass" type="button" data-target="#user_password" title="Mostrar u ocultar contraseña"><i class="fas fa-eye"></i></button>
+                  </div>
+                </div>
+                <small class="form-text text-muted" id="passwordHint">Mínimo 8 caracteres.</small>
+              </div>
+              <div class="col-md-6 form-group">
+                <label>Repetir contraseña</label>
+                <input type="password" class="form-control password-box" id="user_password_repeat" autocomplete="new-password">
+                <small id="passwordMatch" class="form-text"></small>
+              </div>
+            </div>
+
+            <div class="d-flex flex-wrap align-items-center">
+              <button type="button" class="btn btn-outline-info btn-sm mr-2 mb-1" id="generatePassword"><i class="fas fa-random mr-1"></i>Generar</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm mr-2 mb-1" id="copyPassword"><i class="far fa-copy mr-1"></i>Copiar</button>
+              <span class="helper-text mb-1">Al editar, deja la contraseña vacía para conservar la actual.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="saveUserBtn"><i class="fas fa-save mr-1"></i>Guardar usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- Modal Reset -->
