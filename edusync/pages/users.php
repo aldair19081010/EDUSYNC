@@ -1006,11 +1006,16 @@ function user_role_badge($row) {
     function updateGradePolicyPreview(){
         var enabled=$('#block_grades_by_debt').is(':checked');
         var scope=$('#debt_scope').val()==='pending'
-            ? 'conceptos con saldo pendiente'
-            : 'conceptos vencidos';
+            ? 'deudas pendientes'
+            : 'deudas vencidas';
         var minimum=parseInt($('#minimum_debt_concepts').val()||'2',10);
-        if(!minimum || minimum<1) minimum=1;
+        var grace=parseInt($('#gradeGraceDays').val()||'0',10);
+        var limited=$('#limitGradeDebtConcepts').is(':checked');
+        var selected=$('#gradeConceptIds').val()||[];
         var message=$('#block_message').val()||'';
+
+        if(!minimum || minimum<1) minimum=1;
+        if(!grace || grace<0) grace=0;
 
         $('#gradePolicyControls').toggleClass('text-muted',!enabled);
         $('#policyMessageCount').text(message.length);
@@ -1022,11 +1027,25 @@ function user_role_badge($row) {
             return;
         }
 
-        $('#gradePolicyPreview').html(
-            'Las notas se restringirán cuando el estudiante acumule <strong>'
-            +minimum+'</strong> o más '+escapeHtml(scope)+'.'
-            +(message ? '<div class="mt-2 text-muted"><strong>Mensaje:</strong> '+escapeHtml(message)+'</div>' : '')
-        );
+        var html='El estudiante será bloqueado cuando acumule <strong>'+minimum+' '+(minimum===1?'deuda':'deudas')+'</strong> '
+            +escapeHtml(scope)+'.';
+
+        if($('#debt_scope').val()==='overdue'){
+            html+=' '+(grace>0
+                ? 'Cada deuda empezará a contar <strong>'+grace+' día'+(grace===1?'':'s')+'</strong> después de su vencimiento.'
+                : 'La deuda contará desde que quede vencida.');
+        }
+
+        html+=' <strong>'+(limited?'Solo los conceptos seleccionados':'Todas las deudas')+'</strong> se tomarán en cuenta.';
+        if(limited && !selected.length){
+            html+='<div class="mt-2 text-warning"><i class="fas fa-exclamation-triangle mr-1"></i>Selecciona al menos un concepto.</div>';
+        }
+
+        if(message){
+            html+='<div class="mt-2 text-muted"><strong>Mensaje:</strong> '+escapeHtml(message)+'</div>';
+        }
+
+        $('#gradePolicyPreview').html(html);
     }
 
     $(function(){
@@ -1406,7 +1425,7 @@ function user_role_badge($row) {
             });
         });
 
-        $('#block_grades_by_debt,#debt_scope,#minimum_debt_concepts,#block_message')
+        $('#block_grades_by_debt,#debt_scope,#minimum_debt_concepts,#gradeGraceDays,#limitGradeDebtConcepts,#gradeConceptIds,#block_message')
             .on('change input',updateGradePolicyPreview);
         updateGradePolicyPreview();
 
@@ -1418,6 +1437,11 @@ function user_role_badge($row) {
             var minimum=parseInt($('#minimum_debt_concepts').val()||'0',10);
             if(minimum<1||minimum>20){
                 notify('La cantidad mínima debe estar entre 1 y 20.','warning');
+                return;
+            }
+
+            if($('#limitGradeDebtConcepts').is(':checked') && !($('#gradeConceptIds').val()||[]).length){
+                notify('Selecciona al menos un concepto o desactiva "Usar solo conceptos específicos".','warning');
                 return;
             }
 
