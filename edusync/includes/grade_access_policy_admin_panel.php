@@ -36,18 +36,66 @@ if (!empty($advanced_policy['temporary_access_until'])) {
 
 <div class="card policy-card ed-content-card mb-4 policy-manage-card">
     <div class="card-header bg-white py-3 ed-content-card-header">
-        <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-cogs text-primary mr-2"></i>Gestión de la política</h6>
-        <div class="small text-muted">Las opciones complementarias están agrupadas para mantener esta pantalla simple.</div>
+        <h6 class="mb-1 font-weight-bold text-gray-800"><i class="fas fa-lock text-warning mr-2"></i>Política de notas</h6>
+        <div class="small text-muted">Configura en un solo lugar cuándo se restringen las notas, las excepciones y el seguimiento de la política.</div>
     </div>
 
     <div class="policy-manage-nav" role="tablist">
-        <button type="button" class="policy-manage-tab active" data-policy-pane="rules"><i class="fas fa-sliders-h mr-1"></i>Reglas</button>
+        <button type="button" class="policy-manage-tab active" data-policy-pane="general"><i class="fas fa-shield-alt mr-1"></i>General</button>
+        <button type="button" class="policy-manage-tab" data-policy-pane="rules"><i class="fas fa-sliders-h mr-1"></i>Reglas</button>
         <button type="button" class="policy-manage-tab" data-policy-pane="exceptions"><i class="fas fa-user-check mr-1"></i>Excepciones <span class="badge badge-light border ml-1" id="gradeExceptionCount"><?php echo count($grade_policy_exceptions); ?></span></button>
         <button type="button" class="policy-manage-tab" data-policy-pane="control"><i class="fas fa-chart-bar mr-1"></i>Control</button>
     </div>
 
     <div class="card-body p-0">
-        <div class="policy-manage-pane active p-3 p-md-4" id="policy-pane-rules">
+        <div class="policy-manage-pane active p-3 p-md-4" id="policy-pane-general">
+            <div class="policy-section-title">Configuración principal</div>
+
+            <div class="policy-compact-box mb-3">
+                <div class="custom-control custom-switch">
+                    <input type="checkbox" class="custom-control-input" id="block_grades_by_debt" name="block_grades_by_debt" value="1" <?php echo (int)$grade_policy['block_grades_by_debt'] === 1 ? 'checked' : ''; ?> <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                    <label class="custom-control-label" for="block_grades_by_debt">
+                        <strong>Restringir notas por deuda</strong>
+                        <div class="policy-option-note mt-1">Si está desactivado, las familias podrán consultar sus notas aunque tengan obligaciones pendientes.</div>
+                    </label>
+                </div>
+            </div>
+
+            <div id="gradePolicyControls">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="policy-compact-box">
+                            <label class="font-weight-bold mb-1">Qué deuda cuenta</label>
+                            <select class="form-control" id="debt_scope" name="debt_scope" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                                <option value="overdue" <?php echo ($grade_policy['debt_scope'] ?? 'overdue') === 'overdue' ? 'selected' : ''; ?>>Solo conceptos vencidos</option>
+                                <option value="pending" <?php echo ($grade_policy['debt_scope'] ?? '') === 'pending' ? 'selected' : ''; ?>>Todo concepto con saldo pendiente</option>
+                            </select>
+                            <div class="policy-option-note mt-2">Lo recomendable es usar solo vencidos para no restringir por deudas futuras.</div>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="policy-compact-box">
+                            <label class="font-weight-bold mb-1">Cantidad mínima</label>
+                            <input type="number" min="1" max="20" class="form-control" id="minimum_debt_concepts" name="minimum_debt_concepts" value="<?php echo max(1, (int)$grade_policy['minimum_debt_concepts']); ?>" <?php echo $access_migration_ready ? '' : 'disabled'; ?>>
+                            <div class="policy-option-note mt-2">Ejemplo: con 2, un estudiante con una sola deuda todavía podrá ver sus notas.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="policy-compact-box mb-3">
+                    <label class="font-weight-bold mb-1">Mensaje cuando las notas estén restringidas</label>
+                    <textarea class="form-control" rows="3" maxlength="500" id="block_message" name="block_message" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><?php echo htmlspecialchars((string)$grade_policy['block_message'], ENT_QUOTES, 'UTF-8'); ?></textarea>
+                    <div class="policy-option-note mt-2"><span id="policyMessageCount">0</span>/500 caracteres</div>
+                </div>
+            </div>
+
+            <div class="policy-preview">
+                <div class="font-weight-bold text-warning mb-1"><i class="fas fa-eye mr-1"></i>Resumen</div>
+                <div id="gradePolicyPreview" class="small text-gray-800"></div>
+            </div>
+        </div>
+
+        <div class="policy-manage-pane p-3 p-md-4" id="policy-pane-rules">
             <div class="policy-section-title">Condiciones complementarias</div>
             <div class="row">
                 <div class="col-lg-4 mb-3">
