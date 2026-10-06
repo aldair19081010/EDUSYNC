@@ -14,7 +14,6 @@ if (!isset($action) || !in_array($action, [
 function grade_policy_admin_require_schema($conn) {
     $requiredTables = [
         'school_grade_access_policy',
-        'school_grade_access_policy_concepts',
         'student_grade_access_exception',
         'grade_access_policy_audit_log'
     ];
@@ -67,28 +66,6 @@ if ($action === 'save_grade_access_policy') {
         }
     }
 
-    $courseIds = $_POST['concept_ids'] ?? [];
-    if (!is_array($courseIds)) $courseIds = preg_split('/\s*,\s*/', (string)$courseIds, -1, PREG_SPLIT_NO_EMPTY);
-    $courseIds = array_values(array_unique(array_filter(array_map('intval', $courseIds), static function ($id) { return $id > 0; })));
-
-    if ($courseIds) {
-        $valid = [];
-        $idSql = implode(',', array_map('intval', $courseIds));
-        $stmt = $conn->prepare(
-            "SELECT c.id
-             FROM courses c
-             INNER JOIN academic_year ay ON ay.id = c.academic_year_id
-             WHERE ay.school_id = ? AND c.id IN ({$idSql})"
-        );
-        if (!$stmt) user_api_reply(0, 'No se pudieron validar los conceptos de pago.');
-        $stmt->bind_param('i', $school_id);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        while ($row = $res->fetch_assoc()) $valid[] = (int)$row['id'];
-        $stmt->close();
-        $courseIds = $valid;
-    }
-
     $conn->begin_transaction();
     try {
         $stmt = $conn->prepare(
@@ -117,21 +94,13 @@ if ($action === 'save_grade_access_policy') {
         if (!$stmt->execute()) throw new RuntimeException($stmt->error);
         $stmt->close();
 
-        $del = $conn->prepare('DELETE FROM school_grade_access_policy_concepts WHERE school_id = ?');
-        if (!$del) throw new RuntimeException($conn->error);
-        $del->bind_param('i', $school_id);
-        if (!$del->execute()) throw new RuntimeException($del->error);
-        $del->close();
-
-        if ($courseIds) {
-            $ins = $conn->prepare('INSERT INTO school_grade_access_policy_concepts (school_id, course_id) VALUES (?, ?)');
-            if (!$ins) throw new RuntimeException($conn->error);
-            foreach ($courseIds as $courseId) {
-                $cid = (int)$courseId;
-                $ins->bind_param('ii', $school_id, $cid);
-                if (!$ins->execute()) throw new RuntimeException($ins->error);
+        if (grade_policy_table_exists($conn, 'school_grade_access_policy_concepts')) {
+            $legacy = $conn->prepare('DELETE FROM school_grade_access_policy_concepts WHERE school_id = ?');
+            if ($legacy) {
+                $legacy->bind_param('i', $school_id);
+                $legacy->execute();
+                $legacy->close();
             }
-            $ins->close();
         }
 
         $conn->commit();
@@ -146,8 +115,7 @@ if ($action === 'save_grade_access_policy') {
         'minimum_debt_concepts' => $minimum,
         'debt_scope' => $scope,
         'grace_days' => $graceDays,
-        'temporary_access_until' => $temporaryUntil,
-        'concept_ids' => $courseIds
+        'temporary_access_until' => $temporaryUntil
     ]);
 
     user_api_audit($conn, $school_id, 0, 'POLITICA_NOTAS', 'GRADE_ACCESS_POLICY_UPDATED', [
@@ -155,13 +123,11 @@ if ($action === 'save_grade_access_policy') {
         'minimum_debt_concepts' => $minimum,
         'debt_scope' => $scope,
         'grace_days' => $graceDays,
-        'temporary_access_until' => $temporaryUntil,
-        'concept_ids' => $courseIds
+        'temporary_access_until' => $temporaryUntil
     ]);
 
     user_api_reply(1, 'Política de acceso a notas actualizada.', [
-        'policy' => grade_policy_load($conn, $school_id),
-        'concept_ids' => $courseIds
+        'policy' => grade_policy_load($conn, $school_id)
     ]);
 }
 
