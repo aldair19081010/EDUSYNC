@@ -17,6 +17,100 @@ $status_check = $conn->query("SHOW COLUMNS FROM users LIKE 'status'");
 $audit_check = $conn->query("SHOW TABLES LIKE 'user_audit_log'");
 $migration_ready = ($status_check && $status_check->num_rows > 0 && $audit_check && $audit_check->num_rows > 0);
 
+$student_hash_check = $conn->query("SHOW COLUMNS FROM student LIKE 'portal_password_hash'");
+$student_changed_check = $conn->query("SHOW COLUMNS FROM student LIKE 'password_changed_at'");
+$student_audit_check = $conn->query("SHOW TABLES LIKE 'student_access_audit_log'");
+$grade_policy_check = $conn->query("SHOW TABLES LIKE 'school_grade_access_policy'");
+$access_migration_ready = (
+    $student_hash_check && $student_hash_check->num_rows > 0
+    && $student_changed_check && $student_changed_check->num_rows > 0
+    && $student_audit_check && $student_audit_check->num_rows > 0
+    && $grade_policy_check && $grade_policy_check->num_rows > 0
+);
+
+$student_hash_select = ($student_hash_check && $student_hash_check->num_rows > 0)
+    ? 'portal_password_hash'
+    : "NULL AS portal_password_hash";
+$student_changed_select = ($student_changed_check && $student_changed_check->num_rows > 0)
+    ? 'password_changed_at'
+    : "NULL AS password_changed_at";
+
+$stmt_students = $conn->prepare(
+    "SELECT id, id_no, name, nivel, grado, seccion, status,
+            {$student_hash_select}, {$student_changed_select}
+     FROM student
+     WHERE school_id = ?
+     ORDER BY nivel ASC, grado ASC, seccion ASC, name ASC"
+);
+$students_access = [];
+if ($stmt_students) {
+    $stmt_students->bind_param('i', $school_id);
+    $stmt_students->execute();
+    $res_students = $stmt_students->get_result();
+    while ($row = $res_students->fetch_assoc()) $students_access[] = $row;
+    $stmt_students->close();
+}
+
+$student_levels = [];
+$student_grades = [];
+$student_sections = [];
+$total_student_access = count($students_access);
+$total_student_custom_password = 0;
+$total_student_default_password = 0;
+$total_student_inactive = 0;
+
+foreach ($students_access as $student_access_row) {
+    $level = trim((string)($student_access_row['nivel'] ?? ''));
+    $grade = trim((string)($student_access_row['grado'] ?? ''));
+    $section = trim((string)($student_access_row['seccion'] ?? ''));
+
+    if ($level !== '') $student_levels[$level] = true;
+    if ($grade !== '') $student_grades[$grade] = true;
+    if ($section !== '') $student_sections[$section] = true;
+
+    if (trim((string)($student_access_row['portal_password_hash'] ?? '')) !== '') {
+        $total_student_custom_password++;
+    } else {
+        $total_student_default_password++;
+    }
+
+    if (($student_access_row['status'] ?? 'Activo') !== 'Activo') {
+        $total_student_inactive++;
+    }
+}
+
+$student_levels = array_keys($student_levels);
+$student_grades = array_keys($student_grades);
+$student_sections = array_keys($student_sections);
+natcasesort($student_levels);
+natcasesort($student_grades);
+natcasesort($student_sections);
+
+$grade_policy = [
+    'block_grades_by_debt' => 1,
+    'minimum_debt_concepts' => 2,
+    'debt_scope' => 'overdue',
+    'block_message' => 'Las calificaciones están temporalmente restringidas por obligaciones de pago vencidas. Comunícate con la institución para regularizar tu situación.'
+];
+
+if ($grade_policy_check && $grade_policy_check->num_rows > 0) {
+    $stmt_policy = $conn->prepare(
+        'SELECT block_grades_by_debt, minimum_debt_concepts, debt_scope, block_message, updated_at
+         FROM school_grade_access_policy
+         WHERE school_id = ?
+         LIMIT 1'
+    );
+    if ($stmt_policy) {
+        $stmt_policy->bind_param('i', $school_id);
+        $stmt_policy->execute();
+        $policy_row = $stmt_policy->get_result()->fetch_assoc();
+        $stmt_policy->close();
+        if ($policy_row) {
+            $grade_policy = array_merge($grade_policy, $policy_row);
+        }
+    }
+}
+
 $status_select = $migration_ready ? 'u.status' : "'Activo' AS status";
 $sql_users = "SELECT u.id, u.name, u.username, u.type, u.is_director, u.teacher_id, {$status_select},
                      t.name AS teacher_name, t.status AS teacher_status
