@@ -131,10 +131,6 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- Custom styles for this template-->
     <link href="css/sb-admin-2.css" rel="stylesheet">
     <link href="css/custom.css" rel="stylesheet">
-    <?php if ($page === 'users'): ?>
-    <?php $users_access_css_version = @filemtime(__DIR__ . '/css/users_access.css') ?: time(); ?>
-    <link href="css/users_access.css?v=<?php echo rawurlencode((string)$users_access_css_version); ?>" rel="stylesheet">
-    <?php endif; ?>
     <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <!-- Select2 global -->
