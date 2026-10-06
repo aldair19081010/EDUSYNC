@@ -138,7 +138,11 @@ try {
         'grades_block_scope' => (string)$gradeAccess['scope'],
         'grades_block_count' => (int)$gradeAccess['count'],
         'grades_block_total' => (float)$gradeAccess['total'],
-        'grades_block_message' => (string)$gradeAccess['message']
+        'grades_block_message' => (string)$gradeAccess['message'],
+        'grades_access_reason' => (string)($gradeAccess['reason'] ?? 'allowed'),
+        'grades_grace_days' => (int)($gradeAccess['grace_days'] ?? 0),
+        'grades_grace_count' => (int)($gradeAccess['grace_count'] ?? 0),
+        'grades_temporary_access_until' => $gradeAccess['temporary_access_until'] ?? null
     ]);
 } catch (Throwable $e) {
     my_debts_log('Error inesperado', [
