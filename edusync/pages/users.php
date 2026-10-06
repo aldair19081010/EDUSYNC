@@ -273,7 +273,15 @@ function user_role_badge($row) {
                         $teacher_name = trim((string)($row['teacher_name'] ?? ''));
                         $is_self = ((int)$row['id'] === $login_id);
                     ?>
-                        <tr data-role="<?php echo htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8'); ?>" data-status="<?php echo htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>">
+                        <tr id="user-row-<?php echo (int)$row['id']; ?>"
+                            data-user-id="<?php echo (int)$row['id']; ?>"
+                            data-role="<?php echo htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-status="<?php echo htmlspecialchars($status, ENT_QUOTES, 'UTF-8'); ?>"
+                            data-type="<?php echo (int)$row['type']; ?>"
+                            data-director="<?php echo (int)$row['is_director']; ?>"
+                            data-teacher="<?php echo (int)($row['teacher_id'] ?? 0); ?>"
+                            data-name="<?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?>"
+                            data-username="<?php echo htmlspecialchars($row['username'], ENT_QUOTES, 'UTF-8'); ?>">
                             <td>
                                 <div class="user-name-cell">
                                     <span class="user-avatar-placeholder"><?php echo htmlspecialchars(mb_strtoupper(mb_substr(trim($row['name']),0,1)), ENT_QUOTES, 'UTF-8'); ?></span>
@@ -301,10 +309,11 @@ function user_role_badge($row) {
                                     <span class="badge badge-secondary px-2 py-2"><span class="status-dot status-inactive"></span>Inactivo</span>
                                 <?php endif; ?>
                             </td>
-                            <td class="text-center">
-                                <div class="dropdown">
-                                    <button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown" <?php echo $migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
-                                    <div class="dropdown-menu dropdown-menu-right shadow">
+                            <td class="text-center ed-actions-cell">
+                                <div class="ed-row-actions">
+                                    <div class="dropdown">
+                                    <button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" <?php echo $migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
+                                    <div class="dropdown-menu dropdown-menu-right ed-action-menu">
                                         <a class="dropdown-item edit-user" href="#"
                                            data-id="<?php echo (int)$row['id']; ?>"
                                            data-name="<?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?>"
@@ -320,6 +329,7 @@ function user_role_badge($row) {
                                             <div class="dropdown-divider"></div>
                                             <a class="dropdown-item text-danger delete-permanent" href="#" data-id="<?php echo (int)$row['id']; ?>" data-name="<?php echo htmlspecialchars($row['name'], ENT_QUOTES, 'UTF-8'); ?>"><i class="fas fa-trash-alt text-danger"></i>Eliminar definitivamente</a>
                                         <?php endif; ?>
+                                    </div>
                                     </div>
                                 </div>
                             </td>
@@ -340,22 +350,22 @@ function user_role_badge($row) {
             </div>
         <?php endif; ?>
 
-        <div class="row mb-3">
+        <div class="row users-kpi-row mb-3">
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat"><div class="card-body"><div class="label">Estudiantes</div><div class="number"><?php echo (int)$total_student_access; ?></div><div class="meta">Registrados en el colegio</div></div></div>
+                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Estudiantes</div><div class="number ed-stat-value" id="studentStatTotal"><?php echo (int)$total_student_access; ?></div><div class="meta ed-stat-meta">Registrados en el colegio</div></div></div>
             </div>
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat"><div class="card-body"><div class="label">Contraseña propia</div><div class="number text-success"><?php echo (int)$total_student_custom_password; ?></div><div class="meta">Acceso personalizado</div></div></div>
+                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Contraseña propia</div><div class="number ed-stat-value text-success" id="studentStatCustom"><?php echo (int)$total_student_custom_password; ?></div><div class="meta ed-stat-meta">Acceso personalizado</div></div></div>
             </div>
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat"><div class="card-body"><div class="label">Acceso con DNI</div><div class="number text-warning"><?php echo (int)$total_student_default_password; ?></div><div class="meta">Usan DNI como clave actual</div></div></div>
+                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">Acceso con DNI</div><div class="number ed-stat-value text-warning" id="studentStatDni"><?php echo (int)$total_student_default_password; ?></div><div class="meta ed-stat-meta">Usan DNI como clave actual</div></div></div>
             </div>
             <div class="col-xl-3 col-md-6 mb-2">
-                <div class="card user-stat"><div class="card-body"><div class="label">No activos</div><div class="number text-muted"><?php echo (int)$total_student_inactive; ?></div><div class="meta">Retirados, egresados u otros</div></div></div>
+                <div class="card user-stat ed-stat-card"><div class="card-body"><div class="label ed-stat-label">No activos</div><div class="number ed-stat-value text-muted" id="studentStatInactive"><?php echo (int)$total_student_inactive; ?></div><div class="meta ed-stat-meta">Retirados, egresados u otros</div></div></div>
             </div>
         </div>
 
-        <div class="card users-table-card mb-4">
+        <div class="card users-table-card ed-content-card mb-4">
             <div class="card-header bg-white py-3">
                 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center">
                     <div>
@@ -440,7 +450,8 @@ function user_role_badge($row) {
                             }
                             $student_status = trim((string)($student['status'] ?? 'Activo'));
                         ?>
-                            <tr
+                            <tr id="student-access-row-<?php echo (int)$student['id']; ?>"
+                                data-student-id="<?php echo (int)$student['id']; ?>"
                                 data-level="<?php echo htmlspecialchars((string)$student['nivel'], ENT_QUOTES, 'UTF-8'); ?>"
                                 data-grade="<?php echo htmlspecialchars((string)$student['grado'], ENT_QUOTES, 'UTF-8'); ?>"
                                 data-section="<?php echo htmlspecialchars((string)$student['seccion'], ENT_QUOTES, 'UTF-8'); ?>"
@@ -462,21 +473,22 @@ function user_role_badge($row) {
                                         <span class="text-muted">· <?php echo htmlspecialchars((string)$student['seccion'], ENT_QUOTES, 'UTF-8'); ?></span>
                                     <?php endif; ?>
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center student-access-mode">
                                     <?php if ($has_custom_password): ?>
                                         <span class="student-access-badge custom"><i class="fas fa-key"></i>Personalizada</span>
                                     <?php else: ?>
                                         <span class="student-access-badge default"><i class="fas fa-id-card"></i>DNI</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><span class="small"><?php echo htmlspecialchars($changed_display, ENT_QUOTES, 'UTF-8'); ?></span></td>
+                                <td class="student-access-changed"><span class="small"><?php echo htmlspecialchars($changed_display, ENT_QUOTES, 'UTF-8'); ?></span></td>
                                 <td class="text-center">
                                     <span class="badge <?php echo $student_status === 'Activo' ? 'badge-success' : 'badge-secondary'; ?> px-2 py-2"><?php echo htmlspecialchars($student_status !== '' ? $student_status : 'Activo', ENT_QUOTES, 'UTF-8'); ?></span>
                                 </td>
-                                <td class="text-center">
-                                    <div class="dropdown">
-                                        <button class="btn btn-light btn-sm border dropdown-toggle" type="button" data-toggle="dropdown" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
-                                        <div class="dropdown-menu dropdown-menu-right shadow">
+                                <td class="text-center ed-actions-cell">
+                                    <div class="ed-row-actions">
+                                        <div class="dropdown">
+                                        <button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" <?php echo $access_migration_ready ? '' : 'disabled'; ?>><i class="fas fa-ellipsis-v"></i></button>
+                                        <div class="dropdown-menu dropdown-menu-right ed-action-menu">
                                             <a class="dropdown-item student-reset-password" href="#"
                                                data-id="<?php echo (int)$student['id']; ?>"
                                                data-name="<?php echo htmlspecialchars((string)$student['name'], ENT_QUOTES, 'UTF-8'); ?>"
@@ -490,6 +502,7 @@ function user_role_badge($row) {
                                                data-name="<?php echo htmlspecialchars((string)$student['name'], ENT_QUOTES, 'UTF-8'); ?>">
                                                 <i class="fas fa-history text-info"></i>Ver historial de acceso
                                             </a>
+                                        </div>
                                         </div>
                                     </div>
                                 </td>
@@ -582,7 +595,7 @@ function user_role_badge($row) {
             <div class="col-md-6 form-group mb-md-0"><label class="font-weight-bold">Rol <span class="text-danger">*</span></label><select class="form-control" name="type" id="user_type" required><option value="">Seleccionar...</option><option value="1">Administrador</option><option value="2">Docente</option><option value="3">Auxiliar</option></select></div>
             <div class="col-md-6 form-group mb-0"><label class="font-weight-bold">Estado</label><select class="form-control" name="status" id="user_status"><option value="Activo">Activo</option><option value="Inactivo">Inactivo</option></select></div>
           </div>
-          <div class="form-group mt-3 mb-0" id="directorWrap" style="display:none"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="is_director" name="is_director" value="1"><label class="custom-control-label" for="is_director"><strong>Este usuario es Director</strong><br><small class="text-muted">Mantiene permisos administrativos y se identifica como Director.</small></label></div></div>
+          <div class="form-group mt-3 mb-0" id="directorWrap" style="display:none"><div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="is_director" name="is_director" value="1"><label class="custom-control-label" for="is_director"><strong>Director institucional</strong><br><small class="text-muted">La cuenta se identificará como Director. Si el rol es Docente, conservará también su vinculación académica.</small></label></div></div>
           <div class="form-group mt-3 mb-0" id="teacherWrap" style="display:none"><label class="font-weight-bold">Docente vinculado <span class="text-danger">*</span></label><select class="form-control" name="teacher_id" id="teacher_id"><option value="">Seleccionar docente...</option><?php foreach ($teachers as $t): ?><option value="<?php echo (int)$t['id']; ?>" data-status="<?php echo htmlspecialchars($t['status'] ?? 'Activo', ENT_QUOTES, 'UTF-8'); ?>"><?php echo htmlspecialchars($t['name'], ENT_QUOTES, 'UTF-8'); ?><?php echo (($t['status'] ?? 'Activo') !== 'Activo') ? ' (Inactivo)' : ''; ?></option><?php endforeach; ?></select><div class="teacher-warning text-muted mt-1"><i class="fas fa-link mr-1"></i>Cada docente puede tener una sola cuenta.</div></div>
         </div>
         <div class="row">
