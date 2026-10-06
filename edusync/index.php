@@ -66,6 +66,12 @@ if (!empty($_SESSION['login_id'])) {
             $current_user_type = (int)$role['type'];
             $is_director_user = (int)$role['is_director'] === 1;
             $is_admin_user = $current_user_type === 1;
+
+            // Mantener la sesión sincronizada con el rol real de la BD.
+            // Esto evita que un Director siga apareciendo como Docente/Administrador
+            // después de que se actualice is_director.
+            $_SESSION['login_type'] = $current_user_type;
+            $_SESSION['login_is_director'] = $is_director_user ? 1 : 0;
             if ($current_user_type === 2 && ($role['teacher_status'] ?? 'Activo') === 'Inactivo') {
                 $_SESSION = [];
                 if (ini_get('session.use_cookies')) {
@@ -125,6 +131,27 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- Custom styles for this template-->
     <link href="css/sb-admin-2.css" rel="stylesheet">
     <link href="css/custom.css" rel="stylesheet">
+    <?php if ($page === 'users'): ?>
+    <?php
+        $users_ui_css_version = @filemtime(__DIR__ . '/css/ui_consistency.css') ?: time();
+        $users_ui_refinements_version = @filemtime(__DIR__ . '/css/ui_refinements.css') ?: time();
+        $users_ui_report_tables_version = @filemtime(__DIR__ . '/css/ui_report_tables.css') ?: time();
+        $users_ui_grades_individual_version = @filemtime(__DIR__ . '/css/ui_grades_individual.css') ?: time();
+        $users_ui_modals_version = @filemtime(__DIR__ . '/css/ui_modals.css') ?: time();
+        $users_ui_feedback_version = @filemtime(__DIR__ . '/css/ui_feedback.css') ?: time();
+        $users_ui_responsive_version = @filemtime(__DIR__ . '/css/ui_responsive.css') ?: time();
+        $users_ui_table_actions_version = @filemtime(__DIR__ . '/css/ui_table_actions.css') ?: time();
+    ?>
+    <!-- Usuarios y Accesos carga la capa visual global desde HEAD para evitar FOUC/reacomodos. -->
+    <link data-edusync-ui-consistency="1" href="css/ui_consistency.css?v=<?php echo rawurlencode((string)$users_ui_css_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-refinements="1" href="css/ui_refinements.css?v=<?php echo rawurlencode((string)$users_ui_refinements_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-report-tables="1" href="css/ui_report_tables.css?v=<?php echo rawurlencode((string)$users_ui_report_tables_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-grades-individual="1" href="css/ui_grades_individual.css?v=<?php echo rawurlencode((string)$users_ui_grades_individual_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-modals="1" href="css/ui_modals.css?v=<?php echo rawurlencode((string)$users_ui_modals_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-feedback="1" href="css/ui_feedback.css?v=<?php echo rawurlencode((string)$users_ui_feedback_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-responsive="1" href="css/ui_responsive.css?v=<?php echo rawurlencode((string)$users_ui_responsive_version); ?>" rel="stylesheet">
+    <link data-edusync-ui-table-actions="1" href="css/ui_table_actions.css?v=<?php echo rawurlencode((string)$users_ui_table_actions_version); ?>" rel="stylesheet">
+    <?php endif; ?>
     <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <!-- Select2 global -->
@@ -162,7 +189,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     </div>
 </head>
 
-<body id="page-top">
+<body id="page-top"<?php if ($page === 'users'): ?> data-edusync-ui="standard-v2" data-edusync-page="users"<?php endif; ?>>
 
     <!-- Page Wrapper -->
     <div id="wrapper">
@@ -173,7 +200,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
         <div id="content-wrapper" class="d-flex flex-column">
 
             <!-- Main Content -->
-            <div id="content">
+            <div id="content"<?php if ($page === 'users'): ?> class="ed-app-content"<?php endif; ?>>
 
                 <?php include 'includes/topbar.php'; ?>
 

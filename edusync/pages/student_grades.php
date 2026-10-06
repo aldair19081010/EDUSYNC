@@ -37,6 +37,11 @@ $student_name = (string)($_SESSION['student_name'] ?? $_SESSION['login_name'] ??
         <div class="small mt-1" id="sg-debt-message"></div>
     </div>
 
+    <div id="sg-policy-notice" class="alert alert-info d-none" role="status">
+        <div><i class="fas fa-info-circle mr-2"></i><strong id="sg-policy-notice-title">Acceso a calificaciones</strong></div>
+        <div class="small mt-1" id="sg-policy-notice-message"></div>
+    </div>
+
     <div id="sg-summary" class="sg-summary-grid" aria-live="polite">
         <div class="sg-summary-card is-loading"></div>
         <div class="sg-summary-card is-loading"></div>

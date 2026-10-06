@@ -131,7 +131,7 @@
             }
         });
 
-        $('#content form').not('.modal form').each(function () {
+        $('#content form').not('.modal form,#gradeAccessPolicyForm').each(function () {
             var $form = $(this);
             var controlCount = $form.find('select,input[type="date"],input[type="search"],input[type="text"]').length;
             var submitCount = $form.find('.btn,button').length;
@@ -275,7 +275,9 @@
         normalizeClassicModules();
         normalizeCommon();
 
-        window.setTimeout(refreshDynamicUi, 500);
+        if (PAGE !== 'users') {
+            window.setTimeout(refreshDynamicUi, 500);
+        }
         $(document).on('draw.dt shown.bs.tab', refreshDynamicUi);
     }
 

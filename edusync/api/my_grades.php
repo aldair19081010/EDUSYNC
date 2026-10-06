@@ -28,8 +28,10 @@ if ($dni !== '') {
                 echo json_encode([
                     'status' => 'error',
                     'reason' => 'debt',
-                    'message' => 'No es posible mostrar la información de notas porque existen 2 o más deudas pendientes.',
+                    'message' => (string)($debt['message'] ?? 'Las calificaciones están temporalmente restringidas por obligaciones de pago.'),
                     'debt_count' => (int)$debt['count'],
+                    'debt_scope' => (string)($debt['scope'] ?? 'overdue'),
+                    'minimum_debt_concepts' => (int)($debt['minimum_concepts'] ?? 2),
                     'total_pendiente_ultimas' => number_format((float)$debt['total'], 2, '.', ''),
                     'dni' => $dni,
                     'alumno' => (string)($student['name'] ?? '')

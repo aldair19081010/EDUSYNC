@@ -113,6 +113,18 @@ if (!$passwordOk) {
     ]);
 }
 
+$lastLoginCol = $conn->query("SHOW COLUMNS FROM student LIKE 'portal_last_login_at'");
+if ($lastLoginCol && $lastLoginCol->num_rows > 0) {
+    $lastLoginAt = (new DateTimeImmutable('now', new DateTimeZone('America/Lima')))->format('Y-m-d H:i:s');
+    $loginUp = $conn->prepare('UPDATE student SET portal_last_login_at = ? WHERE id = ? AND school_id = ?');
+    if ($loginUp) {
+        $studentIdForLogin = (int)$student['id'];
+        $loginUp->bind_param('sii', $lastLoginAt, $studentIdForLogin, $schoolId);
+        $loginUp->execute();
+        $loginUp->close();
+    }
+}
+
 $_SESSION['student_logged_in'] = true;
 $_SESSION['login_type'] = 4;
 $_SESSION['student_id'] = (int)$student['id'];

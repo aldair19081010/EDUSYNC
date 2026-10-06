@@ -162,11 +162,18 @@ try {
 
     $debt = grade_debt_blocks_grades($conn, $studentId);
     if (!empty($debt['blocked'])) {
-        grades_reply('error', 'No es posible mostrar la información de notas porque existen 2 o más deudas pendientes.', [], [
-            'reason' => 'debt',
-            'debt_count' => (int)$debt['count'],
-            'total_pendiente_ultimas' => number_format((float)$debt['total'], 2, '.', '')
-        ]);
+        grades_reply(
+            'error',
+            (string)($debt['message'] ?? 'Las calificaciones están temporalmente restringidas por obligaciones de pago.'),
+            [],
+            [
+                'reason' => 'debt',
+                'debt_count' => (int)$debt['count'],
+                'debt_scope' => (string)($debt['scope'] ?? 'overdue'),
+                'minimum_debt_concepts' => (int)($debt['minimum_concepts'] ?? 2),
+                'total_pendiente_ultimas' => number_format((float)$debt['total'], 2, '.', '')
+            ]
+        );
     }
 
     $yearHasSchool = grades_has_column($conn, 'academic_year', 'school_id');
@@ -433,7 +440,14 @@ try {
     grades_reply('ok','',[
         'alumno'=>$studentName,'dni'=>$studentDni,'nivel'=>(string)($student['nivel'] ?? ''),'grado'=>(string)($student['grado'] ?? ''),'seccion'=>(string)($student['seccion'] ?? ''),
         'anio_academico_actual'=>$currentYear,'años_disponibles'=>$yearsAvailable,'años_academicos'=>$yearsWithGrades,
-        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode
+        'total_años_con_notas'=>count($yearsWithGrades),'auth_mode'=>$authMode,
+        'access_policy'=>[
+            'reason'=>(string)($debt['reason'] ?? 'allowed'),
+            'message'=>(string)($debt['message'] ?? ''),
+            'grace_days'=>(int)($debt['grace_days'] ?? 0),
+            'grace_count'=>(int)($debt['grace_count'] ?? 0),
+            'temporary_access_until'=>$debt['temporary_access_until'] ?? null
+        ]
     ]);
 } catch (Throwable $e) {
     error_log('EduSync my_grades.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());

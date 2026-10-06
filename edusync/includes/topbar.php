@@ -67,7 +67,8 @@ if ($is_student) {
 } else {
     $userName = $_SESSION['login_name'] ?? $_SESSION['user_name'] ?? 'Usuario';
     $avatarFile = $_SESSION['login_avatar'] ?? '';
-    if ($user_type === 1) $roleLabel = $is_director ? 'Director' : 'Administrador';
+    if ($is_director) $roleLabel = 'Director';
+    elseif ($user_type === 1) $roleLabel = 'Administrador';
     elseif ($user_type === 2) $roleLabel = 'Docente';
     elseif ($user_type === 3) $roleLabel = 'Auxiliar';
     else $roleLabel = 'Usuario';
