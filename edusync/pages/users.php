@@ -832,7 +832,9 @@ function user_role_badge($row) {
             +(isSelf?'<div><span class="badge ed-badge badge-light border">Tu cuenta</span></div>':'')
             +'</div></div>';
 
-        var usernameHtml='<span class="text-dark"><i class="far fa-user mr-1 text-muted"></i>'+escapeHtml(username)+'</span>';
+        var lastLogin=String(user.last_login_at||'').trim();
+        var usernameHtml='<span class="text-dark"><i class="far fa-user mr-1 text-muted"></i>'+escapeHtml(username)+'</span>'
+            +'<div class="small text-muted mt-1"><i class="far fa-clock mr-1"></i>Último acceso: '+escapeHtml(lastLogin||'Nunca')+'</div>';
         var roleHtml='<span class="badge ed-badge '+userRoleBadgeClass(user)+' px-2 py-2">'+escapeHtml(role)+'</span>';
 
         var linkHtml='<span class="text-muted">—</span>';
@@ -969,7 +971,10 @@ function user_role_badge($row) {
 
         $row.attr('data-password',accessLabel).data('password',accessLabel);
         $row.find('.student-access-mode').html(accessHtml);
-        $row.find('.student-access-changed').html('<span class="small">'+escapeHtml(changedDisplay||'Ahora')+'</span>');
+        var changedCell=$row.find('.student-access-changed');
+        var firstLine=changedCell.find('span').first();
+        if(firstLine.length) firstLine.text('Clave: '+(changedDisplay||'Ahora'));
+        else changedCell.prepend('<span class="small d-block">Clave: '+escapeHtml(changedDisplay||'Ahora')+'</span>');
         studentTable.row($row).invalidate('dom').draw(false);
         refreshStudentStats();
     }
