@@ -66,6 +66,12 @@ if (!empty($_SESSION['login_id'])) {
             $current_user_type = (int)$role['type'];
             $is_director_user = (int)$role['is_director'] === 1;
             $is_admin_user = $current_user_type === 1;
+
+            // Mantener la sesión sincronizada con el rol real de la BD.
+            // Esto evita que un Director siga apareciendo como Docente/Administrador
+            // después de que se actualice is_director.
+            $_SESSION['login_type'] = $current_user_type;
+            $_SESSION['login_is_director'] = $is_director_user ? 1 : 0;
             if ($current_user_type === 2 && ($role['teacher_status'] ?? 'Activo') === 'Inactivo') {
                 $_SESSION = [];
                 if (ini_get('session.use_cookies')) {
