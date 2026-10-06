@@ -7,13 +7,15 @@ if (!isset($_SESSION['login_type']) && !isset($_SESSION['student_logged_in'])) {
 $login_type = isset($_SESSION['login_type']) ? (int)$_SESSION['login_type'] : 4;
 $is_student = !empty($_SESSION['student_logged_in']);
 $current_page = isset($_GET['page']) ? $_GET['page'] : 'home';
-$is_director = ($login_type === 1 && !empty($_SESSION['login_is_director']));
+$is_director = (!$is_student && !empty($_SESSION['login_is_director']));
 
 $role_label = 'Usuario';
 if ($is_student || $login_type === 4) {
     $role_label = 'Estudiante';
+} elseif ($is_director) {
+    $role_label = 'Director';
 } elseif ($login_type === 1) {
-    $role_label = $is_director ? 'Director' : 'Administrador';
+    $role_label = 'Administrador';
 } elseif ($login_type === 2) {
     $role_label = 'Docente';
 } elseif ($login_type === 3) {
