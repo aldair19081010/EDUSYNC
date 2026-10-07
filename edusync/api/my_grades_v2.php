@@ -379,9 +379,7 @@ try {
                 // evaluado. Cada competencia aporta promedio * porcentaje/100.
                 // Si no existen pesos configurados, conserva el promedio simple
                 // como fallback, equivalente al reporte sin competencias.
-                $courseAverage = $evaluatedWeight > 0
-                    ? $weightedSum
-                    : ($fallbackSum/$fallbackCount);
+                $courseAverage = $weightedSum;
                 $courseScale = scale_type($courseLetterCount,$courseNumericCount);
                 $courseLevel = numeric_to_level($courseAverage);
                 $courseAverageFormatted = number_format($courseAverage, 2, '.', '');
