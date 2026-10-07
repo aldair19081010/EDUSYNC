@@ -373,9 +373,13 @@ try {
                     $courseLetterCount += $compLetterCount; $courseNumericCount += $compNumericCount;
                     $compScale = scale_type($compLetterCount,$compNumericCount);
                     $compAverageFormatted = number_format($compAverage, 2, '.', '');
+                    $compWeighted = $compAverage * $weight;
+                    $compWeightedFormatted = number_format($compWeighted, 2, '.', '');
                     $competenciesExport[] = [
                         'competencia'=>$compData['nombre'],'nombre'=>$compData['nombre'],'peso'=>$weight,
+                        'porcentaje'=>round($weight*100,2),
                         'promedio'=>$compAverageFormatted,'promedio_simple'=>$compAverageFormatted,
+                        'ponderado'=>$compWeightedFormatted,'aporte'=>$compWeightedFormatted,
                         'nivel_logro'=>numeric_to_level($compAverage),
                         'resultado'=>$compAverageFormatted,
                         'escala'=>$compScale,'notas'=>$compData['notas'],'evaluaciones'=>$compData['notas']
@@ -383,10 +387,9 @@ try {
                 }
                 if ($fallbackCount === 0) continue;
 
-                // La ficha individual NO renormaliza por el porcentaje
-                // evaluado. Cada competencia aporta promedio * porcentaje/100.
-                // Si no existen pesos configurados, conserva el promedio simple
-                // como fallback, equivalente al reporte sin competencias.
+                // Igual que la ficha individual: el resultado del curso es la
+                // suma de los aportes ponderados de sus competencias.
+                // aporte = promedio_competencia * porcentaje / 100.
                 $courseAverage = $weightedSum;
                 $courseScale = scale_type($courseLetterCount,$courseNumericCount);
                 $courseLevel = numeric_to_level($courseAverage);
