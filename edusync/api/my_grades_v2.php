@@ -157,20 +157,9 @@ try {
     $studentSchoolId = (int)$student['school_id'];
     $studentDni = trim((string)$student['id_no']);
     $studentName = trim((string)$student['name']);
-    $studentIds = [$studentId];
-    if ($studentDni !== '') {
-        $stmt = $conn->prepare("SELECT id FROM student WHERE school_id = ? AND (id_no = ? OR (name = ? AND (id_no IS NULL OR TRIM(id_no) = '')))");
-        if ($stmt) {
-            $stmt->bind_param('iss', $studentSchoolId, $studentDni, $studentName);
-            $stmt->execute();
-            $res = $stmt->get_result();
-            while ($row = $res->fetch_assoc()) $studentIds[] = (int)$row['id'];
-            $stmt->close();
-        }
-    }
-    $studentIds = safe_int_ids($studentIds);
-    $studentIdsSql = implode(',', $studentIds);
-    if ($studentIdsSql === '') $studentIdsSql = (string)$studentId;
+    // Igual que la ficha individual web: trabajar con el ID exacto
+    // del estudiante seleccionado y no mezclar otros registros por nombre/DNI.
+    $studentIdsSql = (string)$studentId;
 
     $debt = grade_debt_blocks_grades($conn, $studentId);
     if (!empty($debt['blocked'])) {
@@ -266,25 +255,13 @@ try {
     $bucket = [];
     $usedCompetencies = [];
     while ($row = $gradesResult->fetch_assoc()) {
+        // La ficha individual filtra por teacher_courses.academic_year_id.
+        // No inferimos el año por fecha de creación ni por otros campos.
         $yearLabel = null;
         $tcYear = (int)($row['tc_year'] ?? 0);
-        $eYear = (int)($row['e_year'] ?? 0);
-        if ($tcYear > 0 && isset($yearIdToLabel[$tcYear])) $yearLabel = $yearIdToLabel[$tcYear];
-        elseif ($eYear > 0 && isset($yearIdToLabel[$eYear])) $yearLabel = $yearIdToLabel[$eYear];
-        $createdAt = $row['created_at'] ?? null;
-        if ($yearLabel === null && $createdAt) {
-            foreach ($yearsAvailableInternal as $yearInfo) {
-                $start = $yearInfo['start_date'] ?: null;
-                $end = $yearInfo['end_date'] ?: null;
-                if ($start && $end && $createdAt >= $start . ' 00:00:00' && $createdAt <= $end . ' 23:59:59') { $yearLabel = $yearInfo['año']; break; }
-            }
-            if ($yearLabel === null) {
-                $createdYear = substr((string)$createdAt, 0, 4);
-                if (isset($yearsGrouped[$createdYear])) $yearLabel = $createdYear;
-            }
+        if ($tcYear > 0 && isset($yearIdToLabel[$tcYear])) {
+            $yearLabel = $yearIdToLabel[$tcYear];
         }
-        if ($yearLabel === null && count($yearsAvailableInternal) === 1) $yearLabel = $yearsAvailableInternal[0]['año'];
-        if ($yearLabel === null && !empty($yearsAvailableInternal)) $yearLabel = $yearsAvailableInternal[count($yearsAvailableInternal)-1]['año'];
         if ($yearLabel === null) continue;
 
         $bim = normalize_bimester($row['bimestre'] ?? '');
