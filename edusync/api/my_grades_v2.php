@@ -1,5 +1,16 @@
 <?php
 ini_set('display_errors', '0');
+
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Headers: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Content-Type: application/json; charset=utf-8');
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
 ini_set('session.save_path', __DIR__ . '/../tmp');
 if (!is_dir(__DIR__ . '/../tmp')) @mkdir(__DIR__ . '/../tmp');
 session_name('EDUSYNCSESSID');
@@ -10,7 +21,6 @@ session_set_cookie_params([
 ]);
 if (session_status() === PHP_SESSION_NONE) session_start();
 
-header('Content-Type: application/json; charset=utf-8');
 require_once '../db_connect.php';
 require_once __DIR__ . '/grade_debt_guard.php';
 
