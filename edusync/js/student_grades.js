@@ -215,10 +215,10 @@
                 return {level:'', label:'Sin nivel', cls:'is-empty'};
             }
 
-            function gradeMark(value, level) {
+            function scoreBadge(value, level) {
                 var meta = conditionMeta(level || value);
-                var levelText = level || meta.level;
-                var html = '<span class="sg-book-grade ' + meta.cls + '">';
+                var levelText = String(level || meta.level || '').toUpperCase();
+                var html = '<span class="sg-accordion-score ' + meta.cls + '">';
                 html += '<strong>' + esc(value == null || value === '' ? '—' : value) + '</strong>';
                 if (levelText) html += '<small>' + esc(levelText) + '</small>';
                 html += '</span>';
@@ -226,30 +226,32 @@
             }
 
             $('#sg-detail-title').text(course.curso || 'Detalle del curso');
-            $('#sg-detail-meta').text('Ficha individual · ' + roman(bim.numero) + ' bimestre');
+            $('#sg-detail-meta').text(roman(bim.numero) + ' bimestre · ' + state.year);
 
-            var html = '';
             var courseCondition = conditionMeta(course);
+            var html = '<section class="sg-course-view">';
 
-            html += '<section class="sg-grade-book">';
-            html += '<header class="sg-book-header">';
-            html += '<div class="sg-book-course">';
-            html += '<div class="sg-book-kicker">Ficha individual · ' + roman(bim.numero) + ' bimestre</div>';
+            html += '<header class="sg-course-header">';
+            html += '<div class="sg-course-header-copy">';
+            html += '<div class="sg-course-eyebrow">' + roman(bim.numero) + ' Bimestre · ' + esc(state.year) + '</div>';
             html += '<h3>' + esc(course.curso || 'Curso') + '</h3>';
-            html += '<div class="sg-book-meta">' + esc(area) + ' · Año académico ' + esc(state.year) + '</div>';
+            html += '<div class="sg-course-area">' + esc(area) + '</div>';
             html += '</div>';
-            html += '<div class="sg-book-course-result">';
-            html += '<span>Resultado del curso</span>';
-            html += '<div class="sg-book-course-score ' + courseCondition.cls + '">' + esc(resultText(course)) + '</div>';
-            if (courseCondition.level) {
-                html += '<div class="sg-book-course-condition ' + courseCondition.cls + '"><i></i><strong>' + esc(courseCondition.level) + '</strong><span>' + esc(courseCondition.label) + '</span></div>';
-            }
+            html += '<div class="sg-course-result">';
+            html += '<span>Resultado</span>';
+            html += '<div class="sg-course-result-line">';
+            html += '<strong>' + esc(resultText(course)) + '</strong>';
+            if (courseCondition.level) html += '<em class="' + courseCondition.cls + '">' + esc(courseCondition.level) + '</em>';
+            html += '</div>';
+            if (courseCondition.level) html += '<small class="' + courseCondition.cls + '">' + esc(courseCondition.label) + '</small>';
             html += '</div>';
             html += '</header>';
 
             if (!competencies.length) {
-                html += '<div class="sg-book-empty">No se encontraron competencias con notas para este curso y bimestre.</div>';
+                html += '<div class="sg-course-empty">No se encontraron competencias con notas para este curso y bimestre.</div>';
             } else {
+                html += '<div class="sg-competency-list">';
+
                 competencies.forEach(function (comp, compIndex) {
                     var evaluations = comp.evaluaciones || comp.notas || [];
                     var weight = competencyWeight(comp);
@@ -257,55 +259,70 @@
                     var contribution = competencyContribution(comp);
                     var compName = comp.nombre || comp.competencia || 'Competencia';
                     var compCondition = conditionMeta(average);
+                    var panelId = 'sg-competency-' + index + '-' + compIndex;
+                    var open = compIndex === 0;
 
-                    html += '<section class="sg-book-competency">';
-                    html += '<div class="sg-book-competency-head">';
-                    html += '<div><span>Competencia ' + String(compIndex + 1).padStart(2, '0') + '</span><h4>' + esc(compName) + '</h4></div>';
-                    html += '<div class="sg-book-competency-average">';
-                    html += '<span>Promedio</span>';
-                    html += gradeMark(numberText(average,2), compCondition.level);
+                    html += '<section class="sg-competency-item">';
+                    html += '<button type="button" class="sg-competency-toggle' + (open ? '' : ' collapsed') + '" data-toggle="collapse" data-target="#' + panelId + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="' + panelId + '">';
+                    html += '<span class="sg-competency-chevron"><i class="fas fa-chevron-down"></i></span>';
+                    html += '<span class="sg-competency-copy">';
+                    html += '<small>Competencia ' + String(compIndex + 1).padStart(2, '0') + '</small>';
+                    html += '<strong>' + esc(compName) + '</strong>';
+                    html += '</span>';
+                    html += '<span class="sg-competency-score">';
+                    html += scoreBadge(numberText(average,2), compCondition.level);
                     if (compCondition.level) html += '<small>' + esc(compCondition.label) + '</small>';
-                    html += '</div>';
-                    html += '</div>';
+                    html += '</span>';
+                    html += '</button>';
 
-                    html += '<div class="sg-book-evaluations">';
-                    html += '<div class="sg-book-table-head"><span>Evaluación</span><span>Observación</span><span>Nota</span></div>';
+                    html += '<div class="collapse' + (open ? ' show' : '') + '" id="' + panelId + '">';
+                    html += '<div class="sg-competency-body">';
 
                     if (!evaluations.length) {
-                        html += '<div class="sg-book-no-evals">Sin notas registradas en este bimestre.</div>';
+                        html += '<div class="sg-evaluation-empty">Sin evaluaciones registradas en este bimestre.</div>';
                     } else {
+                        html += '<div class="sg-evaluation-list">';
                         evaluations.forEach(function (ev) {
                             var evLevel = ev.tipo === 'literal'
                                 ? String(ev.nota || '')
                                 : levelFromNumeric(ev.numeric != null ? ev.numeric : ev.nota);
+                            var observation = String(ev.observacion || '').trim();
 
-                            html += '<div class="sg-book-eval-row">';
-                            html += '<div class="sg-book-eval-name">' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</div>';
-                            html += '<div class="sg-book-eval-observation">' + esc(ev.observacion || '—') + '</div>';
-                            html += '<div class="sg-book-eval-grade">' + gradeMark(ev.nota, evLevel) + '</div>';
+                            html += '<article class="sg-evaluation-row">';
+                            html += '<div class="sg-evaluation-copy">';
+                            html += '<strong>' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</strong>';
+                            if (observation) html += '<span>' + esc(observation) + '</span>';
                             html += '</div>';
+                            html += '<div class="sg-evaluation-score">' + scoreBadge(ev.nota, evLevel) + '</div>';
+                            html += '</article>';
                         });
+                        html += '</div>';
                     }
 
-                    html += '</div>';
+                    html += '<footer class="sg-competency-footer">';
+                    html += '<span>Promedio <strong>' + numberText(average,2) + '</strong></span>';
+                    html += '<i>·</i>';
+                    html += '<span>Peso <strong>' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</strong></span>';
+                    html += '<i>·</i>';
+                    html += '<span>Aporte <strong>' + numberText(contribution,2) + '</strong></span>';
+                    html += '</footer>';
 
-                    html += '<div class="sg-book-complementary">';
-                    html += '<span><small>Promedio</small><strong>' + numberText(average,2) + '</strong></span>';
-                    html += '<span><small>Peso</small><strong>' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</strong></span>';
-                    html += '<span><small>Aporte</small><strong>' + numberText(contribution,2) + '</strong></span>';
+                    html += '</div>';
                     html += '</div>';
                     html += '</section>';
                 });
 
-                html += '<div class="sg-book-calc">';
-                html += '<button class="sg-book-calc-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-book-calc-panel" aria-expanded="false" aria-controls="sg-book-calc-panel">';
-                html += '<span><i class="fas fa-info-circle mr-2"></i>Ver detalle del cálculo</span>';
-                html += '<i class="fas fa-chevron-down sg-book-calc-chevron"></i>';
+                html += '</div>';
+
+                html += '<div class="sg-calculation">';
+                html += '<button class="sg-calculation-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-calculation-panel" aria-expanded="false" aria-controls="sg-calculation-panel">';
+                html += '<span><i class="fas fa-calculator mr-2"></i>Ver detalle del cálculo</span>';
+                html += '<i class="fas fa-chevron-down sg-calculation-chevron"></i>';
                 html += '</button>';
-                html += '<div class="collapse" id="sg-book-calc-panel">';
-                html += '<div class="sg-book-calc-body">';
+                html += '<div class="collapse" id="sg-calculation-panel">';
+                html += '<div class="sg-calculation-body">';
                 html += '<div class="table-responsive">';
-                html += '<table class="table table-sm sg-book-calc-table">';
+                html += '<table class="table table-sm sg-calculation-table">';
                 html += '<thead><tr><th>Competencia</th><th class="text-right">Promedio</th><th class="text-right">Peso</th><th class="text-right">Aporte</th></tr></thead><tbody>';
 
                 competencies.forEach(function (comp) {
@@ -331,7 +348,6 @@
                 html += '</tr></tfoot>';
                 html += '</table>';
                 html += '</div>';
-                html += '<p class="small text-muted mb-0 mt-2">El promedio, peso y aporte son datos complementarios que explican cómo se forma el resultado final.</p>';
                 html += '</div>';
                 html += '</div>';
                 html += '</div>';
