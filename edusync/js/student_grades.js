@@ -172,7 +172,6 @@
             function competencyWeight(comp) {
                 var percentage = numeric(comp && comp.porcentaje);
                 if (percentage != null) return percentage;
-
                 var weight = numeric(comp && comp.peso);
                 if (weight == null) return 0;
                 return weight > 0 && weight <= 1 ? weight * 100 : weight;
@@ -203,59 +202,46 @@
             }
 
             $('#sg-detail-title').text(course.curso || 'Detalle del curso');
-            $('#sg-detail-meta').text(area + ' · ' + roman(bim.numero) + ' Bimestre · ' + state.year);
+            $('#sg-detail-meta').text('Ficha individual · ' + roman(bim.numero) + ' bimestre');
 
             var html = '';
-            html += '<section class="sg-course-detail-hero">';
-            html += '<div class="sg-course-detail-main">';
-            html += '<div class="sg-course-detail-kicker">Detalle académico</div>';
-            html += '<h3>' + esc(course.curso || 'Curso') + '</h3>';
-            html += '<div class="sg-course-detail-sub">' + esc(area) + ' · ' + roman(bim.numero) + ' Bimestre · ' + esc(state.year) + '</div>';
-            html += '</div>';
-            html += '<div class="sg-course-detail-result">';
-            html += '<span>Resultado del curso</span>';
-            html += '<div>' + gradePill(course,false) + '</div>';
-            html += '</div>';
-            html += '</section>';
 
-            html += '<div class="sg-detail-guide">';
-            html += '<span><strong>Promedio</strong> resultado de las evaluaciones de la competencia</span>';
-            html += '<span><strong>Aporte</strong> promedio × peso de la competencia</span>';
+            html += '<section class="sg-individual-report">';
+            html += '<div class="sg-ir-heading">';
+            html += '<div>';
+            html += '<div class="sg-ir-meta">Ficha individual · ' + roman(bim.numero) + ' bimestre</div>';
+            html += '<h3>' + esc(course.curso || 'Curso') + '</h3>';
+            html += '<div>' + esc(area) + '</div>';
+            html += '<div class="sg-ir-meta">' + esc(state.year) + '</div>';
+            html += '</div>';
+            html += '<div class="sg-ir-result"><small>Promedio ponderado</small><strong>' + esc(resultText(course)) + '</strong>';
+            var courseLevel = resultLevel(course);
+            if (courseLevel) html += '<span>Nivel ' + esc(courseLevel) + '</span>';
+            html += '</div>';
             html += '</div>';
 
             if (!competencies.length) {
-                html += '<div class="sg-empty-state sg-detail-empty"><i class="fas fa-list-alt"></i><strong>Sin detalle de competencias</strong><span>Cuando existan competencias y evaluaciones publicadas aparecerán aquí.</span></div>';
+                html += '<div class="alert alert-light border mb-0">No se encontraron competencias con notas para este curso y bimestre.</div>';
             } else {
-                competencies.forEach(function (comp, compIndex) {
+                competencies.forEach(function (comp) {
                     var evaluations = comp.evaluaciones || comp.notas || [];
                     var weight = competencyWeight(comp);
                     var average = competencyAverage(comp);
-                    var contribution = competencyContribution(comp);
                     var compName = comp.nombre || comp.competencia || 'Competencia';
-                    var number = String(compIndex + 1).padStart(2, '0');
 
-                    html += '<section class="sg-academic-card">';
-                    html += '<div class="sg-academic-card-head">';
-                    html += '<div class="sg-academic-index">COMPETENCIA ' + number + '</div>';
-                    html += '<div class="sg-academic-contribution"><strong>' + numberText(contribution,2) + '</strong><span>Aporte</span></div>';
+                    html += '<div class="sg-ir-card">';
+                    html += '<div class="sg-ir-card-header">';
+                    html += '<h4>' + esc(compName) + '</h4>';
+                    html += '<span class="badge badge-light border">' + (weight > 0 ? numberText(weight,2) + '% del promedio' : 'Sin peso configurado') + '</span>';
                     html += '</div>';
 
-                    html += '<div class="sg-academic-card-body">';
-                    html += '<div class="sg-academic-overview">';
-                    html += '<div class="sg-academic-title"><h4>' + esc(compName) + '</h4><span>' + evaluations.length + ' evaluación' + (evaluations.length === 1 ? '' : 'es') + '</span></div>';
-                    html += '<div class="sg-academic-metrics">';
-                    html += '<div class="sg-academic-metric"><strong>' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</strong><span>Peso</span></div>';
-                    html += '<div class="sg-academic-metric"><strong>' + numberText(average,2) + '</strong><span>Promedio</span></div>';
-                    html += '</div>';
-                    html += '</div>';
-
-                    html += '<div class="sg-academic-evals">';
-                    html += '<div class="sg-academic-evals-title">Evaluaciones</div>';
+                    html += '<div class="table-responsive">';
+                    html += '<table class="table table-sm table-hover sg-ir-table">';
+                    html += '<thead><tr><th>Evaluación</th><th>Observación</th><th class="sg-ir-number">Nota</th></tr></thead><tbody>';
 
                     if (!evaluations.length) {
-                        html += '<div class="sg-academic-no-evals">Sin evaluaciones registradas.</div>';
+                        html += '<tr><td colspan="3" class="text-muted">Sin notas registradas en este bimestre.</td></tr>';
                     } else {
-                        html += '<div class="sg-academic-eval-head"><span>Evaluación</span><span>Observación</span><span>Nota</span></div>';
                         evaluations.forEach(function (ev) {
                             var level = ev.tipo === 'literal'
                                 ? String(ev.nota || '')
@@ -265,23 +251,56 @@
                                 nivel_logro: level,
                                 escala: ev.tipo === 'literal' ? 'literal' : 'numerica'
                             };
-                            html += '<div class="sg-academic-eval-row">';
-                            html += '<div class="sg-academic-eval-name">' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</div>';
-                            html += '<div class="sg-academic-eval-note">' + esc(ev.observacion || '—') + '</div>';
-                            html += '<div class="sg-academic-eval-grade">' + gradePill(noteEntity,true) + '</div>';
-                            html += '</div>';
+                            html += '<tr>';
+                            html += '<td>' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</td>';
+                            html += '<td class="sg-ir-observation">' + esc(ev.observacion || '—') + '</td>';
+                            html += '<td class="sg-ir-number">' + gradePill(noteEntity,true) + '</td>';
+                            html += '</tr>';
                         });
+
+                        html += '<tr class="bg-light">';
+                        html += '<td colspan="2"><strong>Promedio de la competencia</strong></td>';
+                        html += '<td class="sg-ir-number"><strong>' + numberText(average,2) + '</strong></td>';
+                        html += '</tr>';
                     }
 
+                    html += '</tbody></table></div>';
                     html += '</div>';
-                    html += '</div>';
-                    html += '</section>';
                 });
+
+                html += '<div class="sg-ir-card">';
+                html += '<div class="sg-ir-card-header"><h4><i class="fas fa-calculator text-primary mr-2"></i>Cálculo del promedio</h4></div>';
+                html += '<div class="table-responsive">';
+                html += '<table class="table table-sm sg-ir-table sg-ir-calculation">';
+                html += '<thead><tr><th>Competencia</th><th class="sg-ir-number">Promedio</th><th class="sg-ir-number">Peso</th><th class="sg-ir-number">Aporte</th></tr></thead><tbody>';
+
+                competencies.forEach(function (comp) {
+                    var evaluations = comp.evaluaciones || comp.notas || [];
+                    if (!evaluations.length) return;
+
+                    var weight = competencyWeight(comp);
+                    var average = competencyAverage(comp);
+                    var contribution = competencyContribution(comp);
+                    var compName = comp.nombre || comp.competencia || 'Competencia';
+
+                    html += '<tr>';
+                    html += '<td>' + esc(compName) + '</td>';
+                    html += '<td class="sg-ir-number">' + numberText(average,2) + '</td>';
+                    html += '<td class="sg-ir-number">' + (weight > 0 ? numberText(weight,2) + '%' : '—') + '</td>';
+                    html += '<td class="sg-ir-number">' + numberText(contribution,2) + '</td>';
+                    html += '</tr>';
+                });
+
+                html += '</tbody><tfoot><tr class="bg-light">';
+                html += '<th colspan="3">Promedio final del bimestre</th>';
+                html += '<th class="sg-ir-number text-primary">' + esc(resultText(course)) + '</th>';
+                html += '</tr></tfoot>';
+                html += '</table></div>';
+                html += '</div>';
+
+                html += '<p class="small text-muted mb-0">Cada aporte corresponde al promedio de la competencia multiplicado por su porcentaje. Las competencias con 0% no aportan al promedio.</p>';
             }
 
-            html += '<section class="sg-final-result">';
-            html += '<div><span>Resultado del curso</span><small>' + esc(course.curso || 'Curso') + ' · ' + roman(bim.numero) + ' Bimestre</small></div>';
-            html += '<div class="sg-final-result-value">' + gradePill(course,false) + '</div>';
             html += '</section>';
 
             $('#sg-detail-body').html(html);
