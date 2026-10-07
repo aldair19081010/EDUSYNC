@@ -215,14 +215,27 @@ try {
 
     $hasAreas = grades_has_table($conn, 'areas');
     $hasCompetencies = grades_has_table($conn, 'general_course_competencies');
+    $hasEvaluationCompetencies = grades_has_table($conn, 'evaluation_competencias');
     $areaJoin = $hasAreas ? 'LEFT JOIN areas a ON a.id = ac.area_id' : '';
-    $competencyJoin = $hasCompetencies ? 'LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id' : '';
+    $evaluationCompetencyJoin = $hasEvaluationCompetencies
+        ? 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id AND (COALESCE(eg.competencia_id,0) = 0 OR ec.competencia_id = eg.competencia_id)'
+        : '';
+    $competencyJoin = $hasCompetencies
+        ? 'LEFT JOIN general_course_competencies c ON c.id = ' .
+          ($hasEvaluationCompetencies
+              ? 'COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id)'
+              : 'eg.competencia_id')
+        : '';
     $areaNameSelect = $hasAreas && grades_has_column($conn, 'areas', 'name') ? "COALESCE(a.name, 'Área General')" : "'Área General'";
     $areaColorSelect = $hasAreas && grades_has_column($conn, 'areas', 'color') ? "COALESCE(a.color, '#6c757d')" : "'#6c757d'";
     $areaDescriptionSelect = $hasAreas && grades_has_column($conn, 'areas', 'description') ? 'a.description' : "''";
     $compNameSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'name') ? "COALESCE(c.name, 'Evaluación General')" : "'Evaluación General'";
     $compPercentageSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'percentage') ? 'COALESCE(c.percentage, 100)' : '100';
-    $egCompSelect = grades_has_column($conn, 'evaluation_grades', 'competencia_id') ? 'COALESCE(eg.competencia_id, 0)' : '0';
+    $egCompSelect = grades_has_column($conn, 'evaluation_grades', 'competencia_id')
+        ? ($hasEvaluationCompetencies
+            ? 'COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id, 0)'
+            : 'COALESCE(eg.competencia_id, 0)')
+        : ($hasEvaluationCompetencies ? 'COALESCE(ec.competencia_id, 0)' : '0');
     $tcYearSelect = grades_has_column($conn, 'teacher_courses', 'academic_year_id') ? 'tc.academic_year_id' : 'NULL';
     $eYearSelect = grades_has_column($conn, 'evaluations', 'academic_year_id') ? 'e.academic_year_id' : 'NULL';
     $bimSelect = grades_has_column($conn, 'evaluations', 'bimestre') ? 'e.bimestre' : "'1'";
@@ -242,12 +255,15 @@ try {
                    $areaDescriptionSelect AS area_descripcion,
                    $tcYearSelect AS tc_year, $eYearSelect AS e_year
             FROM evaluation_grades eg
-            LEFT JOIN evaluations e ON e.id = eg.evaluation_id
-            LEFT JOIN teacher_courses tc ON tc.id = e.teacher_course_id
-            LEFT JOIN academic_courses ac ON ac.id = tc.course_id
+            INNER JOIN evaluations e ON e.id = eg.evaluation_id
+            INNER JOIN teacher_courses tc ON tc.id = e.teacher_course_id
+            INNER JOIN academic_courses ac ON ac.id = tc.course_id
             $areaJoin
+            $evaluationCompetencyJoin
             $competencyJoin
             WHERE eg.student_id IN ($studentIdsSql)
+              AND tc.school_id = $studentSchoolId
+              AND ac.school_id = $studentSchoolId
             ORDER BY e.id ASC";
     $gradesResult = $conn->query($sql);
     if (!$gradesResult) throw new RuntimeException('Consulta calificaciones: ' . $conn->error);
