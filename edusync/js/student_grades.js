@@ -215,108 +215,98 @@
                 return {level:'', label:'Sin nivel', cls:'is-empty'};
             }
 
+            function gradeMark(value, level) {
+                var meta = conditionMeta(level || value);
+                var levelText = level || meta.level;
+                var html = '<span class="sg-book-grade ' + meta.cls + '">';
+                html += '<strong>' + esc(value == null || value === '' ? '—' : value) + '</strong>';
+                if (levelText) html += '<small>' + esc(levelText) + '</small>';
+                html += '</span>';
+                return html;
+            }
+
             $('#sg-detail-title').text(course.curso || 'Detalle del curso');
             $('#sg-detail-meta').text('Ficha individual · ' + roman(bim.numero) + ' bimestre');
 
             var html = '';
             var courseCondition = conditionMeta(course);
 
-            html += '<section class="sg-individual-report">';
-            html += '<div class="sg-ir-heading">';
-            html += '<div>';
-            html += '<div class="sg-ir-meta">Ficha individual · ' + roman(bim.numero) + ' bimestre</div>';
+            html += '<section class="sg-grade-book">';
+            html += '<header class="sg-book-header">';
+            html += '<div class="sg-book-course">';
+            html += '<div class="sg-book-kicker">Ficha individual · ' + roman(bim.numero) + ' bimestre</div>';
             html += '<h3>' + esc(course.curso || 'Curso') + '</h3>';
-            html += '<div>' + esc(area) + '</div>';
-            html += '<div class="sg-ir-meta">Año académico ' + esc(state.year) + '</div>';
+            html += '<div class="sg-book-meta">' + esc(area) + ' · Año académico ' + esc(state.year) + '</div>';
             html += '</div>';
-            html += '<div class="sg-ir-result ' + courseCondition.cls + '">';
-            html += '<small>Promedio ponderado</small>';
-            html += '<div class="sg-ir-result-value">' + esc(resultText(course)) + '</div>';
+            html += '<div class="sg-book-course-result">';
+            html += '<span>Resultado del curso</span>';
+            html += '<div class="sg-book-course-score ' + courseCondition.cls + '">' + esc(resultText(course)) + '</div>';
             if (courseCondition.level) {
-                html += '<div class="sg-ir-condition"><strong>' + esc(courseCondition.level) + '</strong><span>' + esc(courseCondition.label) + '</span></div>';
+                html += '<div class="sg-book-course-condition ' + courseCondition.cls + '"><i></i><strong>' + esc(courseCondition.level) + '</strong><span>' + esc(courseCondition.label) + '</span></div>';
             }
             html += '</div>';
-            html += '</div>';
+            html += '</header>';
 
             if (!competencies.length) {
-                html += '<div class="alert alert-light border mb-0">No se encontraron competencias con notas para este curso y bimestre.</div>';
+                html += '<div class="sg-book-empty">No se encontraron competencias con notas para este curso y bimestre.</div>';
             } else {
-                competencies.forEach(function (comp) {
+                competencies.forEach(function (comp, compIndex) {
                     var evaluations = comp.evaluaciones || comp.notas || [];
                     var weight = competencyWeight(comp);
                     var average = competencyAverage(comp);
                     var contribution = competencyContribution(comp);
                     var compName = comp.nombre || comp.competencia || 'Competencia';
                     var compCondition = conditionMeta(average);
-                    var compAverageEntity = {
-                        promedio: numberText(average,2),
-                        nivel_logro: compCondition.level,
-                        escala: 'numerica'
-                    };
 
-                    html += '<div class="sg-ir-card">';
-                    html += '<div class="sg-ir-card-header">';
-                    html += '<h4>' + esc(compName) + '</h4>';
-                    html += '<span class="badge badge-light border">' + (weight > 0 ? numberText(weight,0) + '% del promedio' : 'Sin peso configurado') + '</span>';
+                    html += '<section class="sg-book-competency">';
+                    html += '<div class="sg-book-competency-head">';
+                    html += '<div><span>Competencia ' + String(compIndex + 1).padStart(2, '0') + '</span><h4>' + esc(compName) + '</h4></div>';
+                    html += '<div class="sg-book-competency-average">';
+                    html += '<span>Promedio</span>';
+                    html += gradeMark(numberText(average,2), compCondition.level);
+                    if (compCondition.level) html += '<small>' + esc(compCondition.label) + '</small>';
+                    html += '</div>';
                     html += '</div>';
 
-                    html += '<div class="sg-ir-evaluations">';
-                    html += '<div class="sg-ir-section-title"><i class="fas fa-clipboard-check mr-1"></i>Evaluaciones y notas</div>';
-                    html += '<div class="table-responsive">';
-                    html += '<table class="table table-sm table-hover sg-ir-table sg-ir-evaluation-table">';
-                    html += '<thead><tr><th>Evaluación</th><th>Observación</th><th class="sg-ir-number">Nota</th></tr></thead><tbody>';
+                    html += '<div class="sg-book-evaluations">';
+                    html += '<div class="sg-book-table-head"><span>Evaluación</span><span>Observación</span><span>Nota</span></div>';
 
                     if (!evaluations.length) {
-                        html += '<tr><td colspan="3" class="text-muted py-3">Sin notas registradas en este bimestre.</td></tr>';
+                        html += '<div class="sg-book-no-evals">Sin notas registradas en este bimestre.</div>';
                     } else {
                         evaluations.forEach(function (ev) {
-                            var level = ev.tipo === 'literal'
+                            var evLevel = ev.tipo === 'literal'
                                 ? String(ev.nota || '')
                                 : levelFromNumeric(ev.numeric != null ? ev.numeric : ev.nota);
-                            var noteEntity = {
-                                promedio: ev.nota,
-                                nivel_logro: level,
-                                escala: ev.tipo === 'literal' ? 'literal' : 'numerica'
-                            };
 
-                            html += '<tr>';
-                            html += '<td class="sg-ir-evaluation-name">' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</td>';
-                            html += '<td class="sg-ir-observation">' + esc(ev.observacion || '—') + '</td>';
-                            html += '<td class="sg-ir-number sg-ir-evaluation-grade">' + gradePill(noteEntity,true) + '</td>';
-                            html += '</tr>';
+                            html += '<div class="sg-book-eval-row">';
+                            html += '<div class="sg-book-eval-name">' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</div>';
+                            html += '<div class="sg-book-eval-observation">' + esc(ev.observacion || '—') + '</div>';
+                            html += '<div class="sg-book-eval-grade">' + gradeMark(ev.nota, evLevel) + '</div>';
+                            html += '</div>';
                         });
                     }
 
-                    html += '</tbody></table></div>';
                     html += '</div>';
 
-                    html += '<div class="sg-ir-competency-summary">';
-                    html += '<div class="sg-ir-summary-item sg-ir-summary-average">';
-                    html += '<span>Promedio</span>';
-                    html += '<div>' + gradePill(compAverageEntity,true) + '</div>';
-                    if (compCondition.level) html += '<small>' + esc(compCondition.label) + '</small>';
+                    html += '<div class="sg-book-complementary">';
+                    html += '<span><small>Promedio</small><strong>' + numberText(average,2) + '</strong></span>';
+                    html += '<span><small>Peso</small><strong>' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</strong></span>';
+                    html += '<span><small>Aporte</small><strong>' + numberText(contribution,2) + '</strong></span>';
                     html += '</div>';
-                    html += '<div class="sg-ir-summary-item">';
-                    html += '<span>Peso</span><strong>' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</strong>';
-                    html += '</div>';
-                    html += '<div class="sg-ir-summary-item">';
-                    html += '<span>Aporte</span><strong>' + numberText(contribution,2) + '</strong>';
-                    html += '</div>';
-                    html += '</div>';
-
-                    html += '</div>';
+                    html += '</section>';
                 });
 
-                html += '<div class="sg-ir-calc-card">';
-                html += '<button class="sg-ir-calc-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-ir-calculation-panel" aria-expanded="false" aria-controls="sg-ir-calculation-panel">';
-                html += '<span><i class="fas fa-calculator mr-2"></i>Ver cálculo del promedio</span>';
-                html += '<i class="fas fa-chevron-down sg-ir-calc-chevron"></i>';
+                html += '<div class="sg-book-calc">';
+                html += '<button class="sg-book-calc-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-book-calc-panel" aria-expanded="false" aria-controls="sg-book-calc-panel">';
+                html += '<span><i class="fas fa-info-circle mr-2"></i>Ver detalle del cálculo</span>';
+                html += '<i class="fas fa-chevron-down sg-book-calc-chevron"></i>';
                 html += '</button>';
-                html += '<div class="collapse" id="sg-ir-calculation-panel">';
-                html += '<div class="sg-ir-calc-body">';
+                html += '<div class="collapse" id="sg-book-calc-panel">';
+                html += '<div class="sg-book-calc-body">';
                 html += '<div class="table-responsive">';
-                html += '<table class="table table-sm sg-ir-table sg-ir-calculation">';
-                html += '<thead><tr><th>Competencia</th><th class="sg-ir-number">Promedio</th><th class="sg-ir-number">Peso</th><th class="sg-ir-number">Aporte</th></tr></thead><tbody>';
+                html += '<table class="table table-sm sg-book-calc-table">';
+                html += '<thead><tr><th>Competencia</th><th class="text-right">Promedio</th><th class="text-right">Peso</th><th class="text-right">Aporte</th></tr></thead><tbody>';
 
                 competencies.forEach(function (comp) {
                     var evaluations = comp.evaluaciones || comp.notas || [];
@@ -329,19 +319,21 @@
 
                     html += '<tr>';
                     html += '<td>' + esc(compName) + '</td>';
-                    html += '<td class="sg-ir-number">' + numberText(average,2) + '</td>';
-                    html += '<td class="sg-ir-number">' + (weight > 0 ? numberText(weight,2) + '%' : '—') + '</td>';
-                    html += '<td class="sg-ir-number">' + numberText(contribution,2) + '</td>';
+                    html += '<td class="text-right">' + numberText(average,2) + '</td>';
+                    html += '<td class="text-right">' + (weight > 0 ? numberText(weight,2) + '%' : '—') + '</td>';
+                    html += '<td class="text-right">' + numberText(contribution,2) + '</td>';
                     html += '</tr>';
                 });
 
-                html += '</tbody><tfoot><tr class="bg-light">';
+                html += '</tbody><tfoot><tr>';
                 html += '<th colspan="3">Promedio final del bimestre</th>';
-                html += '<th class="sg-ir-number text-primary">' + esc(resultText(course)) + '</th>';
+                html += '<th class="text-right text-primary">' + esc(resultText(course)) + '</th>';
                 html += '</tr></tfoot>';
-                html += '</table></div>';
-                html += '<p class="small text-muted mb-0 mt-2">El promedio, el peso y el aporte explican cómo se forma el resultado final del curso.</p>';
-                html += '</div></div>';
+                html += '</table>';
+                html += '</div>';
+                html += '<p class="small text-muted mb-0 mt-2">El promedio, peso y aporte son datos complementarios que explican cómo se forma el resultado final.</p>';
+                html += '</div>';
+                html += '</div>';
                 html += '</div>';
             }
 
