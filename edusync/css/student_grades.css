@@ -29,166 +29,166 @@ body[data-edusync-ui="standard-v2"] .sg-detail-modal {
 @media(max-width:575.98px){.sg-summary-grid{grid-template-columns:1fr 1fr;gap:.55rem}.sg-summary-card{min-height:86px;align-items:flex-start;padding:.72rem}.sg-summary-icon{width:32px;height:32px;flex-basis:32px}.sg-summary-value{font-size:1.05rem}.sg-summary-note{display:none}.sg-avatar{width:42px;height:42px;flex-basis:42px}.sg-identity h1{font-size:1.08rem}.sg-bimester-nav{gap:.4rem;padding:.65rem}.sg-bimester-btn{min-height:44px;padding:.48rem .55rem}.sg-panel-toolbar{padding:.8rem}.sg-detail-summary{align-items:flex-start}}
 
 
-/* Detalle académico alineado con Ficha individual de Reporte de notas */
+/* Detalle académico tipo libreta */
 .sg-detail-modal .modal-dialog{max-width:1080px}
 .sg-detail-modal .modal-body{background:#fff}
-.sg-individual-report{color:#344767;text-align:left}
+.sg-grade-book{color:#344767;text-align:left}
 
-.sg-individual-report .sg-ir-heading{
-    display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;
-    border-bottom:1px solid #e3e6f0;padding-bottom:16px;margin-bottom:16px
+.sg-book-header{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:24px;
+    padding-bottom:18px;margin-bottom:4px;border-bottom:1px solid #dfe4ec
 }
-.sg-individual-report h3{
-    font-size:1.15rem;font-weight:700;margin:4px 0;color:#344767
-}
-.sg-individual-report .sg-ir-meta{color:#7b8499;font-size:.82rem}
-
-.sg-individual-report .sg-ir-result{
-    min-width:180px;border:1px solid #e3e6f0;border-radius:8px;padding:10px 18px
-}
-.sg-individual-report .sg-ir-result small{
-    display:block;color:#7b8499;font-size:.72rem;font-weight:700
-}
-.sg-individual-report .sg-ir-result-value{
-    margin-top:1px;font-size:1.6rem;line-height:1.2;font-weight:800
-}
-.sg-individual-report .sg-ir-condition{
-    display:flex;align-items:center;gap:.35rem;margin-top:4px
-}
-.sg-individual-report .sg-ir-condition strong{
-    min-width:28px;text-align:center;border-radius:999px;padding:.15rem .4rem;
-    font-size:.68rem;font-weight:900
-}
-.sg-individual-report .sg-ir-condition span{
-    margin:0;font-size:.7rem;font-weight:700
-}
-.sg-individual-report .sg-ir-result.is-ad,
-.sg-individual-report .sg-ir-result.is-a{background:#f1fbf7;border-color:#ccecdf}
-.sg-individual-report .sg-ir-result.is-b{background:#fffaf0;border-color:#f3dfaa}
-.sg-individual-report .sg-ir-result.is-c{background:#fff5f3;border-color:#f2d0cb}
-.sg-individual-report .sg-ir-result.is-ad .sg-ir-result-value,
-.sg-individual-report .sg-ir-result.is-a .sg-ir-result-value,
-.sg-individual-report .sg-ir-result.is-ad .sg-ir-condition span,
-.sg-individual-report .sg-ir-result.is-a .sg-ir-condition span{color:#167a59}
-.sg-individual-report .sg-ir-result.is-b .sg-ir-result-value,
-.sg-individual-report .sg-ir-result.is-b .sg-ir-condition span{color:#8a6500}
-.sg-individual-report .sg-ir-result.is-c .sg-ir-result-value,
-.sg-individual-report .sg-ir-result.is-c .sg-ir-condition span{color:#c93b30}
-.sg-individual-report .sg-ir-result.is-ad .sg-ir-condition strong,
-.sg-individual-report .sg-ir-result.is-a .sg-ir-condition strong{background:#dff5ec;color:#167a59}
-.sg-individual-report .sg-ir-result.is-b .sg-ir-condition strong{background:#fff0bd;color:#8a6500}
-.sg-individual-report .sg-ir-result.is-c .sg-ir-condition strong{background:#ffe4df;color:#c93b30}
-
-.sg-individual-report .sg-ir-card{
-    border:1px solid #e3e6f0;border-radius:8px;margin-bottom:16px;overflow:hidden;background:#fff
-}
-.sg-individual-report .sg-ir-card-header{
-    background:#f8f9fc;padding:12px 14px;display:flex;justify-content:space-between;
-    align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #edf0f5
-}
-.sg-individual-report h4{
-    font-size:.95rem;font-weight:700;margin:0;color:#344767
-}
-
-.sg-individual-report .sg-ir-evaluations{padding:12px 14px 0}
-.sg-individual-report .sg-ir-section-title{
-    margin-bottom:7px;color:#344767;font-size:.72rem;font-weight:800;
+.sg-book-course{min-width:0}
+.sg-book-kicker{
+    margin-bottom:4px;color:#7b8499;font-size:.72rem;font-weight:800;
     text-transform:uppercase;letter-spacing:.05em
 }
-.sg-individual-report .sg-ir-section-title i{color:#4e73df}
-.sg-individual-report .sg-ir-table{
-    margin:0;color:#344767;font-size:.8rem
+.sg-book-course h3{
+    margin:0;color:#344767;font-size:1.2rem;font-weight:800;line-height:1.25
 }
-.sg-individual-report .sg-ir-table th,
-.sg-individual-report .sg-ir-table td{
-    padding:.68rem .78rem;vertical-align:middle
-}
-.sg-individual-report .sg-ir-table thead{background:#f8f9fc}
-.sg-individual-report .sg-ir-table thead th{
-    border-top:0;border-bottom:1px solid #e3e6f0;color:#596579;
-    font-size:.68rem;font-weight:800;text-transform:uppercase
-}
-.sg-individual-report .sg-ir-table tbody td{border-top:1px solid #edf0f5}
-.sg-individual-report .sg-ir-number{
-    text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums
-}
-.sg-individual-report .sg-ir-evaluation-name{
-    color:#344767;font-size:.82rem;font-weight:700
-}
-.sg-individual-report .sg-ir-observation{
-    color:#7b8499;font-size:.74rem
-}
-.sg-individual-report .sg-ir-evaluation-grade .sg-mini-result{
-    min-width:48px;padding:.28rem .5rem;font-size:.76rem
-}
+.sg-book-meta{margin-top:4px;color:#7b8499;font-size:.8rem}
 
-.sg-individual-report .sg-ir-competency-summary{
-    display:grid;grid-template-columns:minmax(0,1.2fr) .7fr .7fr;
-    gap:0;margin-top:2px;background:#f8f9fc;border-top:1px solid #edf0f5
-}
-.sg-individual-report .sg-ir-summary-item{
-    min-width:0;padding:9px 12px
-}
-.sg-individual-report .sg-ir-summary-item+.sg-ir-summary-item{
-    border-left:1px solid #e3e6f0
-}
-.sg-individual-report .sg-ir-summary-item>span{
-    display:block;color:#8a94a6;font-size:.61rem;font-weight:800;
+.sg-book-course-result{flex:0 0 190px;text-align:right}
+.sg-book-course-result>span{
+    display:block;color:#7b8499;font-size:.68rem;font-weight:800;
     text-transform:uppercase;letter-spacing:.05em
 }
-.sg-individual-report .sg-ir-summary-item>strong{
-    display:block;margin-top:2px;color:#596579;font-size:.88rem;font-weight:800
+.sg-book-course-score{
+    margin-top:2px;color:#344767;font-size:1.75rem;font-weight:900;line-height:1.15
 }
-.sg-individual-report .sg-ir-summary-average>div{
-    margin-top:3px
+.sg-book-course-score.is-ad,.sg-book-course-score.is-a{color:#167a59}
+.sg-book-course-score.is-b{color:#8a6500}
+.sg-book-course-score.is-c{color:#c93b30}
+.sg-book-course-condition{
+    display:inline-flex;align-items:center;justify-content:flex-end;gap:.35rem;margin-top:5px;
+    color:#7b8499;font-size:.7rem;font-weight:700
 }
-.sg-individual-report .sg-ir-summary-average small{
-    display:block;margin-top:2px;color:#8a94a6;font-size:.64rem
+.sg-book-course-condition i{
+    display:inline-block;width:8px;height:8px;border-radius:50%;background:#b7bfcc
+}
+.sg-book-course-condition strong{font-size:.72rem;font-weight:900}
+.sg-book-course-condition.is-ad i,.sg-book-course-condition.is-a i{background:#26a269}
+.sg-book-course-condition.is-ad strong,.sg-book-course-condition.is-a strong{color:#167a59}
+.sg-book-course-condition.is-b i{background:#d8a600}
+.sg-book-course-condition.is-b strong{color:#8a6500}
+.sg-book-course-condition.is-c i{background:#d94b41}
+.sg-book-course-condition.is-c strong{color:#c93b30}
+
+.sg-book-competency{padding:18px 0;border-bottom:1px solid #dfe4ec}
+.sg-book-competency-head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:10px
+}
+.sg-book-competency-head>div:first-child{min-width:0}
+.sg-book-competency-head>div:first-child>span{
+    display:block;margin-bottom:3px;color:#98a2b3;font-size:.64rem;font-weight:900;
+    text-transform:uppercase;letter-spacing:.08em
+}
+.sg-book-competency-head h4{
+    margin:0;color:#344767;font-size:.94rem;font-weight:800;line-height:1.35
+}
+.sg-book-competency-average{flex:0 0 auto;text-align:right}
+.sg-book-competency-average>span{
+    display:block;color:#98a2b3;font-size:.62rem;font-weight:800;
+    text-transform:uppercase;letter-spacing:.05em
+}
+.sg-book-competency-average>small{
+    display:block;margin-top:2px;color:#7b8499;font-size:.64rem;font-weight:700
 }
 
-.sg-individual-report .sg-ir-calc-card{
-    border:1px solid #e3e6f0;border-radius:8px;overflow:hidden;background:#fff
+.sg-book-evaluations{margin-top:8px}
+.sg-book-table-head,
+.sg-book-eval-row{
+    display:grid;grid-template-columns:minmax(220px,1.25fr) minmax(180px,1fr) 110px;
+    gap:14px;align-items:center
 }
-.sg-individual-report .sg-ir-calc-toggle{
+.sg-book-table-head{
+    padding:7px 10px;background:#f8f9fc;border-top:1px solid #e3e6f0;border-bottom:1px solid #e3e6f0;
+    color:#596579;font-size:.66rem;font-weight:900;text-transform:uppercase;letter-spacing:.05em
+}
+.sg-book-table-head span:last-child{text-align:right}
+.sg-book-eval-row{
+    min-height:48px;padding:8px 10px;border-bottom:1px solid #edf0f5
+}
+.sg-book-eval-name{color:#344767;font-size:.82rem;font-weight:800;line-height:1.3}
+.sg-book-eval-observation{color:#7b8499;font-size:.74rem;line-height:1.3}
+.sg-book-eval-grade{text-align:right}
+
+.sg-book-grade{
+    display:inline-flex;align-items:baseline;justify-content:flex-end;gap:.4rem;
+    min-width:62px;font-variant-numeric:tabular-nums
+}
+.sg-book-grade strong{font-size:1rem;font-weight:900;color:#344767}
+.sg-book-grade small{
+    font-size:.65rem;font-weight:900;text-transform:uppercase;color:#98a2b3
+}
+.sg-book-grade.is-ad strong,.sg-book-grade.is-ad small,
+.sg-book-grade.is-a strong,.sg-book-grade.is-a small{color:#167a59}
+.sg-book-grade.is-b strong,.sg-book-grade.is-b small{color:#8a6500}
+.sg-book-grade.is-c strong,.sg-book-grade.is-c small{color:#c93b30}
+
+.sg-book-complementary{
+    display:flex;justify-content:flex-end;gap:18px;margin-top:8px;color:#7b8499
+}
+.sg-book-complementary>span{
+    display:inline-flex;align-items:baseline;gap:.35rem
+}
+.sg-book-complementary small{
+    color:#98a2b3;font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em
+}
+.sg-book-complementary strong{
+    color:#596579;font-size:.76rem;font-weight:800;font-variant-numeric:tabular-nums
+}
+
+.sg-book-calc{
+    margin-top:14px;border:1px solid #e3e6f0;border-radius:8px;overflow:hidden;background:#fff
+}
+.sg-book-calc-toggle{
     width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;
     padding:11px 14px;border:0;background:#f8f9fc;color:#596579;
     font-size:.76rem;font-weight:800;text-align:left;cursor:pointer
 }
-.sg-individual-report .sg-ir-calc-toggle:hover{background:#f3f6fb;color:#4e73df}
-.sg-individual-report .sg-ir-calc-toggle:focus{
-    outline:2px solid rgba(78,115,223,.18);outline-offset:-2px
+.sg-book-calc-toggle:hover{background:#f3f6fb;color:#4e73df}
+.sg-book-calc-toggle:focus{outline:2px solid rgba(78,115,223,.18);outline-offset:-2px}
+.sg-book-calc-chevron{transition:transform .2s ease}
+.sg-book-calc-toggle[aria-expanded="true"] .sg-book-calc-chevron{transform:rotate(180deg)}
+.sg-book-calc-body{padding:0 14px 12px;border-top:1px solid #e3e6f0}
+.sg-book-calc-table{margin:0;color:#344767;font-size:.78rem}
+.sg-book-calc-table th,.sg-book-calc-table td{padding:.62rem .7rem;vertical-align:middle}
+.sg-book-calc-table thead th{
+    border-top:0;color:#596579;background:#fff;font-size:.66rem;font-weight:800;text-transform:uppercase
 }
-.sg-individual-report .sg-ir-calc-chevron{transition:transform .2s ease}
-.sg-individual-report .sg-ir-calc-toggle[aria-expanded="true"] .sg-ir-calc-chevron{
-    transform:rotate(180deg)
-}
-.sg-individual-report .sg-ir-calc-body{
-    padding:0 14px 12px;border-top:1px solid #e3e6f0
-}
-.sg-individual-report .sg-ir-calculation tfoot th{
-    border-top:1px solid #e3e6f0;padding:.7rem .78rem
-}
+.sg-book-calc-table tfoot th{border-top:1px solid #e3e6f0;background:#f8f9fc}
+.sg-book-empty{padding:26px 0;color:#7b8499;text-align:center}
 
 @media(max-width:767.98px){
     .sg-detail-modal .modal-dialog{max-width:none}
-    .sg-individual-report .sg-ir-heading{display:block}
-    .sg-individual-report .sg-ir-result{min-width:0;margin-top:12px}
-    .sg-individual-report .sg-ir-competency-summary{
-        grid-template-columns:1.1fr .7fr .7fr
+    .sg-book-header{display:block}
+    .sg-book-course-result{
+        width:100%;margin-top:12px;text-align:left;display:flex;align-items:center;gap:12px
     }
-    .sg-individual-report .sg-ir-table{font-size:.75rem}
+    .sg-book-course-result>span{margin-right:auto}
+    .sg-book-course-condition{margin-top:0}
+    .sg-book-competency-head{display:block}
+    .sg-book-competency-average{
+        margin-top:8px;text-align:left;display:flex;align-items:center;gap:8px
+    }
+    .sg-book-competency-average>span{margin-right:2px}
+    .sg-book-competency-average>small{margin-top:0}
+    .sg-book-table-head{display:none}
+    .sg-book-eval-row{
+        grid-template-columns:minmax(0,1fr) auto;gap:3px 12px;padding:10px 4px
+    }
+    .sg-book-eval-name{grid-column:1;grid-row:1}
+    .sg-book-eval-observation{grid-column:1;grid-row:2}
+    .sg-book-eval-grade{grid-column:2;grid-row:1 / span 2;align-self:center}
+    .sg-book-complementary{justify-content:flex-start;flex-wrap:wrap;gap:8px 16px}
 }
 @media(max-width:575.98px){
-    .sg-detail-modal .modal-body{padding:.75rem}
-    .sg-individual-report .sg-ir-card-header{padding:10px 12px}
-    .sg-individual-report .sg-ir-evaluations{padding:10px 12px 0}
-    .sg-individual-report .sg-ir-table th,
-    .sg-individual-report .sg-ir-table td{padding:.55rem .6rem}
-    .sg-individual-report .sg-ir-observation{max-width:150px}
-    .sg-individual-report .sg-ir-competency-summary{
-        grid-template-columns:1fr 1fr 1fr
-    }
-    .sg-individual-report .sg-ir-summary-item{padding:8px 9px}
-    .sg-individual-report .sg-ir-calc-toggle{padding:10px 12px}
-    .sg-individual-report .sg-ir-calc-body{padding:0 12px 10px}
+    .sg-detail-modal .modal-body{padding:.8rem}
+    .sg-book-header{padding-bottom:14px}
+    .sg-book-competency{padding:15px 0}
+    .sg-book-course-score{font-size:1.45rem}
+    .sg-book-eval-row{min-height:44px}
+    .sg-book-calc-toggle{padding:10px 12px}
+    .sg-book-calc-body{padding:0 10px 10px}
 }
