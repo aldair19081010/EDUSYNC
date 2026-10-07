@@ -55,11 +55,13 @@ function is_letter_grade($grade) {
     return in_array(strtoupper(trim((string)$grade)), ['AD', 'A', 'B', 'C'], true);
 }
 function letter_to_numeric_for_calc($grade) {
+    // Misma equivalencia usada por la ficha individual de
+    // grades_report_table.php.
     switch (strtoupper(trim((string)$grade))) {
-        case 'AD': return 20.0;
-        case 'A': return 17.0;
-        case 'B': return 13.0;
-        case 'C': return 10.0;
+        case 'AD': return 19.0;
+        case 'A': return 15.5;
+        case 'B': return 12.0;
+        case 'C': return 5.0;
         default: return 0.0;
     }
 }
@@ -362,21 +364,30 @@ try {
                     $fallbackSum += $compAverage; $fallbackCount++;
                     $courseLetterCount += $compLetterCount; $courseNumericCount += $compNumericCount;
                     $compScale = scale_type($compLetterCount,$compNumericCount);
+                    $compAverageFormatted = number_format($compAverage, 2, '.', '');
                     $competenciesExport[] = [
                         'competencia'=>$compData['nombre'],'nombre'=>$compData['nombre'],'peso'=>$weight,
-                        'promedio'=>(string)(int)round($compAverage),'promedio_simple'=>(string)(int)round($compAverage),
+                        'promedio'=>$compAverageFormatted,'promedio_simple'=>$compAverageFormatted,
                         'nivel_logro'=>numeric_to_level($compAverage),
-                        'resultado'=>$compScale === 'literal' ? numeric_to_level($compAverage) : (string)(int)round($compAverage),
+                        'resultado'=>$compAverageFormatted,
                         'escala'=>$compScale,'notas'=>$compData['notas'],'evaluaciones'=>$compData['notas']
                     ];
                 }
                 if ($fallbackCount === 0) continue;
-                $courseAverage = $evaluatedWeight > 0 ? ($weightedSum/$evaluatedWeight) : ($fallbackSum/$fallbackCount);
+
+                // La ficha individual NO renormaliza por el porcentaje
+                // evaluado. Cada competencia aporta promedio * porcentaje/100.
+                // Si no existen pesos configurados, conserva el promedio simple
+                // como fallback, equivalente al reporte sin competencias.
+                $courseAverage = $evaluatedWeight > 0
+                    ? $weightedSum
+                    : ($fallbackSum/$fallbackCount);
                 $courseScale = scale_type($courseLetterCount,$courseNumericCount);
                 $courseLevel = numeric_to_level($courseAverage);
+                $courseAverageFormatted = number_format($courseAverage, 2, '.', '');
                 $coursesExport[] = [
-                    'curso'=>$courseInfo['nombre'],'area'=>$courseInfo['area'],'promedio'=>(string)(int)round($courseAverage),
-                    'nivel_logro'=>$courseLevel,'resultado'=>$courseScale === 'literal' ? $courseLevel : (string)(int)round($courseAverage),
+                    'curso'=>$courseInfo['nombre'],'area'=>$courseInfo['area'],'promedio'=>$courseAverageFormatted,
+                    'nivel_logro'=>$courseLevel,'resultado'=>$courseAverageFormatted,
                     'escala'=>$courseScale,'peso_evaluado'=>round($evaluatedWeight*100,2),'competencias'=>$competenciesExport
                 ];
                 $bimCourseSum += $courseAverage; $bimCourseCount++;
@@ -392,8 +403,8 @@ try {
             foreach (($usedCompetencies[$yearLabel][$bimNumber] ?? []) as $id=>$comp) $compsExport[] = ['competencia_id'=>(string)$id,'nombre'=>$comp['nombre'],'peso'=>$comp['peso']];
             $bimestersExport[] = [
                 'numero'=>(string)$bimNumber,'publicado'=>true,'competencias'=>$compsExport,'cursos'=>$coursesExport,
-                'promedio_bimestre'=>(string)(int)round($bimAverage),'nivel_logro'=>numeric_to_level($bimAverage),
-                'resultado'=>$bimScale === 'literal' ? numeric_to_level($bimAverage) : (string)(int)round($bimAverage),
+                'promedio_bimestre'=>number_format($bimAverage,2,'.',''),'nivel_logro'=>numeric_to_level($bimAverage),
+                'resultado'=>number_format($bimAverage,2,'.',''),
                 'escala'=>$bimScale,'cursos_evaluados'=>$bimCourseCount,'cursos_por_reforzar'=>$attentionCount
             ];
             $yearBimSum += $bimAverage; $yearBimCount++;
@@ -423,8 +434,8 @@ try {
             $scales = array_values(array_unique($courseData['escalas']));
             $annualScale = count($scales)===1?$scales[0]:'mixta';
             $annualCourses[] = [
-                'curso'=>$name,'area'=>$courseData['area'],'promedio_anual'=>(string)(int)round($avg),'nivel_logro'=>numeric_to_level($avg),
-                'resultado'=>$annualScale==='literal'?numeric_to_level($avg):(string)(int)round($avg),'escala'=>$annualScale,
+                'curso'=>$name,'area'=>$courseData['area'],'promedio_anual'=>number_format($avg,2,'.',''),'nivel_logro'=>numeric_to_level($avg),
+                'resultado'=>number_format($avg,2,'.',''),'escala'=>$annualScale,
                 'detalle_bimestres'=>$bims,'detalle_niveles'=>$courseData['niveles'],'tendencia'=>$trend
             ];
         }
@@ -435,8 +446,8 @@ try {
         $yearScale = count($yearScales)===1?$yearScales[0]:'mixta';
         $yearsWithGrades[] = [
             'año'=>$yearInfo['año'],'descripcion'=>$yearInfo['descripcion'],'es_activo'=>$yearInfo['es_activo'],'bimestres'=>$bimestersExport,
-            'promedio_anual'=>(string)(int)round($yearAverage),'nivel_logro'=>numeric_to_level($yearAverage),
-            'resultado'=>$yearScale==='literal'?numeric_to_level($yearAverage):(string)(int)round($yearAverage),
+            'promedio_anual'=>number_format($yearAverage,2,'.',''),'nivel_logro'=>numeric_to_level($yearAverage),
+            'resultado'=>number_format($yearAverage,2,'.','),
             'escala'=>$yearScale,'promedios_por_curso'=>$annualCourses
         ];
     }
