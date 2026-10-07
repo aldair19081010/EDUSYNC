@@ -453,7 +453,7 @@ try {
         $yearsWithGrades[] = [
             'año'=>$yearInfo['año'],'descripcion'=>$yearInfo['descripcion'],'es_activo'=>$yearInfo['es_activo'],'bimestres'=>$bimestersExport,
             'promedio_anual'=>number_format($yearAverage,2,'.',''),'nivel_logro'=>numeric_to_level($yearAverage),
-            'resultado'=>number_format($yearAverage,2,'.','),
+            'resultado'=>number_format($yearAverage,2,'.',''),
             'escala'=>$yearScale,'promedios_por_curso'=>$annualCourses
         ];
     }
