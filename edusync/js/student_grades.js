@@ -156,32 +156,177 @@
         function renderDetail(index) {
             var bim = selectedBimesterData();
             if (!bim || !bim.cursos || !bim.cursos[index]) return;
+
             var course = bim.cursos[index];
-            var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
-            $('#sg-detail-title').text(course.curso || 'Detalle del curso');
-            $('#sg-detail-meta').text(area + ' · ' + roman(bim.numero) + ' Bimestre · ' + state.year);
-            var html = '<div class="sg-detail-summary"><div><strong>Resultado del curso</strong><span class="sg-area-name">' + esc(area) + '</span></div>' + gradePill(course,false) + '</div>';
+            var area = typeof course.area === 'object' && course.area
+                ? course.area.nombre
+                : (course.area || 'Área General');
             var competencies = course.competencias || [];
-            if (!competencies.length) html += '<div class="sg-empty-state sg-detail-empty"><i class="fas fa-list-alt"></i><strong>Sin detalle de competencias</strong></div>';
-            else competencies.forEach(function (comp) {
-                var evaluations = comp.evaluaciones || comp.notas || [];
-                var weight = parseFloat(comp.peso || 0);
-                html += '<section class="sg-competency-card"><div class="sg-competency-head"><h4>' + esc(comp.nombre || comp.competencia || 'Competencia') + '</h4><div class="sg-competency-meta">' + (weight > 0 && weight < 1 ? '<span class="sg-weight-pill">Peso ' + Math.round(weight*100) + '%</span>' : '') + gradePill(comp,true) + '</div></div>';
-                if (!evaluations.length) html += '<div class="p-3 text-muted small">Sin evaluaciones registradas.</div>';
-                else {
-                    html += '<div class="table-responsive"><table class="table sg-eval-table"><thead><tr><th>Evaluación</th><th class="text-center">Nota</th><th>Observación</th></tr></thead><tbody>';
-                    evaluations.forEach(function (ev) {
-                        var level = ev.tipo === 'literal' ? String(ev.nota || '') : levelFromNumeric(ev.numeric != null ? ev.numeric : ev.nota);
-                        var noteEntity = {promedio:ev.nota,nivel_logro:level,escala:ev.tipo === 'literal' ? 'literal' : 'numerica'};
-                        html += '<tr><td>' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</td><td class="text-center">' + gradePill(noteEntity,true) + '</td><td><span class="sg-eval-note">' + esc(ev.observacion || '—') + '</span></td></tr>';
-                    });
-                    html += '</tbody></table></div>';
-                }
-                html += '</section>';
-            });
+
+            function numeric(value) {
+                if (value == null || value === '') return null;
+                var n = parseFloat(String(value).replace(',', '.'));
+                return isFinite(n) ? n : null;
+            }
+
+            function competencyWeight(comp) {
+                var percentage = numeric(comp && comp.porcentaje);
+                if (percentage != null) return percentage;
+                var weight = numeric(comp && comp.peso);
+                if (weight == null) return 0;
+                return weight > 0 && weight <= 1 ? weight * 100 : weight;
+            }
+
+            function competencyAverage(comp) {
+                if (!comp) return null;
+                return numeric(
+                    comp.promedio != null ? comp.promedio
+                        : (comp.promedio_simple != null ? comp.promedio_simple : comp.resultado)
+                );
+            }
+
+            function competencyContribution(comp) {
+                if (!comp) return null;
+                var direct = numeric(comp.ponderado != null ? comp.ponderado : comp.aporte);
+                if (direct != null) return direct;
+
+                var average = competencyAverage(comp);
+                var weight = competencyWeight(comp);
+                if (average == null || weight <= 0) return null;
+                return average * weight / 100;
+            }
+
+            function numberText(value, decimals) {
+                var n = numeric(value);
+                return n == null ? '—' : n.toFixed(decimals == null ? 2 : decimals);
+            }
+
+            $('#sg-detail-title').text(course.curso || 'Detalle del curso');
+            $('#sg-detail-meta').text('Ficha individual · ' + roman(bim.numero) + ' bimestre');
+
+            var html = '';
+
+            html += '<section class="sg-individual-report sg-ir-redesign">';
+            html += '<div class="sg-ir-heading">';
+            html += '<div>';
+            html += '<div class="sg-ir-meta">Ficha individual · ' + roman(bim.numero) + ' bimestre</div>';
+            html += '<h3>' + esc(course.curso || 'Curso') + '</h3>';
+            html += '<div>' + esc(area) + '</div>';
+            html += '<div class="sg-ir-meta">Año académico ' + esc(state.year) + '</div>';
+            html += '</div>';
+            html += '<div class="sg-ir-result">';
+            html += '<small>Promedio ponderado</small>';
+            html += '<div class="sg-ir-result-pill">' + gradePill(course,false) + '</div>';
+            html += '</div>';
+            html += '</div>';
+
+            if (!competencies.length) {
+                html += '<div class="alert alert-light border mb-0">No se encontraron competencias con notas para este curso y bimestre.</div>';
+            } else {
+                competencies.forEach(function (comp, compIndex) {
+                    var evaluations = comp.evaluaciones || comp.notas || [];
+                    var weight = competencyWeight(comp);
+                    var average = competencyAverage(comp);
+                    var contribution = competencyContribution(comp);
+                    var compName = comp.nombre || comp.competencia || 'Competencia';
+                    var avgLevel = levelFromNumeric(average);
+                    var avgEntity = {
+                        promedio: numberText(average,2),
+                        nivel_logro: avgLevel,
+                        escala: 'numerica'
+                    };
+
+                    html += '<div class="sg-ir-card sg-ir-competency-card">';
+                    html += '<div class="sg-ir-card-header sg-ir-competency-header">';
+                    html += '<div class="sg-ir-competency-title">';
+                    html += '<small>Competencia ' + String(compIndex + 1).padStart(2,'0') + '</small>';
+                    html += '<h4>' + esc(compName) + '</h4>';
+                    html += '</div>';
+                    html += '<div class="sg-ir-meta-badges">';
+                    html += '<span class="sg-ir-info-badge"><i class="fas fa-percentage"></i>Ponderación ' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</span>';
+                    html += '<span class="sg-ir-info-badge"><i class="fas fa-calculator"></i>Aporte ' + numberText(contribution,2) + '</span>';
+                    html += '</div>';
+                    html += '</div>';
+
+                    html += '<div class="sg-ir-evaluation-block">';
+                    html += '<div class="sg-ir-evaluation-title"><i class="fas fa-clipboard-check"></i>Evaluaciones</div>';
+
+                    if (!evaluations.length) {
+                        html += '<div class="sg-ir-empty-evaluations">Sin notas registradas en este bimestre.</div>';
+                    } else {
+                        evaluations.forEach(function (ev) {
+                            var level = ev.tipo === 'literal'
+                                ? String(ev.nota || '')
+                                : levelFromNumeric(ev.numeric != null ? ev.numeric : ev.nota);
+                            var noteEntity = {
+                                promedio: ev.nota,
+                                nivel_logro: level,
+                                escala: ev.tipo === 'literal' ? 'literal' : 'numerica'
+                            };
+                            var observation = String(ev.observacion || '').trim();
+
+                            html += '<div class="sg-ir-evaluation-row">';
+                            html += '<div class="sg-ir-evaluation-copy">';
+                            html += '<strong>' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</strong>';
+                            if (observation) html += '<span>' + esc(observation) + '</span>';
+                            html += '</div>';
+                            html += '<div class="sg-ir-evaluation-note">' + gradePill(noteEntity,false) + '</div>';
+                            html += '</div>';
+                        });
+                    }
+
+                    html += '</div>';
+
+                    html += '<div class="sg-ir-competency-footer">';
+                    html += '<span class="sg-ir-footer-label">Promedio de la competencia</span>';
+                    html += '<span class="sg-ir-footer-average">' + gradePill(avgEntity,true) + '</span>';
+                    html += '</div>';
+                    html += '</div>';
+                });
+
+                html += '<div class="sg-ir-calc-compact">';
+                html += '<button class="sg-ir-calc-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-ir-calculation-panel" aria-expanded="false" aria-controls="sg-ir-calculation-panel">';
+                html += '<span><i class="fas fa-calculator mr-2"></i>Ver detalle del cálculo ponderado</span>';
+                html += '<i class="fas fa-chevron-down sg-ir-calc-chevron"></i>';
+                html += '</button>';
+                html += '<div class="collapse" id="sg-ir-calculation-panel">';
+                html += '<div class="sg-ir-calc-body">';
+                html += '<div class="table-responsive">';
+                html += '<table class="table table-sm sg-ir-table sg-ir-calculation">';
+                html += '<thead><tr><th>Competencia</th><th class="sg-ir-number">Promedio</th><th class="sg-ir-number">Peso</th><th class="sg-ir-number">Aporte</th></tr></thead><tbody>';
+
+                competencies.forEach(function (comp) {
+                    var evaluations = comp.evaluaciones || comp.notas || [];
+                    if (!evaluations.length) return;
+
+                    var weight = competencyWeight(comp);
+                    var average = competencyAverage(comp);
+                    var contribution = competencyContribution(comp);
+                    var compName = comp.nombre || comp.competencia || 'Competencia';
+
+                    html += '<tr>';
+                    html += '<td>' + esc(compName) + '</td>';
+                    html += '<td class="sg-ir-number">' + numberText(average,2) + '</td>';
+                    html += '<td class="sg-ir-number">' + (weight > 0 ? numberText(weight,2) + '%' : '—') + '</td>';
+                    html += '<td class="sg-ir-number">' + numberText(contribution,2) + '</td>';
+                    html += '</tr>';
+                });
+
+                html += '</tbody><tfoot><tr class="bg-light">';
+                html += '<th colspan="3">Promedio final del bimestre</th>';
+                html += '<th class="sg-ir-number text-primary">' + esc(resultText(course)) + '</th>';
+                html += '</tr></tfoot>';
+                html += '</table></div>';
+                html += '</div></div>';
+                html += '</div>';
+            }
+
+            html += '</section>';
+
             $('#sg-detail-body').html(html);
             $('#sg-detail-modal').modal('show');
         }
+
         function defaultBimester(yearData) {
             var list = (yearData && yearData.bimestres ? yearData.bimestres : []).map(function (b) { return Number(b.numero); }).filter(Boolean).sort(function (a,b) { return b-a; });
             return list.length ? list[0] : 1;

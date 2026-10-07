@@ -77,7 +77,7 @@ $student_name = (string)($_SESSION['student_name'] ?? $_SESSION['login_name'] ??
 </section>
 
 <div class="modal fade sg-detail-modal" id="sg-detail-modal" tabindex="-1" role="dialog" aria-labelledby="sg-detail-title" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <div>
