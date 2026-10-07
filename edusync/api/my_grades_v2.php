@@ -216,22 +216,37 @@ try {
     $hasAreas = grades_has_table($conn, 'areas');
     $hasCompetencies = grades_has_table($conn, 'general_course_competencies');
     $hasEvaluationCompetencies = grades_has_table($conn, 'evaluation_competencias');
+    $hasGradeCompetency = grades_has_column($conn, 'evaluation_grades', 'competencia_id');
+
     $areaJoin = $hasAreas ? 'LEFT JOIN areas a ON a.id = ac.area_id' : '';
-    $evaluationCompetencyJoin = $hasEvaluationCompetencies
-        ? 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id AND (COALESCE(eg.competencia_id,0) = 0 OR ec.competencia_id = eg.competencia_id)'
-        : '';
-    $competencyJoin = $hasCompetencies
-        ? 'LEFT JOIN general_course_competencies c ON c.id = ' .
-          ($hasEvaluationCompetencies
-              ? 'COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id)'
-              : 'eg.competencia_id')
-        : '';
+
+    if ($hasEvaluationCompetencies) {
+        $evaluationCompetencyJoin = $hasGradeCompetency
+            ? 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id AND (COALESCE(eg.competencia_id,0) = 0 OR ec.competencia_id = eg.competencia_id)'
+            : 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id';
+    } else {
+        $evaluationCompetencyJoin = '';
+    }
+
+    if ($hasCompetencies) {
+        if ($hasEvaluationCompetencies && $hasGradeCompetency) {
+            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id)';
+        } elseif ($hasGradeCompetency) {
+            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id';
+        } elseif ($hasEvaluationCompetencies) {
+            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = ec.competencia_id';
+        } else {
+            $competencyJoin = '';
+        }
+    } else {
+        $competencyJoin = '';
+    }
     $areaNameSelect = $hasAreas && grades_has_column($conn, 'areas', 'name') ? "COALESCE(a.name, 'Área General')" : "'Área General'";
     $areaColorSelect = $hasAreas && grades_has_column($conn, 'areas', 'color') ? "COALESCE(a.color, '#6c757d')" : "'#6c757d'";
     $areaDescriptionSelect = $hasAreas && grades_has_column($conn, 'areas', 'description') ? 'a.description' : "''";
     $compNameSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'name') ? "COALESCE(c.name, 'Evaluación General')" : "'Evaluación General'";
     $compPercentageSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'percentage') ? 'COALESCE(c.percentage, 100)' : '100';
-    $egCompSelect = grades_has_column($conn, 'evaluation_grades', 'competencia_id')
+    $egCompSelect = $hasGradeCompetency
         ? ($hasEvaluationCompetencies
             ? 'COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id, 0)'
             : 'COALESCE(eg.competencia_id, 0)')
