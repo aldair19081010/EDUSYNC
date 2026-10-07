@@ -172,6 +172,7 @@
             function competencyWeight(comp) {
                 var percentage = numeric(comp && comp.porcentaje);
                 if (percentage != null) return percentage;
+
                 var weight = numeric(comp && comp.peso);
                 if (weight == null) return 0;
                 return weight > 0 && weight <= 1 ? weight * 100 : weight;
@@ -214,26 +215,34 @@
                 return {level:'', label:'Sin nivel', cls:'is-empty'};
             }
 
+            function conditionInline(meta) {
+                if (!meta || !meta.level) return '<span class="sg-ir-status is-empty"><i></i>Sin nivel</span>';
+                return '<span class="sg-ir-status ' + meta.cls + '"><i></i><strong>' + esc(meta.level) + '</strong><span>' + esc(meta.label) + '</span></span>';
+            }
+
+            function neutralGrade(value) {
+                var text = value == null || value === '' ? '—' : String(value);
+                return '<span class="sg-ir-grade-value">' + esc(text) + '</span>';
+            }
+
             $('#sg-detail-title').text(course.curso || 'Detalle del curso');
             $('#sg-detail-meta').text('Ficha individual · ' + roman(bim.numero) + ' bimestre');
 
             var html = '';
+            var courseCondition = conditionMeta(course);
 
             html += '<section class="sg-individual-report">';
             html += '<div class="sg-ir-heading">';
-            html += '<div>';
+            html += '<div class="sg-ir-heading-main">';
             html += '<div class="sg-ir-meta">Ficha individual · ' + roman(bim.numero) + ' bimestre</div>';
             html += '<h3>' + esc(course.curso || 'Curso') + '</h3>';
             html += '<div>' + esc(area) + '</div>';
-            html += '<div class="sg-ir-meta">' + esc(state.year) + '</div>';
+            html += '<div class="sg-ir-meta">Año académico ' + esc(state.year) + '</div>';
             html += '</div>';
-            var courseCondition = conditionMeta(course);
-            html += '<div class="sg-ir-result ' + courseCondition.cls + '">';
+            html += '<div class="sg-ir-result">';
             html += '<small>Promedio ponderado</small>';
             html += '<div class="sg-ir-result-value">' + esc(resultText(course)) + '</div>';
-            if (courseCondition.level) {
-                html += '<div class="sg-ir-condition"><strong>' + esc(courseCondition.level) + '</strong><span>' + esc(courseCondition.label) + '</span></div>';
-            }
+            html += conditionInline(courseCondition);
             html += '</div>';
             html += '</div>';
 
@@ -244,14 +253,31 @@
                     var evaluations = comp.evaluaciones || comp.notas || [];
                     var weight = competencyWeight(comp);
                     var average = competencyAverage(comp);
+                    var contribution = competencyContribution(comp);
                     var compName = comp.nombre || comp.competencia || 'Competencia';
+                    var compCondition = conditionMeta(average);
 
                     html += '<div class="sg-ir-card">';
                     html += '<div class="sg-ir-card-header">';
                     html += '<h4>' + esc(compName) + '</h4>';
-                    html += '<span class="badge badge-light border">' + (weight > 0 ? numberText(weight,2) + '% del promedio' : 'Sin peso configurado') + '</span>';
+                    html += '<span class="sg-ir-weight">' + (weight > 0 ? 'Peso de la competencia: ' + numberText(weight,0) + '%' : 'Sin peso configurado') + '</span>';
                     html += '</div>';
 
+                    html += '<div class="sg-ir-competency-summary">';
+                    html += '<div class="sg-ir-primary-metric">';
+                    html += '<span>Promedio</span>';
+                    html += '<strong>' + numberText(average,2) + '</strong>';
+                    html += conditionInline(compCondition);
+                    html += '</div>';
+                    html += '<div class="sg-ir-secondary-metric">';
+                    html += '<span>Aporte</span>';
+                    html += '<strong>' + numberText(contribution,2) + '</strong>';
+                    html += '<small>al promedio del curso</small>';
+                    html += '</div>';
+                    html += '</div>';
+
+                    html += '<div class="sg-ir-evaluations">';
+                    html += '<div class="sg-ir-section-title">Evaluaciones</div>';
                     html += '<div class="table-responsive">';
                     html += '<table class="table table-sm table-hover sg-ir-table">';
                     html += '<thead><tr><th>Evaluación</th><th>Observación</th><th class="sg-ir-number">Nota</th></tr></thead><tbody>';
@@ -260,40 +286,34 @@
                         html += '<tr><td colspan="3" class="text-muted">Sin notas registradas en este bimestre.</td></tr>';
                     } else {
                         evaluations.forEach(function (ev) {
-                            var level = ev.tipo === 'literal'
-                                ? String(ev.nota || '')
-                                : levelFromNumeric(ev.numeric != null ? ev.numeric : ev.nota);
-                            var noteEntity = {
-                                promedio: ev.nota,
-                                nivel_logro: level,
-                                escala: ev.tipo === 'literal' ? 'literal' : 'numerica'
-                            };
                             html += '<tr>';
                             html += '<td>' + esc(ev.evaluacion || ev.titulo || 'Evaluación') + '</td>';
                             html += '<td class="sg-ir-observation">' + esc(ev.observacion || '—') + '</td>';
-                            html += '<td class="sg-ir-number">' + gradePill(noteEntity,true) + '</td>';
+                            html += '<td class="sg-ir-number">' + neutralGrade(ev.nota) + '</td>';
                             html += '</tr>';
                         });
-
-                        var compCondition = conditionMeta(average);
-                        var compAverageEntity = {
-                            promedio: numberText(average,2),
-                            nivel_logro: compCondition.level,
-                            escala: 'numerica'
-                        };
-                        html += '<tr class="bg-light sg-ir-average-row">';
-                        html += '<td><strong>Promedio de la competencia</strong></td>';
-                        html += '<td class="sg-ir-condition-text ' + compCondition.cls + '">' + esc(compCondition.label) + '</td>';
-                        html += '<td class="sg-ir-number">' + gradePill(compAverageEntity,true) + '</td>';
-                        html += '</tr>';
                     }
 
                     html += '</tbody></table></div>';
                     html += '</div>';
+                    html += '</div>';
                 });
 
-                html += '<div class="sg-ir-card">';
-                html += '<div class="sg-ir-card-header"><h4><i class="fas fa-calculator text-primary mr-2"></i>Cálculo del promedio</h4></div>';
+                html += '<div class="sg-ir-final-summary">';
+                html += '<div>';
+                html += '<span>Resultado del bimestre</span>';
+                html += '<strong>' + esc(resultText(course)) + '</strong>';
+                html += '</div>';
+                html += conditionInline(courseCondition);
+                html += '</div>';
+
+                html += '<div class="sg-ir-calc-card">';
+                html += '<button class="sg-ir-calc-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-ir-calculation-panel" aria-expanded="false" aria-controls="sg-ir-calculation-panel">';
+                html += '<span><i class="fas fa-calculator mr-2"></i>Ver cómo se calculó mi promedio</span>';
+                html += '<i class="fas fa-chevron-down sg-ir-calc-chevron"></i>';
+                html += '</button>';
+                html += '<div class="collapse" id="sg-ir-calculation-panel">';
+                html += '<div class="sg-ir-calc-body">';
                 html += '<div class="table-responsive">';
                 html += '<table class="table table-sm sg-ir-table sg-ir-calculation">';
                 html += '<thead><tr><th>Competencia</th><th class="sg-ir-number">Promedio</th><th class="sg-ir-number">Peso</th><th class="sg-ir-number">Aporte</th></tr></thead><tbody>';
@@ -309,13 +329,7 @@
 
                     html += '<tr>';
                     html += '<td>' + esc(compName) + '</td>';
-                    var calcCondition = conditionMeta(average);
-                    var calcAverageEntity = {
-                        promedio: numberText(average,2),
-                        nivel_logro: calcCondition.level,
-                        escala: 'numerica'
-                    };
-                    html += '<td class="sg-ir-number">' + gradePill(calcAverageEntity,true) + '</td>';
+                    html += '<td class="sg-ir-number">' + numberText(average,2) + '</td>';
                     html += '<td class="sg-ir-number">' + (weight > 0 ? numberText(weight,2) + '%' : '—') + '</td>';
                     html += '<td class="sg-ir-number">' + numberText(contribution,2) + '</td>';
                     html += '</tr>';
@@ -323,12 +337,12 @@
 
                 html += '</tbody><tfoot><tr class="bg-light">';
                 html += '<th colspan="3">Promedio final del bimestre</th>';
-                html += '<th class="sg-ir-number sg-ir-final-grade">' + gradePill(course,false) + '</th>';
+                html += '<th class="sg-ir-number text-primary">' + esc(resultText(course)) + '</th>';
                 html += '</tr></tfoot>';
                 html += '</table></div>';
+                html += '<p class="small text-muted mb-0 mt-2">Cada aporte corresponde al promedio de la competencia multiplicado por su porcentaje. Las competencias con 0% no aportan al promedio.</p>';
+                html += '</div></div>';
                 html += '</div>';
-
-                html += '<p class="small text-muted mb-0">Cada aporte corresponde al promedio de la competencia multiplicado por su porcentaje. Las competencias con 0% no aportan al promedio.</p>';
             }
 
             html += '</section>';
