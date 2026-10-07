@@ -201,6 +201,19 @@
                 return n == null ? '—' : n.toFixed(decimals == null ? 2 : decimals);
             }
 
+            function conditionMeta(valueOrEntity) {
+                var level = typeof valueOrEntity === 'object'
+                    ? resultLevel(valueOrEntity)
+                    : levelFromNumeric(valueOrEntity);
+                level = String(level || '').toUpperCase();
+
+                if (level === 'AD') return {level:'AD', label:'Logro destacado', cls:'is-ad'};
+                if (level === 'A') return {level:'A', label:'Logro esperado', cls:'is-a'};
+                if (level === 'B') return {level:'B', label:'En proceso', cls:'is-b'};
+                if (level === 'C') return {level:'C', label:'En inicio', cls:'is-c'};
+                return {level:'', label:'Sin nivel', cls:'is-empty'};
+            }
+
             $('#sg-detail-title').text(course.curso || 'Detalle del curso');
             $('#sg-detail-meta').text('Ficha individual · ' + roman(bim.numero) + ' bimestre');
 
@@ -214,9 +227,13 @@
             html += '<div>' + esc(area) + '</div>';
             html += '<div class="sg-ir-meta">' + esc(state.year) + '</div>';
             html += '</div>';
-            html += '<div class="sg-ir-result"><small>Promedio ponderado</small><strong>' + esc(resultText(course)) + '</strong>';
-            var courseLevel = resultLevel(course);
-            if (courseLevel) html += '<span>Nivel ' + esc(courseLevel) + '</span>';
+            var courseCondition = conditionMeta(course);
+            html += '<div class="sg-ir-result ' + courseCondition.cls + '">';
+            html += '<small>Promedio ponderado</small>';
+            html += '<div class="sg-ir-result-value">' + esc(resultText(course)) + '</div>';
+            if (courseCondition.level) {
+                html += '<div class="sg-ir-condition"><strong>' + esc(courseCondition.level) + '</strong><span>' + esc(courseCondition.label) + '</span></div>';
+            }
             html += '</div>';
             html += '</div>';
 
@@ -258,9 +275,16 @@
                             html += '</tr>';
                         });
 
-                        html += '<tr class="bg-light">';
-                        html += '<td colspan="2"><strong>Promedio de la competencia</strong></td>';
-                        html += '<td class="sg-ir-number"><strong>' + numberText(average,2) + '</strong></td>';
+                        var compCondition = conditionMeta(average);
+                        var compAverageEntity = {
+                            promedio: numberText(average,2),
+                            nivel_logro: compCondition.level,
+                            escala: 'numerica'
+                        };
+                        html += '<tr class="bg-light sg-ir-average-row">';
+                        html += '<td><strong>Promedio de la competencia</strong></td>';
+                        html += '<td class="sg-ir-condition-text ' + compCondition.cls + '">' + esc(compCondition.label) + '</td>';
+                        html += '<td class="sg-ir-number">' + gradePill(compAverageEntity,true) + '</td>';
                         html += '</tr>';
                     }
 
@@ -285,7 +309,13 @@
 
                     html += '<tr>';
                     html += '<td>' + esc(compName) + '</td>';
-                    html += '<td class="sg-ir-number">' + numberText(average,2) + '</td>';
+                    var calcCondition = conditionMeta(average);
+                    var calcAverageEntity = {
+                        promedio: numberText(average,2),
+                        nivel_logro: calcCondition.level,
+                        escala: 'numerica'
+                    };
+                    html += '<td class="sg-ir-number">' + gradePill(calcAverageEntity,true) + '</td>';
                     html += '<td class="sg-ir-number">' + (weight > 0 ? numberText(weight,2) + '%' : '—') + '</td>';
                     html += '<td class="sg-ir-number">' + numberText(contribution,2) + '</td>';
                     html += '</tr>';
@@ -293,7 +323,7 @@
 
                 html += '</tbody><tfoot><tr class="bg-light">';
                 html += '<th colspan="3">Promedio final del bimestre</th>';
-                html += '<th class="sg-ir-number text-primary">' + esc(resultText(course)) + '</th>';
+                html += '<th class="sg-ir-number sg-ir-final-grade">' + gradePill(course,false) + '</th>';
                 html += '</tr></tfoot>';
                 html += '</table></div>';
                 html += '</div>';
