@@ -29,7 +29,10 @@ $teacher = (int)($_SESSION['login_teacher_id'] ?? 0);
 if ((int)($_SESSION['login_type'] ?? 0) !== 2 || $school <= 0 || $teacher <= 0 || $uid <= 0) {
     tam_reply(['status' => 'error', 'message' => 'No autorizado.'], 403);
 }
-$check = $conn->prepare("SELECT u.id FROM users u INNER JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id WHERE u.id=? AND u.school_id=? AND u.teacher_id=? AND u.type=2 AND t.status='Activo' LIMIT 1");
+$userStatusCol = $conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+$activeUserFilter = ($userStatusCol && $userStatusCol->num_rows)
+    ? " AND u.status='Activo'" : '';
+$check = $conn->prepare("SELECT u.id FROM users u INNER JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id WHERE u.id=? AND u.school_id=? AND u.teacher_id=? AND u.type=2 AND t.status='Activo' {$activeUserFilter} LIMIT 1");
 if (!$check) tam_reply(['status'=>'error','message'=>'Error al validar docente.'],500);
 $check->bind_param('iii', $uid, $school, $teacher);
 $check->execute();
