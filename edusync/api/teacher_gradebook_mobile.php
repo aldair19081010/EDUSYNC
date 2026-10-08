@@ -156,8 +156,12 @@ $_POST['teacher_id'] = (string)$teacherId;
 $_POST['bimestre'] = (string)$bim;
 $_POST['description'] = $description !== '' ? $description : $title;
 $_POST['competencias'] = [(string)$compId];
+// admin_class.php usa rutas relativas al director edusync al crear Action.
+$previousDirectory = getcwd();
+chdir(__DIR__ . '/..');
 require_once __DIR__ . '/../admin_class.php';
 $actionHandler = new Action();
 $result = json_decode($actionHandler->save_evaluation(), true);
+if ($previousDirectory !== false) chdir($previousDirectory);
 if (!is_array($result)) tgb_reply(['status'=>0,'message'=>'El servidor no pudo guardar la evaluación.'],500);
 tgb_reply($result, (int)($result['status'] ?? 0) === 1 ? 200 : 422);
