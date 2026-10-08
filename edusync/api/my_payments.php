@@ -145,6 +145,7 @@ try {
             $years = [];
             $confirmedAmount = 0.0;
             $yearAmounts = [];
+            $conceptLines = [];
             $firstPid = 0;
             $firstEf = 0;
 
@@ -159,6 +160,14 @@ try {
                 if ($year !== '') $years[] = $year;
 
                 $amount = max(0, (float)$line['amount']);
+                if ($amount <= EDUSYNC_DEBT_TOLERANCE) continue;
+                $conceptLines[] = [
+                    'pid' => (int)$line['pid'],
+                    'ef_id' => (int)$line['ef_id'],
+                    'concepto' => (string)($line['course'] ?: 'Concepto de pago'),
+                    'anio_academico' => $year,
+                    'monto' => round($amount, 2)
+                ];
                 $confirmedAmount += $amount;
                 $key = $year !== '' ? $year : 'Sin año';
                 $yearAmounts[$key] = ($yearAmounts[$key] ?? 0) + $amount;
@@ -178,6 +187,7 @@ try {
                 'fecha' => $operation['payment_date'],
                 'recibo' => (string)($operation['receipt_full'] ?: ('OP-' . $oid)),
                 'conceptos' => $concepts,
+                'lineas_concepto' => $conceptLines,
                 'concepto' => implode(' + ', $concepts),
                 'anios_academicos' => $years,
                 'anio_academico' => count($years) === 1 ? $years[0] : (count($years) > 1 ? 'Varios' : ''),
@@ -218,6 +228,13 @@ try {
             'fecha' => $row['date_created'],
             'recibo' => $receipt,
             'conceptos' => [(string)($row['concepto'] ?: 'Concepto de pago')],
+            'lineas_concepto' => [[
+                'pid' => (int)$row['pid'],
+                'ef_id' => (int)$row['ef_id'],
+                'concepto' => (string)($row['concepto'] ?: 'Concepto de pago'),
+                'anio_academico' => $year,
+                'monto' => round($amount, 2)
+            ]],
             'concepto' => (string)($row['concepto'] ?: 'Concepto de pago'),
             'anios_academicos' => $year !== '' ? [$year] : [],
             'anio_academico' => $year,
