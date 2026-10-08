@@ -50,6 +50,51 @@ if ($action === 'token') {
     if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     tgb_reply(['status' => 1, 'csrf_token' => $_SESSION['csrf_token']]);
 }
+// Sincronizar la preferencia ya utilizada por EduSync Web.
+// Si la migración aún no existe, no bloquear el Libro de Notas.
+if ($action === 'preference' || $action === 'set_preference') {
+    $column = $conn->query("SHOW COLUMNS FROM users LIKE 'grades_autosave'");
+    $hasColumn = $column && $column->num_rows > 0;
+    if ($action === 'preference') {
+        if (!$hasColumn) {
+            tgb_reply([
+                'status' => 1,
+                'enabled' => isset($_SESSION['login_grades_autosave'])
+                    ? (int)$_SESSION['login_grades_autosave'] === 1 : true,
+                'persisted' => false,
+            ]);
+        }
+        $pref = $conn->prepare('SELECT grades_autosave FROM users WHERE id=? AND school_id=? LIMIT 1');
+        $pref->bind_param('ii', $uid, $schoolId);
+        $pref->execute();
+        $row = $pref->get_result()->fetch_assoc();
+        $pref->close();
+        if (!$row) tgb_reply(['status'=>0,'message'=>'No se encontró el usuario.'],404);
+        tgb_reply(['status'=>1,'enabled'=>(int)$row['grades_autosave']===1,'persisted'=>true]);
+    }
+    $token = (string)($_POST['csrf_token'] ?? '');
+    $sessionToken = (string)($_SESSION['csrf_token'] ?? '');
+    if ($token === '' || $sessionToken === '' || !hash_equals($sessionToken, $token)) {
+        tgb_reply(['status'=>0,'message'=>'La sesión de seguridad venció.'],403);
+    }
+    $enabled = ($_POST['enabled'] ?? '') === '1' ? 1 : 0;
+    if ($hasColumn) {
+        $pref = $conn->prepare('UPDATE users SET grades_autosave=? WHERE id=? AND school_id=?');
+        $pref->bind_param('iii', $enabled, $uid, $schoolId);
+        if (!$pref->execute()) {
+            $pref->close();
+            tgb_reply(['status'=>0,'message'=>'No se pudo guardar la preferencia.'],500);
+        }
+        $pref->close();
+    }
+    $_SESSION['login_grades_autosave'] = $enabled;
+    tgb_reply([
+        'status'=>1,'enabled'=>$enabled===1,'persisted'=>$hasColumn,
+        'message'=>$hasColumn ? 'Preferencia sincronizada con EduSync Web.'
+            : 'Preferencia temporal. Para sincronizarla con la web se requiere la migración de autoguardado.',
+    ]);
+}
+
 if (!in_array($action, ['load', 'save', 'create_evaluation'], true)) {
     tgb_reply(['status' => 0, 'message' => 'Acción no válida.'], 400);
 }
