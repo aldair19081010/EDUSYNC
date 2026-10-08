@@ -214,6 +214,10 @@ if ($action === 'delete_evaluation') {
     $_POST['competencia_id'] = (string)$currentEvaluation['competency_id'];
 }
 $compId = (int)($_POST['competencia_id'] ?? 0);
+$title = trim((string)($_POST['title'] ?? ''));
+$description = trim((string)($_POST['description'] ?? ''));
+$type = trim((string)($_POST['type'] ?? 'Tarea'));
+if ($action !== 'delete_evaluation') {
 $competency = $conn->prepare("SELECT id FROM general_course_competencies WHERE id=? AND course_id=? AND teacher_id=? AND academic_year_id=? AND is_active=1 LIMIT 1");
 $courseId = (int)$assignment['course_id'];
 $competency->bind_param('iiii', $compId, $courseId, $teacherId, $yearId);
@@ -221,15 +225,13 @@ $competency->execute();
 $validCompetency = (bool)$competency->get_result()->fetch_assoc();
 $competency->close();
 if (!$validCompetency) tgb_reply(['status' => 0, 'message' => 'La competencia no pertenece al curso activo.'], 422);
-$title = trim((string)($_POST['title'] ?? ''));
-$description = trim((string)($_POST['description'] ?? ''));
-$type = trim((string)($_POST['type'] ?? 'Tarea'));
 if ($title === '' || mb_strlen($title, 'UTF-8') > 150 || mb_strlen($description, 'UTF-8') > 1200) {
     tgb_reply(['status' => 0, 'message' => 'Revisa el título y descripción de la evaluación.'], 422);
 }
 if (!in_array($type, ['Tarea', 'Examen', 'Examen Parcial', 'Examen Final', 'Quiz', 'Práctica', 'Proyecto', 'Participación', 'Otro'], true)) {
     tgb_reply(['status' => 0, 'message' => 'Tipo de evaluación inválido.'], 422);
 }
+if ($action === 'create_evaluation') {
 $duplicate = $conn->prepare('SELECT id FROM evaluations WHERE teacher_course_id=? AND teacher_id=? AND academic_year_id=? AND bimestre=? AND title=? LIMIT 1');
 $duplicate->bind_param('iiiis', $tcid, $teacherId, $yearId, $bim, $title);
 $duplicate->execute();
@@ -237,6 +239,7 @@ $exists = (bool)$duplicate->get_result()->fetch_assoc();
 $duplicate->close();
 if ($exists) tgb_reply(['status' => 0, 'message' => 'Ya existe una evaluación con este nombre en el bimestre.'], 409);
 
+}
 if ($action === 'edit_evaluation') {
     if ($compId !== (int)$currentEvaluation['competency_id']) {
         tgb_reply(['status'=>0,'message'=>'La competencia de una evaluación no se cambia desde el móvil.'],422);
@@ -248,6 +251,7 @@ if ($action === 'edit_evaluation') {
     $repeated = (bool)$other->get_result()->fetch_assoc();
     $other->close();
     if ($repeated) tgb_reply(['status'=>0,'message'=>'Ya existe otra evaluación con ese nombre.'],409);
+}
 }
 // Action::save_evaluation es también el guardado oficial de la interfaz Web.
 $_POST['id'] = $action === 'edit_evaluation' ? (string)$evaluationId
