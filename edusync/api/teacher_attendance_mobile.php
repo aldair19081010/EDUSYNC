@@ -61,6 +61,10 @@ if ((int)$assignment['is_active'] !== 1) {
     tam_reply(['status'=>'error','message'=>'La consulta de asistencia diaria está disponible para el año activo.'],422);
 }
 
+$tableReady = $conn->query("SHOW TABLES LIKE 'asistencia'");
+if (!$tableReady || $tableReady->num_rows === 0) {
+    tam_reply(['status'=>'error','message'=>'El colegio aún no tiene habilitado el módulo de asistencia.'],409);
+}
 $cancelCol = $conn->query("SHOW COLUMNS FROM asistencia LIKE 'is_cancelled'");
 $cancelFilter = $cancelCol && $cancelCol->num_rows > 0 ? ' AND a.is_cancelled=0' : '';
 $sql = "SELECT st.id,st.id_no,st.name,a.hora,a.estado
