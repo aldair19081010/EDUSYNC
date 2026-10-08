@@ -205,11 +205,23 @@ $_POST['bimestre'] = (string)$bim;
 $_POST['description'] = $description !== '' ? $description : $title;
 $_POST['competencias'] = [(string)$compId];
 // admin_class.php usa rutas relativas al director edusync al crear Action.
+// Proteger el JSON de advertencias o salida HTML no deseada.
 $previousDirectory = getcwd();
-chdir(__DIR__ . '/..');
-require_once __DIR__ . '/../admin_class.php';
-$actionHandler = new Action();
-$result = json_decode($actionHandler->save_evaluation(), true);
-if ($previousDirectory !== false) chdir($previousDirectory);
+$bufferLevel = ob_get_level();
+ob_start();
+try {
+    if (!chdir(__DIR__ . '/..')) {
+        throw new RuntimeException('No se pudo establecer el directorio de EduSync.');
+    }
+    require_once __DIR__ . '/../admin_class.php';
+    $actionHandler = new Action();
+    $result = json_decode($actionHandler->save_evaluation(), true);
+} catch (Throwable $error) {
+    error_log('[teacher gradebook evaluation] ' . $error->getMessage());
+    $result = null;
+} finally {
+    while (ob_get_level() > $bufferLevel) ob_end_clean();
+    if ($previousDirectory !== false) chdir($previousDirectory);
+}
 if (!is_array($result)) tgb_reply(['status'=>0,'message'=>'El servidor no pudo guardar la evaluación.'],500);
 tgb_reply($result, (int)($result['status'] ?? 0) === 1 ? 200 : 422);
