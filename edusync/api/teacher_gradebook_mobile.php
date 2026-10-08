@@ -95,7 +95,7 @@ if ($action === 'preference' || $action === 'set_preference') {
     ]);
 }
 
-if (!in_array($action, ['load', 'save', 'create_evaluation'], true)) {
+if (!in_array($action, ['load', 'save', 'create_evaluation', 'edit_evaluation', 'delete_evaluation'], true)) {
     tgb_reply(['status' => 0, 'message' => 'Acción no válida.'], 400);
 }
 $tcid = (int)($_POST['teacher_course_id'] ?? 0);
@@ -172,6 +172,47 @@ if (tgb_table($conn, 'grade_period_closures')) {
     $closed->close();
     if ($isClosed) tgb_reply(['status' => 0, 'message' => 'Este bimestre fue cerrado por el docente.'], 403);
 }
+// Modificaciones de evaluaciones existentes: requieren asignación, bimestre
+// y profesor correctos. Nunca permiten cambiar de competencia con notas.
+$evaluationId = (int)($_POST['evaluation_id'] ?? 0);
+$currentEvaluation = null;
+if (in_array($action, ['edit_evaluation', 'delete_evaluation'], true)) {
+    if ($evaluationId <= 0) tgb_reply(['status'=>0,'message'=>'Evaluación inválida.'],422);
+    $ev = $conn->prepare(
+        "SELECT e.id,e.title,e.type,e.description,e.academic_year_id,
+                (SELECT ec.competencia_id FROM evaluation_competencias ec
+                  WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competency_id,
+                (SELECT COUNT(*) FROM evaluation_grades eg
+                  WHERE eg.evaluation_id=e.id) grades_count
+         FROM evaluations e
+         WHERE e.id=? AND e.teacher_course_id=? AND e.teacher_id=?
+           AND e.academic_year_id=? AND e.bimestre=? LIMIT 1"
+    );
+    if (!$ev) tgb_reply(['status'=>0,'message'=>'No se pudo consultar la evaluación.'],500);
+    $ev->bind_param('iiiii', $evaluationId, $tcid, $teacherId, $yearId, $bim);
+    $ev->execute();
+    $currentEvaluation = $ev->get_result()->fetch_assoc();
+    $ev->close();
+    if (!$currentEvaluation) tgb_reply(['status'=>0,'message'=>'Evaluación no encontrada en el curso y bimestre.'],404);
+    if ($action === 'delete_evaluation') {
+        $reason = trim((string)($_POST['reason'] ?? ''));
+        if ((int)$currentEvaluation['grades_count'] > 0 && mb_strlen($reason,'UTF-8') < 5) {
+            tgb_reply(['status'=>0,'requires_reason'=>true,
+                'message'=>'Para anular una evaluación con notas, explica el motivo (mínimo 5 caracteres).'],422);
+        }
+        $_POST['id'] = (string)$evaluationId;
+        $_POST['reason'] = $reason;
+    }
+}
+
+if ($action === 'delete_evaluation') {
+    // La anulación y la eliminación aplican exactamente las reglas auditadas
+    // de Action::delete_evaluation(); sin validar campos de creación.
+    $_POST['title'] = (string)$currentEvaluation['title'];
+    $_POST['type'] = (string)$currentEvaluation['type'];
+    $_POST['description'] = (string)$currentEvaluation['description'];
+    $_POST['competencia_id'] = (string)$currentEvaluation['competency_id'];
+}
 $compId = (int)($_POST['competencia_id'] ?? 0);
 $competency = $conn->prepare("SELECT id FROM general_course_competencies WHERE id=? AND course_id=? AND teacher_id=? AND academic_year_id=? AND is_active=1 LIMIT 1");
 $courseId = (int)$assignment['course_id'];
@@ -196,8 +237,21 @@ $exists = (bool)$duplicate->get_result()->fetch_assoc();
 $duplicate->close();
 if ($exists) tgb_reply(['status' => 0, 'message' => 'Ya existe una evaluación con este nombre en el bimestre.'], 409);
 
+if ($action === 'edit_evaluation') {
+    if ($compId !== (int)$currentEvaluation['competency_id']) {
+        tgb_reply(['status'=>0,'message'=>'La competencia de una evaluación no se cambia desde el móvil.'],422);
+    }
+    $other = $conn->prepare("SELECT id FROM evaluations WHERE teacher_course_id=? AND teacher_id=?
+        AND academic_year_id=? AND bimestre=? AND title=? AND id<>? LIMIT 1");
+    $other->bind_param('iiiisi', $tcid, $teacherId, $yearId, $bim, $title, $evaluationId);
+    $other->execute();
+    $repeated = (bool)$other->get_result()->fetch_assoc();
+    $other->close();
+    if ($repeated) tgb_reply(['status'=>0,'message'=>'Ya existe otra evaluación con ese nombre.'],409);
+}
 // Action::save_evaluation es también el guardado oficial de la interfaz Web.
-$_POST['id'] = '0';
+$_POST['id'] = $action === 'edit_evaluation' ? (string)$evaluationId
+    : ($action === 'delete_evaluation' ? (string)$evaluationId : '0');
 $_POST['teacher_course_id'] = (string)$tcid;
 $_POST['academic_year_id'] = (string)$yearId;
 $_POST['teacher_id'] = (string)$teacherId;
@@ -215,7 +269,12 @@ try {
     }
     require_once __DIR__ . '/../admin_class.php';
     $actionHandler = new Action();
-    $result = json_decode($actionHandler->save_evaluation(), true);
+    $result = json_decode(
+        $action === 'delete_evaluation'
+            ? $actionHandler->delete_evaluation()
+            : $actionHandler->save_evaluation(),
+        true
+    );
 } catch (Throwable $error) {
     error_log('[teacher gradebook evaluation] ' . $error->getMessage());
     $result = null;
