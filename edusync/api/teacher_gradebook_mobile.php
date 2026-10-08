@@ -34,7 +34,10 @@ $schoolId = (int)($_SESSION['login_school_id'] ?? 0);
 if ((int)($_SESSION['login_type'] ?? 0) !== 2 || $uid <= 0 || $teacherId <= 0 || $schoolId <= 0) {
     tgb_reply(['status' => 0, 'message' => 'Sesión docente inválida.'], 403);
 }
-$owner = $conn->prepare("SELECT u.id FROM users u INNER JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id WHERE u.id=? AND u.school_id=? AND u.teacher_id=? AND u.type=2 AND t.status='Activo' LIMIT 1");
+$userStatusCol = $conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+$activeUserFilter = ($userStatusCol && $userStatusCol->num_rows)
+    ? " AND u.status='Activo'" : '';
+$owner = $conn->prepare("SELECT u.id FROM users u INNER JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id WHERE u.id=? AND u.school_id=? AND u.teacher_id=? AND u.type=2 AND t.status='Activo' {$activeUserFilter} LIMIT 1");
 if (!$owner) tgb_reply(['status' => 0, 'message' => 'No se pudo validar la cuenta.'], 500);
 $owner->bind_param('iii', $uid, $schoolId, $teacherId);
 $owner->execute();
