@@ -85,6 +85,11 @@ try {
 
     $allDebts = debt_engine_get_student_debts($conn, $studentId, $schoolId);
     $pendingDebts = debt_engine_pending_debts($allDebts);
+    // Vista de estado de cuenta: incluir conceptos activos con saldo cero
+    // (cancelados/pagados) y exonerados. No altera la lista de pendientes.
+    $accountConcepts = array_values(array_filter($allDebts, static function ($debt) {
+        return ($debt['debt_status'] ?? 'Activa') === 'Activa';
+    }));
     $summary = debt_engine_summary($pendingDebts);
     $yearSummary = debt_engine_year_summary($pendingDebts);
     $gradeAccess = grade_debt_blocks_grades($conn, $studentId);
@@ -122,6 +127,7 @@ try {
     my_debts_out([
         'status' => 'ok',
         'data' => $pendingDebts,
+        'estado_cuenta' => $accountConcepts,
         'student' => [
             'id' => $studentId,
             'dni' => (string)($student['id_no'] ?? $dni),
