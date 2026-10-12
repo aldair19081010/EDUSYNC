@@ -226,6 +226,7 @@ if ($courses) {
     $progressSql = "SELECT tc.id teacher_course_id, gcc.id competency_id,
                            gcc.name competency_name,
                            COUNT(DISTINCT e.id) evaluation_count,
+                           GROUP_CONCAT(DISTINCT e.id ORDER BY e.id) evaluation_ids,
                            COUNT(DISTINCT CASE
                              WHEN st.id IS NOT NULL AND eg.grade IS NOT NULL
                                   AND TRIM(eg.grade) <> ''
@@ -278,6 +279,7 @@ if ($courses) {
                 $courses[$index]['progress_available'] = true;
             }
             $rates = [];
+            $evaluationSets = [];
             $progressResult = $progressStmt->get_result();
             while ($progressResult && ($row = $progressResult->fetch_assoc())) {
                 $id = (int)$row['teacher_course_id'];
@@ -298,7 +300,10 @@ if ($courses) {
                     'percentage' => $percent,
                 ];
                 $rates[$id][] = $expected > 0 ? $filled / $expected : 0.0;
-                $courses[$index]['bimester_evaluation_count'] += $evaluations;
+                $evaluationIds = array_filter(explode(',', (string)($row['evaluation_ids'] ?? '')));
+                foreach ($evaluationIds as $evaluationId) {
+                    $evaluationSets[$id][(int)$evaluationId] = true;
+                }
             }
             // Igual importancia para cada competencia. Las competencias
             // sin evaluaciones quedan en 0%, no desaparecen del denominador.
@@ -307,6 +312,8 @@ if ($courses) {
                 $courses[$index]['grade_progress'] = $competencyRates
                     ? (int)round(100 * array_sum($competencyRates) / count($competencyRates))
                     : 0;
+                $courses[$index]['bimester_evaluation_count'] =
+                    isset($evaluationSets[$id]) ? count($evaluationSets[$id]) : 0;
             }
         }
         $progressStmt->close();
