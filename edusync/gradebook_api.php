@@ -122,6 +122,39 @@ if ($action === 'load') {
         $evaluationIds[] = $row['id'];
     }
 
+    $evaluationCompetencies = [];
+    if ($evaluationIds) {
+        $evaluationListForLinks = implode(',', $evaluationIds);
+        $linkResult = $conn->query(
+            "SELECT ec.evaluation_id,ec.competencia_id,
+                    COALESCE(gcc.name,'Competencia histórica') competency_name,
+                    COALESCE(gcc.percentage,0) competency_percentage
+             FROM evaluation_competencias ec
+             LEFT JOIN general_course_competencies gcc
+               ON gcc.id=ec.competencia_id
+             WHERE ec.evaluation_id IN ($evaluationListForLinks)
+             ORDER BY ec.evaluation_id,ec.id"
+        );
+        while ($linkResult && ($link = $linkResult->fetch_assoc())) {
+            $evaluationId = (int)$link['evaluation_id'];
+            $evaluationCompetencies[$evaluationId][] = [
+                'id' => (int)$link['competencia_id'],
+                'name' => (string)$link['competency_name'],
+                'percentage' => (float)$link['competency_percentage'],
+            ];
+        }
+        foreach ($evaluations as &$evaluation) {
+            $links = $evaluationCompetencies[(int)$evaluation['id']] ?? [];
+            $evaluation['competency_links'] = $links;
+            $evaluation['competency_ids'] = array_values(array_map(
+                static function ($item) { return (int)$item['id']; },
+                $links
+            ));
+            $evaluation['historical_multi_competency'] = count($links) > 1;
+        }
+        unset($evaluation);
+    }
+
     $activeYearId = 0;
     $activeYearResult = $conn->query("SELECT id FROM academic_year WHERE school_id=$schoolId AND is_active=1 LIMIT 1");
     if ($activeYearResult && $activeYearResult->num_rows) $activeYearId = (int)$activeYearResult->fetch_assoc()['id'];
@@ -152,12 +185,31 @@ if ($action === 'load') {
     }
 
     $grades = [];
+    $gradesByCompetency = [];
+    $gradeCells = [];
     if ($evaluationIds && $students) {
         $studentIds = implode(',', array_map(static function ($student) { return (int)$student['id']; }, $students));
         $evaluationList = implode(',', $evaluationIds);
-        $gradeResult = $conn->query("SELECT evaluation_id,student_id,competencia_id,grade FROM evaluation_grades WHERE evaluation_id IN ($evaluationList) AND student_id IN ($studentIds)");
+        $gradeResult = $conn->query("SELECT evaluation_id,student_id,competencia_id,grade FROM evaluation_grades WHERE evaluation_id IN ($evaluationList) AND student_id IN ($studentIds) ORDER BY evaluation_id,competencia_id,student_id");
         while ($gradeResult && ($row = $gradeResult->fetch_assoc())) {
-            $grades[(int)$row['evaluation_id']][(int)$row['student_id']] = (string)$row['grade'];
+            $evaluationId = (int)$row['evaluation_id'];
+            $studentId = (int)$row['student_id'];
+            $competencyId = (int)$row['competencia_id'];
+            $grade = (string)$row['grade'];
+
+            // Compatibilidad web: conservar la estructura histórica existente.
+            if (!isset($grades[$evaluationId][$studentId])) {
+                $grades[$evaluationId][$studentId] = $grade;
+            }
+
+            // Estructura canónica móvil: nunca colapsar competencias históricas.
+            $gradesByCompetency[$evaluationId][$competencyId][$studentId] = $grade;
+            $gradeCells[] = [
+                'evaluation_id' => $evaluationId,
+                'competencia_id' => $competencyId,
+                'student_id' => $studentId,
+                'grade' => $grade,
+            ];
         }
     }
 
@@ -193,6 +245,9 @@ if ($action === 'load') {
         'competency_weights_valid' => $officialWeightsValid,
         'students' => $students,
         'grades' => $grades,
+        'grades_by_competency' => $gradesByCompetency,
+        'grade_cells' => $gradeCells,
+        'evaluation_competencies' => $evaluationCompetencies,
         'read_only' => $locked || $yearReadOnly || $teacherClosed,
         'read_only_reason' => $readOnlyReason,
         'teacher_closed' => $teacherClosed,
@@ -237,7 +292,18 @@ if ($action === 'save') {
     $validEvaluations=[];$evaluationTitles=[];$evaluationResult=$conn->query("SELECT e.id,e.title,(SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id FROM evaluations e WHERE e.id IN ($evaluationList) AND e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'$statusCondition");
     while($evaluationResult&&($row=$evaluationResult->fetch_assoc())){$validEvaluations[(int)$row['id']]=(int)($row['competencia_id']??0);$evaluationTitles[(int)$row['id']]=(string)($row['title']??'Evaluación');}
     if(count($validEvaluations)!==count($evaluationIds))gradebook_response(['status'=>0,'message'=>'Una evaluación fue anulada o no pertenece al curso seleccionado.']);
-    foreach($validEvaluations as $compId)if($compId<=0)gradebook_response(['status'=>0,'message'=>'Una evaluación no tiene competencia asociada y no puede calificarse desde el libro.']);
+
+    $validEvaluationCompetencies=[];
+    $linkResult=$conn->query("SELECT evaluation_id,competencia_id FROM evaluation_competencias WHERE evaluation_id IN ($evaluationList) ORDER BY evaluation_id,id");
+    while($linkResult&&($link=$linkResult->fetch_assoc())){
+        $eid=(int)$link['evaluation_id'];$cid=(int)$link['competencia_id'];
+        if($eid>0&&$cid>0)$validEvaluationCompetencies[$eid][$cid]=true;
+    }
+    foreach($validEvaluations as $eid=>$compId){
+        if(empty($validEvaluationCompetencies[$eid])){
+            gradebook_response(['status'=>0,'message'=>'Una evaluación no tiene competencia asociada y no puede calificarse desde el libro.']);
+        }
+    }
 
     $activeYearId=0;$activeYearResult=$conn->query("SELECT id FROM academic_year WHERE school_id=$schoolId AND is_active=1 LIMIT 1");if($activeYearResult&&$activeYearResult->num_rows)$activeYearId=(int)$activeYearResult->fetch_assoc()['id'];
     $levelEsc=$conn->real_escape_string(mb_strtolower((string)$assignment['level'],'UTF-8'));$gradeEsc=$conn->real_escape_string((string)$assignment['grado']);$section=trim((string)$assignment['seccion']);$sectionEsc=$conn->real_escape_string($section);$sectionCondition="s.seccion='$sectionEsc'";
@@ -266,7 +332,13 @@ if ($action === 'save') {
                 $number=(float)$value;if($number<0||$number>20)throw new RuntimeException('Las calificaciones deben estar entre 0 y 20.');
                 $value=rtrim(rtrim(number_format($number,2,'.',''),'0'),'.');
             }
-            $competencyId=$validEvaluations[$evaluationId];
+            $requestedCompetencyId=(int)($change['competencia_id']??0);
+            $competencyId=$requestedCompetencyId>0
+                ? $requestedCompetencyId
+                : $validEvaluations[$evaluationId];
+            if(!isset($validEvaluationCompetencies[$evaluationId][$competencyId])){
+                throw new RuntimeException('La competencia no pertenece a la evaluación seleccionada.');
+            }
             $select->bind_param('iii',$evaluationId,$studentId,$competencyId);$select->execute();$existing=$select->get_result()->fetch_assoc();
             $currentValue=$existing?mb_strtoupper(trim((string)$existing['grade']),'UTF-8'):'';
             $originalValue=mb_strtoupper(trim((string)($change['original']??'')),'UTF-8');
