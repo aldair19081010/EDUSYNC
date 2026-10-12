@@ -181,18 +181,54 @@ foreach ($years as $year) {
     if ($year['id'] === $selectedYearId) { $selectedYear = $year; break; }
 }
 
-$selectedBimester = (int)($_POST['bimester'] ?? 1);
-if ($selectedBimester < 1 || $selectedBimester > 4) {
+$suggestedBimester = 1;
+if ($selectedYearId > 0) {
+    $bimesterStmt = $conn->prepare(
+        "SELECT MAX(CAST(ev.bimestre AS UNSIGNED)) suggested_bimester
+         FROM evaluations ev
+         INNER JOIN teacher_courses tc
+           ON tc.id=ev.teacher_course_id
+          AND tc.teacher_id=ev.teacher_id
+          AND tc.academic_year_id=ev.academic_year_id
+         WHERE ev.teacher_id=? AND ev.academic_year_id=?
+           AND tc.school_id=?
+           AND CAST(ev.bimestre AS UNSIGNED) BETWEEN 1 AND 4"
+    );
+    if ($bimesterStmt) {
+        $bimesterStmt->bind_param(
+            'iii',
+            $sessionTeacherId,
+            $selectedYearId,
+            $sessionSchoolId
+        );
+        $bimesterStmt->execute();
+        $suggestedRow = $bimesterStmt->get_result()->fetch_assoc();
+        $bimesterStmt->close();
+        $candidate = (int)($suggestedRow['suggested_bimester'] ?? 0);
+        if ($candidate >= 1 && $candidate <= 4) {
+            $suggestedBimester = $candidate;
+        }
+    }
+}
+
+$requestedBimester = (int)($_POST['bimester'] ?? 0);
+if ($requestedBimester !== 0 &&
+    ($requestedBimester < 1 || $requestedBimester > 4)) {
     teacher_mobile_reply([
         'status' => 'error',
         'message' => 'Selecciona un bimestre válido.',
     ], 422);
 }
+$selectedBimester = $requestedBimester > 0
+    ? $requestedBimester
+    : $suggestedBimester;
 if ($selectedYearId === 0) {
     teacher_mobile_reply([
         'status' => 'ok', 'teacher_name' => (string)$teacher['name'],
         'school_name' => $schoolInfo['name'],
         'school_logo' => $schoolInfo['logo_url'],
+        'selected_bimester' => $selectedBimester,
+        'suggested_bimester' => $suggestedBimester,
         'years' => $years, 'academic_year' => null, 'courses' => [],
         'summary' => ['courses' => 0, 'students' => 0, 'competencies' => 0, 'evaluations' => 0],
     ]);
@@ -370,6 +406,8 @@ teacher_mobile_reply([
     'teacher_name' => (string)$teacher['name'],
     'school_name' => $schoolInfo['name'],
     'school_logo' => $schoolInfo['logo_url'],
+    'selected_bimester' => $selectedBimester,
+    'suggested_bimester' => $suggestedBimester,
     'years' => $years,
     'academic_year' => $selectedYear,
     'bimester' => $selectedBimester,
