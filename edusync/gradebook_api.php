@@ -197,10 +197,8 @@ if ($action === 'load') {
             $competencyId = (int)$row['competencia_id'];
             $grade = (string)$row['grade'];
 
-            // Compatibilidad web: conservar la estructura histórica existente.
-            if (!isset($grades[$evaluationId][$studentId])) {
-                $grades[$evaluationId][$studentId] = $grade;
-            }
+            // Compatibilidad web: conservar exactamente la estructura histórica.
+            $grades[$evaluationId][$studentId] = $grade;
 
             // Estructura canónica móvil: nunca colapsar competencias históricas.
             $gradesByCompetency[$evaluationId][$competencyId][$studentId] = $grade;
