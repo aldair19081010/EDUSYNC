@@ -165,12 +165,7 @@ $sql = "SELECT tc.id teacher_course_id, tc.course_id, tc.academic_year_id,
                (SELECT COUNT(*) FROM evaluations ev
                 WHERE ev.teacher_course_id=tc.id AND ev.teacher_id=tc.teacher_id
                   AND ev.academic_year_id=tc.academic_year_id
-               ) evaluation_count,
-               (SELECT COUNT(DISTINCT CONCAT(eg.evaluation_id,'-',eg.student_id))
-                FROM evaluation_grades eg INNER JOIN evaluations evg ON evg.id=eg.evaluation_id
-                WHERE evg.teacher_course_id=tc.id AND evg.teacher_id=tc.teacher_id
-                  AND evg.academic_year_id=tc.academic_year_id AND eg.grade<>''
-               ) grade_count
+               ) evaluation_count
         FROM teacher_courses tc
         INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
         INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id
@@ -189,15 +184,16 @@ $groups = [];
 $summary = ['courses' => 0, 'students' => 0, 'competencies' => 0, 'evaluations' => 0];
 while ($course = $result->fetch_assoc()) {
     foreach (['teacher_course_id','course_id','academic_year_id',
-              'student_count','competency_count','evaluation_count','grade_count'] as $key) {
+              'student_count','competency_count','evaluation_count'] as $key) {
         $course[$key] = (int)$course[$key];
     }
-    $expected = $course['student_count'] * $course['evaluation_count'];
-    $course['grade_progress'] = $expected > 0
-        ? min(100, (int)round(100 * $course['grade_count'] / $expected)) : 0;
+    // El llenado se calcula abajo por competencia. No confundir con promedio.
+    $course['competency_progress'] = [];
+    $course['grade_progress'] = 0;
+    $course['progress_available'] = false;
     $course['editable'] = (bool)$selectedYear['is_active'] &&
         (int)$course['course_is_active'] === 1 && $course['course_status'] === 'Activo';
-    unset($course['course_is_active'], $course['course_status'], $course['grade_count']);
+    unset($course['course_is_active'], $course['course_status']);
     $group = $course['level'].'|'.$course['grado'].'|'.$course['seccion'];
     if (!isset($groups[$group])) {
         $groups[$group] = true;
@@ -209,6 +205,93 @@ while ($course = $result->fetch_assoc()) {
 }
 $stmt->close();
 $summary['courses'] = count($courses);
+
+// Una sola consulta para todos los cursos del año: evita N solicitudes
+// cuando un profesor tiene muchas asignaciones. Se cuentan exclusivamente
+// notas no vacías de estudiantes activos del curso y evaluaciones vigentes.
+if ($courses) {
+    $hasEvaluationStatus = $conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+    $activeEvaluationFilter = ($hasEvaluationStatus && $hasEvaluationStatus->num_rows > 0)
+        ? " AND COALESCE(e.status,'Activa') <> 'Anulada'" : '';
+    $progressSql = "SELECT tc.id teacher_course_id, gcc.id competency_id,
+                           gcc.name competency_name,
+                           COUNT(DISTINCT e.id) evaluation_count,
+                           COUNT(DISTINCT CASE
+                             WHEN st.id IS NOT NULL AND eg.grade IS NOT NULL
+                                  AND TRIM(eg.grade) <> ''
+                             THEN CONCAT(eg.evaluation_id, ':', eg.student_id)
+                             ELSE NULL END) filled_count
+                    FROM teacher_courses tc
+                    INNER JOIN academic_courses ac
+                       ON ac.id=tc.course_id AND ac.school_id=tc.school_id
+                    INNER JOIN general_course_competencies gcc
+                       ON gcc.course_id=tc.course_id
+                      AND gcc.teacher_id=tc.teacher_id
+                      AND gcc.academic_year_id=tc.academic_year_id
+                      AND gcc.is_active=1
+                    LEFT JOIN evaluation_competencias ec
+                       ON ec.competencia_id=gcc.id
+                    LEFT JOIN evaluations e
+                       ON e.id=ec.evaluation_id
+                      AND e.teacher_course_id=tc.id
+                      AND e.teacher_id=tc.teacher_id
+                      AND e.academic_year_id=tc.academic_year_id
+                      {$activeEvaluationFilter}
+                    LEFT JOIN evaluation_grades eg
+                       ON eg.evaluation_id=e.id
+                    LEFT JOIN student st
+                       ON st.id=eg.student_id AND st.school_id=tc.school_id
+                      AND st.status='Activo'
+                      AND st.nivel=ac.level AND st.grado=tc.grado
+                      AND COALESCE(NULLIF(st.seccion,''),'U') =
+                          COALESCE(NULLIF(tc.seccion,''),'U')
+                    WHERE tc.teacher_id=? AND tc.school_id=?
+                      AND tc.academic_year_id=?
+                    GROUP BY tc.id, gcc.id, gcc.name
+                    ORDER BY tc.id, gcc.id";
+    $progressStmt = $conn->prepare($progressSql);
+    if ($progressStmt) {
+        $progressStmt->bind_param('iii', $sessionTeacherId, $sessionSchoolId, $selectedYearId);
+        if ($progressStmt->execute()) {
+            $byCourse = [];
+            foreach ($courses as $index => $course) {
+                $byCourse[(int)$course['teacher_course_id']] = $index;
+                $courses[$index]['progress_available'] = true;
+            }
+            $rates = [];
+            $progressResult = $progressStmt->get_result();
+            while ($progressResult && ($row = $progressResult->fetch_assoc())) {
+                $id = (int)$row['teacher_course_id'];
+                if (!isset($byCourse[$id])) continue;
+                $index = $byCourse[$id];
+                $students = (int)$courses[$index]['student_count'];
+                $evaluations = (int)$row['evaluation_count'];
+                $expected = $students * $evaluations;
+                $filled = $expected > 0
+                    ? min($expected, (int)$row['filled_count']) : 0;
+                $percent = $expected > 0 ? (int)round($filled * 100 / $expected) : 0;
+                $courses[$index]['competency_progress'][] = [
+                    'id' => (int)$row['competency_id'],
+                    'name' => (string)$row['competency_name'],
+                    'evaluations' => $evaluations,
+                    'filled' => $filled,
+                    'expected' => $expected,
+                    'percentage' => $percent,
+                ];
+                $rates[$id][] = $expected > 0 ? $filled / $expected : 0.0;
+            }
+            // Igual importancia para cada competencia. Las competencias
+            // sin evaluaciones quedan en 0%, no desaparecen del denominador.
+            foreach ($byCourse as $id => $index) {
+                $competencyRates = $rates[$id] ?? [];
+                $courses[$index]['grade_progress'] = $competencyRates
+                    ? (int)round(100 * array_sum($competencyRates) / count($competencyRates))
+                    : 0;
+            }
+        }
+        $progressStmt->close();
+    }
+}
 teacher_mobile_reply([
     'status' => 'ok',
     'teacher_name' => (string)$teacher['name'],
