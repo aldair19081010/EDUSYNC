@@ -12,6 +12,28 @@ function teacher_mobile_reply(array $payload, int $code = 200): void {
     exit;
 }
 
+function teacher_school_logo_url(string $logoPath): string {
+    $logoPath = trim($logoPath);
+    if ($logoPath === '') return '';
+
+    if (preg_match('~^https?://~i', $logoPath)) {
+        return $logoPath;
+    }
+
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $scheme = $isHttps ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if ($host === '') return $logoPath;
+
+    $script = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+    $appBase = rtrim(str_replace('\\', '/', dirname(dirname($script))), '/.');
+
+    return $scheme . '://' . $host
+        . ($appBase !== '' ? '/' . ltrim($appBase, '/') : '')
+        . '/' . ltrim($logoPath, '/');
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     teacher_mobile_reply(['status' => 'error', 'message' => 'Método no permitido.'], 405);
 }
@@ -55,6 +77,25 @@ $teacher = $check->get_result()->fetch_assoc();
 $check->close();
 if (!$teacher) {
     teacher_mobile_reply(['status' => 'error', 'message' => 'La cuenta docente está inactiva o desvinculada.'], 403);
+}
+
+$schoolInfo = ['name' => '', 'logo_url' => ''];
+$schoolStmt = $conn->prepare(
+    'SELECT name, logo_path FROM schools WHERE id=? LIMIT 1'
+);
+if ($schoolStmt) {
+    $schoolStmt->bind_param('i', $sessionSchoolId);
+    $schoolStmt->execute();
+    $schoolRow = $schoolStmt->get_result()->fetch_assoc();
+    $schoolStmt->close();
+    if ($schoolRow) {
+        $schoolInfo = [
+            'name' => (string)($schoolRow['name'] ?? ''),
+            'logo_url' => teacher_school_logo_url(
+                (string)($schoolRow['logo_path'] ?? '')
+            ),
+        ];
+    }
 }
 
 $action = trim((string)($_POST['action'] ?? 'courses'));
@@ -150,6 +191,8 @@ if ($selectedBimester < 1 || $selectedBimester > 4) {
 if ($selectedYearId === 0) {
     teacher_mobile_reply([
         'status' => 'ok', 'teacher_name' => (string)$teacher['name'],
+        'school_name' => $schoolInfo['name'],
+        'school_logo' => $schoolInfo['logo_url'],
         'years' => $years, 'academic_year' => null, 'courses' => [],
         'summary' => ['courses' => 0, 'students' => 0, 'competencies' => 0, 'evaluations' => 0],
     ]);
@@ -195,6 +238,8 @@ while ($course = $result->fetch_assoc()) {
               'student_count','competency_count','evaluation_count'] as $key) {
         $course[$key] = (int)$course[$key];
     }
+    $course['school_name'] = $schoolInfo['name'];
+    $course['school_logo'] = $schoolInfo['logo_url'];
     // El llenado se calcula abajo por competencia. No confundir con promedio.
     $course['competency_progress'] = [];
     $course['grade_progress'] = 0;
@@ -322,6 +367,8 @@ if ($courses) {
 teacher_mobile_reply([
     'status' => 'ok',
     'teacher_name' => (string)$teacher['name'],
+    'school_name' => $schoolInfo['name'],
+    'school_logo' => $schoolInfo['logo_url'],
     'years' => $years,
     'academic_year' => $selectedYear,
     'bimester' => $selectedBimester,
