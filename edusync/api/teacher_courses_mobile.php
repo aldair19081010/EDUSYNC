@@ -139,6 +139,14 @@ $selectedYear = null;
 foreach ($years as $year) {
     if ($year['id'] === $selectedYearId) { $selectedYear = $year; break; }
 }
+
+$selectedBimester = (int)($_POST['bimester'] ?? 1);
+if ($selectedBimester < 1 || $selectedBimester > 4) {
+    teacher_mobile_reply([
+        'status' => 'error',
+        'message' => 'Selecciona un bimestre válido.',
+    ], 422);
+}
 if ($selectedYearId === 0) {
     teacher_mobile_reply([
         'status' => 'ok', 'teacher_name' => (string)$teacher['name'],
@@ -191,6 +199,8 @@ while ($course = $result->fetch_assoc()) {
     $course['competency_progress'] = [];
     $course['grade_progress'] = 0;
     $course['progress_available'] = false;
+    $course['progress_bimester'] = $selectedBimester;
+    $course['bimester_evaluation_count'] = 0;
     $course['editable'] = (bool)$selectedYear['is_active'] &&
         (int)$course['course_is_active'] === 1 && $course['course_status'] === 'Activo';
     unset($course['course_is_active'], $course['course_status']);
@@ -236,6 +246,7 @@ if ($courses) {
                       AND e.teacher_course_id=tc.id
                       AND e.teacher_id=tc.teacher_id
                       AND e.academic_year_id=tc.academic_year_id
+                      AND e.bimestre=?
                       {$activeEvaluationFilter}
                     LEFT JOIN evaluation_grades eg
                        ON eg.evaluation_id=e.id
@@ -252,7 +263,14 @@ if ($courses) {
                     ORDER BY tc.id, gcc.id";
     $progressStmt = $conn->prepare($progressSql);
     if ($progressStmt) {
-        $progressStmt->bind_param('iii', $sessionTeacherId, $sessionSchoolId, $selectedYearId);
+        $bimesterParam = (string)$selectedBimester;
+        $progressStmt->bind_param(
+            'siii',
+            $bimesterParam,
+            $sessionTeacherId,
+            $sessionSchoolId,
+            $selectedYearId
+        );
         if ($progressStmt->execute()) {
             $byCourse = [];
             foreach ($courses as $index => $course) {
@@ -280,6 +298,7 @@ if ($courses) {
                     'percentage' => $percent,
                 ];
                 $rates[$id][] = $expected > 0 ? $filled / $expected : 0.0;
+                $courses[$index]['bimester_evaluation_count'] += $evaluations;
             }
             // Igual importancia para cada competencia. Las competencias
             // sin evaluaciones quedan en 0%, no desaparecen del denominador.
@@ -298,6 +317,7 @@ teacher_mobile_reply([
     'teacher_name' => (string)$teacher['name'],
     'years' => $years,
     'academic_year' => $selectedYear,
+    'bimester' => $selectedBimester,
     'courses' => $courses,
     'summary' => $summary,
 ]);
