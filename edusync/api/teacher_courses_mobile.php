@@ -239,6 +239,7 @@ if ($courses) {
                       {$activeEvaluationFilter}
                     LEFT JOIN evaluation_grades eg
                        ON eg.evaluation_id=e.id
+                      AND eg.competencia_id=gcc.id
                     LEFT JOIN student st
                        ON st.id=eg.student_id AND st.school_id=tc.school_id
                       AND st.status='Activo'
