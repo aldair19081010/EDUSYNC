@@ -95,6 +95,29 @@ if ($action === 'preference' || $action === 'set_preference') {
     ]);
 }
 
+$closureActions = [
+    'closure_status' => 'status',
+    'close_period' => 'close',
+    'request_reopen' => 'request_reopen',
+];
+if (isset($closureActions[$action])) {
+    $tcid = (int)($_POST['teacher_course_id'] ?? 0);
+    $bim = (int)($_POST['bimestre'] ?? 0);
+    if ($tcid <= 0 || $bim < 1 || $bim > 4) {
+        tgb_reply(['status'=>0,'message'=>'Selecciona un curso y bimestre válidos.'],422);
+    }
+
+    // Delegar el cierre al mismo controlador oficial que usa EduSync Web.
+    // Así la app comparte validaciones, snapshot, auditoría, notificaciones
+    // y solicitudes de reapertura sin duplicar reglas.
+    $_GET['action'] = $closureActions[$action];
+    $_REQUEST['action'] = $closureActions[$action];
+    $_REQUEST['teacher_course_id'] = (string)$tcid;
+    $_REQUEST['bimestre'] = (string)$bim;
+    require __DIR__ . '/../grade_closure_api.php';
+    exit;
+}
+
 if (!in_array($action, ['load', 'save', 'create_evaluation', 'edit_evaluation', 'delete_evaluation'], true)) {
     tgb_reply(['status' => 0, 'message' => 'Acción no válida.'], 400);
 }
