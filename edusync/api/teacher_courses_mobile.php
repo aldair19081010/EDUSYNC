@@ -240,6 +240,7 @@ while ($course = $result->fetch_assoc()) {
     }
     $course['school_name'] = $schoolInfo['name'];
     $course['school_logo'] = $schoolInfo['logo_url'];
+    $course['teacher_name'] = (string)$teacher['name'];
     // El llenado se calcula abajo por competencia. No confundir con promedio.
     $course['competency_progress'] = [];
     $course['grade_progress'] = 0;
