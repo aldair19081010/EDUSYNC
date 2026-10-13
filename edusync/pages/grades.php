@@ -24,35 +24,55 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 .gb-inline-kpis i{font-size:.68rem;color:#4e73df;margin-right:.25rem}
 .gb-inline-kpis strong{color:#5a5c69}
 .gb-inline-kpis .gb-kpi-pending-inline strong{color:#b07d00}
-.gb-commandbar{background:#f8f9fc;border-bottom:1px solid #e3e6f0}
-.gb-tool-select{width:auto;min-width:195px}
-.gb-system-select{min-width:145px}
+.gb-commandbar{background:#f8f9fc;border-bottom:1px solid #e3e6f0;gap:.6rem;min-width:0}
+.gb-toolbar{min-width:0}
+.gb-edit-tools{gap:.45rem;flex:1 1 auto}
+.gb-save-tools{gap:.45rem;flex:0 1 auto;margin-left:auto}
+.gb-tool-select{width:auto;min-width:180px;max-width:245px}
+.gb-system-select{min-width:135px;max-width:165px}
 .gb-tool-select .input-group-text{background:#fff;color:#4e73df;border-color:#d1d3e2}
-.gb-tool-select .form-control{width:auto;min-width:0}
-.gb-period-action{white-space:nowrap}
-.gb-period-action .dropdown-menu{min-width:220px}
+.gb-tool-select .form-control{width:1%;min-width:0}
+.gb-autosave-control{margin-left:.2rem}
+.gb-status-group{display:flex;align-items:center;gap:.35rem;min-width:0}
+.gb-sync{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:175px}
+.gb-action-buttons{display:flex;align-items:center;gap:.35rem;flex:0 0 auto}
+.gb-action-buttons .btn{white-space:nowrap}
+.gb-period-action,.gr-period-action{white-space:nowrap}
+.gb-period-action .dropdown-menu,.gr-period-action .dropdown-menu{min-width:220px}
 .gb-refresh-btn{padding-left:.45rem;padding-right:.45rem}
 #gb-container>.gb-sheet-wrap{border-left:0;border-right:0;border-bottom:0}
 #gb-container>.gb-empty{border:0}
 @media(max-width:991.98px){
  .gb-overview{align-items:flex-start!important}
  .gb-period-action{margin-left:0!important;margin-top:.5rem}
+ .gb-commandbar{display:block!important}
+ .gb-commandbar>.gb-toolbar{width:100%;margin-left:0}
+ .gb-save-tools{margin-top:.55rem}
 }
 @media(max-width:767.98px){
- .gb-commandbar{align-items:stretch!important}
- .gb-commandbar>.gb-toolbar{width:100%}
- .gb-tool-select{flex:1 1 190px;width:auto}
- .gb-save-tools{justify-content:flex-end}
+ .gb-edit-tools{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.45rem}
+ .gb-tool-select{width:100%;min-width:0;max-width:none}
+ .gb-autosave-control{grid-column:1/-1;margin-left:.25rem}
+ .gb-save-tools{display:flex!important;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:nowrap!important}
+ .gb-status-group{flex:1 1 auto;min-width:0}
+ .gb-action-buttons{flex:0 0 auto}
+ .gb-action-buttons .btn span{display:none}
+ .gb-action-buttons .btn{width:34px;height:31px;padding:.25rem}
+ .gb-sync{max-width:130px}
+ .gr-list-actions{width:100%;justify-content:flex-end}
 }
 @media(max-width:575.98px){
- .gb-commandbar .gb-toolbar{display:flex!important;grid-template-columns:none}
- .gb-commandbar #gb-student-filter{width:1%!important;grid-column:auto}
+ .gb-edit-tools{grid-template-columns:1fr}
+ .gb-autosave-control{grid-column:1}
  .gb-inline-kpis{gap:.18rem .55rem}
  .gb-inline-kpis span{font-size:.7rem}
  .gb-period-action{width:100%}
  .gb-period-action .btn{width:100%}
- .gb-save-tools{justify-content:space-between}
- .gb-tool-select{flex-basis:100%}
+ .gb-status-group{display:grid;grid-template-columns:minmax(0,1fr);gap:.15rem}
+ .gb-sync{max-width:100%;font-size:.72rem}
+ .gb-status-group .badge{justify-self:start}
+ .gr-list-actions{align-items:flex-start!important;flex-wrap:wrap}
+ .gr-period-action{margin-bottom:.25rem}
 }
 </style>
 <div class="container-fluid py-4">
@@ -69,7 +89,7 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
   <div class="col-lg-2 col-sm-4 mb-2"><label class="gr-label">Curso</label><select id="gr-course" class="form-control form-control-sm"><option value="">Todos</option></select></div>
   <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gr-bimester" class="form-control form-control-sm"><option value="">Todos</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
   <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Buscar</label><input id="gr-search" class="form-control form-control-sm" placeholder="Título o descripción"></div>
- </div><div class="d-flex flex-wrap justify-content-between align-items-center mt-1"><div class="gr-tabs d-flex flex-wrap" id="gr-tabs"><button class="btn btn-primary btn-sm" data-state="all">Todas</button><button class="btn btn-outline-primary btn-sm" data-state="pending">Pendientes</button><button class="btn btn-outline-primary btn-sm" data-state="partial">En proceso</button><button class="btn btn-outline-primary btn-sm" data-state="complete">Completadas</button><button class="btn btn-outline-primary btn-sm" data-state="locked">Bloqueadas</button><button class="btn btn-outline-primary btn-sm" data-state="annulled">Anuladas</button></div><button class="btn btn-light btn-sm mt-2 mt-md-0" id="gr-clear"><i class="fas fa-eraser mr-1"></i>Limpiar filtros</button></div></div>
+ </div><div class="d-flex flex-wrap justify-content-between align-items-center mt-1"><div class="gr-tabs d-flex flex-wrap" id="gr-tabs"><button class="btn btn-primary btn-sm" data-state="all">Todas</button><button class="btn btn-outline-primary btn-sm" data-state="pending">Pendientes</button><button class="btn btn-outline-primary btn-sm" data-state="partial">En proceso</button><button class="btn btn-outline-primary btn-sm" data-state="complete">Completadas</button><button class="btn btn-outline-primary btn-sm" data-state="locked">Bloqueadas</button><button class="btn btn-outline-primary btn-sm" data-state="annulled">Anuladas</button></div><div class="gr-list-actions d-flex align-items-center mt-2 mt-md-0"><div id="gr-period-action" class="gr-period-action mr-2"></div><button class="btn btn-light btn-sm" id="gr-clear"><i class="fas fa-eraser mr-1"></i>Limpiar filtros</button></div></div></div>
  <div class="card shadow-sm"><div class="card-header bg-white d-flex justify-content-between align-items-center"><strong><i class="fas fa-list text-primary mr-2"></i>Mis evaluaciones</strong><span class="badge badge-light border" id="gr-count">0 registros</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover gr-table mb-0" id="gr-table"><thead class="thead-light"><tr><th>Evaluación</th><th>Curso y aula</th><th>Competencia</th><th>Bimestre</th><th>Avance de notas</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody><tr><td colspan="8" class="gr-empty"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando evaluaciones...</td></tr></tbody></table></div></div></div>
  </div>
  <div id="gr-book-view" style="display:none">
@@ -103,17 +123,15 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
      </div>
      <div id="gb-period-action" class="gb-period-action ml-auto"></div>
     </div>
-    <div class="gb-commandbar px-3 py-2 d-flex flex-wrap align-items-center justify-content-between">
-     <div class="gb-toolbar d-flex flex-wrap align-items-center">
+    <div class="gb-commandbar px-3 py-2 d-flex align-items-center justify-content-between">
+     <div class="gb-toolbar gb-edit-tools d-flex align-items-center">
       <div class="input-group input-group-sm gb-tool-select"><div class="input-group-prepend"><span class="input-group-text" title="Filtrar estudiantes"><i class="fas fa-users"></i></span></div><select id="gb-student-filter" class="form-control"><option value="all">Todos los estudiantes</option><option value="pending">Con notas pendientes</option><option value="complete">Calificación completa</option><option value="low">Con notas bajas</option></select></div>
       <div class="input-group input-group-sm gb-tool-select gb-system-select"><div class="input-group-prepend"><span class="input-group-text" title="Visualización de notas"><i class="fas fa-sort-numeric-down"></i></span></div><select id="gb-system" class="form-control"><option value="numeric">Numéricas</option><option value="letters">Literales</option></select></div>
-      <div class="custom-control custom-switch ml-1"><input type="checkbox" class="custom-control-input" id="gb-autosave"><label class="custom-control-label small" for="gb-autosave">Autoguardado</label></div>
+      <div class="custom-control custom-switch gb-autosave-control"><input type="checkbox" class="custom-control-input" id="gb-autosave"><label class="custom-control-label small" for="gb-autosave">Autoguardado</label></div>
      </div>
-     <div class="gb-toolbar gb-save-tools d-flex flex-wrap align-items-center mt-2 mt-md-0">
-      <span class="gb-sync text-muted" id="gb-sync-state">Sin cambios</span>
-      <span class="badge badge-light border" id="gb-change-count">0 cambios</span>
-      <button class="btn btn-light border btn-sm" id="gb-discard" disabled title="Descartar cambios"><i class="fas fa-undo"></i><span class="d-none d-lg-inline ml-1">Descartar</span></button>
-      <button class="btn btn-primary btn-sm" id="gb-save" disabled title="Guardar cambios"><i class="fas fa-save"></i><span class="d-none d-sm-inline ml-1">Guardar</span></button>
+     <div class="gb-toolbar gb-save-tools d-flex align-items-center">
+      <div class="gb-status-group"><span class="gb-sync text-muted" id="gb-sync-state">Sin cambios</span><span class="badge badge-light border" id="gb-change-count">0 cambios</span></div>
+      <div class="gb-action-buttons"><button class="btn btn-light border btn-sm" id="gb-discard" disabled title="Descartar cambios"><i class="fas fa-undo"></i><span class="ml-1">Descartar</span></button><button class="btn btn-primary btn-sm" id="gb-save" disabled title="Guardar cambios"><i class="fas fa-save"></i><span class="ml-1">Guardar</span></button></div>
      </div>
     </div>
     <div id="gb-container"><div class="gb-empty"><i class="fas fa-table fa-2x d-block mb-2"></i>Selecciona un curso y bimestre para abrir el libro de notas.</div></div>
