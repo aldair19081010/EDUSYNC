@@ -11,49 +11,6 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 .gr-view-switch{background:#eef1f8;border-radius:.45rem;padding:.25rem;display:inline-flex;gap:.2rem}.gr-view-switch .btn{border:0}#gr-book-view{width:100%;max-width:100%;min-width:0;overflow:hidden}#gr-book-view>.card,#gr-book-view>.card>.card-body{width:100%;max-width:100%;min-width:0}#gb-kpis{margin-left:0;margin-right:0}.gb-sheet-wrap{display:block;width:100%;max-width:100%;min-width:0;max-height:66vh;overflow-x:auto;overflow-y:auto;overscroll-behavior-x:contain;contain:inline-size;border:1px solid #e3e6f0;-webkit-overflow-scrolling:touch}.gb-sheet{border-collapse:separate;border-spacing:0;min-width:100%;width:max-content;max-width:none}.gb-sheet th,.gb-sheet td{border-right:1px solid #dfe3eb;border-bottom:1px solid #dfe3eb;padding:.4rem;background:#fff;vertical-align:middle}.gb-sheet thead th{position:sticky;top:0;z-index:4;background:#f1f3f8;min-width:125px}.gb-sheet .gb-number{position:sticky;left:0;z-index:6;min-width:45px;width:45px;text-align:center}.gb-sheet .gb-student-head{position:sticky;left:45px;z-index:6;min-width:260px;max-width:260px}.gb-sheet .gb-student{position:sticky;left:45px;z-index:3;min-width:260px;max-width:260px;background:#fff}.gb-cell{width:78px;min-width:78px;margin:auto;text-align:center;font-weight:700;border:1px solid transparent}.gb-cell.gb-dirty{border-color:#f6c23e;background:#fff8df}.gb-cell.gb-invalid{border-color:#e74a3b;background:#fff1f0}.gb-cell:disabled{background:#f3f4f7;color:#6c757d}.gb-eval-title{display:block;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gb-summary{width:100%;max-width:100%;min-width:0;background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.4rem;padding:.7rem 1rem}.gb-readonly{border-left:4px solid #f6c23e}.gb-empty{padding:3rem;text-align:center;color:#858796}
 .gb-sheet thead tr:first-child th{height:52px;background:#e9eff9;text-align:center;color:#2e3a59}.gb-sheet thead tr:nth-child(2) th{top:52px;background:#f8f9fc;text-align:center}.gb-sheet thead .gb-number,.gb-sheet thead .gb-student-head{background:#fff!important;text-align:left!important}.gb-group-title{font-size:.72rem;text-transform:uppercase;font-weight:800;max-width:260px;display:inline-block;vertical-align:middle;line-height:1.2}.gb-group-percent{display:inline-block;margin-left:.3rem;font-size:.7rem;color:#4e73df;background:#fff;border:1px solid #cfd9eb;border-radius:1rem;padding:.08rem .38rem}.gb-group-head{position:relative;padding-right:28px}.gb-add-eval{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:24px;height:24px;padding:0!important;border-radius:50%}.gb-head-actions{height:20px;white-space:nowrap;margin-top:.15rem;opacity:.25;transition:opacity .15s}.gb-sheet th:hover .gb-head-actions{opacity:1}.gb-head-actions .btn{padding:.02rem .22rem;border:0;background:transparent}.gb-eval-title{font-size:.75rem;font-weight:700}.gb-comp-average,.gb-final-average{font-weight:800;text-align:center;background:#e9eff9!important;min-width:82px}.gb-placeholder{color:#858796;text-align:center;background:#fafafa!important;min-width:105px}.gb-filter-note{font-size:.75rem;color:#858796}.gb-sheet tbody tr:hover .gb-student,.gb-sheet tbody tr:hover td{background:#f8fbff}.gb-cell{border-radius:.25rem}
 .gb-kpi{background:#fff;border:1px solid #e3e6f0;border-radius:.4rem;padding:.55rem .7rem;height:100%}.gb-kpi small{color:#858796}.gb-kpi strong{display:block;color:#2e3a59;font-size:1.05rem}.gb-toolbar{gap:.5rem;min-width:0}.gb-toolbar>*{flex:0 0 auto}.gb-sync{font-size:.75rem}.gb-low{background:#fff1f0!important;color:#b02a37}.gb-pending{background:#fffdf2!important}.gb-history-ready{cursor:pointer}.gb-sheet tbody tr.gb-row-hidden{display:none}@media(max-width:1199.98px){.gb-summary>.d-flex{align-items:flex-start!important}.gb-toolbar{width:100%;margin-top:.65rem!important}.gb-sheet .gb-student-head,.gb-sheet .gb-student{min-width:220px;max-width:220px}}@media(max-width:575.98px){.gb-toolbar{display:grid!important;grid-template-columns:1fr 1fr}.gb-toolbar #gb-student-filter{width:100%!important;grid-column:1/-1}.gb-sheet .gb-student-head,.gb-sheet .gb-student{min-width:185px;max-width:185px}.gb-sheet thead th{min-width:105px}}
-
-/* Libro de notas: una sola superficie de trabajo, sin tarjetas intermedias. */
-.gb-workspace{overflow:hidden}
-.gb-context-strip{background:#fff;border-bottom:1px solid #edf0f5}
-.gb-context-strip .form-control,.gb-context-strip .btn{height:31px}
-.gb-overview{background:#fff;min-height:64px;border-bottom:1px solid #edf0f5}
-.gb-overview-main{min-width:0}
-.gb-overview-main>#gb-context{color:#2e3a59}
-.gb-inline-kpis{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem .85rem;margin-top:.28rem}
-.gb-inline-kpis span{font-size:.75rem;color:#858796;white-space:nowrap}
-.gb-inline-kpis i{font-size:.68rem;color:#4e73df;margin-right:.25rem}
-.gb-inline-kpis strong{color:#5a5c69}
-.gb-inline-kpis .gb-kpi-pending-inline strong{color:#b07d00}
-.gb-commandbar{background:#f8f9fc;border-bottom:1px solid #e3e6f0}
-.gb-tool-select{width:auto;min-width:195px}
-.gb-system-select{min-width:145px}
-.gb-tool-select .input-group-text{background:#fff;color:#4e73df;border-color:#d1d3e2}
-.gb-tool-select .form-control{width:auto;min-width:0}
-.gb-period-action{white-space:nowrap}
-.gb-period-action .dropdown-menu{min-width:220px}
-.gb-refresh-btn{padding-left:.45rem;padding-right:.45rem}
-#gb-container>.gb-sheet-wrap{border-left:0;border-right:0;border-bottom:0}
-#gb-container>.gb-empty{border:0}
-@media(max-width:991.98px){
- .gb-overview{align-items:flex-start!important}
- .gb-period-action{margin-left:0!important;margin-top:.5rem}
-}
-@media(max-width:767.98px){
- .gb-commandbar{align-items:stretch!important}
- .gb-commandbar>.gb-toolbar{width:100%}
- .gb-tool-select{flex:1 1 190px;width:auto}
- .gb-save-tools{justify-content:flex-end}
-}
-@media(max-width:575.98px){
- .gb-commandbar .gb-toolbar{display:flex!important;grid-template-columns:none}
- .gb-commandbar #gb-student-filter{width:1%!important;grid-column:auto}
- .gb-inline-kpis{gap:.18rem .55rem}
- .gb-inline-kpis span{font-size:.7rem}
- .gb-period-action{width:100%}
- .gb-period-action .btn{width:100%}
- .gb-save-tools{justify-content:space-between}
- .gb-tool-select{flex-basis:100%}
-}
 </style>
 <div class="container-fluid py-4">
  <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i>Evaluaciones y notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="mt-3 mt-md-0"><a href="index.php?page=my_courses" class="btn btn-light btn-sm mr-1"><i class="fas fa-book mr-1"></i>Mis cursos</a><button class="btn btn-primary btn-sm" id="gr-new"><i class="fas fa-plus mr-1"></i>Nueva evaluación</button></div></div>
@@ -73,52 +30,20 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  <div class="card shadow-sm"><div class="card-header bg-white d-flex justify-content-between align-items-center"><strong><i class="fas fa-list text-primary mr-2"></i>Mis evaluaciones</strong><span class="badge badge-light border" id="gr-count">0 registros</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover gr-table mb-0" id="gr-table"><thead class="thead-light"><tr><th>Evaluación</th><th>Curso y aula</th><th>Competencia</th><th>Bimestre</th><th>Avance de notas</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody><tr><td colspan="8" class="gr-empty"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando evaluaciones...</td></tr></tbody></table></div></div></div>
  </div>
  <div id="gr-book-view" style="display:none">
-  <div class="card shadow-sm gb-workspace">
-   <div class="card-body p-0">
-    <div class="gb-context-strip px-3 pt-3 pb-2">
-     <div class="row align-items-end">
+  <div class="gr-filter p-3 mb-3"><div class="row align-items-end">
    <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Año académico</label><select id="gb-year" class="form-control form-control-sm"><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo(int)$y['id']===$activeYear?'selected':''; ?>><?php echo htmlspecialchars($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
-   <div class="col-xl-3 col-md-4 col-sm-6 mb-2"><label class="gr-label">Curso</label><select id="gb-course" class="form-control form-control-sm"><option value="">Selecciona</option></select></div>
+   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Curso</label><select id="gb-course" class="form-control form-control-sm"><option value="">Selecciona</option></select></div>
    <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Nivel</label><select id="gb-level" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
    <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label">Grado</label><select id="gb-grade" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
    <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label">Sección</label><select id="gb-section" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
-   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gb-bimester" class="form-control form-control-sm"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
-      <div class="col-xl-1 col-md-2 col-sm-6 mb-2"><label class="gr-label d-none d-md-block">&nbsp;</label><button class="btn btn-light border btn-sm gb-refresh-btn w-100" id="gb-load" title="Actualizar planilla"><i class="fas fa-sync-alt"></i><span class="d-xl-none ml-1">Actualizar</span></button></div>
-     </div>
-     <input type="hidden" id="gb-assignment" value="">
-    </div>
-    <div id="gb-readonly-banner" class="alert alert-warning gb-readonly mx-3 mb-2" style="display:none"><i class="fas fa-lock mr-2"></i><span></span></div>
-    <div id="gb-weight-warning" class="alert alert-danger mx-3 mb-2" style="display:none"><i class="fas fa-exclamation-triangle mr-2"></i><strong>Configuración de competencias incompleta.</strong> <span></span></div>
-    <div class="gb-overview px-3 py-2 d-flex flex-wrap align-items-center justify-content-between">
-     <div class="gb-overview-main mr-3">
-      <strong id="gb-context">Selecciona un curso y bimestre</strong>
-      <div class="small text-muted" id="gb-help">Podrás escribir directamente o pegar datos desde Excel.</div>
-      <div class="gb-inline-kpis" id="gb-kpis" style="display:none">
-       <span><i class="fas fa-users"></i><strong id="gb-kpi-students">0</strong> estudiantes</span>
-       <span><i class="fas fa-clipboard-list"></i><strong id="gb-kpi-evaluations">0</strong> evaluaciones</span>
-       <span class="gb-kpi-pending-inline"><i class="fas fa-hourglass-half"></i><strong id="gb-kpi-pending">0</strong> pendientes</span>
-       <span><i class="fas fa-chart-line"></i><strong id="gb-kpi-progress">0%</strong> avance</span>
-       <span><i class="fas fa-star"></i>Prom. <strong id="gb-kpi-average">—</strong></span>
-      </div>
-     </div>
-     <div id="gb-period-action" class="gb-period-action ml-auto"></div>
-    </div>
-    <div class="gb-commandbar px-3 py-2 d-flex flex-wrap align-items-center justify-content-between">
-     <div class="gb-toolbar d-flex flex-wrap align-items-center">
-      <div class="input-group input-group-sm gb-tool-select"><div class="input-group-prepend"><span class="input-group-text" title="Filtrar estudiantes"><i class="fas fa-users"></i></span></div><select id="gb-student-filter" class="form-control"><option value="all">Todos los estudiantes</option><option value="pending">Con notas pendientes</option><option value="complete">Calificación completa</option><option value="low">Con notas bajas</option></select></div>
-      <div class="input-group input-group-sm gb-tool-select gb-system-select"><div class="input-group-prepend"><span class="input-group-text" title="Visualización de notas"><i class="fas fa-sort-numeric-down"></i></span></div><select id="gb-system" class="form-control"><option value="numeric">Numéricas</option><option value="letters">Literales</option></select></div>
-      <div class="custom-control custom-switch ml-1"><input type="checkbox" class="custom-control-input" id="gb-autosave"><label class="custom-control-label small" for="gb-autosave">Autoguardado</label></div>
-     </div>
-     <div class="gb-toolbar gb-save-tools d-flex flex-wrap align-items-center mt-2 mt-md-0">
-      <span class="gb-sync text-muted" id="gb-sync-state">Sin cambios</span>
-      <span class="badge badge-light border" id="gb-change-count">0 cambios</span>
-      <button class="btn btn-light border btn-sm" id="gb-discard" disabled title="Descartar cambios"><i class="fas fa-undo"></i><span class="d-none d-lg-inline ml-1">Descartar</span></button>
-      <button class="btn btn-primary btn-sm" id="gb-save" disabled title="Guardar cambios"><i class="fas fa-save"></i><span class="d-none d-sm-inline ml-1">Guardar</span></button>
-     </div>
-    </div>
-    <div id="gb-container"><div class="gb-empty"><i class="fas fa-table fa-2x d-block mb-2"></i>Selecciona un curso y bimestre para abrir el libro de notas.</div></div>
-   </div>
-  </div>
+   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gb-bimester" class="form-control form-control-sm"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
+   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label">Visualización</label><select id="gb-system" class="form-control form-control-sm"><option value="numeric">Notas numéricas</option><option value="letters">Notas literales</option></select></div>
+  </div><input type="hidden" id="gb-assignment" value=""><div class="d-flex justify-content-between align-items-center mt-1"><small class="gb-filter-note"><i class="fas fa-info-circle mr-1"></i>Los filtros se habilitan según las asignaciones del docente.</small><button class="btn btn-outline-primary btn-sm" id="gb-load"><i class="fas fa-sync-alt mr-1"></i>Actualizar planilla</button></div></div>
+  <div id="gb-readonly-banner" class="alert alert-warning gb-readonly" style="display:none"><i class="fas fa-lock mr-2"></i><span></span></div>
+  <div id="gb-weight-warning" class="alert alert-danger" style="display:none"><i class="fas fa-exclamation-triangle mr-2"></i><strong>Configuración de competencias incompleta.</strong> <span></span></div>
+  <div class="row mb-2" id="gb-kpis" style="display:none"><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Estudiantes</small><strong id="gb-kpi-students">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Evaluaciones</small><strong id="gb-kpi-evaluations">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Notas pendientes</small><strong id="gb-kpi-pending">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Avance</small><strong id="gb-kpi-progress">0%</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Promedio del aula</small><strong id="gb-kpi-average">—</strong></div></div></div>
+  <div class="gb-summary mb-2"><div class="d-flex flex-wrap justify-content-between align-items-center"><div><strong id="gb-context">Selecciona un curso y bimestre</strong><br><small class="text-muted" id="gb-help">Podrás escribir directamente o pegar datos desde Excel.</small></div><div class="gb-toolbar d-flex flex-wrap align-items-center mt-2 mt-md-0"><select id="gb-student-filter" class="form-control form-control-sm" style="width:auto"><option value="all">Todos los estudiantes</option><option value="pending">Con notas pendientes</option><option value="complete">Calificación completa</option><option value="low">Con notas bajas</option></select><div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="gb-autosave"><label class="custom-control-label small" for="gb-autosave">Autoguardado</label></div><span class="gb-sync text-muted" id="gb-sync-state">Sin cambios</span><span class="badge badge-light border" id="gb-change-count">0 cambios</span><button class="btn btn-outline-secondary btn-sm" id="gb-discard" disabled><i class="fas fa-undo mr-1"></i>Descartar</button><button class="btn btn-primary btn-sm" id="gb-save" disabled><i class="fas fa-save mr-1"></i>Guardar</button></div></div></div>
+  <div class="card shadow-sm"><div class="card-body p-0" id="gb-container"><div class="gb-empty"><i class="fas fa-table fa-2x d-block mb-2"></i>Selecciona un curso y bimestre para abrir el libro de notas.</div></div></div>
  </div>
 </div>
 <script>
@@ -164,7 +89,7 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  function numericGrade(value){value=normalizeGrade(value);if(value==='')return null;if(!isNaN(Number(value)))return Number(value);return{C:5,B:12,A:15.5,AD:19}[value]??null}function calculatedGrade(value){if(value==null)return'—';if($('#gb-system').val()==='letters'){if(value>=18)return'AD';if(value>=14)return'A';if(value>=11)return'B';return'C'}return String(Math.round(value))}
  function updateRowAverage(row){let weighted=0,hasWeight=false;gradebookGroups().forEach(g=>{let values=[];row.find('.gb-cell[data-competency="'+g.id+'"][data-annulled="0"]').each(function(){let value=numericGrade(this.value);if(value!=null)values.push(value)});let average=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;row.find('[data-average-comp="'+g.id+'"]').text(calculatedGrade(average));if(average!=null&&g.percentage>0){weighted+=average*(g.percentage/100);hasWeight=true}});row.find('.gb-final-average').text(calculatedGrade(hasWeight?weighted:null)).attr('data-numeric',hasWeight?weighted:'')}
  function updateAllAverages(){$('.gb-sheet tbody tr').each(function(){updateRowAverage($(this))})}
- function updateGradebookSummary(){let cells=$('.gb-cell[data-annulled="0"]'),pending=0;cells.each(function(){let empty=normalizeGrade(this.value)==='',low=!empty&&numericGrade(this.value)<=10;pending+=empty?1:0;$(this).toggleClass('gb-pending',empty).toggleClass('gb-low',low).toggleClass('gb-history-ready',!!(gradebook&&gradebook.history_ready))});let total=cells.length,done=total-pending,averages=[];$('.gb-final-average[data-numeric]').each(function(){let value=$(this).attr('data-numeric');if(value!=='')averages.push(Number(value))});$('#gb-kpis').css('display','flex');$('#gb-kpi-students').text((gradebook&&gradebook.students||[]).length);$('#gb-kpi-evaluations').text((gradebook&&gradebook.evaluations||[]).filter(e=>!e.annulled).length);$('#gb-kpi-pending').text(pending);$('#gb-kpi-progress').text(total?Math.round(done/total*100)+'%':'0%');$('#gb-kpi-average').text(averages.length?calculatedGrade(averages.reduce((a,b)=>a+b,0)/averages.length):'—')}
+ function updateGradebookSummary(){let cells=$('.gb-cell[data-annulled="0"]'),pending=0;cells.each(function(){let empty=normalizeGrade(this.value)==='',low=!empty&&numericGrade(this.value)<=10;pending+=empty?1:0;$(this).toggleClass('gb-pending',empty).toggleClass('gb-low',low).toggleClass('gb-history-ready',!!(gradebook&&gradebook.history_ready))});let total=cells.length,done=total-pending,averages=[];$('.gb-final-average[data-numeric]').each(function(){let value=$(this).attr('data-numeric');if(value!=='')averages.push(Number(value))});$('#gb-kpis').show();$('#gb-kpi-students').text((gradebook&&gradebook.students||[]).length);$('#gb-kpi-evaluations').text((gradebook&&gradebook.evaluations||[]).filter(e=>!e.annulled).length);$('#gb-kpi-pending').text(pending);$('#gb-kpi-progress').text(total?Math.round(done/total*100)+'%':'0%');$('#gb-kpi-average').text(averages.length?calculatedGrade(averages.reduce((a,b)=>a+b,0)/averages.length):'—')}
  function rowGradeState(row){let cells=row.find('.gb-cell[data-annulled="0"]'),pending=false,low=false;cells.each(function(){let value=normalizeGrade(this.value);if(value==='')pending=true;else if(numericGrade(value)<=10)low=true});return{pending:pending,complete:cells.length>0&&!pending,low:low}}
  function applyStudentFilter(){let filter=$('#gb-student-filter').val()||'all';$('.gb-sheet tbody tr').each(function(){let status=rowGradeState($(this)),visible=filter==='all'||!!status[filter];$(this).toggleClass('gb-row-hidden',!visible)})}
  $('#gb-student-filter').on('change',applyStudentFilter);
