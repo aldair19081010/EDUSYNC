@@ -77,168 +77,257 @@ if (!$tableReady || $tableReady->num_rows === 0) {
 $cancelCol = $conn->query("SHOW COLUMNS FROM asistencia LIKE 'is_cancelled'");
 $cancelFilter = $cancelCol && $cancelCol->num_rows > 0 ? ' AND a.is_cancelled=0' : '';
 
-if ($action === 'student_history') {
-    $studentId = (int)($_POST['student_id'] ?? 0);
-    $bimester = (int)($_POST['bimester'] ?? 0);
-    if ($studentId <= 0 || $bimester < 1 || $bimester > 4) {
+if ($action === 'history') {
+    $year = (int)($_POST['year'] ?? date('Y'));
+    $month = (int)($_POST['month'] ?? date('n'));
+    if ($year < 2020 || $year > 2100 || $month < 1 || $month > 12) {
         tam_reply([
-            'status' => 'error',
-            'message' => 'Selecciona un estudiante y bimestre válidos.'
-        ], 422);
+            'status'=>'error',
+            'message'=>'Selecciona un mes y año válidos.'
+        ],422);
     }
+
+    $fromObj = DateTimeImmutable::createFromFormat(
+        '!Y-n-j',
+        $year.'-'.$month.'-1'
+    );
+    if (!$fromObj) {
+        tam_reply(['status'=>'error','message'=>'Periodo no válido.'],422);
+    }
+    $from = $fromObj->format('Y-m-d');
+    $to = $fromObj->modify('last day of this month')->format('Y-m-d');
 
     $level = (string)$assignment['level'];
     $grade = (string)$assignment['grado'];
     $section = (string)$assignment['seccion'];
 
-    $studentStmt = $conn->prepare(
-        "SELECT id,id_no,name
-         FROM student
-         WHERE id=? AND school_id=? AND status='Activo'
-           AND nivel=? AND grado=?
-           AND COALESCE(NULLIF(seccion,''),'U')=?
-         LIMIT 1"
+    $yearsSql =
+        "SELECT DISTINCT YEAR(a.fecha) attendance_year
+         FROM asistencia a
+         INNER JOIN student st ON st.id=a.student_id
+         WHERE a.school_id=? AND a.tipo='Entrada'$cancelFilter
+           AND st.school_id=? AND st.status='Activo'
+           AND st.nivel=? AND st.grado=?
+           AND COALESCE(NULLIF(st.seccion,''),'U')=?
+         ORDER BY attendance_year DESC";
+    $yearsStmt = $conn->prepare($yearsSql);
+    if (!$yearsStmt) {
+        tam_reply(['status'=>'error','message'=>'No se pudieron consultar los años de asistencia.'],500);
+    }
+    $yearsStmt->bind_param(
+        'iisss',
+        $school,
+        $school,
+        $level,
+        $grade,
+        $section
     );
-    if (!$studentStmt) {
-        tam_reply(['status'=>'error','message'=>'No se pudo validar al estudiante.'],500);
+    $yearsStmt->execute();
+    $availableYears = [];
+    $yearsResult = $yearsStmt->get_result();
+    while ($yearRow = $yearsResult->fetch_assoc()) {
+        $value = (int)($yearRow['attendance_year'] ?? 0);
+        if ($value > 0) $availableYears[] = $value;
     }
-    $studentStmt->bind_param('iisss', $studentId, $school, $level, $grade, $section);
-    $studentStmt->execute();
-    $student = $studentStmt->get_result()->fetch_assoc();
-    $studentStmt->close();
-    if (!$student) {
-        tam_reply([
-            'status'=>'error',
-            'message'=>'Este estudiante no pertenece al aula asignada al docente.'
-        ],403);
-    }
-
-    $periodTable = $conn->query("SHOW TABLES LIKE 'academic_periods'");
-    if (!$periodTable || $periodTable->num_rows === 0) {
-        tam_reply([
-            'status'=>'ok',
-            'available'=>false,
-            'message'=>'El colegio todavía no ha configurado las fechas de los bimestres.',
-            'summary'=>[
-                'marks'=>0,'present'=>0,'late'=>0,'absent'=>0,
-                'justified'=>0,'permission'=>0,'attendance_rate'=>0
-            ],
-            'records'=>[]
-        ]);
-    }
-
-    $periodStmt = $conn->prepare(
-        "SELECT name,start_date,end_date
-         FROM academic_periods
-         WHERE school_id=? AND academic_year_id=? AND period_number=?
-         LIMIT 1"
-    );
-    if (!$periodStmt) {
-        tam_reply(['status'=>'error','message'=>'No se pudo consultar el periodo académico.'],500);
-    }
-    $academicYearId = (int)$assignment['academic_year_id'];
-    $periodStmt->bind_param('iii', $school, $academicYearId, $bimester);
-    $periodStmt->execute();
-    $period = $periodStmt->get_result()->fetch_assoc();
-    $periodStmt->close();
-
-    $from = trim((string)($period['start_date'] ?? ''));
-    $to = trim((string)($period['end_date'] ?? ''));
-    if (!$period || $from === '' || $to === '') {
-        tam_reply([
-            'status'=>'ok',
-            'available'=>false,
-            'message'=>'Las fechas de este bimestre aún no están configuradas.',
-            'period'=>[
-                'bimester'=>$bimester,
-                'name'=>(string)($period['name'] ?? ($bimester.'° Bimestre')),
-                'start_date'=>$from,
-                'end_date'=>$to
-            ],
-            'summary'=>[
-                'marks'=>0,'present'=>0,'late'=>0,'absent'=>0,
-                'justified'=>0,'permission'=>0,'attendance_rate'=>0
-            ],
-            'records'=>[]
-        ]);
+    $yearsStmt->close();
+    if (!in_array($year, $availableYears, true)) {
+        $availableYears[] = $year;
+        rsort($availableYears);
     }
 
     $historySql =
-        "SELECT a.fecha,a.hora,a.estado
-         FROM asistencia a
-         WHERE a.school_id=? AND a.student_id=? AND a.tipo='Entrada'
-           AND a.fecha BETWEEN ? AND ?$cancelFilter
-         ORDER BY a.fecha DESC,a.hora DESC";
+        "SELECT st.id,st.id_no,st.name,
+                a.fecha,a.hora,a.estado
+         FROM student st
+         LEFT JOIN asistencia a
+           ON a.student_id=st.id
+          AND a.school_id=?
+          AND a.tipo='Entrada'
+          AND a.fecha BETWEEN ? AND ?$cancelFilter
+         WHERE st.school_id=? AND st.status='Activo'
+           AND st.nivel=? AND st.grado=?
+           AND COALESCE(NULLIF(st.seccion,''),'U')=?
+         ORDER BY st.name,a.fecha DESC,a.hora DESC";
     $historyStmt = $conn->prepare($historySql);
     if (!$historyStmt) {
-        tam_reply(['status'=>'error','message'=>'No se pudo consultar la asistencia del estudiante.'],500);
+        tam_reply(['status'=>'error','message'=>'No se pudo consultar el historial de asistencia.'],500);
     }
-    $historyStmt->bind_param('iiss', $school, $studentId, $from, $to);
+    $historyStmt->bind_param(
+        'ississs',
+        $school,
+        $from,
+        $to,
+        $school,
+        $level,
+        $grade,
+        $section
+    );
     $historyStmt->execute();
 
+    $students = [];
+    $daily = [];
     $records = [];
     $summary = [
-        'marks'=>0,'present'=>0,'late'=>0,'absent'=>0,
-        'justified'=>0,'permission'=>0,'attendance_rate'=>0
+        'marks'=>0,
+        'present'=>0,
+        'late'=>0,
+        'attended'=>0,
+        'absent'=>0,
+        'justified'=>0,
+        'permission'=>0,
+        'attendance_rate'=>0
     ];
-    $seenDates = [];
+    $seenStudentDays = [];
+
     $historyResult = $historyStmt->get_result();
     while ($row = $historyResult->fetch_assoc()) {
-        $day = (string)$row['fecha'];
-        if (isset($seenDates[$day])) continue;
-        $seenDates[$day] = true;
+        $studentId = (int)$row['id'];
+        if (!isset($students[$studentId])) {
+            $students[$studentId] = [
+                'id'=>$studentId,
+                'dni'=>(string)$row['id_no'],
+                'name'=>(string)$row['name'],
+                'marks'=>0,
+                'present'=>0,
+                'late'=>0,
+                'attended'=>0,
+                'absent'=>0,
+                'justified'=>0,
+                'permission'=>0,
+                'attendance_rate'=>0,
+                'last_date'=>'',
+                'last_time'=>'',
+                'last_status'=>''
+            ];
+        }
+
+        $day = trim((string)($row['fecha'] ?? ''));
+        if ($day === '') continue;
+
+        $key = $studentId.'|'.$day;
+        if (isset($seenStudentDays[$key])) continue;
+        $seenStudentDays[$key] = true;
 
         $status = trim((string)($row['estado'] ?? ''));
         if (in_array($status, ['Normal','Temprano'], true)) {
             $status = 'Presente';
         }
+        $time = substr((string)($row['hora'] ?? ''),0,5);
 
         $summary['marks']++;
+        $students[$studentId]['marks']++;
+
         if ($status === 'Tarde') {
             $summary['late']++;
-            $summary['present']++;
+            $summary['attended']++;
+            $students[$studentId]['late']++;
+            $students[$studentId]['attended']++;
         } elseif ($status === 'Ausente') {
             $summary['absent']++;
+            $students[$studentId]['absent']++;
         } elseif ($status === 'Ausente Justificada') {
             $summary['justified']++;
+            $students[$studentId]['justified']++;
         } elseif ($status === 'Permiso') {
             $summary['permission']++;
+            $students[$studentId]['permission']++;
         } elseif ($status !== '') {
             $summary['present']++;
+            $summary['attended']++;
+            $students[$studentId]['present']++;
+            $students[$studentId]['attended']++;
         }
 
-        if (count($records) < 20) {
-            $records[] = [
+        if ($students[$studentId]['last_date'] === '') {
+            $students[$studentId]['last_date'] = $day;
+            $students[$studentId]['last_time'] = $time;
+            $students[$studentId]['last_status'] = $status;
+        }
+
+        if (!isset($daily[$day])) {
+            $daily[$day] = [
                 'date'=>$day,
-                'time'=>substr((string)($row['hora'] ?? ''),0,5),
-                'status'=>$status
+                'marked'=>0,
+                'present'=>0,
+                'late'=>0,
+                'attended'=>0,
+                'absent'=>0,
+                'justified'=>0,
+                'permission'=>0,
+                'attendance_rate'=>0
             ];
         }
+        $daily[$day]['marked']++;
+
+        if ($status === 'Tarde') {
+            $daily[$day]['late']++;
+            $daily[$day]['attended']++;
+        } elseif ($status === 'Ausente') {
+            $daily[$day]['absent']++;
+        } elseif ($status === 'Ausente Justificada') {
+            $daily[$day]['justified']++;
+        } elseif ($status === 'Permiso') {
+            $daily[$day]['permission']++;
+        } elseif ($status !== '') {
+            $daily[$day]['present']++;
+            $daily[$day]['attended']++;
+        }
+
+        $records[] = [
+            'student_id'=>$studentId,
+            'dni'=>(string)$row['id_no'],
+            'name'=>(string)$row['name'],
+            'date'=>$day,
+            'time'=>$time,
+            'status'=>$status
+        ];
     }
     $historyStmt->close();
 
+    foreach ($students as &$studentRow) {
+        if ($studentRow['marks'] > 0) {
+            $studentRow['attendance_rate'] = round(
+                ($studentRow['attended'] / $studentRow['marks']) * 100,
+                1
+            );
+        }
+    }
+    unset($studentRow);
+
+    foreach ($daily as &$dailyRow) {
+        if ($dailyRow['marked'] > 0) {
+            $dailyRow['attendance_rate'] = round(
+                ($dailyRow['attended'] / $dailyRow['marked']) * 100,
+                1
+            );
+        }
+    }
+    unset($dailyRow);
+
     if ($summary['marks'] > 0) {
         $summary['attendance_rate'] = round(
-            ($summary['present'] / $summary['marks']) * 100,
+            ($summary['attended'] / $summary['marks']) * 100,
             1
         );
     }
 
+    uasort($students, function($a,$b) {
+        return strcasecmp((string)$a['name'], (string)$b['name']);
+    });
+    krsort($daily);
+
     tam_reply([
         'status'=>'ok',
         'available'=>true,
-        'student'=>[
-            'id'=>(int)$student['id'],
-            'dni'=>(string)$student['id_no'],
-            'name'=>(string)$student['name']
-        ],
-        'period'=>[
-            'bimester'=>$bimester,
-            'name'=>(string)($period['name'] ?? ($bimester.'° Bimestre')),
-            'start_date'=>$from,
-            'end_date'=>$to
-        ],
+        'year'=>$year,
+        'month'=>$month,
+        'date_from'=>$from,
+        'date_to'=>$to,
+        'available_years'=>array_values($availableYears),
+        'course'=>$assignment,
         'summary'=>$summary,
+        'students'=>array_values($students),
+        'days'=>array_values($daily),
         'records'=>$records,
         'read_only'=>true
     ]);
