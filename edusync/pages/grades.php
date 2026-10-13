@@ -45,6 +45,8 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  .gb-save-tools{justify-content:flex-end}
 }
 @media(max-width:575.98px){
+ .gb-commandbar .gb-toolbar{display:flex!important;grid-template-columns:none}
+ .gb-commandbar #gb-student-filter{width:1%!important;grid-column:auto}
  .gb-inline-kpis{gap:.18rem .55rem}
  .gb-inline-kpis span{font-size:.7rem}
  .gb-period-action{width:100%}
