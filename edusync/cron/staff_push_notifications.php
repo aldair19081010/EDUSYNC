@@ -28,13 +28,17 @@ if ((int)($lock['held']??0)!==1) { echo "Another dispatcher is running.\n"; exit
 try {
     // Only messages created after registration, and only the logged-in user's
     // own messages or role-wide messages within the SAME school.
+    $userActive=push_column_exists($conn,'users','status') ? " AND u.status='Activo'" : '';
     $sql="SELECT n.id event_id,n.school_id,n.notification_type,n.title,n.message,n.source_type,n.source_id,
                  d.id token_id,d.user_id,d.fcm_token,d.role_type,
                  COALESCE(del.attempts,0) attempts
         FROM notification_events n
         JOIN staff_device_tokens d ON d.school_id=n.school_id AND d.is_active=1 AND n.created_at >= d.created_at
+        JOIN users u ON u.id=d.user_id AND u.school_id=d.school_id AND u.type=d.role_type
+        LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id
         LEFT JOIN staff_push_delivery del ON del.notification_event_id=n.id AND del.device_token_id=d.id
-        WHERE n.created_at >= DATE_SUB(NOW(),INTERVAL 7 DAY)
+        WHERE n.created_at >= DATE_SUB(NOW(),INTERVAL 7 DAY)".$userActive."
+          AND (d.role_type<>2 OR t.status='Activo')
           AND (n.recipient_user_id=d.user_id OR (
              n.recipient_user_id IS NULL AND n.recipient_role=CASE d.role_type
                WHEN 1 THEN 'Administrador' WHEN 2 THEN 'Docente' WHEN 3 THEN 'Auxiliar' ELSE '' END
