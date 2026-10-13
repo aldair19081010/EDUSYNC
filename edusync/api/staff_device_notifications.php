@@ -95,6 +95,13 @@ try {
         if (!$stmt->execute()) throw new RuntimeException($stmt->error);
         $stmt->close();
     }
+    // A shared phone must not continue receiving student notifications.
+    if (spd_table($conn,'student_device_tokens')) {
+        $stmt=$conn->prepare('UPDATE student_device_tokens SET is_active=0,last_seen_at=NOW() WHERE token_hash=? OR device_id=?');
+        $stmt->bind_param('ss',$hash,$deviceId);
+        if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+        $stmt->close();
+    }
     $conn->commit();
     spd_reply(['status'=>'ok','message'=>'Dispositivo vinculado a la cuenta actual.']);
 } catch (Throwable $e) {
