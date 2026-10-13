@@ -48,7 +48,7 @@ $action = (string)($_GET['action'] ?? $_POST['action'] ?? 'load');
 if ($action === 'contexts') {
     $yearId = (int)($_GET['academic_year_id'] ?? 0);
     $whereYear = $yearId > 0 ? " AND tc.academic_year_id = $yearId" : '';
-    $sql = "SELECT tc.id,tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ay.year,ay.is_active
+    $sql = "SELECT tc.id,tc.course_id,tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ay.year,ay.is_active
             FROM teacher_courses tc
             INNER JOIN academic_courses ac ON ac.id=tc.course_id
             INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id
@@ -59,6 +59,7 @@ if ($action === 'contexts') {
     while ($result && ($row = $result->fetch_assoc())) {
         $rows[] = [
             'id' => (int)$row['id'],
+            'course_id' => (int)$row['course_id'],
             'academic_year_id' => (int)$row['academic_year_id'],
             'year' => $row['year'],
             'is_active' => (int)$row['is_active'],
