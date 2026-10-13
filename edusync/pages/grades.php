@@ -13,73 +13,36 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 .gb-kpi{background:#fff;border:1px solid #e3e6f0;border-radius:.4rem;padding:.55rem .7rem;height:100%}.gb-kpi small{color:#858796}.gb-kpi strong{display:block;color:#2e3a59;font-size:1.05rem}.gb-toolbar{gap:.5rem;min-width:0}.gb-toolbar>*{flex:0 0 auto}.gb-sync{font-size:.75rem}.gb-low{background:#fff1f0!important;color:#b02a37}.gb-pending{background:#fffdf2!important}.gb-history-ready{cursor:pointer}.gb-sheet tbody tr.gb-row-hidden{display:none}@media(max-width:1199.98px){.gb-summary>.d-flex{align-items:flex-start!important}.gb-toolbar{width:100%;margin-top:.65rem!important}.gb-sheet .gb-student-head,.gb-sheet .gb-student{min-width:220px;max-width:220px}}@media(max-width:575.98px){.gb-toolbar{display:grid!important;grid-template-columns:1fr 1fr}.gb-toolbar #gb-student-filter{width:100%!important;grid-column:1/-1}.gb-sheet .gb-student-head,.gb-sheet .gb-student{min-width:185px;max-width:185px}.gb-sheet thead th{min-width:105px}}
 </style>
 <div class="container-fluid py-4">
- <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i>Evaluaciones y notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p><div class="mt-2"><div class="gr-view-switch"><button class="btn btn-primary btn-sm" id="gr-show-list"><i class="fas fa-list mr-1"></i>Lista de evaluaciones</button><button class="btn btn-light btn-sm" id="gr-show-book"><i class="fas fa-table mr-1"></i>Libro de notas</button></div></div></div><div class="mt-3 mt-md-0"><a href="index.php?page=my_courses" class="btn btn-light btn-sm mr-1"><i class="fas fa-book mr-1"></i>Mis cursos</a><button class="btn btn-primary btn-sm" id="gr-new"><i class="fas fa-plus mr-1"></i>Nueva evaluación</button></div></div>
+ <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i>Evaluaciones y notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="mt-3 mt-md-0"><a href="index.php?page=my_courses" class="btn btn-light btn-sm mr-1"><i class="fas fa-book mr-1"></i>Mis cursos</a><button class="btn btn-primary btn-sm" id="gr-new"><i class="fas fa-plus mr-1"></i>Nueva evaluación</button></div></div>
  <?php if(!$migrationReady): ?><div class="alert alert-warning gr-migration"><i class="fas fa-database mr-2"></i>Para habilitar anulación y auditoría histórica, ejecuta manualmente <strong>sql/grades_module_upgrade.sql</strong>. El listado y registro de notas continúan disponibles.</div><?php endif; ?>
-
+ <div class="d-flex justify-content-center mb-3"><div class="gr-view-switch"><button class="btn btn-primary btn-sm" id="gr-show-list"><i class="fas fa-list mr-1"></i>Lista de evaluaciones</button><button class="btn btn-light btn-sm" id="gr-show-book"><i class="fas fa-table mr-1"></i>Libro de notas</button></div></div>
  <div id="gr-list-view">
-
-<div class="gr-filter p-3 mb-3">
- <div class="row align-items-end">
+ <div class="row mb-3"><?php foreach([['Total','total','fa-clipboard-list'],['Pendientes','pending','fa-hourglass-start'],['En proceso','partial','fa-spinner'],['Completadas','complete','fa-check-circle']]as$s): ?><div class="col-6 col-xl-3 mb-2"><div class="gr-stat d-flex align-items-center"><i class="fas <?php echo$s[2]; ?> fa-lg mr-3"></i><div><small class="text-muted"><?php echo$s[0]; ?></small><div class="h5 mb-0 font-weight-bold text-gray-800" data-summary="<?php echo$s[1]; ?>">0</div></div></div></div><?php endforeach; ?></div>
+ <div class="gr-filter p-3 mb-3"><div class="row align-items-end">
   <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Año académico</label><select id="gr-year" class="form-control form-control-sm"><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo(int)$y['id']===$activeYear?'selected':''; ?>><?php echo htmlspecialchars($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
-  <div class="col-lg-3 col-sm-6 mb-2"><label class="gr-label">Curso</label><select id="gr-course" class="form-control form-control-sm"><option value="">Todos</option></select></div>
   <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Nivel</label><select id="gr-level" class="form-control form-control-sm"><option value="">Todos</option></select></div>
   <div class="col-lg-1 col-sm-4 mb-2"><label class="gr-label">Grado</label><select id="gr-grade" class="form-control form-control-sm"><option value="">Todos</option></select></div>
   <div class="col-lg-1 col-sm-4 mb-2"><label class="gr-label">Sección</label><select id="gr-section" class="form-control form-control-sm"><option value="">Todas</option></select></div>
-  <div class="col-lg-3 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gr-bimester" class="form-control form-control-sm"><option value="">Todos</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
- </div>
- <div class="row align-items-end mt-1">
-  <div class="col-lg-3 col-sm-6 mb-2"><label class="gr-label">Buscar</label><input id="gr-search" class="form-control form-control-sm" placeholder="Título o descripción"></div>
-  <div class="col-lg-9 col-sm-12 mb-2">
-   <div class="d-flex flex-wrap justify-content-lg-end align-items-center"><div class="gr-tabs d-flex flex-wrap" id="gr-tabs"><button class="btn btn-primary btn-sm" data-state="all">Todas</button><button class="btn btn-outline-primary btn-sm" data-state="pending">Pendientes</button><button class="btn btn-outline-primary btn-sm" data-state="partial">En proceso</button><button class="btn btn-outline-primary btn-sm" data-state="complete">Completadas</button><button class="btn btn-outline-primary btn-sm" data-state="locked">Bloqueadas</button><button class="btn btn-outline-primary btn-sm" data-state="annulled">Anuladas</button></div><button class="btn btn-light btn-sm mt-2 mt-md-0" id="gr-clear"><i class="fas fa-eraser mr-1"></i>Limpiar filtros</button></div>
-  </div>
- </div>
-</div>
-
-
-
-
-
-
-
-
- <div class="row mb-3"><?php foreach([['Total','total','fa-clipboard-list'],['Pendientes','pending','fa-hourglass-start'],['En proceso','partial','fa-spinner'],['Completadas','complete','fa-check-circle']]as$s): ?><div class="col-6 col-xl-3 mb-2"><div class="gr-stat d-flex align-items-center"><i class="fas <?php echo$s[2]; ?> fa-lg mr-3"></i><div><small class="text-muted"><?php echo$s[0]; ?></small><div class="h5 mb-0 font-weight-bold text-gray-800" data-summary="<?php echo$s[1]; ?>">0</div></div></div></div><?php endforeach; ?></div>
+  <div class="col-lg-2 col-sm-4 mb-2"><label class="gr-label">Curso</label><select id="gr-course" class="form-control form-control-sm"><option value="">Todos</option></select></div>
+  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gr-bimester" class="form-control form-control-sm"><option value="">Todos</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
+  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Buscar</label><input id="gr-search" class="form-control form-control-sm" placeholder="Título o descripción"></div>
+ </div><div class="d-flex flex-wrap justify-content-between align-items-center mt-1"><div class="gr-tabs d-flex flex-wrap" id="gr-tabs"><button class="btn btn-primary btn-sm" data-state="all">Todas</button><button class="btn btn-outline-primary btn-sm" data-state="pending">Pendientes</button><button class="btn btn-outline-primary btn-sm" data-state="partial">En proceso</button><button class="btn btn-outline-primary btn-sm" data-state="complete">Completadas</button><button class="btn btn-outline-primary btn-sm" data-state="locked">Bloqueadas</button><button class="btn btn-outline-primary btn-sm" data-state="annulled">Anuladas</button></div><button class="btn btn-light btn-sm mt-2 mt-md-0" id="gr-clear"><i class="fas fa-eraser mr-1"></i>Limpiar filtros</button></div></div>
  <div class="card shadow-sm"><div class="card-header bg-white d-flex justify-content-between align-items-center"><strong><i class="fas fa-list text-primary mr-2"></i>Mis evaluaciones</strong><span class="badge badge-light border" id="gr-count">0 registros</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover gr-table mb-0" id="gr-table"><thead class="thead-light"><tr><th>Evaluación</th><th>Curso y aula</th><th>Competencia</th><th>Bimestre</th><th>Avance de notas</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody><tr><td colspan="8" class="gr-empty"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando evaluaciones...</td></tr></tbody></table></div></div></div>
  </div>
  <div id="gr-book-view" style="display:none">
   <div class="gr-filter p-3 mb-3"><div class="row align-items-end">
    <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Año académico</label><select id="gb-year" class="form-control form-control-sm"><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo(int)$y['id']===$activeYear?'selected':''; ?>><?php echo htmlspecialchars($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
-   <div class="col-xl-3 col-md-4 col-sm-6 mb-2"><label class="gr-label">Curso</label><select id="gb-course" class="form-control form-control-sm"><option value="">Selecciona</option></select></div>
+   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Curso</label><select id="gb-course" class="form-control form-control-sm"><option value="">Selecciona</option></select></div>
    <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Nivel</label><select id="gb-level" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
    <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label">Grado</label><select id="gb-grade" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
    <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label">Sección</label><select id="gb-section" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
-   <div class="col-xl-3 col-md-4 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gb-bimester" class="form-control form-control-sm"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
+   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gb-bimester" class="form-control form-control-sm"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
+   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label">Visualización</label><select id="gb-system" class="form-control form-control-sm"><option value="numeric">Notas numéricas</option><option value="letters">Notas literales</option></select></div>
   </div><input type="hidden" id="gb-assignment" value=""><div class="d-flex justify-content-between align-items-center mt-1"><small class="gb-filter-note"><i class="fas fa-info-circle mr-1"></i>Los filtros se habilitan según las asignaciones del docente.</small><button class="btn btn-outline-primary btn-sm" id="gb-load"><i class="fas fa-sync-alt mr-1"></i>Actualizar planilla</button></div></div>
-
-
-
-
-
-
-
-
   <div id="gb-readonly-banner" class="alert alert-warning gb-readonly" style="display:none"><i class="fas fa-lock mr-2"></i><span></span></div>
   <div id="gb-weight-warning" class="alert alert-danger" style="display:none"><i class="fas fa-exclamation-triangle mr-2"></i><strong>Configuración de competencias incompleta.</strong> <span></span></div>
   <div class="row mb-2" id="gb-kpis" style="display:none"><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Estudiantes</small><strong id="gb-kpi-students">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Evaluaciones</small><strong id="gb-kpi-evaluations">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Notas pendientes</small><strong id="gb-kpi-pending">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Avance</small><strong id="gb-kpi-progress">0%</strong></div></div><div class="col-6 col-lg mb-2"><div class="gb-kpi"><small>Promedio del aula</small><strong id="gb-kpi-average">—</strong></div></div></div>
-  <div class="gb-summary mb-2">
-  <div class="d-flex flex-wrap justify-content-between align-items-center">
-    <div><strong id="gb-context">Selecciona un curso y bimestre</strong><br><small class="text-muted" id="gb-help">Podrás escribir directamente o pegar datos desde Excel.</small></div>
-    <div class="d-flex flex-wrap align-items-center mt-2 mt-md-0"><span class="gb-sync text-muted" id="gb-sync-state">Sin cambios</span><span class="badge badge-light border" id="gb-change-count">0 cambios</span></div>
-  </div>
-  <div class="d-flex flex-wrap justify-content-between align-items-end mt-2">
-    <div class="gb-toolbar d-flex flex-wrap align-items-center mb-2">
-      <div><label class="gr-label mb-1" for="gb-system">Visualización</label><select id="gb-system" class="form-control form-control-sm"><option value="numeric">Notas numéricas</option><option value="letters">Notas literales</option></select></div>
-      <div><label class="gr-label mb-1" for="gb-student-filter">Estudiantes</label><select id="gb-student-filter" class="form-control form-control-sm" style="width:auto"><option value="all">Todos los estudiantes</option><option value="pending">Con notas pendientes</option><option value="complete">Calificación completa</option><option value="low">Con notas bajas</option></select></div>
-    </div>
-    <div class="gb-toolbar d-flex flex-wrap align-items-center mb-2">
-      <div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="gb-autosave"><label class="custom-control-label small" for="gb-autosave">Autoguardado</label></div><button class="btn btn-outline-secondary btn-sm" id="gb-discard" disabled><i class="fas fa-undo mr-1"></i>Descartar</button><button class="btn btn-primary btn-sm" id="gb-save" disabled><i class="fas fa-save mr-1"></i>Guardar</button>
-    </div>
-  </div>
-</div>
+  <div class="gb-summary mb-2"><div class="d-flex flex-wrap justify-content-between align-items-center"><div><strong id="gb-context">Selecciona un curso y bimestre</strong><br><small class="text-muted" id="gb-help">Podrás escribir directamente o pegar datos desde Excel.</small></div><div class="gb-toolbar d-flex flex-wrap align-items-center mt-2 mt-md-0"><select id="gb-student-filter" class="form-control form-control-sm" style="width:auto"><option value="all">Todos los estudiantes</option><option value="pending">Con notas pendientes</option><option value="complete">Calificación completa</option><option value="low">Con notas bajas</option></select><div class="custom-control custom-switch"><input type="checkbox" class="custom-control-input" id="gb-autosave"><label class="custom-control-label small" for="gb-autosave">Autoguardado</label></div><span class="gb-sync text-muted" id="gb-sync-state">Sin cambios</span><span class="badge badge-light border" id="gb-change-count">0 cambios</span><button class="btn btn-outline-secondary btn-sm" id="gb-discard" disabled><i class="fas fa-undo mr-1"></i>Descartar</button><button class="btn btn-primary btn-sm" id="gb-save" disabled><i class="fas fa-save mr-1"></i>Guardar</button></div></div></div>
   <div class="card shadow-sm"><div class="card-body p-0" id="gb-container"><div class="gb-empty"><i class="fas fa-table fa-2x d-block mb-2"></i>Selecciona un curso y bimestre para abrir el libro de notas.</div></div></div>
  </div>
 </div>
