@@ -62,7 +62,16 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 #gr-book-view .gb-sheet .gb-head-actions{grid-column:3;align-self:center;justify-self:end;min-width:27px;max-width:27px;height:27px;margin:0;opacity:1}
 #gr-book-view .gb-sheet .gb-eval-status{margin-top:.25rem;display:flex;justify-content:center;width:100%;min-width:0}
 #gr-book-view .gb-sheet .gb-eval-annulled{display:inline-flex;align-items:center;gap:.2rem;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:.66rem;padding:.17rem .35rem;border-radius:.3rem}
-#gr-book-view .gb-sheet .gb-eval-head:focus-within{z-index:9}
+/* Encabezados congelados siempre por encima de evaluaciones, incluso con el menú abierto. */
+#gr-book-view .gb-sheet .gb-eval-head:focus-within{z-index:4}
+#gr-book-view .gb-sheet thead .gb-number,
+#gr-book-view .gb-sheet thead .gb-student-head{position:sticky;z-index:12;background:#fff!important}
+#gr-book-view .gb-sheet tbody .gb-number,
+#gr-book-view .gb-sheet tbody .gb-student{position:sticky;z-index:7}
+#gr-book-view .gb-sheet thead .gb-group-head,
+#gr-book-view .gb-sheet thead .gb-eval-head,
+#gr-book-view .gb-sheet thead .gb-comp-average,
+#gr-book-view .gb-sheet thead .gb-final-average{z-index:4}
 #gr-book-view .gb-sheet .gb-head-actions .btn{height:25px;width:27px;padding:0!important;border:1px solid transparent!important;border-radius:.35rem;color:#64748b}
 #gr-book-view .gb-sheet .gb-head-actions .btn:hover,#gr-book-view .gb-sheet .gb-head-actions .btn:focus{background:#e8eef8;border-color:#cdd9eb!important;color:#4e73df}
 #gr-book-view .gb-sheet .gb-comp-start{border-left:2px solid #cbd8ee}
