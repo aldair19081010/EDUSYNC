@@ -176,7 +176,7 @@
         );
     }
     function currentSuggestedSelection(){
-        if($('#gr-book-view').is(':visible')&&$('#gb-assignment').val()){
+        if($('#gb-assignment').val()){
             return {
                 year:$('#gb-year').val(),
                 assignment:$('#gb-assignment').val(),
@@ -184,13 +184,13 @@
             };
         }
         return {
-            year:$('#gr-year').val(),
+            year:$('#gb-year').val()||$('#gr-year').val(),
             assignment:'',
-            bimester:$('#gr-bimester').val(),
-            course:$('#gr-course').val(),
-            level:$('#gr-level').val(),
-            grado:$('#gr-grade').val(),
-            seccion:$('#gr-section').val()
+            bimester:$('#gb-bimester').val()||$('#gr-bimester').val(),
+            course:$('#gb-course').val()||$('#gr-course').val(),
+            level:$('#gb-level').val()||$('#gr-level').val(),
+            grado:$('#gb-grade').val()||$('#gr-grade').val(),
+            seccion:$('#gb-section').val()||$('#gr-section').val()
         };
     }
     function uniqueValues(rows,key){
