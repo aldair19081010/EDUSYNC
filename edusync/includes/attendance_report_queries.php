@@ -27,7 +27,9 @@ function arq_where(array $f, int $school, bool $entryOnly=false, bool $applyStat
     if ($f['year']>0) $w[]="(a.academic_year_id={$f['year']} OR a.academic_year_id IS NULL)";
     if ($f['level']!=='') $w[]="s.nivel='{$f['level']}'";
     if ($f['grade']!=='') $w[]="s.grado='{$f['grade']}'";
-    if ($f['section']!=='') $w[]="s.seccion='{$f['section']}'";
+    if ($f['section']!=='') {
+        $w[]="COALESCE(NULLIF(s.seccion,''),'U')='{$f['section']}'";
+    }
     if ($f['student']>0) $w[]="s.id={$f['student']}";
     if ($entryOnly) $w[]="a.tipo='Entrada'"; elseif ($f['type']!=='') $w[]="a.tipo='{$f['type']}'";
     if ($applyStatus && $f['status']!=='') {
