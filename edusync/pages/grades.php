@@ -18,18 +18,18 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 #gr-book-view .gb-compact-controls>.gb-toolbar{display:flex!important;align-items:center!important;flex-wrap:wrap!important;grid-template-columns:none!important;gap:.5rem;width:100%!important;min-width:0;margin:0!important}
 #gr-book-view .gb-compact-controls #gb-student-filter{width:220px!important;min-width:180px;max-width:280px;grid-column:auto!important;flex:0 1 220px!important}
 #gr-book-view .gb-compact-controls .gb-autosave-switch{display:none!important}
-#gr-book-view .gb-compact-controls .gb-save-status{display:flex;align-items:center;flex:0 1 auto;min-width:0;gap:.35rem;white-space:normal}
-#gr-book-view .gb-compact-controls .gb-sync{display:inline-flex;align-items:center;min-width:0;font-size:.75rem;line-height:1.2;white-space:normal}
-#gr-book-view .gb-compact-controls #gb-change-count{white-space:nowrap}
-#gr-book-view .gb-compact-controls .gb-save-actions{display:flex!important;flex:0 0 auto!important;align-items:center;gap:.35rem;min-width:0}
+#gr-book-view .gb-compact-controls .gb-save-status{display:flex;align-items:center;flex:1 1 280px;flex-wrap:wrap;min-width:0;gap:.3rem .45rem;white-space:normal}
+#gr-book-view .gb-compact-controls .gb-sync{display:inline-flex;align-items:center;min-width:0;font-size:.75rem;line-height:1.35;white-space:normal;overflow-wrap:break-word}
+#gr-book-view .gb-compact-controls #gb-save-mode{flex:0 0 auto}#gr-book-view .gb-compact-controls #gb-change-count{flex:0 0 auto;white-space:nowrap}
+#gr-book-view .gb-compact-controls .gb-save-actions{display:flex!important;flex:0 0 auto!important;align-items:center;gap:.35rem;min-width:74px;margin-left:auto}
 #gr-book-view .gb-compact-controls .gb-save-actions .gb-icon-action{display:inline-flex;align-items:center;justify-content:center;width:34px!important;height:32px!important;min-width:34px;flex:0 0 34px!important;padding:0!important;white-space:nowrap}
 @media(max-width:991.98px){
  #gr-book-view .gb-compact-controls #gb-student-filter{flex:1 1 190px!important;max-width:none}
- #gr-book-view .gb-compact-controls .gb-save-status{margin-left:0!important}
+ #gr-book-view .gb-compact-controls .gb-save-status{margin-left:0!important;flex:1 1 250px}
 }
 @media(max-width:575.98px){
  #gr-book-view .gb-compact-controls #gb-student-filter{width:100%!important;max-width:none;flex:1 1 100%!important}
- #gr-book-view .gb-compact-controls .gb-save-status{flex:1 1 90px;min-width:0}
+ #gr-book-view .gb-compact-controls .gb-save-status{flex:1 1 190px;min-width:0}
  #gr-book-view .gb-compact-controls .gb-save-actions{margin-left:auto}
  .gr-filter-actions,.gb-filter-actions{width:100%;justify-content:flex-end}
 }
@@ -74,7 +74,7 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
    <div class="gb-toolbar d-flex flex-wrap align-items-center">
     <select id="gb-student-filter" class="form-control form-control-sm" aria-label="Filtrar estudiantes"><option value="all">Todos los estudiantes</option><option value="pending">Con notas pendientes</option><option value="complete">Calificación completa</option><option value="low">Con notas bajas</option></select>
     <div class="custom-control custom-switch gb-autosave-switch d-none"><input type="checkbox" class="custom-control-input" id="gb-autosave"><label class="custom-control-label small" for="gb-autosave">Autoguardado</label></div>
-    <div class="gb-save-status d-flex align-items-center ml-auto"><span class="gb-sync text-muted" id="gb-sync-state" role="status" aria-live="polite">Sin cambios</span><span class="badge badge-light border d-none" id="gb-change-count">0 cambios</span></div>
+    <div class="gb-save-status d-flex align-items-center ml-auto"><span class="gb-sync text-muted" id="gb-sync-state" role="status" aria-live="polite">Sin cambios</span><span class="badge badge-light border" id="gb-change-count">0 cambios</span></div>
     <div class="gb-save-actions d-flex align-items-center"><button type="button" class="btn btn-outline-secondary btn-sm gb-icon-action" id="gb-discard" disabled title="Descartar cambios" aria-label="Descartar cambios"><i class="fas fa-undo"></i></button><button type="button" class="btn btn-primary btn-sm gb-icon-action" id="gb-save" disabled title="Guardar notas" aria-label="Guardar notas"><i class="fas fa-save"></i></button></div>
    </div>
   </div>
@@ -188,7 +188,7 @@ function render(rows){grRows=Array.isArray(rows)?rows:[];const pages=Math.max(1,
  function cellKey(cell){return cell.dataset.evaluation+':'+cell.dataset.student}function normalizeGrade(v){return String(v==null?'':v).trim().toUpperCase()}
  function validGrade(value){if(value==='')return true;if($('#gb-system').val()==='letters')return ['C','B','A','AD'].indexOf(value)>=0;let n=Number(value);return value!==''&&!isNaN(n)&&n>=0&&n<=20}
  function trackCell(cell){let value=normalizeGrade(cell.value),original=normalizeGrade(cell.dataset.original),key=cellKey(cell),dirty=value!==original;cell.value=value;$(cell).toggleClass('gb-invalid',dirty&&!validGrade(value));if(dirty){gradebookChanges[key]={evaluation_id:+cell.dataset.evaluation,student_id:+cell.dataset.student,grade:value,original:original};$(cell).addClass('gb-dirty')}else{delete gradebookChanges[key];$(cell).removeClass('gb-dirty')}updateRowAverage($(cell).closest('tr'));updateGradebookSummary();applyStudentFilter();updateChangeCount();scheduleGradebookAutosave()}
- function updateChangeCount(){let count=Object.keys(gradebookChanges).length,invalid=$('.gb-cell.gb-invalid').length;$('#gb-change-count').text(count+' cambio'+(count===1?'':'s')).toggleClass('badge-warning',count>0).toggleClass('badge-light',count===0).toggleClass('d-none',count===0);$('#gb-save').prop('disabled',!count||invalid>0||!!(gradebook&&gradebook.read_only));$('#gb-discard').prop('disabled',!count);if(!gradebookSaving)$('#gb-sync-state').text(count?(invalid?'Corrige los errores':'Cambios pendientes'):'Sin cambios')}
+ function updateChangeCount(){let count=Object.keys(gradebookChanges).length,invalid=$('.gb-cell.gb-invalid').length;$('#gb-change-count').text(count+' cambio'+(count===1?'':'s')).toggleClass('badge-warning',count>0).toggleClass('badge-light',count===0);$('#gb-save').prop('disabled',!count||invalid>0||!!(gradebook&&gradebook.read_only));$('#gb-discard').prop('disabled',!count);if(!gradebookSaving)$('#gb-sync-state').text(count?(invalid?'Corrige los errores':'Cambios pendientes'):'Sin cambios')}
  function numericGrade(value){value=normalizeGrade(value);if(value==='')return null;if(!isNaN(Number(value)))return Number(value);return{C:5,B:12,A:15.5,AD:19}[value]??null}function calculatedGrade(value){if(value==null)return'—';if($('#gb-system').val()==='letters'){if(value>=18)return'AD';if(value>=14)return'A';if(value>=11)return'B';return'C'}return String(Math.round(value))}
  function updateRowAverage(row){let weighted=0,hasWeight=false;gradebookGroups().forEach(g=>{let values=[];row.find('.gb-cell[data-competency="'+g.id+'"][data-annulled="0"]').each(function(){let value=numericGrade(this.value);if(value!=null)values.push(value)});let average=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;row.find('[data-average-comp="'+g.id+'"]').text(calculatedGrade(average));if(average!=null&&g.percentage>0){weighted+=average*(g.percentage/100);hasWeight=true}});row.find('.gb-final-average').text(calculatedGrade(hasWeight?weighted:null)).attr('data-numeric',hasWeight?weighted:'')}
  function updateAllAverages(){$('.gb-sheet tbody tr').each(function(){updateRowAverage($(this))})}
