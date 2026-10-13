@@ -194,6 +194,15 @@ try {
         }
     }
 
+    // Si el teléfono regresó a una cuenta de estudiante, impedir que los
+    // avisos del personal de una sesión anterior sigan llegando a su pantalla.
+    if (device_table_exists($conn, 'staff_device_tokens')) {
+        $unlink = $conn->prepare('UPDATE staff_device_tokens SET is_active=0,last_seen_at=NOW() WHERE token_hash=? OR device_id=?');
+        $unlink->bind_param('ss', $tokenHash, $deviceId);
+        if (!$unlink->execute()) throw new Exception($unlink->error);
+        $unlink->close();
+    }
+
     $conn->commit();
 
     device_reply([
