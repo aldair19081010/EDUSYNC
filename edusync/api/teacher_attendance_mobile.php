@@ -86,6 +86,7 @@ if ($action === 'history') {
         ? $assignmentYear
         : (int)($_POST['year'] ?? date('Y'));
     $month = (int)($_POST['month'] ?? date('n'));
+
     if ($year < 2020 || $year > 2100 || $month < 1 || $month > 12) {
         tam_reply([
             'status'=>'error',
@@ -100,119 +101,156 @@ if ($action === 'history') {
     if (!$fromObj) {
         tam_reply(['status'=>'error','message'=>'Periodo no válido.'],422);
     }
+
     $from = $fromObj->format('Y-m-d');
     $to = $fromObj->modify('last day of this month')->format('Y-m-d');
-
     $level = (string)$assignment['level'];
     $grade = (string)$assignment['grado'];
     $section = (string)$assignment['seccion'];
+    $academicYearId = (int)$assignment['academic_year_id'];
 
-    $availableYears = [$year];
+    require_once __DIR__ . '/../includes/attendance_report_queries.php';
 
-    $historySql =
-        "SELECT st.id,st.id_no,st.name,
-                a.fecha,a.hora,a.estado
+    $filters = arq_filters($conn, $school, [
+        'academic_year_id' => $academicYearId,
+        'date_from' => $from,
+        'date_to' => $to,
+        'nivel' => $level,
+        'grado' => $grade,
+        'seccion' => $section,
+        'tipo' => 'Entrada',
+    ]);
+
+    $rosterStmt = $conn->prepare(
+        "SELECT st.id,st.id_no,st.name
          FROM student st
-         LEFT JOIN asistencia a
-           ON a.student_id=st.id
-          AND a.school_id=?
-          AND a.tipo='Entrada'
-          AND a.fecha BETWEEN ? AND ?$cancelFilter
          WHERE st.school_id=? AND st.status='Activo'
            AND st.nivel=? AND st.grado=?
            AND COALESCE(NULLIF(st.seccion,''),'U')=?
-         ORDER BY st.name,a.fecha DESC,a.hora DESC";
-    $historyStmt = $conn->prepare($historySql);
-    if (!$historyStmt) {
-        tam_reply(['status'=>'error','message'=>'No se pudo consultar el historial de asistencia.'],500);
+         ORDER BY st.name"
+    );
+    if (!$rosterStmt) {
+        tam_reply([
+            'status'=>'error',
+            'message'=>'No se pudo consultar la nómina del aula.'
+        ],500);
     }
-    $historyStmt->bind_param(
-        'ississs',
-        $school,
-        $from,
-        $to,
+    $rosterStmt->bind_param(
+        'isss',
         $school,
         $level,
         $grade,
         $section
     );
-    $historyStmt->execute();
+    $rosterStmt->execute();
 
     $students = [];
-    $daily = [];
-    $records = [];
+    $rosterResult = $rosterStmt->get_result();
+    while ($student = $rosterResult->fetch_assoc()) {
+        $studentId = (int)$student['id'];
+        $students[$studentId] = [
+            'id'=>$studentId,
+            'dni'=>(string)$student['id_no'],
+            'name'=>(string)$student['name'],
+            'marks'=>0,
+            'present'=>0,
+            'late'=>0,
+            'attended'=>0,
+            'absent'=>0,
+            'justified'=>0,
+            'permission'=>0,
+            'attendance_rate'=>0,
+            'last_date'=>'',
+            'last_time'=>'',
+            'last_status'=>''
+        ];
+    }
+    $rosterStmt->close();
+
+    $summaryRaw = arq_summary($conn, $school, $filters);
+    $summaryAttended = (int)($summaryRaw['present'] ?? 0);
+    $summaryLate = (int)($summaryRaw['late'] ?? 0);
     $summary = [
-        'marks'=>0,
-        'present'=>0,
-        'late'=>0,
-        'attended'=>0,
-        'absent'=>0,
-        'justified'=>0,
-        'permission'=>0,
-        'attendance_rate'=>0
+        'marks'=>(int)($summaryRaw['total'] ?? 0),
+        'present'=>max(0, $summaryAttended - $summaryLate),
+        'late'=>$summaryLate,
+        'attended'=>$summaryAttended,
+        'absent'=>(int)($summaryRaw['absent'] ?? 0),
+        'justified'=>(int)($summaryRaw['justified'] ?? 0),
+        'permission'=>(int)($summaryRaw['permission'] ?? 0),
+        'attendance_rate'=>(float)($summaryRaw['attendance_rate'] ?? 0),
     ];
-    $seenStudentDays = [];
 
-    $historyResult = $historyStmt->get_result();
-    while ($row = $historyResult->fetch_assoc()) {
-        $studentId = (int)$row['id'];
-        if (!isset($students[$studentId])) {
-            $students[$studentId] = [
-                'id'=>$studentId,
-                'dni'=>(string)$row['id_no'],
-                'name'=>(string)$row['name'],
-                'marks'=>0,
-                'present'=>0,
-                'late'=>0,
-                'attended'=>0,
-                'absent'=>0,
-                'justified'=>0,
-                'permission'=>0,
-                'attendance_rate'=>0,
-                'last_date'=>'',
-                'last_time'=>'',
-                'last_status'=>''
-            ];
-        }
+    [$studentSql, $studentOrder] = arq_dataset(
+        $conn,
+        $school,
+        $filters,
+        'student'
+    );
+    $studentResult = $conn->query(
+        $studentSql . ' ORDER BY ' . $studentOrder
+    );
+    while ($studentResult && ($row = $studentResult->fetch_assoc())) {
+        $studentId = (int)($row['id'] ?? 0);
+        if ($studentId <= 0 || !isset($students[$studentId])) continue;
 
-        $day = trim((string)($row['fecha'] ?? ''));
-        if ($day === '') continue;
+        $attended = (int)($row['present'] ?? 0);
+        $late = (int)($row['late'] ?? 0);
+        $marks = (int)($row['marks'] ?? 0);
+
+        $students[$studentId]['marks'] = $marks;
+        $students[$studentId]['present'] = max(0, $attended - $late);
+        $students[$studentId]['late'] = $late;
+        $students[$studentId]['attended'] = $attended;
+        $students[$studentId]['absent'] = (int)($row['absent'] ?? 0);
+        $students[$studentId]['justified'] =
+            (int)($row['justified'] ?? 0);
+        $students[$studentId]['permission'] =
+            (int)($row['permission'] ?? 0);
+        $students[$studentId]['attendance_rate'] = $marks > 0
+            ? round(($attended / $marks) * 100, 1)
+            : 0;
+    }
+
+    $where = arq_where($filters, $school, true, true);
+    $detailSql =
+        "SELECT a.student_id,a.fecha,a.hora,
+                CASE
+                    WHEN a.estado IN('Normal','Temprano') THEN 'Presente'
+                    ELSE a.estado
+                END estado,
+                s.id_no,s.name student_name
+         FROM asistencia a
+         INNER JOIN student s ON s.id=a.student_id
+         WHERE $where
+         ORDER BY a.fecha DESC,a.hora DESC,a.id DESC";
+
+    $detailResult = $conn->query($detailSql);
+    if (!$detailResult) {
+        tam_reply([
+            'status'=>'error',
+            'message'=>'No se pudo consultar el historial de asistencia.'
+        ],500);
+    }
+
+    $records = [];
+    $daily = [];
+    $seen = [];
+
+    while ($row = $detailResult->fetch_assoc()) {
+        $studentId = (int)$row['student_id'];
+        $day = (string)$row['fecha'];
+        if ($studentId <= 0 || $day === '') continue;
 
         $key = $studentId.'|'.$day;
-        if (isset($seenStudentDays[$key])) continue;
-        $seenStudentDays[$key] = true;
+        if (isset($seen[$key])) continue;
+        $seen[$key] = true;
 
         $status = trim((string)($row['estado'] ?? ''));
-        if (in_array($status, ['Normal','Temprano'], true)) {
-            $status = 'Presente';
-        }
         $time = substr((string)($row['hora'] ?? ''),0,5);
 
-        $summary['marks']++;
-        $students[$studentId]['marks']++;
-
-        if ($status === 'Tarde') {
-            $summary['late']++;
-            $summary['attended']++;
-            $students[$studentId]['late']++;
-            $students[$studentId]['attended']++;
-        } elseif ($status === 'Ausente') {
-            $summary['absent']++;
-            $students[$studentId]['absent']++;
-        } elseif ($status === 'Ausente Justificada') {
-            $summary['justified']++;
-            $students[$studentId]['justified']++;
-        } elseif ($status === 'Permiso') {
-            $summary['permission']++;
-            $students[$studentId]['permission']++;
-        } elseif ($status !== '') {
-            $summary['present']++;
-            $summary['attended']++;
-            $students[$studentId]['present']++;
-            $students[$studentId]['attended']++;
-        }
-
-        if ($students[$studentId]['last_date'] === '') {
+        if (isset($students[$studentId]) &&
+            $students[$studentId]['last_date'] === '') {
             $students[$studentId]['last_date'] = $day;
             $students[$studentId]['last_time'] = $time;
             $students[$studentId]['last_status'] = $status;
@@ -228,9 +266,10 @@ if ($action === 'history') {
                 'absent'=>0,
                 'justified'=>0,
                 'permission'=>0,
-                'attendance_rate'=>0
+                'attendance_rate'=>0,
             ];
         }
+
         $daily[$day]['marked']++;
 
         if ($status === 'Tarde') {
@@ -250,40 +289,22 @@ if ($action === 'history') {
         $records[] = [
             'student_id'=>$studentId,
             'dni'=>(string)$row['id_no'],
-            'name'=>(string)$row['name'],
+            'name'=>(string)$row['student_name'],
             'date'=>$day,
             'time'=>$time,
-            'status'=>$status
+            'status'=>$status,
         ];
     }
-    $historyStmt->close();
 
-    foreach ($students as &$studentRow) {
-        if ($studentRow['marks'] > 0) {
-            $studentRow['attendance_rate'] = round(
-                ($studentRow['attended'] / $studentRow['marks']) * 100,
+    foreach ($daily as &$dayRow) {
+        if ($dayRow['marked'] > 0) {
+            $dayRow['attendance_rate'] = round(
+                ($dayRow['attended'] / $dayRow['marked']) * 100,
                 1
             );
         }
     }
-    unset($studentRow);
-
-    foreach ($daily as &$dailyRow) {
-        if ($dailyRow['marked'] > 0) {
-            $dailyRow['attendance_rate'] = round(
-                ($dailyRow['attended'] / $dailyRow['marked']) * 100,
-                1
-            );
-        }
-    }
-    unset($dailyRow);
-
-    if ($summary['marks'] > 0) {
-        $summary['attendance_rate'] = round(
-            ($summary['attended'] / $summary['marks']) * 100,
-            1
-        );
-    }
+    unset($dayRow);
 
     uasort($students, function($a,$b) {
         return strcasecmp((string)$a['name'], (string)$b['name']);
@@ -297,13 +318,13 @@ if ($action === 'history') {
         'month'=>$month,
         'date_from'=>$from,
         'date_to'=>$to,
-        'available_years'=>array_values($availableYears),
         'course'=>$assignment,
         'summary'=>$summary,
         'students'=>array_values($students),
         'days'=>array_values($daily),
         'records'=>$records,
-        'read_only'=>true
+        'read_only'=>true,
+        'source'=>'attendance_report_queries',
     ]);
 }
 
