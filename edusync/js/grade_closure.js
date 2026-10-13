@@ -246,7 +246,7 @@
             .fail(function(x){
                 if(typeof alert_toast==='function')alert_toast((x.responseJSON||{}).message||'No se pudo cerrar el bimestre.','danger');
             })
-            .always(function(){btn.prop('disabled',false).html('<i class="fas fa-lock mr-1"></i>Cerrar bimestre');});
+            .always(function(){btn.html('<i class="fas fa-lock mr-1"></i>Cerrar bimestre').prop('disabled',!$('#gc-confirm-check').prop('checked')||btn.hasClass('d-none'));});
     });
     $(document).on('gc:reopen-click',function(){
         actionContext=generalContext();
@@ -254,8 +254,10 @@
         ensureReopenModal();
         $('#gc-reopen-context').text($('#gc-general-context').text());
         $('#gc-reopen-reason').val('');
-        $('#gc-reopen-modal').modal('show');
-        setTimeout(function(){$('#gc-reopen-reason').focus();},250);
+        $('#gc-general-modal').one('hidden.bs.modal',function(){
+            $('#gc-reopen-modal').modal('show');
+            setTimeout(function(){$('#gc-reopen-reason').focus();},250);
+        }).modal('hide');
     });
     $(document).on('click','#gc-send-reopen',function(){
         var reason=$.trim($('#gc-reopen-reason').val());
