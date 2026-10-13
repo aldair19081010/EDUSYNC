@@ -54,7 +54,7 @@
         };
     }
     function contextText(sel){
-        return [sel.course,sel.level,gradeLabel(sel.grado)+' '+(sel.seccion||''),sel.bimester+'° Bimestre'].join(' · ').replace(/\\s+/g,' ').trim();
+        return [sel.course,sel.level,gradeLabel(sel.grado)+' '+(sel.seccion||''),sel.bimester+'° Bimestre'].join(' · ').replace(/\s+/g,' ').trim();
     }
     function resolveFromFilters(sel,callback){
         if(!sel.year||!sel.course||!sel.level||!sel.grado||!sel.seccion||!/^[1-4]$/.test(sel.bimester)){
