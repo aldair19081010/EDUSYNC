@@ -121,8 +121,8 @@ function updateBookMode(){
     if(nativeSwitch.length)nativeSwitch.closest('.custom-control').addClass('d-none');
     if(!$('#gb-save-mode').length&&$('#gb-sync-state').length)$('<span class="gb-save-mode" id="gb-save-mode"></span>').insertBefore('#gb-sync-state');
     $('#gb-save-mode').attr('class','gb-save-mode '+(enabled?'text-success':'text-muted')).html(enabled?'<i class="fas fa-bolt mr-1"></i>Automático':'<i class="fas fa-hand-paper mr-1"></i>Manual');
-    if($('#gb-save').length)$('#gb-save').html('<i class="fas fa-save mr-1"></i>Guardar ahora');
-    if(!$('#gb-retry-save').length&&$('#gb-sync-state').length)$('<button type="button" class="btn btn-outline-danger btn-sm gb-retry-save" id="gb-retry-save"><i class="fas fa-redo mr-1"></i>Reintentar</button>').insertAfter('#gb-sync-state');
+    if($('#gb-save').length)$('#gb-save').attr({title:'Guardar notas','aria-label':'Guardar notas'}).html('<i class="fas fa-save"></i>');
+    $('#gb-retry-save').remove();
     normalizeBookState();
 }
 function normalizeBookState(){
@@ -138,7 +138,7 @@ function normalizeBookState(){
     if(count>0){setBookNode('gb-sync text-warning','<i class="fas fa-circle mr-1"></i>'+count+' cambio'+(count===1?'':'s')+' pendiente'+(count===1?'':'s')+(enabled?' · autoguardado':' · guardado manual'),false);return;}
     setBookNode('gb-sync text-success','<i class="fas fa-check-circle mr-1"></i>Todo guardado'+(lastBookSave?' · '+lastBookSave:''),false);
 }
-$(document).on('click','#gb-retry-save',function(){$('#gb-save').trigger('click');});
+
 $(document).on('evaluation:gradesSaved.gradesAutosaveBook',function(){if($('#gr-book-view').is(':visible')){lastBookSave=clock();setTimeout(normalizeBookState,0);}});
 var bookObserver=new MutationObserver(function(){if(bookMutating){bookMutating=false;return;}updateBookMode();});
 var bookNode=document.getElementById('gb-sync-state');if(bookNode)bookObserver.observe(bookNode,{childList:true,characterData:true,subtree:true});
