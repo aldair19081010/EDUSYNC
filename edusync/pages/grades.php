@@ -82,26 +82,26 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  let grContexts=[],grContextRequest=0,grListRequest=0;
  function grNorm(v){return String(v==null?'':v).trim().replace(/[°º]+/g,'')}
  function grUnique(rows,key){return [...new Set(rows.map(a=>grNorm(a[key]||(key==='seccion'?'U':''))).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{numeric:true}))}
- function grFill(selector,values,label,prior,isGrade){
-   let chosen=values.includes(prior)?prior:(values.length===1?values[0]:'');
+ function grFill(selector,values,label,prior,isGrade,autoSelect){
+   let chosen=values.includes(prior)?prior:(autoSelect!==false&&values.length===1?values[0]:'');
    let html='<option value="">'+label+'</option>';
    values.forEach(v=>html+='<option value="'+esc(v)+'"'+(v===chosen?' selected':'')+'>'+esc(isGrade?grade(v):v)+'</option>');
    $(selector).html(html).prop('disabled',values.length===0);
    return chosen;
  }
- function grChain(start,previous){
+ function grChain(start,previous,autoSelect){
    previous=previous||{};
    let course=previous.course!==undefined?previous.course:$('#gr-course').val();
-   grFill('#gr-course',grUnique(grContexts,'course_name'),'Todos los cursos',grNorm(course));
+   grFill('#gr-course',grUnique(grContexts,'course_name'),'Todos los cursos',grNorm(course),false,autoSelect);
    let rows=grContexts.filter(a=>grNorm(a.course_name)===grNorm($('#gr-course').val()));
    let level=previous.level!==undefined?previous.level:$('#gr-level').val();
-   grFill('#gr-level',grUnique(rows,'level'),'Todos los niveles',grNorm(level));
+   grFill('#gr-level',grUnique(rows,'level'),'Todos los niveles',grNorm(level),false,autoSelect);
    rows=rows.filter(a=>grNorm(a.level)===grNorm($('#gr-level').val()));
    let grado=previous.grade!==undefined?previous.grade:$('#gr-grade').val();
-   grFill('#gr-grade',grUnique(rows,'grado'),'Todos los grados',grNorm(grado),true);
+   grFill('#gr-grade',grUnique(rows,'grado'),'Todos los grados',grNorm(grado),true,autoSelect);
    rows=rows.filter(a=>grNorm(a.grado)===grNorm($('#gr-grade').val()));
    let section=previous.section!==undefined?previous.section:$('#gr-section').val();
-   grFill('#gr-section',grUnique(rows,'seccion'),'Todas las secciones',grNorm(section));
+   grFill('#gr-section',grUnique(rows,'seccion'),'Todas las secciones',grNorm(section),false,autoSelect);
  }
  function loadOptions(){
    let ticket=++grContextRequest;
@@ -133,7 +133,7 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  $('#gr-search').on('input',function(){clearTimeout(timer);timer=setTimeout(load,350)});
  $('#gr-clear').on('click',function(){
    $('#gr-course,#gr-level,#gr-grade,#gr-section,#gr-bimester,#gr-search').val('');
-   grChain(0,{course:'',level:'',grade:'',section:''});
+   grChain(0,{course:'',level:'',grade:'',section:''},false);
    state='all';$('#gr-tabs button').removeClass('btn-primary').addClass('btn-outline-primary').first().removeClass('btn-outline-primary').addClass('btn-primary');load();
  });
  $(document).on('evaluation:saved evaluation:gradesSaved',load);
@@ -167,7 +167,7 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  function numericGrade(value){value=normalizeGrade(value);if(value==='')return null;if(!isNaN(Number(value)))return Number(value);return{C:5,B:12,A:15.5,AD:19}[value]??null}function calculatedGrade(value){if(value==null)return'—';if($('#gb-system').val()==='letters'){if(value>=18)return'AD';if(value>=14)return'A';if(value>=11)return'B';return'C'}return String(Math.round(value))}
  function updateRowAverage(row){let weighted=0,hasWeight=false;gradebookGroups().forEach(g=>{let values=[];row.find('.gb-cell[data-competency="'+g.id+'"][data-annulled="0"]').each(function(){let value=numericGrade(this.value);if(value!=null)values.push(value)});let average=values.length?values.reduce((a,b)=>a+b,0)/values.length:null;row.find('[data-average-comp="'+g.id+'"]').text(calculatedGrade(average));if(average!=null&&g.percentage>0){weighted+=average*(g.percentage/100);hasWeight=true}});row.find('.gb-final-average').text(calculatedGrade(hasWeight?weighted:null)).attr('data-numeric',hasWeight?weighted:'')}
  function updateAllAverages(){$('.gb-sheet tbody tr').each(function(){updateRowAverage($(this))})}
- function updateGradebookSummary(){let cells=$('.gb-cell[data-annulled="0"]'),pending=0;cells.each(function(){let empty=normalizeGrade(this.value)==='',low=!empty&&numericGrade(this.value)<=10;pending+=empty?1:0;$(this).toggleClass('gb-pending',empty).toggleClass('gb-low',low).toggleClass('gb-history-ready',!!(gradebook&&gradebook.history_ready))});let total=cells.length,done=total-pending,averages=[];$('.gb-final-average[data-numeric]').each(function(){let value=$(this).attr('data-numeric');if(value!=='')averages.push(Number(value))});$('#gb-kpis').show();$('#gb-kpi-students').text((gradebook&&gradebook.students||[]).length);$('#gb-kpi-evaluations').text((gradebook&&gradebook.evaluations||[]).filter(e=>!e.annulled).length);$('#gb-kpi-pending').text(pending);$('#gb-kpi-progress').text(total?Math.round(done/total*100)+'%':'0%');$('#gb-kpi-average').text(averages.length?calculatedGrade(averages.reduce((a,b)=>a+b,0)/averages.length):'—')}
+ function updateGradebookSummary(){let cells=$('.gb-cell[data-annulled="0"]'),pending=0;cells.each(function(){let empty=normalizeGrade(this.value)==='',low=!empty&&numericGrade(this.value)<=10;pending+=empty?1:0;$(this).toggleClass('gb-pending',empty).toggleClass('gb-low',low).toggleClass('gb-history-ready',!!(gradebook&&gradebook.history_ready))});let total=cells.length,done=total-pending,averages=[];$('.gb-final-average[data-numeric]').each(function(){let value=$(this).attr('data-numeric');if(value!=='')averages.push(Number(value))});$('#gb-kpis').css('display','flex');$('#gb-kpi-students').text((gradebook&&gradebook.students||[]).length);$('#gb-kpi-evaluations').text((gradebook&&gradebook.evaluations||[]).filter(e=>!e.annulled).length);$('#gb-kpi-pending').text(pending);$('#gb-kpi-progress').text(total?Math.round(done/total*100)+'%':'0%');$('#gb-kpi-average').text(averages.length?calculatedGrade(averages.reduce((a,b)=>a+b,0)/averages.length):'—')}
  function rowGradeState(row){let cells=row.find('.gb-cell[data-annulled="0"]'),pending=false,low=false;cells.each(function(){let value=normalizeGrade(this.value);if(value==='')pending=true;else if(numericGrade(value)<=10)low=true});return{pending:pending,complete:cells.length>0&&!pending,low:low}}
  function applyStudentFilter(){let filter=$('#gb-student-filter').val()||'all';$('.gb-sheet tbody tr').each(function(){let status=rowGradeState($(this)),visible=filter==='all'||!!status[filter];$(this).toggleClass('gb-row-hidden',!visible)})}
  $('#gb-student-filter').on('change',applyStudentFilter);
