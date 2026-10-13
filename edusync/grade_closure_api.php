@@ -285,7 +285,6 @@ if ($action === 'status' || $action === 'close' || $action === 'request_reopen')
         $state = ($closure && $closure['status'] === 'Cerrado') ? 'Cerrado' : ($validation['ready'] ? 'Listo' : 'Incompleto');
         gc_response([
             'status'=>1,'state'=>$state,'closed'=>$state==='Cerrado','ready'=>$validation['ready'],
-            'admin_notification_enabled'=>gc_table($conn,'notification_events'),
             'assignment'=>[
                 'teacher_course_id'=>(int)$assignment['id'],'course_name'=>$assignment['course_name'],'level'=>$assignment['level'],
                 'grado'=>$assignment['grado'],'seccion'=>$assignment['seccion'],'year'=>$assignment['year'],'bimestre'=>$bimester
