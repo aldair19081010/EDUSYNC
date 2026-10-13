@@ -54,7 +54,7 @@ if ($action === 'daily') {
 }
 $assignmentStmt = $conn->prepare(
     "SELECT tc.id,tc.academic_year_id,tc.grado,COALESCE(NULLIF(tc.seccion,''),'U') seccion,
-            ac.name course_name,ac.level,ay.is_active
+            ac.name course_name,ac.level,ay.is_active,ay.year academic_year_name
      FROM teacher_courses tc
      INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
      INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id
@@ -66,8 +66,11 @@ $assignmentStmt->execute();
 $assignment = $assignmentStmt->get_result()->fetch_assoc();
 $assignmentStmt->close();
 if (!$assignment) tam_reply(['status'=>'error','message'=>'Este curso no está asignado al docente.'],403);
-if ((int)$assignment['is_active'] !== 1) {
-    tam_reply(['status'=>'error','message'=>'La consulta de asistencia diaria está disponible para el año activo.'],422);
+if ($action === 'daily' && (int)$assignment['is_active'] !== 1) {
+    tam_reply([
+        'status'=>'error',
+        'message'=>'La consulta diaria está disponible para el año activo.'
+    ],422);
 }
 
 $tableReady = $conn->query("SHOW TABLES LIKE 'asistencia'");
@@ -78,7 +81,10 @@ $cancelCol = $conn->query("SHOW COLUMNS FROM asistencia LIKE 'is_cancelled'");
 $cancelFilter = $cancelCol && $cancelCol->num_rows > 0 ? ' AND a.is_cancelled=0' : '';
 
 if ($action === 'history') {
-    $year = (int)($_POST['year'] ?? date('Y'));
+    $assignmentYear = (int)($assignment['academic_year_name'] ?? 0);
+    $year = $assignmentYear > 0
+        ? $assignmentYear
+        : (int)($_POST['year'] ?? date('Y'));
     $month = (int)($_POST['month'] ?? date('n'));
     if ($year < 2020 || $year > 2100 || $month < 1 || $month > 12) {
         tam_reply([
@@ -101,39 +107,7 @@ if ($action === 'history') {
     $grade = (string)$assignment['grado'];
     $section = (string)$assignment['seccion'];
 
-    $yearsSql =
-        "SELECT DISTINCT YEAR(a.fecha) attendance_year
-         FROM asistencia a
-         INNER JOIN student st ON st.id=a.student_id
-         WHERE a.school_id=? AND a.tipo='Entrada'$cancelFilter
-           AND st.school_id=? AND st.status='Activo'
-           AND st.nivel=? AND st.grado=?
-           AND COALESCE(NULLIF(st.seccion,''),'U')=?
-         ORDER BY attendance_year DESC";
-    $yearsStmt = $conn->prepare($yearsSql);
-    if (!$yearsStmt) {
-        tam_reply(['status'=>'error','message'=>'No se pudieron consultar los años de asistencia.'],500);
-    }
-    $yearsStmt->bind_param(
-        'iisss',
-        $school,
-        $school,
-        $level,
-        $grade,
-        $section
-    );
-    $yearsStmt->execute();
-    $availableYears = [];
-    $yearsResult = $yearsStmt->get_result();
-    while ($yearRow = $yearsResult->fetch_assoc()) {
-        $value = (int)($yearRow['attendance_year'] ?? 0);
-        if ($value > 0) $availableYears[] = $value;
-    }
-    $yearsStmt->close();
-    if (!in_array($year, $availableYears, true)) {
-        $availableYears[] = $year;
-        rsort($availableYears);
-    }
+    $availableYears = [$year];
 
     $historySql =
         "SELECT st.id,st.id_no,st.name,
