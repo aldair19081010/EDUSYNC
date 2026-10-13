@@ -9,14 +9,22 @@
     var actionContext = null;
 
     var style = '<style id="gc-style">' +
-        '.gc-panel{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.5rem;padding:.9rem 1rem;margin-bottom:1rem}' +
-        '.gc-panel.gc-ready{border-left-color:#1cc88a}.gc-panel.gc-closed{border-left-color:#36b9cc}.gc-panel.gc-incomplete{border-left-color:#f6c23e}' +
-        '.gc-state{font-size:.75rem;font-weight:800;text-transform:uppercase}.gc-meta{font-size:.78rem;color:#6c757d}.gc-progress{height:7px}' +
-        '.gc-check{display:flex;align-items:flex-start;padding:.38rem 0;border-bottom:1px solid #f0f1f5}.gc-check:last-child{border-bottom:0}.gc-check i{width:20px;margin-top:.15rem}' +
-        '.gc-details{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.4rem;padding:.65rem .8rem;margin-top:.7rem;max-height:260px;overflow:auto}' +
-        '.gc-actions{gap:.4rem}.gc-summary-pill{display:inline-block;border:1px solid #e3e6f0;border-radius:1rem;padding:.15rem .55rem;margin:.1rem .15rem .1rem 0;background:#fff;font-size:.75rem}' +
-        '.gc-general-status{min-height:90px}' +
-        '@media(max-width:767px){.gc-panel .d-flex.gc-main{display:block!important}.gc-actions{margin-top:.7rem;display:flex!important;flex-wrap:wrap}.gc-actions .btn{flex:1 1 auto}}' +
+        '.gc-modal .modal-dialog{max-width:720px}.gc-modal .modal-content{border:1px solid #e3e6f0;border-radius:.65rem;overflow:hidden}' +
+        '.gc-modal .modal-header{padding:1rem 1.25rem;border-bottom:1px solid #e9edf4}.gc-modal .modal-title{font-weight:700;color:#2e3a59;font-size:1.05rem}.gc-modal .modal-body{padding:1.05rem 1.25rem}' +
+        '.gc-context{font-size:.82rem;color:#526078;background:#f8f9fc;border:1px solid #e9edf4;border-radius:.4rem;padding:.55rem .75rem;line-height:1.5;margin-bottom:1rem}' +
+        '.gc-state-line{display:flex;align-items:center;flex-wrap:wrap;gap:.4rem .7rem}.gc-state-chip{display:inline-flex;align-items:center;gap:.35rem;font-size:.72rem;font-weight:700;border-radius:1rem;padding:.24rem .55rem}' +
+        '.gc-state-chip.gc-ready{color:#13795b;background:#e6f6ef}.gc-state-chip.gc-closed{color:#0b7285;background:#e7f5f8}.gc-state-chip.gc-incomplete{color:#91620c;background:#fff5da}' +
+        '.gc-status-title{font-size:1rem;font-weight:700;color:#273750}.gc-status-sub{font-size:.81rem;line-height:1.5;color:#6e7891;margin:.35rem 0 .65rem}' +
+        '.gc-stats{display:flex;flex-wrap:wrap;align-items:baseline;gap:.35rem 1.05rem;padding:.55rem 0;border-top:1px solid #edf0f5;border-bottom:1px solid #edf0f5;margin:.75rem 0}' +
+        '.gc-stat{display:inline-flex;align-items:baseline;gap:.3rem;font-size:.76rem;color:#6b7280}.gc-stat strong{color:#314262;font-size:.88rem;font-weight:700}' +
+        '.gc-progress{height:6px;background:#edf1f7;border-radius:1rem}.gc-progress-label{font-size:.76rem;color:#66748b}.gc-progress .progress-bar{border-radius:1rem}' +
+        '.gc-check-heading{font-size:.79rem;font-weight:700;color:#40506d;margin:.85rem 0 .25rem}' +
+        '.gc-checks{max-height:190px;overflow:auto}.gc-check{display:flex;align-items:flex-start;padding:.35rem 0;gap:.35rem;font-size:.8rem;line-height:1.4;color:#5f6d83}.gc-check i{width:18px;flex:0 0 18px;margin-top:.15rem}' +
+        '.gc-closed-info{font-size:.78rem;color:#53617a;padding:.35rem 0}.gc-admin-note{display:flex;gap:.55rem;padding:.6rem 0 0;border-top:1px solid #edf0f5;margin-top:.7rem;font-size:.78rem;line-height:1.5;color:#68768b}' +
+        '.gc-admin-note i{margin-top:.2rem;color:#4e73df}.gc-modal .modal-footer{border-top:1px solid #e9edf4;padding:.7rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:.6rem}' +
+        '.gc-confirm-area{font-size:.78rem;line-height:1.45;flex:1 1 240px;padding:.25rem 0}.gc-confirm-area label{cursor:pointer;margin-bottom:0}.gc-footer-actions{display:flex;align-items:center;justify-content:flex-end;gap:.4rem;flex-wrap:wrap;margin-left:auto}' +
+        '.gc-footer-actions .btn{white-space:nowrap}.gc-reopen-context{font-size:.8rem;color:#65748b;border-bottom:1px solid #e9edf4;padding-bottom:.65rem;margin-bottom:.8rem}' +
+        '@media(max-width:575.98px){.gc-modal .modal-dialog{margin:.45rem}.gc-modal .modal-header,.gc-modal .modal-body{padding:.85rem}.gc-modal .modal-footer{padding:.7rem .85rem;display:block}.gc-footer-actions{width:100%;margin-top:.7rem}.gc-footer-actions .btn{flex:1}.gc-confirm-area{padding-top:.2rem}.gc-stats{gap:.25rem .65rem}}' +
         '</style>';
     if (!$('#gc-style').length) $('head').append(style);
 
@@ -76,68 +84,46 @@
     }
     function summaryHtml(s){
         s=s||{};
-        return '<span class="gc-summary-pill"><i class="fas fa-tasks mr-1"></i>'+Number(s.competencies||0)+' competencias</span>'+
-            '<span class="gc-summary-pill"><i class="fas fa-clipboard-list mr-1"></i>'+Number(s.evaluations||0)+' evaluaciones</span>'+
-            '<span class="gc-summary-pill"><i class="fas fa-users mr-1"></i>'+Number(s.students||0)+' estudiantes</span>'+
-            '<span class="gc-summary-pill"><i class="fas fa-percentage mr-1"></i>'+Number(s.percentage_total||0).toFixed(2)+'%</span>';
+        var stats=[['Estudiantes',s.students||0],['Evaluaciones',s.evaluations||0],['Competencias',s.competencies||0],['Ponderación',Number(s.percentage_total||0).toFixed(2)+'%']];
+        return '<div class="gc-stats">'+stats.map(function(stat){return '<span class="gc-stat"><strong>'+esc(stat[1])+'</strong>'+esc(stat[0])+'</span>';}).join('')+'</div>';
     }
-    function detailsHtml(validation){
-        var issues=(validation&&validation.issues)||[];
-        if(!issues.length){
-            return '<div id="gc-general-detail-area" class="gc-details" style="display:none"><div class="gc-check text-success"><i class="fas fa-check-circle"></i><div><strong>Verificación completa.</strong><br><small>Todas las condiciones necesarias para el cierre se cumplen.</small></div></div></div>';
-        }
-        var html='<div id="gc-general-detail-area" class="gc-details" style="display:none">';
-        issues.forEach(function(issue){
-            html+='<div class="gc-check text-danger"><i class="fas fa-times-circle"></i><div>'+esc(issue.message||'Hay información pendiente.')+'</div></div>';
-        });
-        return html+'</div>';
+    function checksHtml(data){
+        var validation=data.validation||{},issues=validation.issues||[],summary=validation.summary||{},ready=!!data.ready,closed=!!data.closed;
+        if(closed)return '';
+        var pending=Math.max(0,Number(summary.expected_grade_cells||0)-Number(summary.completed_grade_cells||0));
+        var positive=ready?[
+            'Competencias configuradas correctamente',
+            'Evaluaciones y notas completas',
+            'Ponderación de competencias al 100%'
+        ]:[];
+        var rows=ready?positive.map(function(x){return '<div class="gc-check"><i class="fas fa-check-circle text-success"></i><span>'+esc(x)+'</span></div>';}).join(''):
+            issues.map(function(x){return '<div class="gc-check"><i class="fas fa-exclamation-circle text-warning"></i><span>'+esc(x.message||'Información pendiente')+'</span></div>';}).join('');
+        if(!ready&&!issues.length)rows='<div class="gc-check"><i class="fas fa-info-circle text-primary"></i><span>Revisa la configuración del curso y las notas pendientes.</span></div>';
+        return '<div class="gc-check-heading">'+(ready?'Verificación completada':'Por resolver'+(pending?' · '+pending+' calificaciones pendientes':''))+'</div><div class="gc-checks">'+rows+'</div>';
     }
     function statusMarkup(data){
-        var state=data.state||'Incompleto';
-        var validation=data.validation||{};
-        var s=validation.summary||{};
-        var closed=!!data.closed;
-        var icon=closed?'fa-lock':(data.ready?'fa-check-circle':'fa-exclamation-triangle');
-        var color=closed?'text-info':(data.ready?'text-success':'text-warning');
-        var title=closed?'Bimestre cerrado':(data.ready?'Listo para cerrar':'Cierre incompleto');
-        var sub=closed
-            ? 'El curso, aula y bimestre están cerrados. El bloqueo se aplica tanto a Lista de evaluaciones como a Libro de notas.'
-            : (data.ready
-                ? 'Todo está correcto. Este cierre bloqueará las dos formas de registrar notas.'
-                : 'Corrige los pendientes antes de cerrar. La validación considera todas las evaluaciones y notas del curso y aula seleccionados.');
-        var actions='<button class="btn btn-outline-primary btn-sm gc-verify"><i class="fas fa-clipboard-check mr-1"></i>Verificar</button>';
-        if(closed){
-            if(data.pending_reopen){
-                actions+='<button class="btn btn-warning btn-sm" disabled><i class="fas fa-hourglass-half mr-1"></i>Reapertura pendiente</button>';
-            } else {
-                actions+='<button class="btn btn-outline-warning btn-sm gc-request-reopen"><i class="fas fa-unlock-alt mr-1"></i>Solicitar reapertura</button>';
-            }
-        } else if(data.ready){
-            actions+='<button class="btn btn-success btn-sm gc-close"><i class="fas fa-lock mr-1"></i>Cerrar bimestre</button>';
-        } else {
-            actions+='<button class="btn btn-secondary btn-sm" disabled><i class="fas fa-lock mr-1"></i>Cerrar bimestre</button>';
-        }
-        var meta='';
-        if(closed&&data.closure){
-            meta='<div class="gc-meta mt-1">Cerrado por <strong>'+esc(data.closure.closed_by_name||'Docente')+'</strong> · '+fmtDate(data.closure.closed_at)+' · Cierre #'+Number(data.closure.closure_version||1)+'</div>';
-        } else if(data.pending_reopen){
-            meta='<div class="gc-meta mt-1">Solicitud de reapertura enviada '+fmtDate(data.pending_reopen.created_at)+'</div>';
-        }
-        var progress=Number(s.progress||0);
-        return '<div class="d-flex gc-main justify-content-between align-items-start">'+
-            '<div class="pr-md-3 flex-grow-1">'+
-                '<div class="'+color+' gc-state"><i class="fas '+icon+' mr-1"></i>'+esc(state)+'</div>'+
-                '<div class="font-weight-bold text-gray-800">'+title+'</div>'+
-                '<div class="small text-muted">'+sub+'</div>'+meta+
-                '<div class="mt-2">'+summaryHtml(s)+'</div>'+
-                '<div class="d-flex justify-content-between small mt-2"><span>Completitud de calificaciones</span><strong>'+progress.toFixed(1)+'%</strong></div>'+
-                '<div class="progress gc-progress"><div class="progress-bar '+(progress>=100?'bg-success':'bg-warning')+'" style="width:'+Math.min(100,progress)+'%"></div></div>'+
-            '</div>'+
-            '<div class="gc-actions d-flex">'+actions+'</div>'+
-        '</div>'+detailsHtml(validation);
+        var closed=!!data.closed,ready=!!data.ready,validation=data.validation||{},summary=validation.summary||{},state=closed?'Cerrado':(ready?'Listo para cerrar':'Pendiente de completar');
+        var mode=closed?'closed':(ready?'ready':'incomplete');
+        var icon=closed?'fa-lock':(ready?'fa-check-circle':'fa-clock');
+        var subtitle=closed?'El registro de notas está en solo lectura en ambas vistas.':(ready?'El curso y el bimestre cumplen las condiciones para el cierre.':'Completa las condiciones pendientes antes de cerrar las notas.');
+        var detail=closed&&data.closure?'<div class="gc-closed-info"><i class="fas fa-user-check mr-1"></i>Cerrado por <strong>'+esc(data.closure.closed_by_name||'Docente')+'</strong> · '+fmtDate(data.closure.closed_at)+'</div>':'';
+        var pending=data.pending_reopen?'<div class="gc-closed-info text-warning"><i class="fas fa-hourglass-half mr-1"></i>Solicitud de reapertura pendiente desde '+fmtDate(data.pending_reopen.created_at)+'</div>':'';
+        var progress=Number(summary.progress||0);
+        var progressHtml=closed?'':'<div class="d-flex justify-content-between align-items-center gc-progress-label"><span>Calificaciones registradas</span><strong>'+Math.max(0,Math.min(100,progress)).toFixed(1)+'%</strong></div><div class="progress gc-progress mt-1"><div class="progress-bar '+(ready?'bg-success':'bg-primary')+'" style="width:'+Math.max(0,Math.min(100,progress))+'%"></div></div>';
+        var notice=data.admin_notification_enabled
+            ? 'Al cerrar, Administración recibirá una notificación con el docente, curso, aula y bimestre. El cierre también quedará en el control académico.'
+            : 'El cierre quedará registrado en el control académico, con el docente y la fecha. Para recibir alertas también en el Centro de notificaciones debe estar habilitado ese módulo.';
+        return '<div class="gc-state-line"><span class="gc-state-chip gc-'+mode+'"><i class="fas '+icon+'"></i>'+esc(state)+'</span></div>'+
+            '<div class="gc-status-sub">'+subtitle+'</div>'+
+            detail+pending+summaryHtml(summary)+progressHtml+checksHtml(data)+
+            '<div class="gc-admin-note"><i class="fas fa-bell"></i><span>'+esc(notice)+'</span></div>';
     }
-    function setPanelClass(target,data){
-        target.removeClass('gc-ready gc-closed gc-incomplete').addClass(data.closed?'gc-closed':(data.ready?'gc-ready':'gc-incomplete'));
+    function setDialogActions(data){
+        var closed=!!data.closed,ready=!!data.ready;
+        $('#gc-confirm-area,#gc-confirm-close').toggleClass('d-none',closed||!ready);
+        $('#gc-confirm-check').prop('checked',false);
+        $('#gc-confirm-close').prop('disabled',true);
+        $('#gc-request-reopen').toggleClass('d-none',!closed||!!data.pending_reopen);
     }
     function requestStatus(ctx,onSuccess,onError){
         if(!validContext(ctx)){
@@ -162,52 +148,46 @@
     function ensureGeneralModal(){
         if($('#gc-general-modal').length)return;
         $('body').append(
-            '<div class="modal fade" id="gc-general-modal" tabindex="-1" role="dialog">'+
-                '<div class="modal-dialog modal-lg modal-dialog-centered" role="document"><div class="modal-content">'+
-                    '<div class="modal-header"><div><h5 class="modal-title"><i class="fas fa-lock text-success mr-2"></i>Cierre bimestral de notas</h5><small class="text-muted">Se aplica a la Lista de evaluaciones y al Libro de notas.</small></div><button class="close" data-dismiss="modal"><span>&times;</span></button></div>'+
+            '<div class="modal fade gc-modal" id="gc-general-modal" tabindex="-1" role="dialog" aria-labelledby="gc-modal-title">'+
+                '<div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">'+
+                    '<div class="modal-header"><div><h5 class="modal-title" id="gc-modal-title"><i class="fas fa-clipboard-check text-primary mr-2"></i>Cierre bimestral</h5><small class="text-muted">Revisión y confirmación del registro de notas</small></div><button class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button></div>'+
                     '<div class="modal-body">'+
-                        '<div class="small text-muted mb-3"><i class="fas fa-book mr-1"></i><span id="gc-general-context"></span></div>'+
-                        '<div id="gc-general-status" class="gc-panel mb-0"><div class="text-muted small">Consultando estado del bimestre...</div></div>'+
+                        '<div class="gc-context"><i class="fas fa-book-open text-primary mr-2"></i><strong id="gc-general-context"></strong></div>'+
+                        '<div id="gc-general-status" role="status" aria-live="polite"><div class="text-muted small"><i class="fas fa-spinner fa-spin mr-1"></i>Verificando el bimestre...</div></div>'+
                     '</div>'+
-                    '<div class="modal-footer"><button class="btn btn-light border" data-dismiss="modal">Volver</button></div>'+
+                    '<div class="modal-footer">'+
+                        '<div id="gc-confirm-area" class="gc-confirm-area d-none"><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="gc-confirm-check"><label class="custom-control-label" for="gc-confirm-check">He revisado las notas y confirmo el cierre de este bimestre.</label></div></div>'+
+                        '<div class="gc-footer-actions"><button class="btn btn-light border btn-sm" data-dismiss="modal">Volver</button><button class="btn btn-outline-warning btn-sm d-none" id="gc-request-reopen"><i class="fas fa-unlock-alt mr-1"></i>Solicitar reapertura</button><button class="btn btn-success btn-sm d-none" id="gc-confirm-close" disabled><i class="fas fa-lock mr-1"></i>Cerrar bimestre</button></div>'+
+                    '</div>'+
                 '</div></div>'+
             '</div>'
         );
+        $(document).on('change','#gc-confirm-check',function(){$('#gc-confirm-close').prop('disabled',!this.checked)});
+        $(document).on('hidden.bs.modal','#gc-general-modal',function(){
+            $('#gc-confirm-check').prop('checked',false);$('#gc-confirm-close').prop('disabled',true);
+        });
     }
     function generalError(message,migration){
-        $('#gc-general-status').removeClass('gc-ready gc-closed gc-incomplete').addClass('gc-incomplete').html(
-            '<div class="alert '+(migration?'alert-warning':'alert-danger')+' mb-0"><i class="fas '+(migration?'fa-database':'fa-exclamation-circle')+' mr-1"></i>'+esc(message)+'</div>');
+        $('#gc-confirm-area,#gc-confirm-close,#gc-request-reopen').addClass('d-none');
+        $('#gc-general-status').html('<div class="alert '+(migration?'alert-warning':'alert-danger')+' mb-0"><i class="fas fa-exclamation-circle mr-1"></i>'+esc(message)+'</div>');
     }
     function refreshGeneral(){
         if(!$('#gc-general-modal').is(':visible'))return;
         var ctx=generalContext(),target=$('#gc-general-status');
         if(!validContext(ctx)){generalError('Selecciona un curso y bimestre válidos.',false);return;}
-        target.html('<div class="text-muted small"><i class="fas fa-spinner fa-spin mr-1"></i>Verificando cierre bimestral...</div>');
+        $('#gc-confirm-area,#gc-confirm-close,#gc-request-reopen').addClass('d-none');
+        target.html('<div class="text-muted small py-2"><i class="fas fa-spinner fa-spin mr-1"></i>Verificando el bimestre...</div>');
         requestStatus(ctx,function(r){
-            if(!$('#gc-general-modal').is(':visible'))return;
-            setPanelClass(target,r);
-            target.html(statusMarkup(r));
+            if(!$('#gc-general-modal').is(':visible')||ctx!==selectedClosureContext)return;
+            target.html(statusMarkup(r));setDialogActions(r);
         },generalError);
-    }
-
-    function ensureCloseModal(){
-        if($('#gc-close-modal').length)return;
-        $('body').append(
-            '<div class="modal fade" id="gc-close-modal" tabindex="-1" role="dialog"><div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">'+
-                '<div class="modal-header"><h5 class="modal-title"><i class="fas fa-lock text-success mr-2"></i>Cerrar notas del bimestre</h5><button class="close" data-dismiss="modal"><span>&times;</span></button></div>'+
-                '<div class="modal-body"><p>Al cerrar, las evaluaciones y calificaciones del <strong>curso, aula y bimestre seleccionados</strong> quedarán en solo lectura en ambos modos de registro.</p><div class="alert alert-light border small">La reapertura requerirá autorización de Administración.</div><div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="gc-confirm-check"><label class="custom-control-label" for="gc-confirm-check">He revisado las notas y deseo realizar el cierre bimestral.</label></div></div>'+
-                '<div class="modal-footer"><button class="btn btn-light" data-dismiss="modal">Cancelar</button><button class="btn btn-success" id="gc-confirm-close" disabled><i class="fas fa-lock mr-1"></i>Cerrar bimestre</button></div>'+
-            '</div></div></div>'
-        );
-        $(document).on('change','#gc-confirm-check',function(){$('#gc-confirm-close').prop('disabled',!this.checked);});
-        $(document).on('hidden.bs.modal','#gc-close-modal',function(){$('#gc-confirm-check').prop('checked',false);$('#gc-confirm-close').prop('disabled',true);});
     }
     function ensureReopenModal(){
         if($('#gc-reopen-modal').length)return;
         $('body').append(
             '<div class="modal fade" id="gc-reopen-modal" tabindex="-1" role="dialog"><div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">'+
                 '<div class="modal-header"><h5 class="modal-title"><i class="fas fa-unlock-alt text-warning mr-2"></i>Solicitar reapertura</h5><button class="close" data-dismiss="modal"><span>&times;</span></button></div>'+
-                '<div class="modal-body"><label class="small font-weight-bold">Motivo de la reapertura</label><textarea class="form-control" id="gc-reopen-reason" rows="4" maxlength="500" placeholder="Ej. Se detectó una calificación registrada incorrectamente."></textarea><small class="text-muted">Si Administración aprueba, volverán a habilitarse ambos modos de registro.</small></div>'+
+                '<div class="modal-body"><div class="gc-reopen-context" id="gc-reopen-context"></div><label class="small font-weight-bold" for="gc-reopen-reason">Motivo de la solicitud</label><textarea class="form-control" id="gc-reopen-reason" rows="3" maxlength="500" placeholder="Indica qué calificación necesitas corregir y por qué."></textarea><small class="text-muted d-block mt-2">Administración revisará la solicitud antes de habilitar nuevamente las notas.</small></div>'+
                 '<div class="modal-footer"><button class="btn btn-light" data-dismiss="modal">Cancelar</button><button class="btn btn-warning" id="gc-send-reopen"><i class="fas fa-paper-plane mr-1"></i>Enviar solicitud</button></div>'+
             '</div></div></div>'
         );
@@ -241,22 +221,12 @@
             $('#gc-general-modal').one('shown.bs.modal',refreshGeneral).modal('show');
         });
     });
-    $(document).on('click','.gc-verify',function(){
-        $('#gc-general-detail-area').stop(true,true).slideToggle(150);
-    });
-    $(document).on('click','.gc-close',function(){
-        var ctx=generalContext();
-        if(!validContext(ctx))return;
-        if($('.gb-cell.gb-dirty').length){
-            if(typeof alert_toast==='function')alert_toast('Guarda o descarta las notas modificadas antes de cerrar.','warning');
-            return;
-        }
-        actionContext=ctx;
-        ensureCloseModal();
-        $('#gc-close-modal').modal('show');
+    $(document).on('click','#gc-request-reopen',function(){
+        $(document).trigger('gc:reopen-click');
     });
     $(document).on('click','#gc-confirm-close',function(){
-        if(!actionContext||!validContext(actionContext))return;
+        actionContext=generalContext();
+        if(!$('#gc-confirm-check').prop('checked')||!actionContext||!validContext(actionContext))return;
         if(!csrf){
             if(typeof alert_toast==='function')alert_toast('No se encontró el token de seguridad. Recarga la página.','warning');
             return;
@@ -269,7 +239,7 @@
                     refreshGeneral();
                     return;
                 }
-                $('#gc-close-modal').modal('hide');
+                $('#gc-confirm-check').prop('checked',false);
                 if(typeof alert_toast==='function')alert_toast(r.message,'success');
                 afterClosureChange();
             })
@@ -278,10 +248,11 @@
             })
             .always(function(){btn.prop('disabled',false).html('<i class="fas fa-lock mr-1"></i>Cerrar bimestre');});
     });
-    $(document).on('click','.gc-request-reopen',function(){
+    $(document).on('gc:reopen-click',function(){
         actionContext=generalContext();
         if(!validContext(actionContext))return;
         ensureReopenModal();
+        $('#gc-reopen-context').text($('#gc-general-context').text());
         $('#gc-reopen-reason').val('');
         $('#gc-reopen-modal').modal('show');
         setTimeout(function(){$('#gc-reopen-reason').focus();},250);
