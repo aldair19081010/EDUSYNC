@@ -31,42 +31,7 @@ function attendance_column_exists(mysqli $conn, string $table, string $column): 
     return $q && $q->num_rows > 0;
 }
 
-function attendance_normalize_status($status): string {
-    $value = trim((string)$status);
-    $lower = mb_strtolower($value, 'UTF-8');
-    if ($lower === 'normal' || $lower === 'temprano' || $lower === 'presente') return 'Presente';
-    if ($lower === 'tarde') return 'Tarde';
-    if ($lower === 'ausente justificada' || $lower === 'ausencia justificada') return 'Ausente Justificada';
-    if ($lower === 'ausente' || $lower === 'ausencia') return 'Ausente';
-    if ($lower === 'permiso') return 'Permiso';
-    return $value !== '' ? $value : 'Sin estado';
-}
-
-function attendance_clean_time($time): ?string {
-    $value = trim((string)$time);
-    if ($value === '' || $value === '00:00:00' || $value === '00:00') return null;
-    return substr($value, 0, 8);
-}
-
-function attendance_pick_entry(array $rows): ?array {
-    if (!$rows) return null;
-    usort($rows, static function ($a, $b) {
-        $ta = attendance_clean_time($a['hora'] ?? null) ?? '99:99:99';
-        $tb = attendance_clean_time($b['hora'] ?? null) ?? '99:99:99';
-        return strcmp($ta, $tb);
-    });
-    return $rows[0];
-}
-
-function attendance_pick_exit(array $rows): ?array {
-    if (!$rows) return null;
-    usort($rows, static function ($a, $b) {
-        $ta = attendance_clean_time($a['hora'] ?? null) ?? '00:00:00';
-        $tb = attendance_clean_time($b['hora'] ?? null) ?? '00:00:00';
-        return strcmp($tb, $ta);
-    });
-    return $rows[0];
-}
+require_once __DIR__ . '/../includes/attendance_history_helper.php';
 
 try {
     $dni = trim($_GET['dni'] ?? ($_POST['dni'] ?? ''));
@@ -168,49 +133,7 @@ try {
     }
     $stmt->close();
 
-    $grouped = [];
-    foreach ($raw as $mark) {
-        $year = (string)$mark['anio_academico'];
-        $date = (string)$mark['fecha'];
-        $key = $year . '|' . $date;
-        if (!isset($grouped[$key])) {
-            $grouped[$key] = [
-                'fecha' => $date,
-                'anio_academico' => $year,
-                'anio_descripcion' => (string)$mark['anio_descripcion'],
-                'entradas' => [],
-                'salidas' => [],
-                'otros' => []
-            ];
-        }
-
-        $type = mb_strtolower(trim((string)$mark['tipo']), 'UTF-8');
-        if ($type === 'entrada') $grouped[$key]['entradas'][] = $mark;
-        elseif ($type === 'salida') $grouped[$key]['salidas'][] = $mark;
-        else $grouped[$key]['otros'][] = $mark;
-    }
-
-    $days = [];
-    foreach ($grouped as $day) {
-        $entry = attendance_pick_entry($day['entradas']);
-        $exit = attendance_pick_exit($day['salidas']);
-        $fallback = $entry ?: ($day['otros'][0] ?? ($exit ?: null));
-        $status = attendance_normalize_status($fallback['estado'] ?? 'Sin estado');
-
-        $days[] = [
-            'fecha' => $day['fecha'],
-            'anio_academico' => $day['anio_academico'],
-            'anio_descripcion' => $day['anio_descripcion'],
-            'entrada' => $entry ? attendance_clean_time($entry['hora'] ?? null) : null,
-            'salida' => $exit ? attendance_clean_time($exit['hora'] ?? null) : null,
-            'estado' => $status,
-            'marcaciones' => count($day['entradas']) + count($day['salidas']) + count($day['otros'])
-        ];
-    }
-
-    usort($days, static function ($a, $b) {
-        return strcmp((string)$b['fecha'], (string)$a['fecha']);
-    });
+    $days = attendance_group_days($raw);
 
     $summary = [];
     foreach ($days as $day) {
