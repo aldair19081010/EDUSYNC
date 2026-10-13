@@ -108,8 +108,6 @@ if ($action === 'history') {
     $grade = trim((string)$assignment['grado']);
     $section = trim((string)$assignment['seccion']);
     if ($section === '') $section = 'U';
-    $academicYearId = (int)$assignment['academic_year_id'];
-
     $rosterStmt = $conn->prepare(
         "SELECT st.id,st.id_no,st.name
          FROM student st
@@ -183,9 +181,6 @@ if ($action === 'history') {
         "LOWER(TRIM(a.tipo))='entrada'"
     ];
     if ($hasSchoolId) $where[] = "a.school_id=?";
-    if ($hasAcademicYearId) {
-        $where[] = "(a.academic_year_id=? OR a.academic_year_id IS NULL)";
-    }
     if ($hasCancelled) {
         $where[] = "COALESCE(a.is_cancelled,0)=0";
     }
@@ -206,21 +201,9 @@ if ($action === 'history') {
         ],500);
     }
 
-    if ($hasSchoolId && $hasAcademicYearId) {
+    if ($hasSchoolId) {
         $stmt->bind_param(
-            'issssssii',
-            $school,
-            $level,
-            $grade,
-            $section,
-            $from,
-            $to,
-            $school,
-            $academicYearId
-        );
-    } elseif ($hasSchoolId) {
-        $stmt->bind_param(
-            'issssssi',
+            'isssssi',
             $school,
             $level,
             $grade,
@@ -228,17 +211,6 @@ if ($action === 'history') {
             $from,
             $to,
             $school
-        );
-    } elseif ($hasAcademicYearId) {
-        $stmt->bind_param(
-            'issssssi',
-            $school,
-            $level,
-            $grade,
-            $section,
-            $from,
-            $to,
-            $academicYearId
         );
     } else {
         $stmt->bind_param(
