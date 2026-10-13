@@ -45,7 +45,7 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 #gr-book-view .gb-sheet{font-variant-numeric:tabular-nums}
 #gr-book-view .gb-sheet th,#gr-book-view .gb-sheet td{border-right-color:#e3e8f1;border-bottom-color:#e9edf4}
 #gr-book-view .gb-sheet thead tr:first-child th{height:48px;background:#e9eff9;color:#2e3a59}
-#gr-book-view .gb-sheet thead tr:nth-child(2) th{top:48px;height:58px;min-width:116px;padding:.4rem .45rem;background:#f7f9fd;vertical-align:middle}
+#gr-book-view .gb-sheet thead tr:nth-child(2) th{top:48px;height:66px;min-width:116px;padding:.4rem .45rem;background:#f7f9fd;vertical-align:middle}
 #gr-book-view .gb-sheet .gb-group-head{padding:.4rem .5rem .4rem .55rem;border-left:2px solid #cbd8ee;text-align:left!important}
 #gr-book-view .gb-sheet .gb-group-inner{width:100%;min-width:0;display:flex;align-items:center;gap:.35rem}
 #gr-book-view .gb-sheet .gb-group-inner .gb-group-title{flex:1 1 auto;min-width:0}
@@ -56,10 +56,11 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 #gr-book-view .gb-sheet .gb-group-percent{flex:0 0 auto;white-space:nowrap;font-size:.68rem;padding:.1rem .35rem;margin-left:0}
 #gr-book-view .gb-sheet .gb-add-eval{height:24px;width:24px;right:.4rem;border-radius:.35rem}
 #gr-book-view .gb-sheet .gb-eval-head{width:145px;min-width:138px;max-width:165px;box-sizing:border-box}
-#gr-book-view .gb-sheet .gb-eval-heading{display:flex;align-items:center;gap:.35rem;justify-content:space-between;min-width:0;width:100%;max-width:100%}
-#gr-book-view .gb-sheet .gb-eval-title{flex:1 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;font-size:.72rem;color:#45536f}
-#gr-book-view .gb-sheet .gb-head-actions{flex:0 0 27px;min-width:27px;max-width:27px;height:27px;margin:0;opacity:1}
-#gr-book-view .gb-sheet .gb-eval-status{margin-top:.25rem;display:flex;justify-content:flex-start;width:100%;min-width:0}
+#gr-book-view .gb-sheet .gb-eval-heading{display:grid;grid-template-columns:27px minmax(0,1fr) 27px;align-items:center;justify-content:center;gap:.2rem;min-width:0;width:100%;max-width:100%}
+#gr-book-view .gb-sheet .gb-eval-heading::before{content:"";display:block;grid-column:1;width:27px}
+#gr-book-view .gb-sheet .gb-eval-title{grid-column:2;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:normal;overflow-wrap:anywhere;text-align:center!important;line-height:1.25;font-size:.72rem;color:#45536f}
+#gr-book-view .gb-sheet .gb-head-actions{grid-column:3;align-self:center;justify-self:end;min-width:27px;max-width:27px;height:27px;margin:0;opacity:1}
+#gr-book-view .gb-sheet .gb-eval-status{margin-top:.25rem;display:flex;justify-content:center;width:100%;min-width:0}
 #gr-book-view .gb-sheet .gb-eval-annulled{display:inline-flex;align-items:center;gap:.2rem;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;font-size:.66rem;padding:.17rem .35rem;border-radius:.3rem}
 #gr-book-view .gb-sheet .gb-eval-head:focus-within{z-index:9}
 #gr-book-view .gb-sheet .gb-head-actions .btn{height:25px;width:27px;padding:0!important;border:1px solid transparent!important;border-radius:.35rem;color:#64748b}
