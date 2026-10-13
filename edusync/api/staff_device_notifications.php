@@ -37,7 +37,9 @@ if (!spd_table($conn,'staff_device_tokens')) {
     spd_reply(['status'=>'error','migration_required'=>true,'message'=>'Falta ejecutar sql/staff_push_notifications.sql.'],409);
 }
 // Revalidate the account/role at every token operation, never trust POST user_id.
-$stmt=$conn->prepare('SELECT id,type FROM users WHERE id=? AND school_id=? LIMIT 1');
+$activeCol=$conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+$activeRule=($activeCol && $activeCol->num_rows) ? " AND status='Activo'" : '';
+$stmt=$conn->prepare('SELECT id,type,teacher_id FROM users WHERE id=? AND school_id=?'.$activeRule.' LIMIT 1');
 $stmt->bind_param('ii',$userId,$schoolId);
 $stmt->execute();
 $account=$stmt->get_result()->fetch_assoc();
@@ -45,6 +47,14 @@ $stmt->close();
 if (!$account || (int)$account['type']!==$role) {
     spd_reply(['status'=>'error','message'=>'Cuenta no disponible.'],403);
 }
+if ($role===2) {
+    $teacherId=(int)($account['teacher_id']??0);
+    $stmt=$conn->prepare("SELECT id FROM teacher WHERE id=? AND school_id=? AND status='Activo' LIMIT 1");
+    $stmt->bind_param('ii',$teacherId,$schoolId);
+    $stmt->execute();$activeTeacher=$stmt->get_result()->fetch_assoc();$stmt->close();
+    if (!$activeTeacher) spd_reply(['status'=>'error','message'=>'Docente no disponible.'],403);
+}
+
 
 $action=trim((string)($_POST['action']??'register'));
 $deviceId=trim((string)($_POST['device_id']??''));
