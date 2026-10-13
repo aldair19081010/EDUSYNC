@@ -31,11 +31,21 @@ $roleNames=[1=>'Administrador',2=>'Docente',3=>'Auxiliar'];
 $roleName=$roleNames[$role];
 if (!sn_exists($conn,'notification_events')||!sn_exists($conn,'notification_user_state'))
     sn_reply(['status'=>'error','migration_required'=>true,'message'=>'Falta ejecutar sql/notifications_module_upgrade.sql.'],409);
-$stmt=$conn->prepare('SELECT id,type FROM users WHERE id=? AND school_id=? LIMIT 1');
+$activeCol=$conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+$activeRule=($activeCol && $activeCol->num_rows) ? " AND status='Activo'" : '';
+$stmt=$conn->prepare('SELECT id,type,teacher_id FROM users WHERE id=? AND school_id=?'.$activeRule.' LIMIT 1');
 $stmt->bind_param('ii',$user,$school);
 $stmt->execute();$account=$stmt->get_result()->fetch_assoc();$stmt->close();
 if (!$account||(int)$account['type']!==$role)
     sn_reply(['status'=>'error','message'=>'Cuenta no disponible.'],403);
+if ($role===2) {
+    $teacherId=(int)($account['teacher_id']??0);
+    $stmt=$conn->prepare("SELECT id FROM teacher WHERE id=? AND school_id=? AND status='Activo' LIMIT 1");
+    $stmt->bind_param('ii',$teacherId,$school);
+    $stmt->execute();$activeTeacher=$stmt->get_result()->fetch_assoc();$stmt->close();
+    if (!$activeTeacher) sn_reply(['status'=>'error','message'=>'Docente no disponible.'],403);
+}
+
 
 $action=trim((string)($_REQUEST['action']??'list'));
 if ($action==='mark_read') {
