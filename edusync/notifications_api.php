@@ -208,8 +208,10 @@ if (nt($conn, 'low_grade_notifications')) {
     $parts[] = "SELECT CONCAT('low_grade:',lgn.id) COLLATE utf8mb4_general_ci nkey,
         'Alerta estudiantil' COLLATE utf8mb4_general_ci category,
         'Alta' COLLATE utf8mb4_general_ci priority,
-        CONCAT('Notas bajas: ',s.name) COLLATE utf8mb4_general_ci title,
-        CONCAT(lgn.count_low_grades,' calificaciones · Bimestre ',lgn.bimestre) COLLATE utf8mb4_general_ci message,
+        CONCAT('Seguimiento académico: ',s.name) COLLATE utf8mb4_general_ci title,
+        CONCAT(lgn.count_low_grades,' notas desaprobatorias · ',s.nivel,
+            ' · ',s.grado,'° ',COALESCE(s.seccion,''),' · Bimestre ',lgn.bimestre)
+            COLLATE utf8mb4_general_ci message,
         lgn.created_at,
         'low_grade' COLLATE utf8mb4_general_ci source_type,
         lgn.id source_id,
