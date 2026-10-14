@@ -54,19 +54,13 @@ Los datos se guardan en `C:\xampp\firebase\edusync-web-public.json` (fuera de `h
 
 **No requiere introducir ni mostrar secretos de Firebase.** En el hosting de producción seguir utilizando las variables de entorno, no las rutas locales Windows.
 
-## Invitación automática después de iniciar sesión (todos los perfiles)
+## Activación manual desde la campana (comportamiento restaurado)
 
-Con Firebase Web y las dos tablas instaladas, EduSync muestra una **invitación propia**, no el diálogo nativo del navegador, cuando el usuario inicia sesión por primera vez en un navegador sin permiso:
+EduSync **no muestra ventanas automáticas** al iniciar sesión. Para recibir notificaciones Web Push hay que abrir la campana y pulsar **Activar notificaciones**. El permiso del navegador se solicita únicamente si todavía no está concedido y como respuesta a ese clic.
 
-- **Activar notificaciones**: al pulsar este botón se solicita el permiso del navegador y se registra la suscripción FCM; nunca se solicita el permiso automáticamente durante la carga.
-- **Ahora no**: cierra la invitación y la pospone **30 días**, por navegador y por cuenta/colegio. También se puede cerrar con Escape. La opción de la campana permanece disponible.
-- **Permiso concedido previamente**: no se muestra otra invitación ni se solicita nuevamente permiso. Si el usuario activó Web Push antes **y existe una suscripción previa**, EduSync puede renovar su registro. Si no existe suscripción, debe elegir **Activar notificaciones** desde la campana; conceder permiso al navegador no significa haber registrado el dispositivo.
-- **Permiso bloqueado**: no se muestra la invitación. El usuario debe cambiar la configuración del navegador si desea habilitarla.
-- **Firebase sin configurar, migración pendiente o dispositivo incompatible**: tampoco se muestra la invitación; la campana explica qué falta.
+Después de que el navegador y Firebase registran el dispositivo, la campana habilita **Enviar prueba** y **Desactivar avisos del dispositivo**. Si el usuario ya lo activó y el permiso continúa concedido, EduSync puede renovar el registro al abrir la sesión; no intenta activarlo por primera vez sin consentimiento.
 
-El estado de la invitación se guarda localmente, separado por identidad y colegio. El servidor continúa validando la sesión al registrar tokens, y al cerrar sesión desactiva la suscripción de ese navegador.
-
-**Pruebas recomendadas:** entrar como estudiante y administrador en un navegador nuevo; elegir «Ahora no», recargar e iniciar sesión otra vez y comprobar que no reaparece; borrar el aplazamiento mediante las herramientas del navegador solo para repetir el caso inicial; activar y conceder permiso; salir y entrar para comprobar la revinculación automática; desactivar desde la campana y comprobar que no se revincula sola; denegar el permiso y confirmar que no reaparece el diálogo.
+Si el navegador indica `granted`, significa que ya concedió el permiso y **no volverá a mostrar el diálogo nativo**, aunque aún no exista una suscripción Push. Si aparece `Registration failed - push service error`, se trata de un fallo de la suscripción del navegador que debe diagnosticarse por separado. No hace falta volver a ejecutar la migración SQL ni regenerar las claves VAPID sin identificar la causa.
 
 ## 2. Migración de base de datos de prueba
 
@@ -98,44 +92,6 @@ Usa **Chrome o Edge** desde `http://localhost/interfaz/edusync` para probar: `lo
 5. Genera un evento real DESPUÉS de suscribirte (por ejemplo, que un docente cierre un bimestre). Repite el paso 4 y verifica que Administración lo recibe con EduSync cerrado.
 6. Usa un aviso estudiantil existente de asistencia/pago/nota/comunicado y comprueba que llegue a la app y al navegador suscrito.
 7. Prueba que **otro colegio**, otra cuenta o un perfil sin permiso no reciba el mensaje.
-
-## Diagnóstico: `Registration failed - push service error`
-
-Este mensaje se produce al solicitar al **servicio Push del navegador** una suscripción para obtener el token FCM. La base de datos puede estar correcta y el permiso ya concedido. No implica que el servidor PHP de EduSync haya enviado un mensaje.
-
-Al entrar en la web, el registro valida ahora que `messagingSenderId` concuerde con `appId`, que la clave VAPID pública sea una clave EC P-256 válida de 65 bytes y que el Service Worker esté activo antes de pedir el token.
-
-Si falla, EduSync muestra un aviso en español y **Diagnóstico** en la invitación y en la campana. El informe contiene únicamente estado del permiso, Service Worker, etapa fallida y error del navegador: **no incluye claves, tokens FCM ni datos escolares**. Copia el texto mostrado para poder revisar el problema sin compartir credenciales.
-
-Comprobación sugerida, sin borrar datos:
-
-1. Prueba desde el **Chrome o Edge oficial**, en ventana normal (no de incógnito ni un navegador integrado), usando exactamente `http://localhost/interfaz/edusync/index.php` o la ruta local que ya funciona en tu instalación. No uses IP local `http://192.168.x.x` sin HTTPS.
-2. Comprueba los permisos de notificaciones del sitio en Chrome/Edge (icono a la izquierda de la URL). Si se había bloqueado, habilítalo manualmente.
-3. Verifica la conexión de la computadora con los servicios de Google: VPN, proxy, antivirus y filtros corporativos pueden impedir la suscripción Push. Prueba una red diferente si es posible; no desactives permanentemente la protección del equipo.
-4. En `F12 → Application → Service Workers` comprueba que EduSync tiene un Service Worker activo. Si el diagnóstico señala clave VAPID inválida, contrástala con Firebase Console → Configuración del proyecto → Cloud Messaging → Certificados push web **sin generar claves nuevas innecesariamente**.
-5. Pulsa de nuevo **Activar notificaciones** desde la campana. Tras un error del servicio Push, EduSync espera diez minutos antes de otro intento automático, para no repetir solicitudes fallidas; el reintento manual está permitido.
-
-Si el mismo fallo aparece tanto en Chrome como en Edge, envía el **texto del diagnóstico**, e indica el navegador y si estás en Windows o Android. De ese modo se distingue un problema local de conectividad de una configuración Firebase incompatible.
-
-### Prueba directa del navegador, sin Firebase
-
-Si el diagnóstico contiene `Service Worker: Activo`, `Suscripción Push: No existe` y `AbortError: Registration failed - push service error`, abre **Diagnóstico → Probar servicio Push**. Esta prueba solicita voluntariamente a `PushManager.subscribe()` una suscripción usando **la misma clave pública VAPID**.
-
-- **API Push del navegador: Suscripción creada correctamente**: el servicio del navegador respondió. Cierra el diagnóstico y vuelve a pulsar **Activar notificaciones** para registrar el token con Firebase.
-- **API Push del navegador: Falló / AbortError**: la llamada falla **sin pasar por el SDK de Firebase ni por MySQL**. Compara con otro navegador oficial y, si es posible, con otra red (p. ej., hotspot del teléfono). Revisa políticas del navegador y conectividad a los servicios Push, sin desactivar permanentemente antivirus ni firewall.
-- **Tiempo agotado**: la red o el navegador no contestó en 15 segundos; el resultado de esa prueba es inconcluso, pero la interfaz no queda bloqueada.
-
-La prueba puede crear una suscripción Push local autorizada por el usuario, que posteriormente FCM reutiliza. Si el registro activo ya se conoce, la llamada nativa se realiza directamente durante el clic, sin esperas de lectura previas. **No envía mensajes, no guarda tokens en la base de datos y nunca muestra URLs de suscripción**. No borres los datos del navegador ni regeneres VAPID sin identificar antes la causa.
-
-### Cuando el permiso indica `granted` pero no llega ninguna notificación
-
-`granted` significa que el navegador **ya otorgó permiso** a EduSync. **No debe aparecer nuevamente el aviso nativo del sistema**. Tener permiso no implica tener un token Firebase ni una suscripción Push activa.
-
-En este caso se debe pulsar **Activar notificaciones** desde la campana. Si Firebase o el servicio Push no responde, el registro del Service Worker y la petición del token ahora tienen tiempos máximos; el botón vuelve a responder en lugar de quedar esperando indefinidamente. El diagnóstico también limita a unos segundos las comprobaciones del servicio.
-
-La opción **Diagnóstico** abre una ventana **fuera del desplegable de la campana**, para evitar que se oculten las últimas líneas. Usa **Copiar diagnóstico** y comparte el texto, no las claves VAPID ni el archivo JSON. Presta especial atención a `Etapa fallida`, `Service Worker`, `Suscripción Push` y `Detalle`.
-
-Si indica fallo en el servicio Push tanto en Chrome como en Edge, hay que comprobar la disponibilidad de los servicios Push del navegador y la conexión de Windows antes de modificar Firebase. La migración SQL no se repite ni se regeneran claves automáticamente.
 
 ## 4. Configurar en hosting (solo tras aprobar las pruebas)
 
