@@ -144,7 +144,7 @@ function scenario(permission,initial={},options={}){
     };
     window.navigator=navigator;
     const context={window,document,navigator,Notification,localStorage,
-        sessionStorage,Uint8Array,Promise,firebase,console};
+        sessionStorage,Uint8Array,Promise,firebase,console,setTimeout,clearTimeout};
     vm.runInNewContext(diagnosticSource,context,{filename:'web_push_diagnostic.js'});
     vm.runInNewContext(source,context,{filename:'web_push_fcm.js'});
     return {output,find,saved,Notification,calls};
@@ -215,6 +215,13 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     await flush();
     assert.equal(invalid.output.registrations,0,'Invalid VAPID blocked before FCM');
     assert(invalid.find('edwp-info').value.includes('VAPID'), 'Explain invalid VAPID');
+
+    // Un error de red no debe dejar el botón desactivado para siempre.
+    const slow=scenario('default',{}, {pushError:true});
+    await slow.find('edwp-invite-accept').trigger('click');
+    await flush();
+    assert.equal(slow.find('edwp-toggle').disabled,false,
+        'The activation button must recover after a failed attempt');
 
     const denied=scenario('denied');
     await flush();
