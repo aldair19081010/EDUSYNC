@@ -23,6 +23,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 }
 
 include '../db_connect.php';
+require_once __DIR__ . '/../includes/remember_session.php';
 session_start();
 
 function student_login_reply(array $payload, int $status = 200): void {
@@ -125,6 +126,9 @@ if ($lastLoginCol && $lastLoginCol->num_rows > 0) {
     }
 }
 
+// Cada login autenticado recibe una sesión independiente.
+session_regenerate_id(true);
+$_SESSION = [];
 $_SESSION['student_logged_in'] = true;
 $_SESSION['login_type'] = 4;
 $_SESSION['student_id'] = (int)$student['id'];
@@ -134,7 +138,12 @@ $_SESSION['student_school_id'] = $schoolId;
 $_SESSION['login_name'] = (string)$student['name'];
 $_SESSION['login_school_id'] = $schoolId;
 
-$sessionId = session_id();
+$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+$keep = (string)($_POST['remember_me'] ?? '') === '1';
+$credential = $storedHash !== '' ? $storedHash : 'legacy-dni:'.(string)$student['id_no'];
+$remember_saved = edrs_process_login(
+    $conn,'student',$schoolId,(int)$student['id'],$credential,$keep
+);
 session_write_close();
 
 student_login_reply([
@@ -143,6 +152,9 @@ student_login_reply([
     'student_id' => (int)$student['id'],
     'dni' => (string)$student['id_no'],
     'nombre' => (string)$student['name'],
-    'session_id' => $sessionId,
-    'password_customized' => $storedHash !== ''
+    'password_customized' => $storedHash !== '',
+    'remember_saved' => $remember_saved,
+    'remember_notice' => ($keep && !$remember_saved)
+        ? 'Inicio correcto. Este dispositivo aún no puede mantenerse conectado: revisa la migración y HTTPS.'
+        : ''
 ]);
