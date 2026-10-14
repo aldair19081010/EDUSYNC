@@ -117,6 +117,16 @@ Comprobación sugerida, sin borrar datos:
 
 Si el mismo fallo aparece tanto en Chrome como en Edge, envía el **texto del diagnóstico**, e indica el navegador y si estás en Windows o Android. De ese modo se distingue un problema local de conectividad de una configuración Firebase incompatible.
 
+### Prueba directa del navegador, sin Firebase
+
+Si el diagnóstico contiene `Service Worker: Activo`, `Suscripción Push: No existe` y `AbortError: Registration failed - push service error`, abre **Diagnóstico → Probar servicio Push**. Esta prueba solicita voluntariamente a `PushManager.subscribe()` una suscripción usando **la misma clave pública VAPID**.
+
+- **API Push del navegador: Suscripción creada correctamente**: el servicio del navegador respondió. Cierra el diagnóstico y vuelve a pulsar **Activar notificaciones** para registrar el token con Firebase.
+- **API Push del navegador: Falló / AbortError**: la llamada falla **sin pasar por el SDK de Firebase ni por MySQL**. Compara con otro navegador oficial y, si es posible, con otra red (p. ej., hotspot del teléfono). Revisa políticas del navegador y conectividad a los servicios Push, sin desactivar permanentemente antivirus ni firewall.
+- **Tiempo agotado**: la red o el navegador no contestó en 15 segundos; el resultado de esa prueba es inconcluso, pero la interfaz no queda bloqueada.
+
+La prueba puede crear una suscripción Push local autorizada por el usuario, que posteriormente FCM reutiliza. **No envía mensajes, no guarda tokens en la base de datos y nunca muestra URLs de suscripción**. No borres los datos del navegador ni regeneres VAPID sin identificar antes la causa.
+
 ### Cuando el permiso indica `granted` pero no llega ninguna notificación
 
 `granted` significa que el navegador **ya otorgó permiso** a EduSync. **No debe aparecer nuevamente el aviso nativo del sistema**. Tener permiso no implica tener un token Firebase ni una suscripción Push activa.
