@@ -67,6 +67,62 @@
         }
         return detail || 'No se pudo completar el registro. Consulta el diagnóstico.';
     }
+    function decodeVapid(value) {
+        var vapid=String(value||'').trim();
+        var binary=global.atob(vapid.replace(/-/g,'+').replace(/_/g,'/')+
+            '='.repeat((4-vapid.length%4)%4));
+        var bytes=new Uint8Array(binary.length);
+        for(var i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+        return bytes;
+    }
+    // Prueba voluntaria y directa del navegador, sin solicitar un token FCM.
+    // No se registra ni se muestra la URL privada de suscripción Push.
+    async function probe(config) {
+        var results=['Prueba directa del servicio Push del navegador'];
+        var stage='Revisar requisitos';
+        try {
+            if (!global.isSecureContext) throw new Error('EduSync requiere un origen seguro.');
+            if (!global.Notification || global.Notification.permission!=='granted')
+                throw new Error('El permiso de notificaciones no está concedido.');
+            validate(config);
+            if (!global.navigator || !global.navigator.serviceWorker)
+                throw new Error('El navegador no dispone de Service Workers.');
+            stage='Localizar Service Worker';
+            var sw=await limited(global.navigator.serviceWorker.getRegistration('./'),3500,stage);
+            if (!sw || !sw.active || !sw.pushManager)
+                throw new Error('El Service Worker de EduSync no está activo o no admite Push.');
+            results.push('Service Worker: Activo');
+            stage='Comprobar suscripción existente';
+            var previous=await limited(sw.pushManager.getSubscription(),3500,stage);
+            if (previous) {
+                results.push('API Push del navegador: Ya hay una suscripción');
+                results.push('Siguiente prueba: intenta Activar notificaciones para verificar Firebase.');
+                return {ok:true,stage:stage,message:results.join('\n')};
+            }
+            stage='Solicitar suscripción nativa Push';
+            var sub=await limited(sw.pushManager.subscribe({
+                userVisibleOnly:true,
+                applicationServerKey:decodeVapid(config.vapid_key)
+            }),15000,stage);
+            if (!sub) throw new Error('El navegador no devolvió una suscripción Push.');
+            results.push('API Push del navegador: Suscripción creada correctamente');
+            results.push('Siguiente prueba: pulsa Activar notificaciones para registrar Firebase.');
+            return {ok:true,stage:stage,message:results.join('\n')};
+        } catch(error) {
+            results.push('Etapa fallida: '+stage);
+            results.push('API Push del navegador: Falló');
+            results.push('Error: '+String(error&&error.name||'Error').slice(0,60));
+            results.push('Detalle: '+String(error&&error.message||'').slice(0,170));
+            if (isPushServiceError(error) || (error && error.name==='AbortError')) {
+                results.push('Conclusión: la API Push nativa falló antes de Firebase; revisa conectividad, políticas y servicios del navegador.');
+            } else {
+                results.push('Conclusión: comprueba la etapa indicada antes de cambiar Firebase.');
+            }
+            return {ok:false,stage:stage,message:results.join('\n')};
+        } finally {
+            results.push('No se muestran tokens ni datos escolares.');
+        }
+    }
     async function report(config, error, stage, reg) {
         var lines=[
             'EduSync Web Push · Diagnóstico local',
@@ -106,5 +162,5 @@
         return lines.join('\n');
     }
     global.EduSyncWebPushDiagnostic={validate:validate,explain:explain,
-        isPushServiceError:isPushServiceError,report:report,limited:limited};
+        isPushServiceError:isPushServiceError,report:report,limited:limited,probe:probe};
 })(window);
