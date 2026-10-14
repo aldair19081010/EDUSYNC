@@ -1,4 +1,9 @@
 <?php
+// La bandeja de alumnos utiliza los mismos eventos que la aplicación Android.
+if (!empty($_SESSION['student_logged_in']) || (int)($_SESSION['login_type'] ?? 0)===4) {
+    include __DIR__.'/student_notifications_web.php';
+    return;
+}
 include_once __DIR__ . '/../db_connect.php';
 $school = (int)($_SESSION['login_school_id'] ?? 0);
 $user = (int)($_SESSION['login_id'] ?? 0);
