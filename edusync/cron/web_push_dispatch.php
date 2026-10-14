@@ -166,8 +166,10 @@ try {
         }
         if (push_table_exists($conn,'low_grade_notifications')) {
             $parts[]="SELECT 'low_grade' kind,lgn.id event_id,st.school_id,s.id subscription_id,s.fcm_token,
-                     CONCAT('Notas bajas: ',st.name) title,
-                     CONCAT(lgn.count_low_grades,' calificaciones · Bimestre ',lgn.bimestre) body,
+                     'EduSync · Seguimiento académico' title,
+                     CONCAT('Nuevo caso para revisar · ',st.nivel,' · ',
+                         st.grado,'° ',COALESCE(st.seccion,''),
+                         ' · Bimestre ',lgn.bimestre) body,
                      'low_grade' screen,lgn.created_at created,COALESCE(d.attempts,0) attempts
                      FROM low_grade_notifications lgn
                      JOIN student st ON st.id=lgn.student_id
@@ -206,6 +208,10 @@ try {
         $subscription=(int)$event['subscription_id'];
         $screen=(string)$event['screen'];
         $url=$kind==='staff' ? 'index.php?page=notifications&push_event_id='.$eventId : 'index.php?page=notifications';
+        if ($kind==='low_grade') {
+            // Verificar colegio y rol en el endpoint peek antes de abrir.
+            $url='index.php?page=notifications&push_event_id='.$eventId.'&push_kind=low_grade';
+        }
         if ($kind==='student') {
             $routes=[
                 'attendance'=>'student_attendances',
