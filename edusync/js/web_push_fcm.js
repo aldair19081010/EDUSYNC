@@ -126,15 +126,42 @@
         }
         async function showDiagnosis() {
             diagnose.prop('disabled',true);
+            // Abrir en una ventana propia: el menú desplegable de la campana
+            // recortaba el informe y sólo dejaba ver las primeras líneas.
+            var layer=$('<div class="edwp-debug-layer"></div>');
+            var panel=$('<section class="edwp-debug-panel" role="dialog" aria-modal="true" aria-label="Diagnóstico de notificaciones"></section>');
+            var heading=$('<div class="edwp-debug-heading"></div>').text('Diagnóstico de notificaciones');
+            var content=$('<pre class="edwp-debug-content"></pre>').text('Revisando el navegador (máximo 5 segundos)…');
+            var controls=$('<div class="edwp-debug-actions"></div>');
+            var copy=$('<button type="button" class="btn btn-primary btn-sm"></button>').text('Copiar diagnóstico');
+            var close=$('<button type="button" class="btn btn-light border btn-sm"></button>').text('Cerrar');
+            function dismiss() {layer.remove();}
+            close.on('click',dismiss);
+            layer.on('keydown',function(e){if(e.key==='Escape'){e.preventDefault();dismiss();}});
+            copy.on('click',async function(){
+                try {
+                    if(!navigator.clipboard || !navigator.clipboard.writeText)
+                        throw new Error('Clipboard unsupported');
+                    await navigator.clipboard.writeText(content.text());
+                    copy.text('Copiado');
+                } catch (_) {
+                    copy.text('Selecciona el texto para copiar');
+                }
+            });
+            panel.append(heading,content);
+            controls.append(copy,close);
+            panel.append(controls);
+            layer.append(panel);
+            $('body').append(layer);
+            close.trigger('focus');
             try {
                 var diagnostic=window.EduSyncWebPushDiagnostic;
-                report.text('Consultando Service Worker (hasta 5 segundos)…').removeClass('d-none');
-                if(invite)invite.find('.edwp-invite-report')
-                    .text('Consultando Service Worker (hasta 5 segundos)…').removeClass('d-none');
                 var output=await diagnostic.report(config,lastError,lastStage,lastSw);
+                content.text(output);
                 report.text(output).removeClass('d-none');
                 if(invite)invite.find('.edwp-invite-report').text(output).removeClass('d-none');
             } catch(err){
+                content.text('No se pudo completar el diagnóstico: '+String(err.name||'Error'));
                 message('No se pudo realizar el diagnóstico del navegador.',true);
             } finally {diagnose.prop('disabled',false);}
         }
