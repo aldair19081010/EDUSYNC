@@ -132,7 +132,18 @@ function scenario(permission,initial={},options={}){
     document.activeElement=body[0];
     const activeRegistration={
         active:{},scope:'http://localhost/edusync/',
-        pushManager:{getSubscription:async()=>null}
+        pushManager:{
+            getSubscription:async()=>null,
+            subscribe:async()=> {
+                output.nativeSubscribeCalls=(output.nativeSubscribeCalls||0)+1;
+                if(options.nativePushError){
+                    const error=new Error('Registration failed - push service error');
+                    error.name='AbortError';
+                    throw error;
+                }
+                return {endpoint:'https://example.invalid/token-value-should-never-appear'};
+            }
+        }
     };
     const navigator={
         serviceWorker:{
@@ -147,7 +158,7 @@ function scenario(permission,initial={},options={}){
         sessionStorage,Uint8Array,Promise,firebase,console,setTimeout,clearTimeout};
     vm.runInNewContext(diagnosticSource,context,{filename:'web_push_diagnostic.js'});
     vm.runInNewContext(source,context,{filename:'web_push_fcm.js'});
-    return {output,find,saved,Notification,calls};
+    return {output,find,saved,Notification,calls,window};
 }
 
 const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
@@ -223,6 +234,26 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     assert.equal(slow.find('edwp-toggle').disabled,false,
         'The activation button must recover after a failed attempt');
 
+    // Aislar suscripción del navegador del registro Firebase.
+    const nativeSuccess=scenario('granted',{'edusync:webpush:opted-out:student:1:42':'1'});
+    const publicConfig={
+        configured:true, push_ready:true,
+        firebase:{messagingSenderId:'123456789',appId:'1:123456789:web:abc'},
+        vapid_key:sampleVapid
+    };
+    const nativeOk=await nativeSuccess.window.EduSyncWebPushDiagnostic.probe(publicConfig);
+    assert.equal(nativeOk.ok,true,'Native Push API succeeds without Firebase');
+    assert.equal(nativeSuccess.output.nativeSubscribeCalls,1);
+    assert.equal(nativeSuccess.output.registrations,0,'Native test should not register FCM tokens');
+    assert(!nativeOk.message.includes('token-value'),'Push endpoint must not be logged');
+
+    const nativeFailure=scenario('granted',{}, {nativePushError:true});
+    const nativeBad=await nativeFailure.window.EduSyncWebPushDiagnostic.probe(publicConfig);
+    assert.equal(nativeBad.ok,false,'Native Push API reports browser failure');
+    assert(nativeBad.message.includes('AbortError'),'Browser error should be reported');
+    assert(nativeBad.message.includes('antes de Firebase'),'Distinguish native browser failure');
+    assert(!nativeBad.message.includes('token-value'),'No endpoint in error report');
+
     const denied=scenario('denied');
     await flush();
     assert.equal(denied.find('edwp-invite-dialog'),undefined);
@@ -233,5 +264,5 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     const notConfigured=scenario('default',{}, {configured:false});
     assert.equal(notConfigured.find('edwp-invite-dialog'),undefined);
 
-    process.stdout.write('OK: invitación, permisos, renovación, error Push, VAPID, diagnóstico y cooldown.\n');
+    process.stdout.write('OK: invitación, Firebase, VAPID y prueba nativa Push (éxito/fallo), sin secretos.\n');
 })().catch(error=>{console.error(error);process.exitCode=1;});
