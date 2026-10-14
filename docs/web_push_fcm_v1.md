@@ -60,7 +60,7 @@ Con Firebase Web y las dos tablas instaladas, EduSync muestra una **invitación 
 
 - **Activar notificaciones**: al pulsar este botón se solicita el permiso del navegador y se registra la suscripción FCM; nunca se solicita el permiso automáticamente durante la carga.
 - **Ahora no**: cierra la invitación y la pospone **30 días**, por navegador y por cuenta/colegio. También se puede cerrar con Escape. La opción de la campana permanece disponible.
-- **Permiso concedido previamente**: EduSync registra/renueva el dispositivo automáticamente, sin diálogo, salvo que el propio usuario haya utilizado antes «Desactivar avisos del dispositivo».
+- **Permiso concedido previamente**: no se muestra otra invitación ni se solicita nuevamente permiso. Si el usuario activó Web Push antes **y existe una suscripción previa**, EduSync puede renovar su registro. Si no existe suscripción, debe elegir **Activar notificaciones** desde la campana; conceder permiso al navegador no significa haber registrado el dispositivo.
 - **Permiso bloqueado**: no se muestra la invitación. El usuario debe cambiar la configuración del navegador si desea habilitarla.
 - **Firebase sin configurar, migración pendiente o dispositivo incompatible**: tampoco se muestra la invitación; la campana explica qué falta.
 
@@ -125,7 +125,7 @@ Si el diagnóstico contiene `Service Worker: Activo`, `Suscripción Push: No exi
 - **API Push del navegador: Falló / AbortError**: la llamada falla **sin pasar por el SDK de Firebase ni por MySQL**. Compara con otro navegador oficial y, si es posible, con otra red (p. ej., hotspot del teléfono). Revisa políticas del navegador y conectividad a los servicios Push, sin desactivar permanentemente antivirus ni firewall.
 - **Tiempo agotado**: la red o el navegador no contestó en 15 segundos; el resultado de esa prueba es inconcluso, pero la interfaz no queda bloqueada.
 
-La prueba puede crear una suscripción Push local autorizada por el usuario, que posteriormente FCM reutiliza. **No envía mensajes, no guarda tokens en la base de datos y nunca muestra URLs de suscripción**. No borres los datos del navegador ni regeneres VAPID sin identificar antes la causa.
+La prueba puede crear una suscripción Push local autorizada por el usuario, que posteriormente FCM reutiliza. Si el registro activo ya se conoce, la llamada nativa se realiza directamente durante el clic, sin esperas de lectura previas. **No envía mensajes, no guarda tokens en la base de datos y nunca muestra URLs de suscripción**. No borres los datos del navegador ni regeneres VAPID sin identificar antes la causa.
 
 ### Cuando el permiso indica `granted` pero no llega ninguna notificación
 
