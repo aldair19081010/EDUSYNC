@@ -187,7 +187,7 @@
             });
         }
         async function enable(prompt) {
-            if (running) return;
+            if (running) return false;
             running=true;toggle.prop('disabled',true);
             try {
                 if (!config || !config.configured || !config.push_ready)
@@ -203,8 +203,12 @@
                 await request('register',{fcm_token:token});
                 saveEnabled(true);
                 message('Avisos activados en este dispositivo.',false);
+                return true;
             } catch(err) {
-                message(err.message||'No se pudo activar Web Push.',true);
+                var reason=err.message||'No se pudo activar Web Push.';
+                message(reason,true);
+                if (invite) invite.find('.edwp-invite-feedback').text(reason);
+                return false;
             } finally {
                 running=false;toggle.prop('disabled',false);
             }
@@ -218,6 +222,9 @@
                 try { if(messaging) await messaging.deleteToken(); }
                 catch (_) {}
                 saveEnabled(false);
+                // Si el usuario lo desactivó expresamente, no reactivarlo
+                // sólo por tener un permiso anterior del navegador.
+                try { localStorage.setItem(optedOutKey,'1'); } catch (_) {}
                 message('Este dispositivo ya no recibirá avisos.',false);
             } catch(err){
                 message(err.message||'No se pudo desactivar.',true);
@@ -255,7 +262,10 @@
             if(!result||result.status!=='ok'){message('No se pudo verificar Web Push.',true);return;}
             config=result;
             enabledKey='edusync:webpush:enabled:'+result.identity;
-            label(currentEnabled());
+            dismissedKey='edusync:webpush:invite-dismissed:'+result.identity;
+            optedOutKey='edusync:webpush:opted-out:'+result.identity;
+            invitedKey='edusync:webpush:invite-shown:'+result.identity;
+            label(currentEnabled() && Notification.permission==='granted');
             if(!config.configured) {
                 toggle.prop('disabled',true);
                 message('Falta configurar Firebase web (clave VAPID y datos públicos).',false);
@@ -271,8 +281,15 @@
                 message('Permiso bloqueado. Debes cambiarlo en la configuración del navegador.',true);
                 return;
             }
-            // Renovar la vinculación sin volver a solicitar permisos después del login.
-            if(currentEnabled() && Notification.permission==='granted') enable(false);
+            // Permiso previamente concedido: vincular/renovar en Firebase sin
+            // volver a pedir autorización, salvo desactivación explícita.
+            if(Notification.permission==='granted' && !optedOut()) {
+                enable(false);
+            } else if(Notification.permission==='default' && !optedOut()) {
+                // Al entrar en EduSync, la invitación es interna; el permiso
+                // del navegador se solicita sólo al pulsar «Activar».
+                showInvite();
+            }
         }).fail(function(){message('No se pudo consultar la configuración del servidor.',true);});
     });
 })(window.jQuery);
