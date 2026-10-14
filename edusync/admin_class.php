@@ -2024,8 +2024,12 @@ function save_payment(){
         if ($id <= 0 && $eval_id > 0) {
             // La vista administrativa ya expone la nueva evaluación como aviso;
             // enviar Push solo cuando realmente es nueva, no al editarla.
-            require_once __DIR__.'/includes/web_push_dispatcher.php';
-            edwp_dispatch_now($this->db,'evaluation',[(int)$eval_id],8);
+            try {
+                require_once __DIR__.'/includes/web_push_dispatcher.php';
+                edwp_dispatch_now($this->db,'evaluation',[(int)$eval_id],8);
+            } catch (Throwable $webPushError) {
+                error_log('[EduSync evaluation web push] '.$webPushError->getMessage());
+            }
         }
 		return json_encode(['status' => 1, 'message' => 'Evaluación guardada exitosamente.']);
     } else {
@@ -2574,8 +2578,12 @@ function save_payment(){
                 if ($newAlertIds) {
                     // Solo nuevos episodios reciben un Push. Las ediciones de
                     // un caso ya conocido preservan su estado de lectura.
-                    require_once __DIR__.'/includes/web_push_dispatcher.php';
-                    edwp_dispatch_now($this->db,'low_grade',$newAlertIds,12);
+                    try {
+                        require_once __DIR__.'/includes/web_push_dispatcher.php';
+                        edwp_dispatch_now($this->db,'low_grade',$newAlertIds,12);
+                    } catch (Throwable $webPushError) {
+                        error_log('[EduSync academic alert push] '.$webPushError->getMessage());
+                    }
                 }
                 return $new;
             } catch (Throwable $e) {
