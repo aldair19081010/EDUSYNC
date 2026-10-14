@@ -13,12 +13,15 @@
         var config=null, messaging=null, running=false;
         var enabledKey='', browserId='', dismissedKey='', optedOutKey='', invitedKey='';
         var invite=null, previousFocus=null;
+        var cooldownKey='', lastError=null, lastStage='Inicio', lastSw=null;
         var inviteCooldown=30*24*60*60*1000; // «Ahora no»: 30 días.
         var opt=$('<div class="edwp-controls"></div>');
         var toggle=$('<button type="button" class="edwp-toggle btn btn-sm btn-outline-primary"></button>');
         var test=$('<button type="button" class="edwp-test btn btn-sm btn-light border d-none">Enviar prueba</button>');
         var info=$('<span class="edwp-info" role="status" aria-live="polite"></span>');
-        opt.append(toggle,test,info);
+        var diagnose=$('<button type="button" class="edwp-diagnose btn btn-sm btn-light border d-none">Diagnóstico</button>');
+        var report=$('<pre class="edwp-report d-none" role="status"></pre>');
+        opt.append(toggle,test,diagnose,info,report);
         menu.append(opt);
 
         function message(text, error) {
@@ -83,6 +86,9 @@
             dialog.append($('<p id="edwp-invite-description" class="edwp-invite-description"></p>').text('Recibe avisos sobre notas, asistencias, pagos y comunicados incluso cuando EduSync esté cerrado.'));
             var feedback=$('<p class="edwp-invite-feedback" role="status" aria-live="polite"></p>');
             var actions=$('<div class="edwp-invite-actions"></div>');
+            var modalDiagnosis=$('<button type="button" class="btn btn-link btn-sm edwp-invite-diagnose d-none">Diagnóstico</button>');
+            var modalReport=$('<pre class="edwp-invite-report d-none" role="status"></pre>');
+            modalDiagnosis.on('click',showDiagnosis);
             var accept=$('<button type="button" class="btn btn-primary edwp-invite-accept"></button>').text('Activar notificaciones');
             var later=$('<button type="button" class="btn btn-light border edwp-invite-later"></button>').text('Ahora no');
             accept.on('click',async function(){
@@ -112,12 +118,25 @@
                 }
             });
             actions.append(accept,later);
-            dialog.append(feedback,actions);
+            dialog.append(feedback,actions,modalDiagnosis,modalReport);
             overlay.append(dialog);
             invite=overlay;
             $('body').append(overlay).addClass('edwp-invite-open');
             accept.trigger('focus');
         }
+        async function showDiagnosis() {
+            diagnose.prop('disabled',true);
+            try {
+                var diagnostic=window.EduSyncWebPushDiagnostic;
+                var output=await diagnostic.report(config,lastError,lastStage,lastSw);
+                report.text(output).removeClass('d-none');
+                if(invite)invite.find('.edwp-invite-report').text(output).removeClass('d-none');
+            } catch(err){
+                message('No se pudo realizar el diagnóstico del navegador.',true);
+            } finally {diagnose.prop('disabled',false);}
+        }
+        diagnose.on('click',function(e){e.stopPropagation();showDiagnosis();});
+
         function deviceId() {
             try {
                 var id=localStorage.getItem('edusync:webpush:device');
