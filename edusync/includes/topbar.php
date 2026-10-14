@@ -186,7 +186,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
 
 <link rel="stylesheet" href="css/topbar-modern.css?v=<?php echo @filemtime(__DIR__ . '/../css/topbar-modern.css') ?: time(); ?>">
 
-<nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 sticky-top edusync-topbar">
+<nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 sticky-top edusync-topbar" data-edusync-notification-role="<?php echo $is_student ? 'student' : 'staff'; ?>" data-edusync-notification-identity="<?php echo $school_id_topbar.':'.($is_student ? (int)($_SESSION['student_id'] ?? 0) : $user_id); ?>">
     <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-2" aria-label="Abrir menú lateral">
         <i class="fa fa-bars"></i>
     </button>
@@ -210,7 +210,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
     </div>
 
     <ul class="navbar-nav ml-auto align-items-center">
-        <?php if (in_array($user_type, [1, 2, 3], true)): ?>
+        <?php if ($is_student || in_array($user_type, [1, 2, 3], true)): ?>
         <li class="nav-item dropdown no-arrow mx-1">
             <a class="nav-link dropdown-toggle edusync-alert-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones">
                 <i class="fas fa-bell fa-fw"></i>
@@ -221,7 +221,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             <div class="dropdown-list dropdown-menu dropdown-menu-right shadow animated--grow-in edusync-notification-menu" aria-labelledby="alertsDropdown">
                 <h6 class="dropdown-header d-flex align-items-center justify-content-between mb-0">
                     <span><i class="far fa-bell mr-1"></i>Notificaciones</span>
-                    <?php if ($unified_notifications_ready || $notifications_count > 0): ?>
+                    <?php if ($is_student || $unified_notifications_ready || $notifications_count > 0): ?>
                     <button type="button" class="btn btn-light btn-sm py-1 px-2 font-weight-bold mark-all-read-topbar<?php echo $notifications_count > 0 ? '' : ' d-none'; ?>" title="Marcar todas como leídas">
                         <i class="fas fa-check-double mr-1"></i>Marcar leídas
                     </button>
@@ -375,7 +375,23 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             e.stopPropagation();
             var button = $(this).addClass('disabled').attr('aria-disabled', 'true');
 
-            <?php if ($unified_notifications_ready): ?>
+            <?php if ($is_student): ?>
+            $.post('api/student_notifications.php', {action:'mark_all_read'}, null, 'json')
+                .done(function(resp){
+                    if (!resp || resp.status !== 'ok') {
+                        if (typeof alert_toast === 'function') alert_toast((resp && resp.message) || 'No se pudieron marcar los avisos.', 'error');
+                        return;
+                    }
+                    setNotificationBadge(0);
+                    button.addClass('d-none');
+                    if (typeof window.refreshStudentWebNotifications === 'function') window.refreshStudentWebNotifications();
+                    $(document).trigger('notifications:all-read');
+                })
+                .fail(function(xhr){
+                    if (typeof alert_toast === 'function') alert_toast((xhr.responseJSON || {}).message || 'No se pudieron actualizar las notificaciones.', 'error');
+                })
+                .always(function(){ button.removeClass('disabled').removeAttr('aria-disabled'); });
+            <?php elseif ($unified_notifications_ready): ?>
             $.post('notifications_api.php?action=mark_all', {csrf_token: <?php echo json_encode($topbar_csrf); ?>, tab: 'pending'}, null, 'json')
                 .done(function(resp){
                     if (!resp || Number(resp.status) !== 1) {
@@ -493,7 +509,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             <?php if ($can_review_attendance && !$unified_notifications_ready): ?>refreshAttendanceNotifications();<?php endif; ?>
         });
 
-        <?php if ($unified_notifications_ready): ?>
+        <?php if ($unified_notifications_ready && !$is_student): ?>
         var unifiedNotificationsLoading = false;
         window.refreshUnifiedNotifications = function(){
             if (unifiedNotificationsLoading) return;
@@ -521,6 +537,9 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                 });
                 if (!resp.data.length) list.append(emptyNotificationState('No hay notificaciones pendientes'));
                 var unread = Number((resp.summary || {}).unread || 0);
+                $(document).trigger('edusync:notification-snapshot',[resp.data.map(function(row){
+                    return {id:String(row.nkey || ''),title:row.title || 'Notificación',body:row.message || '',created_at:row.created_at || '',kind:'staff'};
+                })]);
                 setNotificationBadge(unread);
                 $('.mark-all-read-topbar').toggleClass('d-none', unread <= 0);
             }).always(function(){ unifiedNotificationsLoading = false; });
