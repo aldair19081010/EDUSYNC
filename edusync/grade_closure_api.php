@@ -327,8 +327,12 @@ if ($action === 'status' || $action === 'close' || $action === 'request_reopen')
             }
             $conn->commit();
             if ($staffPushEventId>0) {
-                require_once __DIR__.'/includes/web_push_dispatcher.php';
-                edwp_dispatch_now($conn,'staff',[$staffPushEventId],12);
+                try {
+                    require_once __DIR__.'/includes/web_push_dispatcher.php';
+                    edwp_dispatch_now($conn,'staff',[$staffPushEventId],12);
+                } catch (Throwable $webPushError) {
+                    error_log('[EduSync web push] '.$webPushError->getMessage());
+                }
             }
             gc_response(['status'=>1,'message'=>'Notas cerradas correctamente. El bimestre quedó en modo solo lectura.','closure_id'=>(int)$closure['id']]);
         } catch (Throwable $e) {
@@ -349,8 +353,12 @@ if ($action === 'status' || $action === 'close' || $action === 'request_reopen')
         if(!$stmt->execute()) gc_response(['status'=>0,'message'=>'No se pudo registrar la solicitud.','detail'=>$stmt->error],500);
         $requestId=(int)$stmt->insert_id;$stmt->close();
         gc_audit($conn,$schoolId,$yearId,$teacherCourseId,$teacherId,$bimester,$userId,'reopen_requested',['request_id'=>$requestId,'reason'=>$reason]);
-        require_once __DIR__.'/includes/web_push_dispatcher.php';
-        edwp_dispatch_now($conn,'reopen_req',[$requestId],12);
+        try {
+            require_once __DIR__.'/includes/web_push_dispatcher.php';
+            edwp_dispatch_now($conn,'reopen_req',[$requestId],12);
+        } catch (Throwable $webPushError) {
+            error_log('[EduSync web push] '.$webPushError->getMessage());
+        }
         gc_response(['status'=>1,'message'=>'Solicitud de reapertura enviada a Administración.','request_id'=>$requestId]);
     }
 }
@@ -383,8 +391,12 @@ if ($action === 'review_reopen') {
         }
         $conn->commit();
         if($staffPushEventId>0) {
-            require_once __DIR__.'/includes/web_push_dispatcher.php';
-            edwp_dispatch_now($conn,'staff',[$staffPushEventId],12);
+            try {
+                require_once __DIR__.'/includes/web_push_dispatcher.php';
+                edwp_dispatch_now($conn,'staff',[$staffPushEventId],12);
+            } catch (Throwable $webPushError) {
+                error_log('[EduSync web push] '.$webPushError->getMessage());
+            }
         }
         gc_response(['status'=>1,'message'=>$decision==='Aprobada'?'Reapertura autorizada. El docente ya puede editar nuevamente.':'Solicitud de reapertura rechazada.','decision'=>$decision]);
     }catch(Throwable $e){$conn->rollback();gc_response(['status'=>0,'message'=>$e->getMessage()]);}
