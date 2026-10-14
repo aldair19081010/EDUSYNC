@@ -389,6 +389,39 @@ function push_send_payment_notification(
     );
 }
 
+/**
+ * Entrega web poco después de que termina la operación PHP.
+ * Permite que primero se confirme cualquier transacción que generó el evento;
+ * no envía una notificación si el evento se revirtió.
+ * Los dispositivos Android siguen su envío habitual.
+ */
+function push_schedule_web_delivery(mysqli $db, int $eventId): void {
+    if ($eventId<=0) return;
+    if (!isset($GLOBALS['edwp_student_web_queue'])) {
+        $GLOBALS['edwp_student_web_queue']=['db'=>$db,'ids'=>[]];
+        register_shutdown_function(static function(): void {
+            $queue=$GLOBALS['edwp_student_web_queue']??null;
+            if (!$queue || !$queue['ids']) return;
+            try {
+                /** @var mysqli $connection */
+                $connection=$queue['db'];
+                // Enviar solo eventos confirmados: nunca hacer Push sobre
+                // registros aún dentro de una transacción no comprometida.
+                $tx=$connection->query('SELECT @@in_transaction AS pending_tx');
+                if (!$tx || (int)($tx->fetch_assoc()['pending_tx']??1)!==0) {
+                    error_log('[EduSync web push] Operación aún en transacción; el cron reintentará.');
+                    return;
+                }
+                require_once __DIR__.'/web_push_dispatcher.php';
+                edwp_dispatch_now($connection,'student',array_values(array_unique($queue['ids'])),12);
+            } catch (Throwable $e) {
+                error_log('[EduSync web push scheduled] '.$e->getMessage());
+            }
+        });
+    }
+    $GLOBALS['edwp_student_web_queue']['ids'][]=$eventId;
+}
+
 function push_send_student_event(
     mysqli $db,
     int $schoolId,
@@ -438,14 +471,8 @@ function push_send_student_event(
     // Se usa el despachador compartido con el cron, sin reenviar avisos
     // que ya tengan entrega confirmada para esa suscripción.
     if ($result['event_id'] > 0 && empty($GLOBALS['edwp_defer_immediate'])) {
-        try {
-            require_once __DIR__.'/web_push_dispatcher.php';
-            $web=edwp_dispatch_now($db,'student',[$result['event_id']],6);
-            $result['web_sent']=(int)($web['sent']??0);
-            $result['web_failed']=(int)($web['failed']??0);
-        } catch (Throwable $e) {
-            error_log('[EduSync student web push] '.$e->getMessage());
-        }
+        push_schedule_web_delivery($db,$result['event_id']);
+        $result['web_queued']=true;
     }
 
     if (!push_table_exists($db, 'student_device_tokens')) return $result;
