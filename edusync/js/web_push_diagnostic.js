@@ -3,6 +3,20 @@
  */
 (function(global) {
     'use strict';
+    function limited(promise, milliseconds, label) {
+        return new Promise(function(resolve,reject) {
+            var timer=setTimeout(function(){
+                var error=new Error('Tiempo de espera agotado: '+label);
+                error.code='edusync-push-timeout';
+                reject(error);
+            },milliseconds);
+            Promise.resolve(promise).then(function(value){
+                clearTimeout(timer);resolve(value);
+            },function(error){
+                clearTimeout(timer);reject(error);
+            });
+        });
+    }
     function validate(publicConfig) {
         if (!publicConfig || !publicConfig.firebase) {
             throw new Error('Falta la configuración pública de Firebase Web.');
@@ -38,6 +52,9 @@
         if (isPushServiceError(error)) {
             return 'El navegador no logró conectarse a su servicio Push. No es un fallo de MySQL. Prueba con Chrome o Edge normal, sin incógnito; revisa conexión, VPN y bloqueadores. Pulsa «Diagnóstico».';
         }
+        if (error && error.code==='edusync-push-timeout') {
+            return 'El navegador dejó de responder durante el registro Push. EduSync canceló la espera en su interfaz. Revisa el diagnóstico, la conexión y el Service Worker; no necesitas volver a autorizar las notificaciones.';
+        }
         if (/applicationServerKey|vapid|InvalidAccessError|DataError/i.test(detail)) {
             return 'La clave VAPID fue rechazada. Comprueba que corresponde a Firebase Cloud Messaging del mismo proyecto.';
         }
@@ -61,21 +78,32 @@
         try { validate(config);lines.push('VAPID/appId: formato válido'); }
         catch(e){lines.push('Configuración pública: '+String(e.message).slice(0,150));}
         try {
-            var sw=reg||await global.navigator.serviceWorker.getRegistration('./');
+            var sw=reg||await limited(global.navigator.serviceWorker.getRegistration('./'),2200,'consulta del Service Worker');
             lines.push('Service Worker: '+(sw?(sw.active?'Activo':'Registrado, no activo'):'No registrado'));
             if(sw && sw.pushManager) {
-                var subscription=await sw.pushManager.getSubscription();
-                lines.push('Suscripción Push: '+(subscription?'Existe':'No existe'));
+                try {
+                    var subscription=await limited(sw.pushManager.getSubscription(),2200,'lectura de suscripción Push');
+                    lines.push('Suscripción Push: '+(subscription?'Existe':'No existe'));
+                } catch(e) {
+                    lines.push('Suscripción Push: '+(e.code==='edusync-push-timeout'?'La consulta no respondió (más de 2 segundos)':'Error '+String(e.name||'desconocido')));
+                }
+            } else {
+                lines.push('Suscripción Push: No disponible para consulta');
             }
-        } catch(e) {lines.push('Inspección del Service Worker: '+String(e.name||'Error'));}
+        } catch(e) {
+            lines.push('Inspección de Service Worker: '+(e.code==='edusync-push-timeout'?'No respondió en 2 segundos':String(e.name||'Error')));
+        }
         if(error){
             lines.push('Error navegador: '+String(error.name||'Error').slice(0,60));
             lines.push('Código Firebase: '+String(error.code||'No informado').slice(0,90));
             lines.push('Detalle: '+String(error.message||'').slice(0,180));
         }
+        if (global.navigator && typeof global.navigator.onLine==='boolean') {
+            lines.push('Navegador conectado según sistema: '+(global.navigator.onLine?'Sí':'No'));
+        }
         lines.push('Sin tokens, claves ni datos escolares.');
         return lines.join('\n');
     }
     global.EduSyncWebPushDiagnostic={validate:validate,explain:explain,
-        isPushServiceError:isPushServiceError,report:report};
+        isPushServiceError:isPushServiceError,report:report,limited:limited};
 })(window);
