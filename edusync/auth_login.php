@@ -115,10 +115,15 @@ $remember_saved = edrs_process_login(
     $conn,'staff',(int)$row['school_id'],(int)$row['id'],
     (string)$row['password'],$keep
 );
+// La app Android/iOS sigue autenticándose con la sesión PHP actual.
+// El dispositivo recordado por 30 días es una función exclusiva del navegador.
+// Capturar el ID DESPUÉS de session_regenerate_id(true), antes de cerrar.
+$mobile_session_id = session_id();
 session_write_close();
 auth_reply(1, 'Inicio de sesión exitoso.', [
     'login_type' => intval($row['type']),
     'login_id' => intval($row['id']),
+    'session_id' => $mobile_session_id,
     'remember_saved' => $remember_saved,
     'remember_notice' => ($keep && !$remember_saved)
         ? 'Inicio correcto. Este dispositivo aún no puede mantenerse conectado: revisa la migración y HTTPS.'
