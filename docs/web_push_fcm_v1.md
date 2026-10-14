@@ -54,6 +54,20 @@ Los datos se guardan en `C:\xampp\firebase\edusync-web-public.json` (fuera de `h
 
 **No requiere introducir ni mostrar secretos de Firebase.** En el hosting de producción seguir utilizando las variables de entorno, no las rutas locales Windows.
 
+## Invitación automática después de iniciar sesión (todos los perfiles)
+
+Con Firebase Web y las dos tablas instaladas, EduSync muestra una **invitación propia**, no el diálogo nativo del navegador, cuando el usuario inicia sesión por primera vez en un navegador sin permiso:
+
+- **Activar notificaciones**: al pulsar este botón se solicita el permiso del navegador y se registra la suscripción FCM; nunca se solicita el permiso automáticamente durante la carga.
+- **Ahora no**: cierra la invitación y la pospone **30 días**, por navegador y por cuenta/colegio. También se puede cerrar con Escape. La opción de la campana permanece disponible.
+- **Permiso concedido previamente**: EduSync registra/renueva el dispositivo automáticamente, sin diálogo, salvo que el propio usuario haya utilizado antes «Desactivar avisos del dispositivo».
+- **Permiso bloqueado**: no se muestra la invitación. El usuario debe cambiar la configuración del navegador si desea habilitarla.
+- **Firebase sin configurar, migración pendiente o dispositivo incompatible**: tampoco se muestra la invitación; la campana explica qué falta.
+
+El estado de la invitación se guarda localmente, separado por identidad y colegio. El servidor continúa validando la sesión al registrar tokens, y al cerrar sesión desactiva la suscripción de ese navegador.
+
+**Pruebas recomendadas:** entrar como estudiante y administrador en un navegador nuevo; elegir «Ahora no», recargar e iniciar sesión otra vez y comprobar que no reaparece; borrar el aplazamiento mediante las herramientas del navegador solo para repetir el caso inicial; activar y conceder permiso; salir y entrar para comprobar la revinculación automática; desactivar desde la campana y comprobar que no se revincula sola; denegar el permiso y confirmar que no reaparece el diálogo.
+
 ## 2. Migración de base de datos de prueba
 
 1. Haz una copia de seguridad de la base de datos local o de prueba.
