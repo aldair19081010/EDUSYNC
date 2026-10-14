@@ -127,7 +127,7 @@ if ($action === 'register') {
             && (int)$current['account_id']===$id
             && hash_equals($current['token_hash'],$tokenHash)) {
             $key=(int)$current['id'];
-            $stmt=$conn->prepare('UPDATE web_push_subscriptions SET role_type=?,is_active=1,last_seen_at=NOW() WHERE id=?');
+            $stmt=$conn->prepare('UPDATE web_push_subscriptions SET subscribed_at=IF(is_active=0,NOW(),subscribed_at),role_type=?,is_active=1,last_seen_at=NOW() WHERE id=?');
             $stmt->bind_param('ii',$role,$key);
             if (!$stmt->execute()) throw new RuntimeException($stmt->error);
             $stmt->close();
