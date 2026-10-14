@@ -22,6 +22,11 @@ $db_connected = false;
 if (file_exists('./db_connect.php')) {
     include('./db_connect.php');
     $db_connected = true;
+    require_once __DIR__ . '/includes/remember_session.php';
+    if (edrs_restore($conn)) {
+        header('Location: index.php?page=home');
+        exit();
+    }
     
     // Obtener configuraciones
     ob_start();
@@ -107,6 +112,16 @@ if (file_exists('./db_connect.php')) {
             border-color: #4285f4 !important;
         }
         
+        /* Recordar sesión: discreto y desmarcado en equipos compartidos. */
+        .remember-option {padding: 11px 15px; border: 1px solid #e2eaf8;
+            border-radius: 12px; background: #f7faff; margin-bottom: 14px;}
+        .remember-option label {display: flex; align-items: flex-start;
+            gap: 10px; margin: 0; cursor: pointer; font-size: .82rem;
+            font-weight: 700; color: #33466a;}
+        .remember-option input {margin-top: 3px; flex-shrink: 0;
+            width: 16px; height: 16px; accent-color: #4285f4;}
+        .remember-option small {display: block; padding-left: 26px;
+            color: #72819a; line-height: 1.45; margin-top: 5px;}
         /* Estilo del logo */
         .login-logo {
             max-width: 150px;
@@ -214,6 +229,13 @@ if (file_exists('./db_connect.php')) {
                                                 id="password" name="password" placeholder="Contraseña" autocomplete="current-password" required>
                                         </div>
 
+                                        <div class="remember-option">
+                                            <label for="remember_me">
+                                                <input type="checkbox" id="remember_me" name="remember_me" value="1">
+                                                <span>Mantener sesión iniciada durante 30 días</span>
+                                            </label>
+                                            <small>Solo en tu dispositivo personal. Puedes cerrar sesión cuando quieras.</small>
+                                        </div>
                                         <button type="submit" class="btn btn-primary btn-user btn-block">
                                             Ingresar
                                         </button>
@@ -258,7 +280,6 @@ if (file_exists('./db_connect.php')) {
 
         $('#login-form').submit(function(e) {
             e.preventDefault();
-            console.log('Formulario enviado');
             var btn = $(this).find('button[type="submit"]');
             btn.attr('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Ingresando...');
             
@@ -267,12 +288,9 @@ if (file_exists('./db_connect.php')) {
 
             var userType = $('input[name="user_type"]:checked').val();
             var formData = $(this).serialize();
-            console.log('Tipo de usuario:', userType);
-            console.log('Datos del formulario:', formData);
 
             // Estudiantes conservan su endpoint; administradores/docentes usan autenticación moderna.
             var endpoint = userType === 'student' ? 'api/login.php' : 'auth_login.php';
-            console.log('Endpoint:', endpoint);
 
             $.ajax({
                 url: endpoint,
@@ -281,16 +299,16 @@ if (file_exists('./db_connect.php')) {
                 dataType: 'json',
                 error: err => {
                     console.error('Error en AJAX:', err);
-                    console.log('Response text:', err.responseText);
                     btn.removeAttr('disabled').html('Ingresar');
                     $('#login-form').prepend('<div class="alert alert-danger" role="alert">Error de conexión con el servidor.</div>');
                 },
                 success: function(resp) {
-                    console.log('Respuesta del servidor:', resp);
                     if (resp.status == 1 || resp.status === 'ok') {
-                        if (resp.session_id) console.log('Session ID (server):', resp.session_id);
-                        if (resp.login_type) console.log('login_type (server):', resp.login_type);
-                        // Admin/Docente o Estudiante - Todos van a home
+                        // No ocultar que «Mantener sesión» no se pudo guardar
+                        // si todavía falta ejecutar la migración SQL en local.
+                        if ($('#remember_me').is(':checked') && !resp.remember_saved) {
+                            alert(resp.remember_notice || 'Ingresaste correctamente, pero no se pudo recordar este dispositivo.');
+                        }
                         location.href = 'index.php?page=home';
                     } else {
                         $('#login-form').prepend('<div class="alert alert-danger" role="alert">' + (resp.message || 'Error al iniciar sesión') + '</div>');
