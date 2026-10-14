@@ -76,7 +76,123 @@ try {
                             WHEN 1 THEN 'Administrador' WHEN 2 THEN 'Docente'
                             WHEN 3 THEN 'Auxiliar' ELSE '' END))";
     }
-    $sql="SELECT * FROM (".implode(' UNION ALL ',$parts).") events ORDER BY created ASC LIMIT 75";
+    // Los demás avisos del Centro de notificaciones web son vistas sobre
+    // tablas existentes. Para notificar también con la web cerrada, el cron
+    // los trata como eventos virtuales sin duplicar datos en notification_events.
+    if ($hasStaff) {
+        $validStaff="JOIN users u ON u.id=s.account_id AND u.school_id=s.school_id AND u.type=s.role_type $userStatus
+                     LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id";
+        $staffEligible="(s.role_type<>2 OR t.status='Activo')";
+        if (push_table_exists($conn,'attendance_change_requests')) {
+            // Solicitud al administrador.
+            $parts[]="SELECT 'att_request' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+                     CONCAT('Solicitud de asistencia: ',r.request_type) title,
+                     COALESCE(NULLIF(r.reason,''),'Requiere autorización') body,
+                     'attendance_request' screen,r.created_at created,COALESCE(d.attempts,0) attempts
+                     FROM attendance_change_requests r
+                     JOIN web_push_subscriptions s ON s.account_kind='staff' AND s.role_type=1
+                       AND s.school_id=r.school_id AND r.created_at>=s.subscribed_at
+                     $validStaff
+                     {$delivery}'att_request' AND d.event_id=r.id
+                     WHERE $active AND $pending AND $staffEligible
+                       AND r.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
+            // Resolución al usuario que solicitó el cambio, sea Docente o Auxiliar.
+            $resolved="COALESCE(r.reviewed_at,r.updated_at,r.created_at)";
+            $parts[]="SELECT 'att_result' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+                     IF(r.status='Aprobada','Solicitud de asistencia aprobada','Solicitud de asistencia rechazada') title,
+                     CONCAT(r.request_type,IF(COALESCE(r.review_notes,'')<>'',CONCAT(' · ',r.review_notes),'')) body,
+                     'attendance_result' screen,$resolved created,COALESCE(d.attempts,0) attempts
+                     FROM attendance_change_requests r
+                     JOIN web_push_subscriptions s ON s.account_kind='staff'
+                       AND s.school_id=r.school_id AND s.account_id=r.requested_by AND $resolved>=s.subscribed_at
+                     $validStaff
+                     {$delivery}'att_result' AND d.event_id=r.id
+                     WHERE $active AND $pending AND $staffEligible
+                       AND r.status IN ('Aprobada','Rechazada')
+                       AND $resolved>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
+            // Otros administradores conocen el resultado sin duplicar el aviso del revisor.
+            $parts[]="SELECT 'att_admin' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+                     IF(r.status='Aprobada','Asistencia aprobada','Asistencia rechazada') title,
+                     CONCAT('Solicitud de ',r.request_type,' resuelta por administración') body,
+                     'attendance_admin_result' screen,$resolved created,COALESCE(d.attempts,0) attempts
+                     FROM attendance_change_requests r
+                     JOIN web_push_subscriptions s ON s.account_kind='staff' AND s.role_type=1
+                       AND s.school_id=r.school_id AND $resolved>=s.subscribed_at
+                     $validStaff
+                     {$delivery}'att_admin' AND d.event_id=r.id
+                     WHERE $active AND $pending AND $staffEligible
+                       AND r.status IN ('Aprobada','Rechazada') AND r.reviewed_by IS NOT NULL
+                       AND r.reviewed_by<>s.account_id
+                       AND $resolved>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
+        }
+        if (push_table_exists($conn,'grade_reopen_requests')
+            && push_table_exists($conn,'teacher_courses')
+            && push_table_exists($conn,'academic_courses')) {
+            $parts[]="SELECT 'reopen_req' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+                     'Solicitud de reapertura de notas' title,
+                     CONCAT(ac.name,' · ',tc.grado,' ',COALESCE(tc.seccion,''),
+                       ' · ',r.bimester,'° Bimestre') body,
+                     'grade_reopen_request' screen,r.created_at created,COALESCE(d.attempts,0) attempts
+                     FROM grade_reopen_requests r
+                     JOIN teacher_courses tc ON tc.id=r.teacher_course_id AND tc.school_id=r.school_id
+                     JOIN academic_courses ac ON ac.id=tc.course_id
+                     JOIN web_push_subscriptions s ON s.account_kind='staff' AND s.role_type=1
+                       AND s.school_id=r.school_id AND r.created_at>=s.subscribed_at
+                     $validStaff
+                     {$delivery}'reopen_req' AND d.event_id=r.id
+                     WHERE $active AND $pending AND $staffEligible
+                       AND r.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
+        }
+        if (push_table_exists($conn,'evaluations')
+            && push_table_exists($conn,'teacher_courses')
+            && push_table_exists($conn,'academic_courses')) {
+            $parts[]="SELECT 'evaluation' kind,e.id event_id,tc.school_id,s.id subscription_id,s.fcm_token,
+                     CONCAT('Nueva evaluación: ',e.title) title,
+                     CONCAT(COALESCE(ac.name,'Curso'),' · ',COALESCE(te.name,'Docente')) body,
+                     'evaluation' screen,e.created_at created,COALESCE(d.attempts,0) attempts
+                     FROM evaluations e
+                     JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                     LEFT JOIN academic_courses ac ON ac.id=tc.course_id
+                     LEFT JOIN teacher te ON te.id=tc.teacher_id
+                     JOIN web_push_subscriptions s ON s.account_kind='staff' AND s.role_type=1
+                       AND s.school_id=tc.school_id AND e.created_at>=s.subscribed_at
+                     $validStaff
+                     {$delivery}'evaluation' AND d.event_id=e.id
+                     WHERE $active AND $pending AND $staffEligible
+                       AND e.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)
+                       AND NOT EXISTS (SELECT 1 FROM notification_events ne
+                         WHERE ne.school_id=tc.school_id AND ne.source_type='evaluation'
+                           AND ne.source_id=e.id)";
+        }
+        if (push_table_exists($conn,'low_grade_notifications')) {
+            $parts[]="SELECT 'low_grade' kind,lgn.id event_id,st.school_id,s.id subscription_id,s.fcm_token,
+                     CONCAT('Notas bajas: ',st.name) title,
+                     CONCAT(lgn.count_low_grades,' calificaciones · Bimestre ',lgn.bimestre) body,
+                     'low_grade' screen,lgn.created_at created,COALESCE(d.attempts,0) attempts
+                     FROM low_grade_notifications lgn
+                     JOIN student st ON st.id=lgn.student_id
+                     JOIN web_push_subscriptions s ON s.account_kind='staff'
+                       AND s.school_id=st.school_id AND lgn.created_at>=s.subscribed_at
+                     $validStaff
+                     {$delivery}'low_grade' AND d.event_id=lgn.id
+                     WHERE $active AND $pending AND $staffEligible
+                       AND ((s.role_type=1 AND lgn.teacher_id IS NULL)
+                         OR (s.role_type=2 AND lgn.teacher_id=u.teacher_id))
+                       AND lgn.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
+        }
+    }
+
+    // Evitar errores por collations diferentes al unir eventos estudiantiles,
+    // académicos y administrativos provenientes de tablas antiguas.
+    $normalized=[];
+    foreach ($parts as $part) {
+        $normalized[]="SELECT x.kind,x.event_id,x.school_id,x.subscription_id,x.fcm_token,
+            CONVERT(x.title USING utf8mb4) COLLATE utf8mb4_general_ci title,
+            CONVERT(x.body USING utf8mb4) COLLATE utf8mb4_general_ci body,
+            CONVERT(x.screen USING utf8mb4) COLLATE utf8mb4_general_ci screen,
+            x.created,x.attempts FROM ($part) x";
+    }
+    $sql="SELECT * FROM (".implode(' UNION ALL ',$normalized).") events ORDER BY created ASC LIMIT 75";
     $result=$conn->query($sql);
     if (!$result) throw new RuntimeException('Web push query: '.$conn->error);
     $sent=0;$failed=0;
@@ -86,7 +202,7 @@ try {
         $school=(int)$event['school_id'];
         $subscription=(int)$event['subscription_id'];
         $screen=(string)$event['screen'];
-        $url='index.php?page=notifications&push_event_id='.$eventId;
+        $url=$kind==='staff' ? 'index.php?page=notifications&push_event_id='.$eventId : 'index.php?page=notifications';
         if ($kind==='student') {
             $routes=[
                 'attendance'=>'student_attendances',
