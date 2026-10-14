@@ -92,7 +92,7 @@ function edrs_issue(mysqli $db, string $kind, int $school, int $account, string 
         $expires = gmdate('Y-m-d H:i:s', time() + EDRS_TTL);
         $stmt = $db->prepare('INSERT INTO remembered_login_devices (selector,token_hash,school_id,account_kind,account_id,credential_hash,created_at,last_used_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?)');
         if (!$stmt) return false;
-        $stmt->bind_param('ssisiisss', $selector, $tokenHash, $school, $kind, $account, $credentialHash, $created, $created, $expires);
+        $stmt->bind_param('ssisissss', $selector, $tokenHash, $school, $kind, $account, $credentialHash, $created, $created, $expires);
         $ok = $stmt->execute();
         $stmt->close();
         if (!$ok || headers_sent()) return false;
