@@ -70,8 +70,8 @@
         }
         function showInvite() {
             if (invite || !config || !config.configured || !config.push_ready
-                || Notification.permission!=='default' || recentlyDismissed()
-                || optedOut() || $('.modal.show').length) return;
+                || !['default','granted'].includes(Notification.permission)
+                || recentlyDismissed() || optedOut() || $('.modal.show').length) return;
             // No repetir la invitación al cambiar de módulo durante la sesión.
             try {
                 if (sessionStorage.getItem(invitedKey)==='1') return;
@@ -83,7 +83,10 @@
             var dialog=$('<section class="edwp-invite-dialog" role="dialog" aria-modal="true" aria-labelledby="edwp-invite-title" aria-describedby="edwp-invite-description"></section>');
             dialog.append('<div class="edwp-invite-icon" aria-hidden="true"><i class="far fa-bell"></i></div>');
             dialog.append($('<h2 id="edwp-invite-title" class="edwp-invite-title"></h2>').text('Mantente informado con EduSync'));
-            dialog.append($('<p id="edwp-invite-description" class="edwp-invite-description"></p>').text('Recibe avisos sobre notas, asistencias, pagos y comunicados incluso cuando EduSync esté cerrado.'));
+            var invitationText=Notification.permission==='granted'
+                ? 'Este navegador ya tiene permiso. Falta vincular los avisos de EduSync en este dispositivo.'
+                : 'Recibe avisos sobre notas, asistencias, pagos y comunicados incluso cuando EduSync esté cerrado.';
+            dialog.append($('<p id="edwp-invite-description" class="edwp-invite-description"></p>').text(invitationText));
             var feedback=$('<p class="edwp-invite-feedback" role="status" aria-live="polite"></p>');
             var actions=$('<div class="edwp-invite-actions"></div>');
             var modalDiagnosis=$('<button type="button" class="btn btn-link btn-sm edwp-invite-diagnose d-none">Diagnóstico</button>');
@@ -382,16 +385,37 @@
                 message('Permiso bloqueado. Debes cambiarlo en la configuración del navegador.',true);
                 return;
             }
-            // Permiso previamente concedido: vincular/renovar en Firebase sin
-            // volver a pedir autorización, salvo desactivación explícita.
-            if(Notification.permission==='granted' && !optedOut()) {
-                var after=0;
-                try{after=Number(localStorage.getItem(cooldownKey)||0)}catch(_){}
-                if(!after || after<=Date.now()) enable(false);
-                else message('El servicio Push falló recientemente. Reintenta desde la campana.',true);
-            } else if(Notification.permission==='default' && !optedOut()) {
-                // Al entrar en EduSync, la invitación es interna; el permiso
-                // del navegador se solicita sólo al pulsar «Activar».
+            // Solo renovar automáticamente si el propio usuario ya activó
+            // Web Push y el navegador conserva una suscripción existente.
+            // El permiso «granted» por sí solo NO implica consentimiento para
+            // registrar un dispositivo nuevo ni autoriza suscripciones automáticas.
+            if(Notification.permission==='granted' && currentEnabled() && !optedOut()) {
+                (async function() {
+                    try {
+                        var limited=window.EduSyncWebPushDiagnostic.limited;
+                        var registration=await limited(
+                            navigator.serviceWorker.getRegistration('./'),2500,
+                            'consulta de suscripción anterior');
+                        var subscription=registration&&registration.pushManager
+                            ? await limited(registration.pushManager.getSubscription(),2500,
+                                'comprobación de suscripción anterior') : null;
+                        if(!subscription) {
+                            // No forzar PushManager.subscribe() al iniciar sesión.
+                            label(false);
+                            showInvite();
+                            return;
+                        }
+                        var after=0;
+                        try {after=Number(localStorage.getItem(cooldownKey)||0);} catch(_){}
+                        if(!after || after<=Date.now()) enable(false);
+                        else message('Si deseas reactivar los avisos, usa la campana.',false);
+                    } catch(err) {
+                        message('No se comprobó la suscripción previa. Puedes activar desde la campana.',false);
+                    }
+                })();
+            } else if(!optedOut()) {
+                // Mostrar solo la invitación visual al entrar.
+                // El registro FCM comienza exclusivamente al pulsar «Activar».
                 showInvite();
             }
         }).fail(function(){message('No se pudo consultar la configuración del servidor.',true);});
