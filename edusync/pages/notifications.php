@@ -237,6 +237,27 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
     }));
 
     if(ready) init();
+
+    // El usuario toca un Web Push con EduSync cerrado: abrir el aviso
+    // exacto tras verificar que realmente pertenece a su perfil/colegio.
+    const pushEventId = Number(new URLSearchParams(window.location.search).get('push_event_id') || 0);
+    if(ready && Number.isSafeInteger(pushEventId) && pushEventId > 0){
+        $.getJSON(api,{action:'peek',tab:'all',id:pushEventId}).done(function(result){
+            if(!result || Number(result.status)!==1 || !result.data)return;
+            const item=result.data;
+            let attempt=0;
+            const open=function(){
+                if(typeof window.uni_modal !== 'function'){
+                    if(attempt++<20)window.setTimeout(open,150);
+                    return;
+                }
+                window.uni_modal('Detalle de notificación',item.open_url,'modal-lg');
+                if(!Number(item.is_read))post('mark',{key:item.nkey}).always(reload);
+            };
+            open();
+        });
+    }
+
     window.setInterval(() => {
         if(table && document.visibilityState !== 'hidden') table.ajax.reload(null, false);
     }, 8000);
