@@ -399,8 +399,10 @@
                             ? await limited(registration.pushManager.getSubscription(),2500,
                                 'comprobación de suscripción anterior') : null;
                         if(!subscription) {
-                            // No forzar PushManager.subscribe() al iniciar sesión.
-                            label(false);
+                            // La suscripción anterior desapareció. Quitar el
+                            // indicador local también garantiza que «Activar»
+                            // vuelva a ejecutar enable(), y no disable().
+                            saveEnabled(false);
                             message('El permiso ya está concedido, pero falta la suscripción Push. Actívala desde esta campana.',false);
                             return;
                         }
