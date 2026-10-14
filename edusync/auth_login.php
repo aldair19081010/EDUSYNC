@@ -11,6 +11,7 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 
 header('Content-Type: application/json; charset=utf-8');
 include 'db_connect.php';
+require_once __DIR__ . '/includes/remember_session.php';
 
 function auth_reply($status, $message, $extra = []) {
     echo json_encode(array_merge(['status' => $status, 'message' => $message], $extra), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -85,11 +86,14 @@ if ($legacy_md5) {
     if ($up) {
         $uid = intval($row['id']);
         $up->bind_param('sii', $new_hash, $uid, $school_id);
-        $up->execute();
+        if ($up->execute()) $row['password'] = $new_hash;
         $up->close();
     }
 }
 
+// Impedir fijación de sesión: identidad nueva tras credenciales válidas.
+session_regenerate_id(true);
+$_SESSION = [];
 foreach ($row as $key => $value) {
     if (!in_array($key, ['password', 'linked_teacher_id', 'teacher_status', 'user_status'], true) && !is_numeric($key)) {
         $_SESSION['login_' . $key] = $value;
@@ -103,11 +107,19 @@ if ((int)$row['type'] === 2 && !empty($row['teacher_id'])) {
 }
 if (!empty($row['avatar'])) $_SESSION['login_avatar'] = $row['avatar'];
 
-$session_id_value = session_id();
+$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+$keep = (string)($_POST['remember_me'] ?? '') === '1';
+$remember_saved = edrs_process_login(
+    $conn,'staff',(int)$row['school_id'],(int)$row['id'],
+    (string)$row['password'],$keep
+);
 session_write_close();
 auth_reply(1, 'Inicio de sesión exitoso.', [
     'login_type' => intval($row['type']),
     'login_id' => intval($row['id']),
-    'session_id' => $session_id_value
+    'remember_saved' => $remember_saved,
+    'remember_notice' => ($keep && !$remember_saved)
+        ? 'Inicio correcto. Este dispositivo aún no puede mantenerse conectado: revisa la migración y HTTPS.'
+        : ''
 ]);
 ?>
