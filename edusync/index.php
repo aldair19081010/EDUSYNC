@@ -131,6 +131,8 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- Custom styles for this template-->
     <link href="css/sb-admin-2.css" rel="stylesheet">
     <link href="css/custom.css" rel="stylesheet">
+    <?php $web_notifications_css_version = @filemtime(__DIR__ . '/css/web_notifications.css') ?: time(); ?>
+    <link href="css/web_notifications.css?v=<?php echo $web_notifications_css_version; ?>" rel="stylesheet">
     <?php if ($page === 'users'): ?>
     <?php
         $users_ui_css_version = @filemtime(__DIR__ . '/css/ui_consistency.css') ?: time();
@@ -281,6 +283,10 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <?php $grades_report_preview_version = @filemtime(__DIR__ . '/js/grades_report_preview.js') ?: time(); ?>
     <script src="js/grades_report_preview.js?v=<?php echo $grades_report_preview_version; ?>"></script>
     <?php endif; ?>
+
+    <!-- Campana web para Administrador, Docente, Auxiliar y Estudiante. -->
+    <?php $web_notifications_js_version = @filemtime(__DIR__ . '/js/web_notifications.js') ?: time(); ?>
+    <script src="js/web_notifications.js?v=<?php echo $web_notifications_js_version; ?>"></script>
 
     <!-- Sidebar toggle guard: rebinds the click handlers in case another script detaches them -->
     <script>
