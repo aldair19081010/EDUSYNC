@@ -42,6 +42,13 @@ if (preg_match('/^[a-zA-Z0-9._:-]{20,100}$/D', $browser)) {
         }
     }
 }
+// Revocar el acceso recordado de este navegador al cerrar sesión.
+require_once __DIR__.'/includes/remember_session.php';
+if (isset($_COOKIE[EDRS_COOKIE])) {
+    if (!isset($conn) || !($conn instanceof mysqli)) require_once __DIR__.'/db_connect.php';
+    if (isset($conn) && $conn instanceof mysqli) edrs_revoke($conn);
+    else edrs_clear_cookie();
+}
 // Cerrar sesión de forma segura
 session_unset();
 session_destroy();
