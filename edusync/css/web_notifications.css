@@ -48,3 +48,9 @@
 .edwp-invite-later{flex:0 1 114px}
 @media(max-width:420px){.edwp-invite-dialog{padding:23px 18px 18px}.edwp-invite-actions{flex-direction:column}.edwp-invite-actions .btn{flex:none;width:100%}}
 @media(prefers-reduced-motion:no-preference){.edwp-invite-dialog{animation:edwp-invite-appear .18s ease-out}@keyframes edwp-invite-appear{from{opacity:.6;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}}
+
+/* Diagnóstico técnico visible sólo cuando falla el servicio Push del navegador. */
+.edwp-report,.edwp-invite-report{background:#f6f8fc;border:1px solid #dce4ef;border-radius:9px;padding:10px 12px;font-size:.71rem;color:#344259;text-align:left;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;max-height:210px;overflow-y:auto;margin:9px 0 0;width:100%}
+.edwp-report{flex-basis:100%;max-height:165px}
+.edwp-invite-diagnose{display:block;margin:9px auto 0;font-size:.76rem;font-weight:600}
+.edwp-controls .edwp-diagnose{color:#355eb6}
