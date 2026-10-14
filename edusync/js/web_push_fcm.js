@@ -128,6 +128,9 @@
             diagnose.prop('disabled',true);
             try {
                 var diagnostic=window.EduSyncWebPushDiagnostic;
+                report.text('Consultando Service Worker (hasta 5 segundos)…').removeClass('d-none');
+                if(invite)invite.find('.edwp-invite-report')
+                    .text('Consultando Service Worker (hasta 5 segundos)…').removeClass('d-none');
                 var output=await diagnostic.report(config,lastError,lastStage,lastSw);
                 report.text(output).removeClass('d-none');
                 if(invite)invite.find('.edwp-invite-report').text(output).removeClass('d-none');
@@ -168,8 +171,9 @@
         }
         async function firebaseClient() {
             if (messaging) return messaging;
-            await script('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
-            await script('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
+            var limited=window.EduSyncWebPushDiagnostic.limited;
+            await limited(script('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js'),10000,'descarga de Firebase App');
+            await limited(script('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js'),10000,'descarga de Firebase Messaging');
             if (!window.firebase || !firebase.messaging) throw new Error('Firebase no está disponible.');
             if (firebase.messaging.isSupported && !(await firebase.messaging.isSupported()))
                 throw new Error('Este navegador no admite Firebase Cloud Messaging.');
@@ -183,23 +187,24 @@
             lastStage='Validar Firebase y clave VAPID';
             window.EduSyncWebPushDiagnostic.validate(config);
             lastStage='Registrar Service Worker';
-            var sw=await navigator.serviceWorker.register('firebase-messaging-sw.js',{
+            var limited=window.EduSyncWebPushDiagnostic.limited;
+            var sw=await limited(navigator.serviceWorker.register('firebase-messaging-sw.js',{
                 scope:'./',updateViaCache:'none'
-            });
+            }),10000,'registro de Service Worker');
             lastSw=sw;
             // Evitar la carrera inicial: Firebase requiere un trabajador activo.
             lastStage='Activar Service Worker';
             if(!sw.active && navigator.serviceWorker.ready){
-                var active=await navigator.serviceWorker.ready;
+                var active=await limited(navigator.serviceWorker.ready,6500,'activación de Service Worker');
                 if(!active || active.scope!==sw.scope || !active.active)
                     throw new Error('El Service Worker de EduSync no se activó correctamente.');
             }
             lastStage='Inicializar Firebase';
-            var client=await firebaseClient();
+            var client=await limited(firebaseClient(),12000,'inicio de Firebase');
             lastStage='Registrar dispositivo en Push';
-            var token=await client.getToken({
+            var token=await limited(client.getToken({
                 vapidKey:config.vapid_key,serviceWorkerRegistration:sw
-            });
+            }),20000,'registro en el servicio Push del navegador');
             if (!token) throw new Error('Firebase no devolvió un token.');
             lastStage='Registrar dispositivo en EduSync';
             return token;
@@ -207,7 +212,7 @@
         function request(action,data) {
             return new Promise(function(resolve,reject){
                 $.ajax({
-                    url:'api/web_push.php',method:'POST',dataType:'json',
+                    url:'api/web_push.php',method:'POST',dataType:'json',timeout:12000,
                     data:$.extend({action:action,browser_id:browserId,
                         csrf_token:config.csrf_token},data||{})
                 }).done(function(result){
