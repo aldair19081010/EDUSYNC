@@ -62,7 +62,8 @@ $data = @{
     }
     vapid_key = $vapid
 }
-$data | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $target -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
+[System.IO.File]::WriteAllText($target, ($data | ConvertTo-Json -Depth 5), $utf8NoBom)
 Write-Host ''
 Write-Host 'Configuración PÚBLICA guardada fuera de htdocs:' -ForegroundColor Green
 Write-Host $target
