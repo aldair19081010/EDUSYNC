@@ -11,7 +11,9 @@
         var compatible=!!(window.isSecureContext && 'Notification' in window
             && 'serviceWorker' in navigator && 'PushManager' in window);
         var config=null, messaging=null, running=false;
-        var enabledKey='', browserId='';
+        var enabledKey='', browserId='', dismissedKey='', optedOutKey='', invitedKey='';
+        var invite=null, previousFocus=null;
+        var inviteCooldown=30*24*60*60*1000; // «Ahora no»: 30 días.
         var opt=$('<div class="edwp-controls"></div>');
         var toggle=$('<button type="button" class="edwp-toggle btn btn-sm btn-outline-primary"></button>');
         var test=$('<button type="button" class="edwp-test btn btn-sm btn-light border d-none">Enviar prueba</button>');
@@ -32,10 +34,89 @@
         }
         function saveEnabled(value) {
             try {
-                if (value) localStorage.setItem(enabledKey,'1');
-                else localStorage.removeItem(enabledKey);
+                if (value) {
+                    localStorage.setItem(enabledKey,'1');
+                    localStorage.removeItem(optedOutKey);
+                    localStorage.removeItem(dismissedKey);
+                } else localStorage.removeItem(enabledKey);
             } catch (_) {}
             label(value);
+        }
+        function optedOut() {
+            try { return localStorage.getItem(optedOutKey)==='1'; }
+            catch (_) { return false; }
+        }
+        function recentlyDismissed() {
+            try {
+                var until=Number(localStorage.getItem(dismissedKey)||0);
+                return Number.isFinite(until) && until>Date.now();
+            } catch (_) { return false; }
+        }
+        function dismissInvite(defer) {
+            if (defer) {
+                try { localStorage.setItem(dismissedKey,String(Date.now()+inviteCooldown)); }
+                catch (_) {}
+            }
+            if (!invite) return;
+            invite.off().remove();
+            invite=null;
+            $('body').removeClass('edwp-invite-open');
+            if (previousFocus && document.contains(previousFocus) &&
+                typeof previousFocus.focus==='function') previousFocus.focus();
+            previousFocus=null;
+        }
+        function showInvite() {
+            if (invite || !config || !config.configured || !config.push_ready
+                || Notification.permission!=='default' || recentlyDismissed()
+                || optedOut() || $('.modal.show').length) return;
+            // No repetir la invitación al cambiar de módulo durante la sesión.
+            try {
+                if (sessionStorage.getItem(invitedKey)==='1') return;
+                sessionStorage.setItem(invitedKey,'1');
+            } catch (_) {}
+
+            previousFocus=document.activeElement;
+            var overlay=$('<div class="edwp-invite-layer"></div>');
+            var dialog=$('<section class="edwp-invite-dialog" role="dialog" aria-modal="true" aria-labelledby="edwp-invite-title" aria-describedby="edwp-invite-description"></section>');
+            dialog.append('<div class="edwp-invite-icon" aria-hidden="true"><i class="far fa-bell"></i></div>');
+            dialog.append($('<h2 id="edwp-invite-title" class="edwp-invite-title"></h2>').text('Mantente informado con EduSync'));
+            dialog.append($('<p id="edwp-invite-description" class="edwp-invite-description"></p>').text('Recibe avisos sobre notas, asistencias, pagos y comunicados incluso cuando EduSync esté cerrado.'));
+            var feedback=$('<p class="edwp-invite-feedback" role="status" aria-live="polite"></p>');
+            var actions=$('<div class="edwp-invite-actions"></div>');
+            var accept=$('<button type="button" class="btn btn-primary edwp-invite-accept"></button>').text('Activar notificaciones');
+            var later=$('<button type="button" class="btn btn-light border edwp-invite-later"></button>').text('Ahora no');
+            accept.on('click',async function(){
+                // El permiso nativo sólo se pide durante esta interacción.
+                accept.prop('disabled',true);
+                later.prop('disabled',true);
+                var success=await enable(true);
+                if (success) dismissInvite(false);
+                else if (invite) {
+                    accept.prop('disabled',false);
+                    later.prop('disabled',false);
+                }
+            });
+            later.on('click',function(){dismissInvite(true);});
+            overlay.on('keydown.edwpInvite',function(event){
+                if (event.key==='Escape') {
+                    event.preventDefault();dismissInvite(true);return;
+                }
+                if (event.key!=='Tab') return;
+                var focusable=dialog.find('button:not(:disabled)');
+                if (!focusable.length) {event.preventDefault();return;}
+                var first=focusable[0],last=focusable[focusable.length-1];
+                if (event.shiftKey && document.activeElement===first){
+                    event.preventDefault();last.focus();
+                } else if (!event.shiftKey && document.activeElement===last){
+                    event.preventDefault();first.focus();
+                }
+            });
+            actions.append(accept,later);
+            dialog.append(feedback,actions);
+            overlay.append(dialog);
+            invite=overlay;
+            $('body').append(overlay).addClass('edwp-invite-open');
+            accept.trigger('focus');
         }
         function deviceId() {
             try {
