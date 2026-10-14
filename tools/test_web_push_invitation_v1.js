@@ -264,14 +264,16 @@ const flush=async()=>{
         firebase:{messagingSenderId:'123456789',appId:'1:123456789:web:abc'},
         vapid_key:sampleVapid
     };
-    const nativeOk=await nativeSuccess.window.EduSyncWebPushDiagnostic.probe(publicConfig);
+    const nativeActive=await nativeSuccess.window.navigator.serviceWorker.getRegistration('./');
+    const nativeOk=await nativeSuccess.window.EduSyncWebPushDiagnostic.probe(publicConfig,nativeActive);
     assert.equal(nativeOk.ok,true,'Native Push API succeeds without Firebase');
     assert.equal(nativeSuccess.output.nativeSubscribeCalls,1);
     assert.equal(nativeSuccess.output.registrations,0,'Native test should not register FCM tokens');
     assert(!nativeOk.message.includes('token-value'),'Push endpoint must not be logged');
 
     const nativeFailure=scenario('granted',{}, {nativePushError:true});
-    const nativeBad=await nativeFailure.window.EduSyncWebPushDiagnostic.probe(publicConfig);
+    const nativeBrokenReg=await nativeFailure.window.navigator.serviceWorker.getRegistration('./');
+    const nativeBad=await nativeFailure.window.EduSyncWebPushDiagnostic.probe(publicConfig,nativeBrokenReg);
     assert.equal(nativeBad.ok,false,'Native Push API reports browser failure');
     assert(nativeBad.message.includes('AbortError'),'Browser error should be reported');
     assert(nativeBad.message.includes('antes de Firebase'),'Distinguish native browser failure');
