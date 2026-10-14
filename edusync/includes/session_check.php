@@ -22,6 +22,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Recuperación opcional antes de rechazar modales por expiración PHP.
+require_once __DIR__.'/remember_session.php';
+if (!edrs_has_session() && isset($_COOKIE[EDRS_COOKIE])) {
+    if (!isset($conn) || !($conn instanceof mysqli)) require_once __DIR__.'/../db_connect.php';
+    if (isset($conn) && $conn instanceof mysqli) edrs_restore($conn);
+}
+
 function require_login_modal() {
     // Consider admin/teacher/student logins
     // Require login if no authenticated identity is present. Accept either an admin/user id, or a login_type (e.g., teacher) or a student session.
