@@ -134,6 +134,7 @@
             var content=$('<pre class="edwp-debug-content"></pre>').text('Revisando el navegador (máximo 5 segundos)…');
             var controls=$('<div class="edwp-debug-actions"></div>');
             var copy=$('<button type="button" class="btn btn-primary btn-sm"></button>').text('Copiar diagnóstico');
+            var probe=$('<button type="button" class="btn btn-outline-primary btn-sm"></button>').text('Probar servicio Push');
             var close=$('<button type="button" class="btn btn-light border btn-sm"></button>').text('Cerrar');
             function dismiss() {layer.remove();}
             close.on('click',dismiss);
@@ -148,8 +149,24 @@
                     copy.text('Selecciona el texto para copiar');
                 }
             });
+            probe.on('click',async function(){
+                // Activación explícita del usuario, sin volver a pedir permiso.
+                // Si funciona, la suscripción es reutilizable por Firebase.
+                probe.prop('disabled',true).text('Probando (hasta 20 s)…');
+                content.text(content.text()+'\n\nPrueba Push nativa en curso…');
+                try {
+                    var result=await window.EduSyncWebPushDiagnostic.probe(config);
+                    content.text(content.text()+'\n'+result.message);
+                    report.text(content.text()).removeClass('d-none');
+                    if(invite)invite.find('.edwp-invite-report').text(content.text()).removeClass('d-none');
+                    probe.text(result.ok?'Servicio Push responde':'Reintentar prueba Push');
+                } catch(e){
+                    content.text(content.text()+'\nNo se completó la prueba: '+String(e.name||'Error'));
+                    probe.text('Reintentar prueba Push');
+                } finally {probe.prop('disabled',false);}
+            });
             panel.append(heading,content);
-            controls.append(copy,close);
+            controls.append(probe,copy,close);
             panel.append(controls);
             layer.append(panel);
             $('body').append(layer);
