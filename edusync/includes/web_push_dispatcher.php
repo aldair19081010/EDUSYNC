@@ -54,8 +54,10 @@ function edwp_dispatch_pending(mysqli $conn, string $kindFilter='', array $ids=[
                      AND e.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)
                      AND (e.expires_at IS NULL OR e.expires_at>NOW())";
     }
+    // Las fuentes virtuales de personal también necesitan este filtro.
+    $userStatus=$hasStaff && push_column_exists($conn,'users','status')
+        ? " AND u.status='Activo'" : '';
     if ($hasStaff && ($kindFilter==='' || $kindFilter==='staff')) {
-        $userStatus=push_column_exists($conn,'users','status') ? " AND u.status='Activo'" : '';
         $parts[]="SELECT 'staff' kind,e.id event_id,e.school_id,s.id subscription_id,s.fcm_token,
                   e.title,COALESCE(e.message,'') body,COALESCE(e.source_type,'') screen,e.created_at created,
                   COALESCE(d.attempts,0) attempts
