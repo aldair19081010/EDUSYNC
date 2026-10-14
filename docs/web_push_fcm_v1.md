@@ -13,7 +13,7 @@ La campana administrativa existente sigue funcionando. Esta función añade avis
 - Cerrar sesión desactiva Web Push solamente en el navegador actual; las otras sesiones del mismo usuario siguen suscritas.
 - Al pulsar un aviso de estudiante se abre Mis Asistencias, Mis Pagos, Mis Deudas, Mis Notas o Mis notificaciones. Un aviso de personal abre su Centro de notificaciones autorizado.
 
-**Límite:** notificaciones administrativas calculadas al vuelo en `notifications_api.php` (sin registro persistente en `notification_events`) no generan todavía Web Push. El módulo de la campana web sí sigue mostrando esos avisos al abrir EduSync.
+**Alcance administrativo:** además de `notification_events`, el despachador contempla las solicitudes y resoluciones de asistencia, solicitudes de reapertura, evaluaciones y alertas de notas bajas que ya aparecen en la bandeja web. Los eventos se deduplican por origen e identificador; no se crean mensajes nuevos ni se duplican tablas académicas.
 
 ## 1. Antes de activar: configurar Firebase web
 
