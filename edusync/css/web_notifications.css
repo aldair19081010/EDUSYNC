@@ -1,0 +1,26 @@
+/* Campana y avisos en EduSync web: compactos y adaptables. */
+.ed-web-toast{position:fixed;right:18px;bottom:20px;z-index:1090;display:flex;align-items:flex-start;gap:11px;width:min(375px,calc(100vw - 24px));padding:14px 13px;background:#fff;border:1px solid #dce5f3;border-left:4px solid #4e73df;border-radius:12px;box-shadow:0 12px 32px rgba(31,55,91,.18);text-decoration:none!important;color:#273754!important}
+.ed-web-toast-icon{flex:0 0 35px;width:35px;height:35px;border-radius:10px;background:#edf3ff;color:#4e73df;display:flex;align-items:center;justify-content:center}
+.ed-web-toast-copy{flex:1;min-width:0;display:block}.ed-web-toast-copy strong,.ed-web-toast-copy small{display:block;overflow:hidden;text-overflow:ellipsis}.ed-web-toast-copy strong{font-size:.84rem;line-height:1.35}.ed-web-toast-copy small{font-size:.75rem;color:#64748b;margin-top:3px;max-height:3.25em;line-height:1.45}
+.ed-web-toast-close{border:0;background:transparent;color:#6b7280;font-size:1.15rem;line-height:1;padding:2px;flex:none;cursor:pointer}
+.ed-web-desktop-optin{white-space:normal!important;font-size:.76rem!important;padding:10px 14px!important;color:#52617d!important;text-align:center!important;border-top:1px solid #edf0f5!important}
+.ed-web-desktop-optin:hover{background:#f8faff!important}.ed-web-desktop-optin:disabled{color:#8995ab!important}
+.ed-web-empty{white-space:normal!important;padding:18px!important;text-align:center;color:#77859c;font-size:.82rem}
+@media(max-width:576px){.ed-web-toast{right:12px;left:12px;bottom:12px;width:auto}.edusync-notification-menu{max-width:calc(100vw - 16px)}}
+
+/* Bandeja de notificaciones del estudiante (mismos colores que EduSync). */
+.swn{max-width:1040px;margin:0 auto;padding:.3rem 0 2rem}
+.swn-head{background:#fff;border:1px solid #e3e9f2;border-left:4px solid #4e73df;border-radius:.6rem;padding:1rem 1.15rem;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.75rem;margin-bottom:1rem}
+.swn-title{font-size:1.12rem;font-weight:800;color:#273754;margin:0}.swn-muted{font-size:.79rem;color:#71809a;margin:.2rem 0 0}
+.swn-tabs{display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+.swn-tab{border:1px solid #e2e8f3;border-radius:20px;color:#506181;background:#fff;padding:7px 15px;font-size:.78rem;font-weight:700;cursor:pointer}.swn-tab.active{background:#4e73df;border-color:#4e73df;color:#fff}
+.swn-list{background:#fff;border:1px solid #e3e9f2;border-radius:.65rem;overflow:hidden}
+.swn-item{display:flex;gap:12px;padding:15px 17px;text-decoration:none!important;border-bottom:1px solid #eef1f6;color:inherit!important;align-items:flex-start;cursor:pointer}
+.swn-item:last-child{border:0}.swn-item:hover{background:#f8faff}.swn-item.unread{background:#f7faff}
+.swn-icon{width:37px;height:37px;flex:0 0 37px;border-radius:11px;background:#edf3ff;color:#4e73df;display:flex;align-items:center;justify-content:center}
+.swn-main{flex:1;min-width:0}.swn-row{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .7rem}
+.swn-item-title{font-weight:750;color:#283951;font-size:.88rem}.swn-message{font-size:.79rem;color:#6a7890;line-height:1.5;overflow-wrap:anywhere;margin-top:4px}
+.swn-meta{font-size:.7rem;color:#8995a7;margin-top:5px}.swn-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#4e73df;margin-top:10px}
+.swn-empty{padding:3rem 1.5rem;text-align:center;color:#8290a5;font-size:.85rem}
+.swn-status{border:1px solid #dae5f8;background:#f3f7ff;border-radius:.55rem;padding:.7rem 1rem;font-size:.81rem;color:#506181;margin-bottom:1rem}
+@media(max-width:575px){.swn-head{padding:.85rem}.swn-list .swn-item{padding:13px}.swn-tab{padding:7px 12px}}
