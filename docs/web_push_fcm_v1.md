@@ -40,6 +40,20 @@ Ejemplo de valor **ilustrativo** de `EDUSYNC_FIREBASE_WEB_CONFIG_JSON` (no son c
 
 Los datos públicos son parte del cliente Firebase, pero **el JSON de cuenta de servicio y la clave privada nunca deben ponerse en el frontend**.
 
+### Configuración automática en tu XAMPP (recomendada)
+
+En Windows, EduSync ya dispone de Firebase Android en `C:\gestion_pagos_app\android\app\google-services.json` y de su cuenta de servicio privada fuera del repositorio en `C:\xampp\firebase\edusync-service-account.json`.
+
+Por eso se agregó `tools/setup_web_push_firebase_local.ps1`, que lee los identificadores públicos del proyecto Android y **solo pide los datos faltantes de la aplicación Web**, incluidos `apiKey`, `appId` y la clave VAPID pública. Ejecuta desde el proyecto web:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\setup_web_push_firebase_local.ps1
+```
+
+Los datos se guardan en `C:\xampp\firebase\edusync-web-public.json` (fuera de `htdocs` y de Git). La API web PHP detecta ese archivo local sin necesitar editar Apache. El envío PHP Web Push puede reutilizar automáticamente el servicio privado que ya tiene XAMPP.
+
+**No requiere introducir ni mostrar secretos de Firebase.** En el hosting de producción seguir utilizando las variables de entorno, no las rutas locales Windows.
+
 ## 2. Migración de base de datos de prueba
 
 1. Haz una copia de seguridad de la base de datos local o de prueba.
