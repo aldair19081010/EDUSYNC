@@ -54,3 +54,11 @@
 .edwp-report{flex-basis:100%;max-height:165px}
 .edwp-invite-diagnose{display:block;margin:9px auto 0;font-size:.76rem;font-weight:600}
 .edwp-controls .edwp-diagnose{color:#355eb6}
+
+/* Informe amplio y copiable fuera del dropdown de campana. */
+.edwp-debug-layer{position:fixed;inset:0;z-index:1300;background:rgba(23,39,65,.58);padding:20px;display:flex;align-items:center;justify-content:center}
+.edwp-debug-panel{width:min(580px,100%);max-height:calc(100vh - 40px);overflow:auto;background:#fff;border-radius:16px;box-shadow:0 22px 60px rgba(16,31,58,.3);padding:22px}
+.edwp-debug-heading{font-size:1.02rem;font-weight:800;color:#273754;margin-bottom:12px}
+.edwp-debug-content{background:#f6f8fc;border:1px solid #dce4ef;border-radius:10px;padding:14px;color:#344259;font-size:.77rem;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;max-height:calc(100vh - 210px);overflow-y:auto;user-select:text}
+.edwp-debug-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:14px;flex-wrap:wrap}
+@media(max-width:480px){.edwp-debug-layer{padding:10px}.edwp-debug-panel{padding:18px 13px}.edwp-debug-actions .btn{flex:1}}
