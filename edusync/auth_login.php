@@ -92,8 +92,10 @@ if ($legacy_md5) {
 }
 
 // Impedir fijación de sesión: identidad nueva tras credenciales válidas.
+$preLoginSettings = is_array($_SESSION['system'] ?? null) ? $_SESSION['system'] : null;
 session_regenerate_id(true);
 $_SESSION = [];
+if ($preLoginSettings !== null) $_SESSION['system'] = $preLoginSettings;
 foreach ($row as $key => $value) {
     if (!in_array($key, ['password', 'linked_teacher_id', 'teacher_status', 'user_status'], true) && !is_numeric($key)) {
         $_SESSION['login_' . $key] = $value;
