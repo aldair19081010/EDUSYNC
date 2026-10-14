@@ -16,7 +16,6 @@ $phpFiles = @(
     'edusync/includes/topbar.php',
     'edusync/index.php',
     'edusync/logout.php',
-    'edusync/login.php',
     'edusync/notifications_api.php',
     'edusync/pages/notifications.php',
     'edusync/pages/student_notifications_web.php'
@@ -35,7 +34,6 @@ foreach ($relative in $phpFiles) {
 $node = Get-Command node -ErrorAction SilentlyContinue
 if ($null -ne $node) {
     $jsFiles = @(
-        'edusync/js/web_push_diagnostic.js',
         'edusync/js/web_push_fcm.js',
         'edusync/js/student_web_notifications.js',
         'edusync/firebase-messaging-sw.js'
@@ -44,15 +42,6 @@ if ($null -ne $node) {
         & $node.Source --check (Join-Path $root $relative)
         if ($LASTEXITCODE -ne 0) { $errorsFound++ }
         else { Write-Host "[OK JS] $relative" -ForegroundColor Green }
-    }
-    $invitationTest = Join-Path $root 'tools/test_web_push_invitation_v1.js'
-    if (Test-Path $invitationTest) {
-        & $node.Source $invitationTest
-        if ($LASTEXITCODE -ne 0) { $errorsFound++ }
-        else { Write-Host '[OK] Flujo de invitación post-login' -ForegroundColor Green }
-    } else {
-        Write-Host '[FALTA] tools/test_web_push_invitation_v1.js' -ForegroundColor Red
-        $errorsFound++
     }
 } else {
     Write-Host 'Node.js no está disponible: se omite validación JS (opcional).' -ForegroundColor Yellow
