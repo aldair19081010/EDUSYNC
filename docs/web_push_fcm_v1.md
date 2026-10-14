@@ -117,6 +117,16 @@ Comprobación sugerida, sin borrar datos:
 
 Si el mismo fallo aparece tanto en Chrome como en Edge, envía el **texto del diagnóstico**, e indica el navegador y si estás en Windows o Android. De ese modo se distingue un problema local de conectividad de una configuración Firebase incompatible.
 
+### Cuando el permiso indica `granted` pero no llega ninguna notificación
+
+`granted` significa que el navegador **ya otorgó permiso** a EduSync. **No debe aparecer nuevamente el aviso nativo del sistema**. Tener permiso no implica tener un token Firebase ni una suscripción Push activa.
+
+En este caso se debe pulsar **Activar notificaciones** desde la campana. Si Firebase o el servicio Push no responde, el registro del Service Worker y la petición del token ahora tienen tiempos máximos; el botón vuelve a responder en lugar de quedar esperando indefinidamente. El diagnóstico también limita a unos segundos las comprobaciones del servicio.
+
+La opción **Diagnóstico** abre una ventana **fuera del desplegable de la campana**, para evitar que se oculten las últimas líneas. Usa **Copiar diagnóstico** y comparte el texto, no las claves VAPID ni el archivo JSON. Presta especial atención a `Etapa fallida`, `Service Worker`, `Suscripción Push` y `Detalle`.
+
+Si indica fallo en el servicio Push tanto en Chrome como en Edge, hay que comprobar la disponibilidad de los servicios Push del navegador y la conexión de Windows antes de modificar Firebase. La migración SQL no se repite ni se regeneran claves automáticamente.
+
 ## 4. Configurar en hosting (solo tras aprobar las pruebas)
 
 - Publicar los archivos de esta rama respetando las rutas. `firebase-messaging-sw.js` debe estar servido bajo el mismo origen HTTPS y dominio/ruta de la web de EduSync, con MIME JavaScript.
