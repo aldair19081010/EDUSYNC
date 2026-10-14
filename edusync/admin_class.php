@@ -2390,6 +2390,7 @@ function save_payment(){
     }
     
     function generate_low_grade_notifications($evaluation_id) {
+        require_once __DIR__.'/includes/academic_alert_policy.php';
         // Una alerta es un CAMBIO de estado, no un nuevo evento por cada guardado.
         // Conservar ID, fecha y lecturas cuando el riesgo sigue presente.
         $threshold = 3;
@@ -2503,43 +2504,40 @@ function save_payment(){
                     if (!$this->db->query("DELETE FROM low_grade_notifications WHERE id=$old"))
                         throw new RuntimeException('No se pudo eliminar alerta duplicada.');
                 }
-                $new=0;
-                foreach ($wanted as $key=>$alert) {
-                    $sid=(int)$alert['student'];$teacher=$alert['teacher'];
-                    $count=(int)$alert['count'];$json=(string)$alert['json'];
-                    if (isset($existing[$key])) {
-                        $row=$existing[$key];
-                        // Actualizar contenido sin tocar created_at NI las lecturas.
-                        if ((int)$row['count_low_grades']!==$count || (string)$row['failed_courses']!==$json) {
-                            $id=(int)$row['id'];
-                            $stmt=$this->db->prepare('UPDATE low_grade_notifications
-                                SET count_low_grades=?,failed_courses=? WHERE id=?');
-                            if (!$stmt) throw new RuntimeException($this->db->error);
-                            $stmt->bind_param('isi',$count,$json,$id);
-                            if (!$stmt->execute()) throw new RuntimeException($stmt->error);
-                            $stmt->close();
-                        }
-                        unset($existing[$key]);
-                    } else {
-                        $stmt=$this->db->prepare('INSERT INTO low_grade_notifications
-                            (student_id,bimestre,count_low_grades,failed_courses,teacher_id,created_at)
-                            VALUES (?,?,?,?,?,NOW())');
-                        if (!$stmt) throw new RuntimeException($this->db->error);
-                        // La clave 0 representa Administrador: SQL NULL.
-                        $stmt->bind_param('isisi',$sid,$bim,$count,$json,$teacher);
-                        if (!$stmt->execute()) throw new RuntimeException($stmt->error);
-                        $stmt->close();
-                        $new++;
-                    }
+                $plan=edun_academic_alert_plan($existing,$wanted);
+                // Actualizar la información sin cambiar ID, fecha o lecturas.
+                foreach ($plan['refresh'] as $change) {
+                    $id=(int)$change['existing']['id'];
+                    $count=(int)$change['current']['count'];
+                    $json=(string)$change['current']['json'];
+                    $stmt=$this->db->prepare('UPDATE low_grade_notifications
+                        SET count_low_grades=?,failed_courses=? WHERE id=?');
+                    if (!$stmt) throw new RuntimeException($this->db->error);
+                    $stmt->bind_param('isi',$count,$json,$id);
+                    if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+                    $stmt->close();
                 }
-                // El riesgo desapareció: ahora sí retirar una alerta y sus lecturas.
-                foreach ($existing as $old) {
+                foreach ($plan['create'] as $alert) {
+                    $sid=(int)$alert['student'];
+                    $teacher=$alert['teacher']; // NULL cuando va a Administración.
+                    $count=(int)$alert['count'];$json=(string)$alert['json'];
+                    $stmt=$this->db->prepare('INSERT INTO low_grade_notifications
+                        (student_id,bimestre,count_low_grades,failed_courses,teacher_id,created_at)
+                        VALUES (?,?,?,?,?,NOW())');
+                    if (!$stmt) throw new RuntimeException($this->db->error);
+                    $stmt->bind_param('isisi',$sid,$bim,$count,$json,$teacher);
+                    if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+                    $stmt->close();
+                }
+                // Resolver solo cuando deja de cumplirse el umbral.
+                foreach ($plan['resolved'] as $old) {
                     $id=(int)$old['id'];
                     if (!$this->db->query("DELETE FROM low_grade_notification_read WHERE notification_id=$id"))
                         throw new RuntimeException('No se pudieron retirar lecturas antiguas.');
                     if (!$this->db->query("DELETE FROM low_grade_notifications WHERE id=$id"))
                         throw new RuntimeException('No se pudo retirar alerta resuelta.');
                 }
+                $new=count($plan['create']);
                 $this->db->commit();
                 return $new;
             } catch (Throwable $e) {
