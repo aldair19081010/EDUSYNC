@@ -700,8 +700,13 @@ unset($GLOBALS['edwp_defer_immediate']);
 // cron (mismo despachador) completa el resto y reintenta fallos.
 $webPush = ['sent' => 0, 'failed' => 0, 'skipped' => false, 'error' => ''];
 if ($webEventIds) {
-    require_once __DIR__.'/includes/web_push_dispatcher.php';
-    $webPush = edwp_dispatch_now($conn, 'student', $webEventIds, 20);
+    try {
+        require_once __DIR__.'/includes/web_push_dispatcher.php';
+        $webPush = edwp_dispatch_now($conn, 'student', $webEventIds, 20);
+    } catch (Throwable $webPushError) {
+        error_log('[EduSync collection web push] '.$webPushError->getMessage());
+        $webPush['error']='El aviso quedó pendiente para el cron.';
+    }
 }
 
 $update = $conn->prepare(
