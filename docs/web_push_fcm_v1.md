@@ -54,13 +54,19 @@ Los datos se guardan en `C:\xampp\firebase\edusync-web-public.json` (fuera de `h
 
 **No requiere introducir ni mostrar secretos de Firebase.** En el hosting de producción seguir utilizando las variables de entorno, no las rutas locales Windows.
 
-## Activación manual desde la campana (comportamiento restaurado)
+## Invitación después de iniciar sesión, sin alterar la activación manual
 
-EduSync **no muestra ventanas automáticas** al iniciar sesión. Para recibir notificaciones Web Push hay que abrir la campana y pulsar **Activar notificaciones**. El permiso del navegador se solicita únicamente si todavía no está concedido y como respuesta a ese clic.
+EduSync muestra una **ventana informativa** después de entrar cuando el dispositivo aún no tiene avisos activados y Firebase Web + la migración están listos. Esto aplica a Administrador, Docente, Auxiliar y Estudiante.
 
-Después de que el navegador y Firebase registran el dispositivo, la campana habilita **Enviar prueba** y **Desactivar avisos del dispositivo**. Si el usuario ya lo activó y el permiso continúa concedido, EduSync puede renovar el registro al abrir la sesión; no intenta activarlo por primera vez sin consentimiento.
+- **Activar notificaciones** llama directamente al **mismo botón de la campana** que ya funciona; el archivo de la invitación no realiza llamadas a FCM, no registra Service Workers y no solicita el permiso por sí mismo.
+- **Ahora no** pospone la ventana durante **30 días** en ese navegador y para esa cuenta. También se puede cerrar con Escape. Durante una misma sesión de pestaña no vuelve a aparecer al navegar entre páginas.
+- Si el navegador ya tiene `Notification.permission=granted` pero la cuenta todavía no activó los avisos de EduSync, la ventana invita a vincularlos **sin pedir de nuevo el permiso nativo**.
+- Si ya está activado, el permiso está bloqueado (`denied`), el navegador es incompatible o la migración no está lista, **no aparece la ventana**.
+- La **campana sigue disponible** para activar, desactivar o enviar un aviso de prueba. Se conservó íntegramente su implementación probada, incluido el registro de token con Firebase.
 
-Si el navegador indica `granted`, significa que ya concedió el permiso y **no volverá a mostrar el diálogo nativo**, aunque aún no exista una suscripción Push. Si aparece `Registration failed - push service error`, se trata de un fallo de la suscripción del navegador que debe diagnosticarse por separado. No hace falta volver a ejecutar la migración SQL ni regenerar las claves VAPID sin identificar la causa.
+**Prueba local recomendada:** en un perfil limpio de Chrome con EduSync en `localhost`, inicia sesión y acepta la invitación. Comprueba que aparece el diálogo nativo del navegador (si aún no tenía permiso) y que la campana cambia a **Desactivar avisos del dispositivo**. Cierra EduSync y prueba un aviso del sistema. En Edge, donde ya funcionan los avisos, **no debería aparecer otra invitación**. En otro perfil nuevo, comprueba que **Ahora no** cierra la ventana y no vuelve a mostrarla al navegar.
+
+Si el navegador indica `granted`, ya autorizó notificaciones y no volverá a mostrar el diálogo nativo aunque el dispositivo aún no esté registrado. Si aparece `Registration failed - push service error`, es un fallo de suscripción del navegador; la invitación no realiza ningún registro automático. No vuelvas a ejecutar el SQL ni regeneres las claves VAPID sin identificar antes la causa.
 
 ## 2. Migración de base de datos de prueba
 
