@@ -236,6 +236,9 @@ function edrs_restore(mysqli $db): bool {
         } catch (Throwable $ignored) { /* La configuración no impide el acceso. */ }
         $_SESSION['csrf_token']=bin2hex(random_bytes(32));
         setcookie(EDRS_COOKIE,$selector.'.'.$replacement,edrs_cookie_options($expiry));
+        // Sincronizar la cookie también durante esta petición PHP.
+        // Permite revocar inmediatamente si la misma petición cierra sesión.
+        $_COOKIE[EDRS_COOKIE]=$selector.'.'.$replacement;
         return true;
     } catch (Throwable $exception) {
         error_log('[EduSync remembered login] restore: ' . $exception->getMessage());
