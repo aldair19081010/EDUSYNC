@@ -196,8 +196,8 @@ const flush=async()=>{
 
     const granted=scenario('granted');
     await flush();
-    assert(granted.find('edwp-invite-dialog'),
-        'Previously granted browser permission shows EduSync invitation, not an automatic subscription');
+    assert.equal(granted.find('edwp-invite-dialog'),undefined,
+        'Previously granted permission leaves activation in the bell without popup');
     assert.equal(granted.output.permissionRequests,0);
     assert.equal(granted.output.registrations,0,
         'Do not subscribe automatically just because browser permission is granted');
@@ -211,7 +211,10 @@ const flush=async()=>{
         {'edusync:webpush:enabled:student:1:42':'1'}, {hasSubscription:false});
     await flush();
     assert.equal(stale.output.registrations,0,'Never subscribe silently if subscription is missing');
-    assert(stale.find('edwp-invite-dialog'),'Offer manual activation when prior subscription is missing');
+    assert.equal(stale.find('edwp-invite-dialog'),undefined,
+        'Do not interrupt login with popup after browser already granted permission');
+    assert(stale.find('edwp-info').value.includes('campana'),
+        'Explain that a missing subscription must be renewed manually');
 
     const disabled=scenario('granted',{'edusync:webpush:opted-out:student:1:42':'1'});
     await flush();
