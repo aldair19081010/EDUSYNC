@@ -133,7 +133,7 @@ function scenario(permission,initial={},options={}){
     const activeRegistration={
         active:{},scope:'http://localhost/edusync/',
         pushManager:{
-            getSubscription:async()=>null,
+            getSubscription:async()=>options.hasSubscription?{endpoint:'https://example.invalid/hidden'}:null,
             subscribe:async()=> {
                 output.nativeSubscribeCalls=(output.nativeSubscribeCalls||0)+1;
                 if(options.nativePushError){
@@ -196,9 +196,22 @@ const flush=async()=>{
 
     const granted=scenario('granted');
     await flush();
-    assert.equal(granted.find('edwp-invite-dialog'),undefined);
+    assert(granted.find('edwp-invite-dialog'),
+        'Previously granted browser permission shows EduSync invitation, not an automatic subscription');
     assert.equal(granted.output.permissionRequests,0);
-    assert.equal(granted.output.registrations,1,'Existing permission auto-registers');
+    assert.equal(granted.output.registrations,0,
+        'Do not subscribe automatically just because browser permission is granted');
+
+    const known=scenario('granted',
+        {'edusync:webpush:enabled:student:1:42':'1'}, {hasSubscription:true});
+    await flush();
+    assert.equal(known.output.registrations,1,'Renew only existing opted-in subscription');
+
+    const stale=scenario('granted',
+        {'edusync:webpush:enabled:student:1:42':'1'}, {hasSubscription:false});
+    await flush();
+    assert.equal(stale.output.registrations,0,'Never subscribe silently if subscription is missing');
+    assert(stale.find('edwp-invite-dialog'),'Offer manual activation when prior subscription is missing');
 
     const disabled=scenario('granted',{'edusync:webpush:opted-out:student:1:42':'1'});
     await flush();
@@ -229,6 +242,7 @@ const flush=async()=>{
     assert.equal(afterFailure.output.registrations,0,'Skip automatic retry during cooldown');
 
     const invalid=scenario('granted',{}, {invalidVapid:true});
+    await invalid.find('edwp-toggle').trigger('click');
     await flush();
     assert.equal(invalid.output.registrations,0,'Invalid VAPID blocked before FCM');
     assert(invalid.find('edwp-info').value.includes('VAPID'), 'Explain invalid VAPID');
@@ -270,5 +284,5 @@ const flush=async()=>{
     const notConfigured=scenario('default',{}, {configured:false});
     assert.equal(notConfigured.find('edwp-invite-dialog'),undefined);
 
-    process.stdout.write('OK: invitación, Firebase, VAPID y prueba nativa Push (éxito/fallo), sin secretos.\n');
+    process.stdout.write('OK: consentimiento explícito, renovación previa, Firebase/VAPID y Push nativo, sin secretos.\n');
 })().catch(error=>{console.error(error);process.exitCode=1;});
