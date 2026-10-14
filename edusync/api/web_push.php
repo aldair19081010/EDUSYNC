@@ -78,7 +78,7 @@ if ($action === 'config') {
     // Desarrollo local Windows/XAMPP: fichero público de Firebase fuera
     // de htdocs, en la misma carpeta de configuración ya utilizada
     // por el proyecto. No se debe guardar en GitHub.
-    if ((!is_array($firebase) || $vapid === '') && DIRECTORY_SEPARATOR === '\\\\') {
+    if ((!is_array($firebase) || $vapid === '') && DIRECTORY_SEPARATOR === '\\') {
         $localFile=dirname(__DIR__,4).'/firebase/edusync-web-public.json';
         if (is_readable($localFile)) {
             $local=json_decode((string)file_get_contents($localFile),true);
