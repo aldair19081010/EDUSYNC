@@ -180,15 +180,28 @@
             return messaging;
         }
         async function fcmToken() {
+            lastStage='Validar Firebase y clave VAPID';
+            window.EduSyncWebPushDiagnostic.validate(config);
+            lastStage='Registrar Service Worker';
             var sw=await navigator.serviceWorker.register('firebase-messaging-sw.js',{
                 scope:'./',updateViaCache:'none'
             });
-            // Uso explícito del service worker de EduSync: no afecta otro SW del hosting.
+            lastSw=sw;
+            // Evitar la carrera inicial: Firebase requiere un trabajador activo.
+            lastStage='Activar Service Worker';
+            if(!sw.active && navigator.serviceWorker.ready){
+                var active=await navigator.serviceWorker.ready;
+                if(!active || active.scope!==sw.scope || !active.active)
+                    throw new Error('El Service Worker de EduSync no se activó correctamente.');
+            }
+            lastStage='Inicializar Firebase';
             var client=await firebaseClient();
+            lastStage='Registrar dispositivo en Push';
             var token=await client.getToken({
                 vapidKey:config.vapid_key,serviceWorkerRegistration:sw
             });
             if (!token) throw new Error('Firebase no devolvió un token.');
+            lastStage='Registrar dispositivo en EduSync';
             return token;
         }
         function request(action,data) {
@@ -220,13 +233,30 @@
                 }
                 var token=await fcmToken();
                 await request('register',{fcm_token:token});
+                lastStage='Registro completado';
+                lastError=null;
+                try{localStorage.removeItem(cooldownKey)}catch(_){}
+                diagnose.addClass('d-none');
+                report.addClass('d-none').text('');
                 saveEnabled(true);
                 message('Avisos activados en este dispositivo.',false);
                 return true;
             } catch(err) {
-                var reason=err.message||'No se pudo activar Web Push.';
+                lastError={name:err.name||'Error',code:err.code||'',message:err.message||''};
+                var diagnostic=window.EduSyncWebPushDiagnostic;
+                var reason=diagnostic.explain(err);
                 message(reason,true);
-                if (invite) invite.find('.edwp-invite-feedback').text(reason);
+                diagnose.removeClass('d-none');
+                if(invite){
+                    invite.find('.edwp-invite-feedback').text(reason);
+                    invite.find('.edwp-invite-diagnose').removeClass('d-none');
+                }
+                // Evitar solicitar una y otra vez el servicio Push tras fallos
+                // externos; un clic manual siempre permite reintentar.
+                if(diagnostic.isPushServiceError(err)){
+                    try{localStorage.setItem(cooldownKey,String(Date.now()+10*60*1000))}
+                    catch(_){}
+                }
                 return false;
             } finally {
                 running=false;toggle.prop('disabled',false);
@@ -284,6 +314,7 @@
             dismissedKey='edusync:webpush:invite-dismissed:'+result.identity;
             optedOutKey='edusync:webpush:opted-out:'+result.identity;
             invitedKey='edusync:webpush:invite-shown:'+result.identity;
+            cooldownKey='edusync:webpush:failed-until:'+result.identity;
             label(currentEnabled() && Notification.permission==='granted');
             if(!config.configured) {
                 toggle.prop('disabled',true);
@@ -303,7 +334,10 @@
             // Permiso previamente concedido: vincular/renovar en Firebase sin
             // volver a pedir autorización, salvo desactivación explícita.
             if(Notification.permission==='granted' && !optedOut()) {
-                enable(false);
+                var after=0;
+                try{after=Number(localStorage.getItem(cooldownKey)||0)}catch(_){}
+                if(!after || after<=Date.now()) enable(false);
+                else message('El servicio Push falló recientemente. Reintenta desde la campana.',true);
             } else if(Notification.permission==='default' && !optedOut()) {
                 // Al entrar en EduSync, la invitación es interna; el permiso
                 // del navegador se solicita sólo al pulsar «Activar».
