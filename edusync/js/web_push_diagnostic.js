@@ -77,7 +77,7 @@
     }
     // Prueba voluntaria y directa del navegador, sin solicitar un token FCM.
     // No se registra ni se muestra la URL privada de suscripción Push.
-    async function probe(config) {
+    async function probe(config, knownRegistration) {
         var results=['Prueba directa del servicio Push del navegador'];
         var stage='Revisar requisitos';
         try {
@@ -88,22 +88,21 @@
             if (!global.navigator || !global.navigator.serviceWorker)
                 throw new Error('El navegador no dispone de Service Workers.');
             stage='Localizar Service Worker';
-            var sw=await limited(global.navigator.serviceWorker.getRegistration('./'),3500,stage);
+            var sw=knownRegistration && knownRegistration.active
+                ? knownRegistration
+                : await limited(global.navigator.serviceWorker.getRegistration('./'),3500,stage);
             if (!sw || !sw.active || !sw.pushManager)
                 throw new Error('El Service Worker de EduSync no está activo o no admite Push.');
             results.push('Service Worker: Activo');
-            stage='Comprobar suscripción existente';
-            var previous=await limited(sw.pushManager.getSubscription(),3500,stage);
-            if (previous) {
-                results.push('API Push del navegador: Ya hay una suscripción');
-                results.push('Siguiente prueba: intenta Activar notificaciones para verificar Firebase.');
-                return {ok:true,stage:stage,message:results.join('\n')};
-            }
             stage='Solicitar suscripción nativa Push';
-            var sub=await limited(sw.pushManager.subscribe({
+            // Si ya tenemos el registro activo, invocar subscribe() sin awaits
+            // intermedios preserva la activación del clic del usuario.
+            // subscribe() recupera una suscripción compatible existente.
+            var operation=sw.pushManager.subscribe({
                 userVisibleOnly:true,
                 applicationServerKey:decodeVapid(config.vapid_key)
-            }),15000,stage);
+            });
+            var sub=await limited(operation,15000,stage);
             if (!sub) throw new Error('El navegador no devolvió una suscripción Push.');
             results.push('API Push del navegador: Suscripción creada correctamente');
             results.push('Siguiente prueba: pulsa Activar notificaciones para registrar Firebase.');
