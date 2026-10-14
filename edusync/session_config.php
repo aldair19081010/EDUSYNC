@@ -24,6 +24,13 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Restaurar también las sesiones de endpoints que reutilizan este bootstrap.
+require_once __DIR__.'/includes/remember_session.php';
+if (!edrs_has_session() && isset($_COOKIE[EDRS_COOKIE])) {
+    if (!isset($conn) || !($conn instanceof mysqli)) require_once __DIR__.'/db_connect.php';
+    if (isset($conn) && $conn instanceof mysqli) edrs_restore($conn);
+}
+
 // Nota: aquí podrías añadir comprobaciones adicionales (por ejemplo, validación de usuario)
 // if (!isset($_SESSION['login_id'])) { header('HTTP/1.1 401 Unauthorized'); exit(); }
 
