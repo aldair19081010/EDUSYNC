@@ -2390,156 +2390,167 @@ function save_payment(){
     }
     
     function generate_low_grade_notifications($evaluation_id) {
-        // Umbral de notas desaprobadas para generar una notificación
-        $min_low_grades = 3;
-        $school_id = $_SESSION['login_school_id'] ?? 0;
+        // Una alerta es un CAMBIO de estado, no un nuevo evento por cada guardado.
+        // Conservar ID, fecha y lecturas cuando el riesgo sigue presente.
+        $threshold = 3;
+        $school = (int)($_SESSION['login_school_id'] ?? 0);
+        $evaluation = (int)$evaluation_id;
+        if ($school <= 0 || $evaluation <= 0) return 0;
 
-        if (!$school_id || empty($evaluation_id)) {
-            error_log("generate_low_grade_notifications: Missing school_id or evaluation_id.");
-            return 0;
-        }
-        
-        $evaluation_id = intval($evaluation_id);
-
-        // 1. Obtener el contexto de la evaluación (bimestre, nivel, grado, sección, año académico)
-        $eval_query = $this->db->query("
+        $ctx = $this->db->query("
             SELECT e.bimestre, ac.level, tc.grado, tc.seccion, tc.academic_year_id
             FROM evaluations e
-            JOIN teacher_courses tc ON e.teacher_course_id = tc.id
-            JOIN academic_courses ac ON tc.course_id = ac.id
-            WHERE e.id = $evaluation_id AND tc.school_id = $school_id
+            JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+            JOIN academic_courses ac ON ac.id=tc.course_id
+            WHERE e.id=$evaluation AND tc.school_id=$school LIMIT 1
         ");
+        if (!$ctx || !$ctx->num_rows) return 0;
+        $info=$ctx->fetch_assoc();
+        $bim=(string)$info['bimestre'];
+        $bimSql=$this->db->real_escape_string($bim);
+        $level=$this->db->real_escape_string((string)$info['level']);
+        $grade=$this->db->real_escape_string((string)$info['grado']);
+        $section=$this->db->real_escape_string((string)$info['seccion']);
+        $year=(int)$info['academic_year_id'];
 
-        if (!$eval_query || $eval_query->num_rows == 0) {
-            error_log("generate_low_grade_notifications: Evaluation context not found for id: $evaluation_id");
+        $group=$this->db->query("SELECT id FROM student WHERE nivel='$level'
+            AND grado='$grade' AND seccion='$section' AND school_id=$school");
+        if (!$group || !$group->num_rows) return 0;
+        $studentIds=[];
+        while ($item=$group->fetch_assoc()) $studentIds[]=(int)$item['id'];
+        $in=implode(',', $studentIds);
+
+        // Evitar carreras cuando dos docentes modifican notas al mismo tiempo.
+        $lock='edusync_lg_'.substr(sha1($school.'|'.$year.'|'.$bim.'|'.$level.'|'.$grade.'|'.$section),0,36);
+        $escapedLock=$this->db->real_escape_string($lock);
+        $locked=$this->db->query("SELECT GET_LOCK('$escapedLock',5) acquired");
+        if (!$locked || (int)($locked->fetch_assoc()['acquired']??0)!==1) {
+            error_log('[EduSync low grade] No se obtuvo el bloqueo de conciliación.');
             return 0;
         }
-        $eval_data = $eval_query->fetch_assoc();
-        $bimestre_context = $this->db->real_escape_string($eval_data['bimestre']);
-        $level_context = $this->db->real_escape_string($eval_data['level']);
-        $grado_context = $this->db->real_escape_string($eval_data['grado']);
-        $seccion_context = $this->db->real_escape_string($eval_data['seccion']);
-        $academic_year_id = intval($eval_data['academic_year_id']);
 
-        // 2. Obtener la lista de estudiantes en ese grupo
-        $students_query = $this->db->query("
-            SELECT id FROM student 
-            WHERE nivel = '$level_context' 
-            AND grado = '$grado_context' 
-            AND seccion = '$seccion_context' 
-            AND school_id = $school_id
-        ");
-        
-        if (!$students_query || $students_query->num_rows == 0) {
-            return 0; // No hay estudiantes en este grupo
-        }
-
-        $student_ids = [];
-        while ($row = $students_query->fetch_assoc()) {
-            $student_ids[] = $row['id'];
-        }
-        $student_ids_list = implode(',', $student_ids);
-
-        // 3. Limpiar notificaciones viejas para este grupo y bimestre
-        // Primero los registros de lectura
-        $this->db->query("DELETE FROM low_grade_notification_read WHERE notification_id IN (SELECT id FROM low_grade_notifications WHERE student_id IN ($student_ids_list) AND bimestre = '$bimestre_context')");
-        // Luego las notificaciones
-        $this->db->query("DELETE FROM low_grade_notifications WHERE student_id IN ($student_ids_list) AND bimestre = '$bimestre_context'");
-
-        // 4. Obtener todas las notas bajas (<= 10) para este grupo de estudiantes en este bimestre
-        $low_grades_query = $this->db->query("
-            SELECT 
-                eg.student_id,
-                s.name as student_name,
-                tc.course_id,
-                c.name as course_name,
-                tc.teacher_id
-            FROM evaluation_grades eg
-            JOIN evaluations e ON eg.evaluation_id = e.id
-            JOIN student s ON eg.student_id = s.id
-            JOIN teacher_courses tc ON e.teacher_course_id = tc.id
-            JOIN academic_courses c ON tc.course_id = c.id
-            WHERE eg.grade <= 10
-            AND s.id IN ($student_ids_list)
-            AND e.bimestre = '$bimestre_context'
-            AND s.school_id = $school_id
-            AND tc.academic_year_id = $academic_year_id
-            ORDER BY eg.student_id, tc.course_id
-        ");
-
-        if (!$low_grades_query || $low_grades_query->num_rows == 0) {
-            return 0; // No hay notas bajas, no hay nada que hacer
-        }
-
-        // 5. Procesar y agrupar las notas en PHP
-        $student_course_data = [];
-        while ($row = $low_grades_query->fetch_assoc()) {
-            $student_id = $row['student_id'];
-            $course_id = $row['course_id'];
-
-            if (!isset($student_course_data[$student_id])) {
-                $student_course_data[$student_id] = ['name' => $row['student_name'], 'courses' => []];
-            }
-            if (!isset($student_course_data[$student_id]['courses'][$course_id])) {
-                $student_course_data[$student_id]['courses'][$course_id] = [
-                    'name' => $row['course_name'],
-                    'teacher_id' => $row['teacher_id'],
-                    'count' => 0
-                ];
-            }
-            $student_course_data[$student_id]['courses'][$course_id]['count']++;
-        }
-
-        $created_count = 0;
-
-        // 6. Filtrar, agrupar por profesor y generar notificaciones
-        foreach ($student_course_data as $student_id => $student_data) {
-            $failing_courses = array_filter($student_data['courses'], function($course) use ($min_low_grades) {
-                return $course['count'] >= $min_low_grades;
-            });
-
-            if (empty($failing_courses)) {
-                continue; // No hay cursos con suficientes notas bajas para este estudiante
-            }
-
-            // Agrupar cursos por profesor
-            $courses_by_teacher = [];
-            $admin_courses = [];
-            $total_low_grades = 0;
-
-            foreach ($failing_courses as $course_id => $course) {
-                $teacher_id = $course['teacher_id'];
-                if (!isset($courses_by_teacher[$teacher_id])) {
-                    $courses_by_teacher[$teacher_id] = [];
+        try {
+            // Recalcular incluso cuando no existan notas bajas: así se limpian
+            // alertas que ya no corresponden después de corregir calificaciones.
+            $rows=$this->db->query("
+                SELECT eg.student_id,tc.course_id,c.name course_name,tc.teacher_id
+                FROM evaluation_grades eg
+                JOIN evaluations e ON e.id=eg.evaluation_id
+                JOIN student s ON s.id=eg.student_id AND s.school_id=$school
+                JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=$school
+                JOIN academic_courses c ON c.id=tc.course_id
+                WHERE eg.grade<=10 AND eg.student_id IN ($in)
+                  AND e.bimestre='$bimSql' AND tc.academic_year_id=$year
+                ORDER BY eg.student_id,tc.course_id
+            ");
+            if (!$rows) throw new RuntimeException('Error consultando notas bajas: '.$this->db->error);
+            $byStudent=[];
+            while ($r=$rows->fetch_assoc()) {
+                $sid=(int)$r['student_id'];$cid=(int)$r['course_id'];
+                if (!isset($byStudent[$sid][$cid])) {
+                    $byStudent[$sid][$cid]=['name'=>(string)$r['course_name'],
+                        'teacher_id'=>(int)$r['teacher_id'],'count'=>0];
                 }
-                $courses_by_teacher[$teacher_id][] = ['name' => $course['name'], 'count' => $course['count']];
-                $admin_courses[] = ['name' => $course['name'], 'count' => $course['count']];
-                $total_low_grades += $course['count'];
+                $byStudent[$sid][$cid]['count']++;
+            }
+            $wanted=[];
+            foreach ($byStudent as $sid=>$courses) {
+                $admin=[];$teacherCourses=[];
+                foreach ($courses as $course) {
+                    if ($course['count']<$threshold) continue;
+                    $entry=['name'=>$course['name'],'count'=>$course['count']];
+                    $admin[]=$entry;
+                    if ($course['teacher_id']>0) $teacherCourses[$course['teacher_id']][]=$entry;
+                }
+                if (!$admin) continue;
+                $wanted[$sid.':0']=['student'=>$sid,'teacher'=>null,
+                    'count'=>array_sum(array_column($admin,'count')),
+                    'json'=>json_encode($admin,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)];
+                foreach ($teacherCourses as $teacher=>$entries) {
+                    $wanted[$sid.':'.$teacher]=['student'=>$sid,'teacher'=>(int)$teacher,
+                        'count'=>array_sum(array_column($entries,'count')),
+                        'json'=>json_encode($entries,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)];
+                }
             }
 
-            // 7. Crear notificación para Administradores (teacher_id = NULL)
-            if (!empty($admin_courses)) {
-                $admin_json = json_encode($admin_courses, JSON_UNESCAPED_UNICODE);
-                $this->db->query("
-                    INSERT INTO low_grade_notifications (student_id, bimestre, count_low_grades, failed_courses, teacher_id, created_at) 
-                    VALUES ($student_id, '$bimestre_context', $total_low_grades, '$admin_json', NULL, NOW())
-                ");
-                $created_count++;
+            $this->db->begin_transaction();
+            try {
+                $prior=$this->db->query("SELECT l.id,l.student_id,l.teacher_id,
+                        l.count_low_grades,l.failed_courses
+                    FROM low_grade_notifications l
+                    JOIN student s ON s.id=l.student_id AND s.school_id=$school
+                    WHERE l.student_id IN ($in) AND l.bimestre='$bimSql'
+                    ORDER BY l.id ASC FOR UPDATE");
+                if (!$prior) throw new RuntimeException('Error consultando alertas anteriores: '.$this->db->error);
+                $existing=[];
+                $duplicates=[];
+                while ($row=$prior->fetch_assoc()) {
+                    $key=(int)$row['student_id'].':'.(int)($row['teacher_id']??0);
+                    if (!isset($existing[$key])) $existing[$key]=$row;
+                    else $duplicates[]=['old'=>(int)$row['id'],'keep'=>(int)$existing[$key]['id']];
+                }
+                // Consolidar duplicados históricos preservando lecturas por usuario.
+                foreach ($duplicates as $dup) {
+                    $old=(int)$dup['old'];$keep=(int)$dup['keep'];
+                    if (!$this->db->query("INSERT INTO low_grade_notification_read(user_id,notification_id)
+                        SELECT DISTINCT r.user_id,$keep FROM low_grade_notification_read r
+                        WHERE r.notification_id=$old AND NOT EXISTS (
+                          SELECT 1 FROM low_grade_notification_read k
+                          WHERE k.notification_id=$keep AND k.user_id=r.user_id
+                        )")) throw new RuntimeException('No se pudieron conservar lecturas.');
+                    if (!$this->db->query("DELETE FROM low_grade_notification_read WHERE notification_id=$old"))
+                        throw new RuntimeException('No se pudo limpiar lectura duplicada.');
+                    if (!$this->db->query("DELETE FROM low_grade_notifications WHERE id=$old"))
+                        throw new RuntimeException('No se pudo eliminar alerta duplicada.');
+                }
+                $new=0;
+                foreach ($wanted as $key=>$alert) {
+                    $sid=(int)$alert['student'];$teacher=$alert['teacher'];
+                    $count=(int)$alert['count'];$json=(string)$alert['json'];
+                    if (isset($existing[$key])) {
+                        $row=$existing[$key];
+                        // Actualizar contenido sin tocar created_at NI las lecturas.
+                        if ((int)$row['count_low_grades']!==$count || (string)$row['failed_courses']!==$json) {
+                            $id=(int)$row['id'];
+                            $stmt=$this->db->prepare('UPDATE low_grade_notifications
+                                SET count_low_grades=?,failed_courses=? WHERE id=?');
+                            if (!$stmt) throw new RuntimeException($this->db->error);
+                            $stmt->bind_param('isi',$count,$json,$id);
+                            if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+                            $stmt->close();
+                        }
+                        unset($existing[$key]);
+                    } else {
+                        $stmt=$this->db->prepare('INSERT INTO low_grade_notifications
+                            (student_id,bimestre,count_low_grades,failed_courses,teacher_id,created_at)
+                            VALUES (?,?,?,?,?,NOW())');
+                        if (!$stmt) throw new RuntimeException($this->db->error);
+                        // La clave 0 representa Administrador: SQL NULL.
+                        $stmt->bind_param('isisi',$sid,$bim,$count,$json,$teacher);
+                        if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+                        $stmt->close();
+                        $new++;
+                    }
+                }
+                // El riesgo desapareció: ahora sí retirar una alerta y sus lecturas.
+                foreach ($existing as $old) {
+                    $id=(int)$old['id'];
+                    if (!$this->db->query("DELETE FROM low_grade_notification_read WHERE notification_id=$id"))
+                        throw new RuntimeException('No se pudieron retirar lecturas antiguas.');
+                    if (!$this->db->query("DELETE FROM low_grade_notifications WHERE id=$id"))
+                        throw new RuntimeException('No se pudo retirar alerta resuelta.');
+                }
+                $this->db->commit();
+                return $new;
+            } catch (Throwable $e) {
+                $this->db->rollback();
+                throw $e;
             }
-
-            // 8. Crear notificaciones para cada Profesor
-            foreach ($courses_by_teacher as $teacher_id => $teacher_courses) {
-                $teacher_json = json_encode($teacher_courses, JSON_UNESCAPED_UNICODE);
-                $teacher_total_low_grades = array_sum(array_column($teacher_courses, 'count'));
-                
-                $this->db->query("
-                    INSERT INTO low_grade_notifications (student_id, bimestre, count_low_grades, failed_courses, teacher_id, created_at) 
-                    VALUES ($student_id, '$bimestre_context', $teacher_total_low_grades, '$teacher_json', $teacher_id, NOW())
-                ");
-                $created_count++;
-            }
+        } catch (Throwable $e) {
+            error_log('[EduSync low grade] '.$e->getMessage());
+            return 0;
+        } finally {
+            $this->db->query("SELECT RELEASE_LOCK('$escapedLock')");
         }
-        
-        return $created_count;
     }
 }
