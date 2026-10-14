@@ -16,6 +16,7 @@ $phpFiles = @(
     'edusync/includes/topbar.php',
     'edusync/index.php',
     'edusync/logout.php',
+    'edusync/login.php',
     'edusync/notifications_api.php',
     'edusync/pages/notifications.php',
     'edusync/pages/student_notifications_web.php'
