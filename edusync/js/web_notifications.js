@@ -50,7 +50,14 @@
 
         function toast(item) {
             if (activeToast) activeToast.remove();
-            var box = $('<a class="ed-web-toast" href="index.php?page=notifications"></a>');
+            var box = $('<div class="ed-web-toast" role="status" tabindex="0"></div>');
+            box.on('click', function(){ window.location.href = 'index.php?page=notifications'; });
+            box.on('keydown', function(event){
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    window.location.href = 'index.php?page=notifications';
+                }
+            });
             $('<span class="ed-web-toast-icon"><i class="fas fa-bell"></i></span>').appendTo(box);
             var copy = $('<span class="ed-web-toast-copy"></span>').appendTo(box);
             $('<strong></strong>').text(item.title || 'Notificación nueva').appendTo(copy);
