@@ -5,6 +5,23 @@
  */
 require_once __DIR__ . '/push_notifications.php';
 
+/** Utiliza configuración de FCM existente sin guardar secretos en el repositorio. */
+function edwp_load_firebase_credentials(): ?array {
+    $credentials=push_load_firebase_credentials();
+    if ($credentials) return $credentials;
+
+    // Compatibilidad con el archivo privado ya instalado para desarrollo XAMPP.
+    if (DIRECTORY_SEPARATOR === '\\') {
+        $localFile=dirname(__DIR__,4).'/firebase/edusync-service-account.json';
+        if (is_readable($localFile)) {
+            $data=json_decode((string)file_get_contents($localFile),true);
+            if (is_array($data) && !empty($data['project_id']) && !empty($data['private_key']))
+                return $data;
+        }
+    }
+    return null;
+}
+
 function edwp_send_message(
     string $token,
     string $title,
@@ -12,7 +29,7 @@ function edwp_send_message(
     string $url,
     string $tag
 ): array {
-    $credentials = push_load_firebase_credentials();
+    $credentials = edwp_load_firebase_credentials();
     if (!$credentials) {
         error_log('[EduSync web push] Credenciales FCM ausentes en el entorno PHP.');
         return ['ok'=>false,'code'=>0,'message'=>'FCM not configured'];
