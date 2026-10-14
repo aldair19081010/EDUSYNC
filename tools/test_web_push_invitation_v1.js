@@ -148,6 +148,12 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     assert.equal(revisiting.find('edwp-invite-dialog'),undefined,
         'Do not insist at next login while postponed');
 
+    // Posponer no bloquea la activación manual de la campana.
+    revisiting.find('edwp-toggle').trigger('click');
+    await flush();
+    assert.equal(revisiting.output.permissionRequests,1);
+    assert.equal(revisiting.output.registrations,1);
+
     const granted=scenario('granted');
     await flush();
     assert.equal(granted.find('edwp-invite-dialog'),undefined);
@@ -157,6 +163,10 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     const disabled=scenario('granted',{'edusync:webpush:opted-out:student:1:42':'1'});
     await flush();
     assert.equal(disabled.output.registrations,0,'Honor manual deactivation');
+    disabled.find('edwp-toggle').trigger('click');
+    await flush();
+    assert.equal(disabled.output.registrations,1,'Allow explicit reactivation from bell');
+    assert.equal(disabled.saved.get('edusync:webpush:opted-out:student:1:42'),undefined);
 
     const denied=scenario('denied');
     await flush();
@@ -168,5 +178,5 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     const notConfigured=scenario('default',{}, {configured:false});
     assert.equal(notConfigured.find('edwp-invite-dialog'),undefined);
 
-    process.stdout.write('OK: invitación, clic autorizado, Ahora no (30 días), permiso previo, baja explícita y bloqueos.\n');
+    process.stdout.write('OK: invitación, clic autorizado, Ahora no (30 días), permiso previo, baja explícita, reactivación manual y bloqueos.\n');
 })().catch(error=>{console.error(error);process.exitCode=1;});
