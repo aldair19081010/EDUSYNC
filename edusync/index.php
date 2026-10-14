@@ -12,6 +12,14 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Recuperar un dispositivo recordado si PHP perdió la sesión por inactividad.
+// No hay consulta adicional para las sesiones normales.
+require_once __DIR__.'/includes/remember_session.php';
+if (!edrs_has_session() && isset($_COOKIE[EDRS_COOKIE])) {
+    require_once __DIR__.'/db_connect.php';
+    if (isset($conn) && $conn instanceof mysqli) edrs_restore($conn);
+}
+
 // Verificar si el usuario está logueado (admin/docente o estudiante)
 if (!isset($_SESSION['login_id']) && !isset($_SESSION['login_type']) && !isset($_SESSION['student_logged_in'])) {
     header("Location: login.php");
