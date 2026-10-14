@@ -44,6 +44,12 @@ if (file_exists('./db_connect.php')) {
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>EduSync - Login</title>
+    <!-- Instalación de EduSync como app web en Android e iPhone. -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#2459a8">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="EduSync">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
     <!-- Favicon -->
     <link rel="icon" href="assets/uploads/logo.jpg" type="image/jpeg">
