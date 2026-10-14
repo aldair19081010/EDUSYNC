@@ -127,16 +127,24 @@ try{
     if($action==='close_assignment'){
         $year=(int)($_POST['academic_year_id']??0);$tc=(int)($_POST['teacher_course_id']??0);$bim=(int)($_POST['bimester']??0);$force=(int)($_POST['force']??0)===1;$reason=trim((string)($_POST['reason']??''));$y=agca_year($conn,$school,$year);if(!$y||($y['status']??'')!=='Activo'||$tc<=0||$bim<1||$bim>4)agca_response(['status'=>0,'message'=>'El año, asignación o bimestre no es válido.']);$conn->begin_transaction();try{$res=agca_close_one($conn,$school,$year,$tc,$bim,$userId,$force,$reason);if(!$res['ok']){$conn->rollback();if(($res['code']??'')==='incomplete')agca_response(['status'=>2,'needs_exceptional'=>true,'message'=>$res['message'],'validation'=>['issues'=>$res['validation']['issues'],'summary'=>$res['validation']['summary']]]);agca_response(['status'=>0,'message'=>$res['message'],'code'=>$res['code']??'error']);}$conn->commit();
         if((int)($res['web_push_event_id']??0)>0){
-            require_once __DIR__.'/includes/web_push_dispatcher.php';
-            edwp_dispatch_now($conn,'staff',[(int)$res['web_push_event_id']],8);
+            try {
+                require_once __DIR__.'/includes/web_push_dispatcher.php';
+                edwp_dispatch_now($conn,'staff',[(int)$res['web_push_event_id']],8);
+            } catch (Throwable $webPushError) {
+                error_log('[EduSync web push] '.$webPushError->getMessage());
+            }
         }
         agca_response(['status'=>1,'message'=>$res['mode']==='Administrativo excepcional'?'Cierre administrativo excepcional registrado.':'Asignación cerrada por Administración.','mode'=>$res['mode'],'closure_id'=>$res['closure_id']]);}catch(Throwable $e){$conn->rollback();throw $e;}
     }
     if($action==='close_bulk'){
         $year=(int)($_POST['academic_year_id']??0);$bim=(int)($_POST['bimester']??0);$raw=json_decode((string)($_POST['teacher_course_ids']??'[]'),true);if(!is_array($raw))$raw=[];$ids=array_values(array_unique(array_filter(array_map('intval',$raw))));$y=agca_year($conn,$school,$year);if(!$y||($y['status']??'')!=='Activo'||$bim<1||$bim>4||!$ids)agca_response(['status'=>0,'message'=>'Selecciona asignaciones válidas de un bimestre activo.']);if(count($ids)>500)agca_response(['status'=>0,'message'=>'Solo se pueden procesar hasta 500 asignaciones por operación.']);$closed=[];$skipped=[];$newPushIds=[];$conn->begin_transaction();try{foreach($ids as $id){$res=agca_close_one($conn,$school,$year,$id,$bim,$userId,false,'');if((int)($res['web_push_event_id']??0)>0)$newPushIds[]=(int)$res['web_push_event_id'];if($res['ok'])$closed[]=['teacher_course_id'=>$id,'course_name'=>$res['assignment']['course_name'],'teacher_name'=>$res['assignment']['teacher_name']];else$skipped[]=['teacher_course_id'=>$id,'reason'=>$res['message'],'code'=>$res['code']??'error'];}agca_audit($conn,$school,$year,0,0,$bim,$userId,'bulk_ready_periods_closed_by_admin',['requested'=>count($ids),'closed'=>count($closed),'skipped'=>count($skipped),'closed_items'=>$closed,'skipped_items'=>$skipped]);$conn->commit();
         if($newPushIds){
-            require_once __DIR__.'/includes/web_push_dispatcher.php';
-            edwp_dispatch_now($conn,'staff',$newPushIds,20);
+            try {
+                require_once __DIR__.'/includes/web_push_dispatcher.php';
+                edwp_dispatch_now($conn,'staff',$newPushIds,20);
+            } catch (Throwable $webPushError) {
+                error_log('[EduSync web push] '.$webPushError->getMessage());
+            }
         }
         agca_response(['status'=>1,'message'=>count($closed).' asignación(es) cerrada(s). '.count($skipped).' omitida(s).','closed_count'=>count($closed),'skipped_count'=>count($skipped),'closed'=>$closed,'skipped'=>$skipped]);}catch(Throwable $e){$conn->rollback();throw $e;}
     }
