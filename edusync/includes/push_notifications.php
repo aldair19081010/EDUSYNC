@@ -433,6 +433,21 @@ function push_send_student_event(
     $result['event_created'] = !empty($event['created']);
     $result['retry'] = !$result['event_created'];
 
+    // Web y Android parten del MISMO evento persistente. Web Push no
+    // depende de que el estudiante haya instalado la app Android.
+    // Se usa el despachador compartido con el cron, sin reenviar avisos
+    // que ya tengan entrega confirmada para esa suscripción.
+    if ($result['event_id'] > 0 && empty($GLOBALS['edwp_defer_immediate'])) {
+        try {
+            require_once __DIR__.'/web_push_dispatcher.php';
+            $web=edwp_dispatch_now($db,'student',[$result['event_id']],6);
+            $result['web_sent']=(int)($web['sent']??0);
+            $result['web_failed']=(int)($web['failed']??0);
+        } catch (Throwable $e) {
+            error_log('[EduSync student web push] '.$e->getMessage());
+        }
+    }
+
     if (!push_table_exists($db, 'student_device_tokens')) return $result;
 
     $stmt = $db->prepare(
