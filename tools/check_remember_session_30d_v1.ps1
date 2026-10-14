@@ -14,6 +14,8 @@ $files=@(
  'edusync/login.php',
  'edusync/index.php',
  'edusync/ajax.php',
+ 'edusync/session_config.php',
+ 'edusync/includes/session_check.php',
  'edusync/logout.php',
  'tools/test_remember_session_30d_v1.php'
 )
