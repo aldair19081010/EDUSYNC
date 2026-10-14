@@ -285,8 +285,6 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <script src="js/grades_report_preview.js?v=<?php echo $grades_report_preview_version; ?>"></script>
     <?php endif; ?>
 
-    <!-- Diagnóstico local sin tokens ni credenciales. -->
-    <script src="js/web_push_diagnostic.js?v=<?php echo @filemtime(__DIR__.'/js/web_push_diagnostic.js') ?: time(); ?>"></script>
     <!-- Web Push FCM: receptor en segundo plano sin mantener EduSync abierto. -->
     <script src="js/web_push_fcm.js?v=<?php echo @filemtime(__DIR__.'/js/web_push_fcm.js') ?: time(); ?>"></script>
 
