@@ -178,7 +178,10 @@ try {
                      WHERE $active AND $pending AND $staffEligible
                        AND ((s.role_type=1 AND lgn.teacher_id IS NULL)
                          OR (s.role_type=2 AND lgn.teacher_id=u.teacher_id))
-                       AND lgn.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
+                       AND lgn.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)
+                       AND NOT EXISTS (SELECT 1 FROM notification_events ne
+                         WHERE ne.school_id=st.school_id AND ne.source_type='low_grade'
+                           AND ne.source_id=lgn.id)";
         }
     }
 
