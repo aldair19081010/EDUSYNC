@@ -79,7 +79,7 @@ try {
         $school=(int)$event['school_id'];
         $subscription=(int)$event['subscription_id'];
         $screen=(string)$event['screen'];
-        $url='index.php?page=notifications';
+        $url='index.php?page=notifications&push_event_id='.$eventId;
         if ($kind==='student') {
             $routes=[
                 'attendance'=>'student_attendances',
@@ -88,7 +88,9 @@ try {
                 'grades'=>'student_grades',
                 'announcements'=>'notifications',
             ];
-            $url='index.php?page='.($routes[$screen]??'notifications');
+            $url=($screen==='announcements')
+                ? 'index.php?page=notifications&notification_id='.$eventId
+                : 'index.php?page='.($routes[$screen]??'notifications');
         }
         $answer=edwp_send_message(
             (string)$event['fcm_token'],
