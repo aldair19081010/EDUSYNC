@@ -98,7 +98,7 @@ function agca_validate(mysqli $db,int $school,array $a,int $bim): array {
 }
 function agca_notify(mysqli $db,int $school,array $a,int $bim,int $closureId,int $userId,bool $exceptional,string $reason): int {
     if(!agca_table($db,'notification_events'))return 0;$teacher=(int)$a['teacher_id'];$status=agca_col($db,'users','status')?" AND (status='Activo' OR status IS NULL)":'';
-    $s=$db->prepare("SELECT id FROM users WHERE school_id=? AND teacher_id=? AND type=2$status ORDER BY id LIMIT 1");if(!$s)return;$s->bind_param('ii',$school,$teacher);$s->execute();$u=$s->get_result()->fetch_assoc();$s->close();if(!$u)return 0;
+    $s=$db->prepare("SELECT id FROM users WHERE school_id=? AND teacher_id=? AND type=2$status ORDER BY id LIMIT 1");if(!$s)return 0;$s->bind_param('ii',$school,$teacher);$s->execute();$u=$s->get_result()->fetch_assoc();$s->close();if(!$u)return 0;
     $recipient=(int)$u['id'];$type='Académica';$priority=$exceptional?'Alta':'Normal';$title=$exceptional?'Cierre administrativo excepcional de notas':'Notas cerradas por Administración';$message=$a['course_name'].' · '.$a['grado'].'° '.$a['seccion'].' · '.$bim.'° Bimestre'.($exceptional&&$reason!==''?' · Motivo: '.$reason:'');$sourceType='grade_period_closed';$sourceId=$closureId;
     $e=$db->prepare('INSERT INTO notification_events(school_id,recipient_user_id,notification_type,priority,title,message,source_type,source_id,created_by) VALUES(?,?,?,?,?,?,?,?,?)');
     if(!$e)return 0;
