@@ -26,8 +26,9 @@ Ahora la misma función calcula un **estado deseado** y concilia por:
   alertas ya existentes. Los cálculos simultáneos del mismo grupo se serializan
   con un bloqueo MySQL que se libera siempre.
 - Si existen duplicados históricos en `low_grade_notifications`, conserva
-  un registro y fusiona lecturas de `low_grade_notification_read` por usuario
-  antes de eliminar los duplicados.
+  un registro y fusiona las lecturas tanto de `low_grade_notification_read`
+  como de la bandeja unificada `notification_user_state` antes de eliminar los
+  duplicados. También retira estados obsoletos de casos que se resolvieron.
 
 El cron `web_push_dispatch.php` utiliza el ID estable del episodio; su tabla
 `web_push_delivery` evita reenviar el mismo evento a un navegador que ya lo
