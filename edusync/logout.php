@@ -11,6 +11,13 @@ if (session_status() === PHP_SESSION_NONE) {
     ]);
     session_start();
 }
+// Si la sesión PHP expiró mientras la página estaba abierta, recuperar
+// primero la identidad recordada para desactivar también sus avisos Push.
+require_once __DIR__.'/includes/remember_session.php';
+if (!edrs_has_session() && isset($_COOKIE[EDRS_COOKIE])) {
+    require_once __DIR__.'/db_connect.php';
+    if (isset($conn) && $conn instanceof mysqli) edrs_restore($conn);
+}
 // Desactivar sólo la suscripción del navegador desde el que se cierra sesión.
 // Así no llegan avisos privados a otra persona que utilice el mismo equipo,
 // y se mantienen activas las notificaciones en los otros dispositivos.
