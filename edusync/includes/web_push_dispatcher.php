@@ -42,7 +42,12 @@ function edwp_dispatch_pending(mysqli $conn, string $kindFilter='', array $ids=[
     $active="s.is_active=1 AND s.last_seen_at>=DATE_SUB(NOW(),INTERVAL 45 DAY)";
     if ($hasStudent && ($kindFilter==='' || $kindFilter==='student')) {
         $parts[]="SELECT 'student' kind,e.id event_id,e.school_id,s.id subscription_id,s.fcm_token,
-                  e.title,e.body,e.screen,e.created_at created,
+                  CASE WHEN e.notification_type='collection_notice'
+                       THEN 'EduSync · Aviso de cobranza' ELSE e.title END title,
+                  CASE WHEN e.notification_type='collection_notice'
+                       THEN 'Tienes un aviso de pago pendiente. Consulta Mis Deudas en EduSync.'
+                       ELSE e.body END body,
+                  e.screen,e.created_at created,
                   COALESCE(d.attempts,0) attempts
                   FROM student_notification_events e
                   JOIN web_push_subscriptions s ON s.account_kind='student'
@@ -246,7 +251,9 @@ function edwp_dispatch_pending(mysqli $conn, string $kindFilter='', array $ids=[
         $message=mb_substr((string)$answer['message'],0,500,'UTF-8');
         $code=(int)$answer['code'];
         $status=$ok ? 'delivered' : ((int)$event['attempts'] >= 2 ? 'failed' : 'retry');
-        $next=$ok||$status==='failed' ? null : date('Y-m-d H:i:s',time()+300*((int)$event['attempts']+1));
+        $next=$ok||$status==='failed' ? null : (new DateTimeImmutable(
+            'now',new DateTimeZone('America/Lima')
+        ))->modify('+'.(300*((int)$event['attempts']+1)).' seconds')->format('Y-m-d H:i:s');
         $flag=$ok?1:0;
         $stmt=$conn->prepare("INSERT INTO web_push_delivery(school_id,subscription_id,event_kind,event_id,status,attempts,provider_code,provider_message,next_retry_at,delivered_at)
            VALUES(?,?,?,?,?,1,?,?,?,IF(?=1,NOW(),NULL))
