@@ -201,6 +201,15 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
         'Failure translated to Spanish with helpful guidance');
     assert(Number(broken.saved.get('edusync:webpush:failed-until:student:1:42'))>Date.now(),
         'Auto retry is postponed');
+    await broken.find('edwp-invite-diagnose').trigger('click');
+    await flush();
+    const diagnosis=broken.find('edwp-invite-report').value||'';
+    assert(diagnosis.includes('Suscripción Push'),'Push subscription status must be reported');
+    assert(diagnosis.includes('AbortError'),'Browser error must appear in report');
+    assert(!diagnosis.includes('browser-fcm-token'),'Never include user token in report');
+    const afterFailure=scenario('granted',Object.fromEntries(broken.saved));
+    await flush();
+    assert.equal(afterFailure.output.registrations,0,'Skip automatic retry during cooldown');
 
     const invalid=scenario('granted',{}, {invalidVapid:true});
     await flush();
