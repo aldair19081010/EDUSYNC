@@ -226,6 +226,14 @@ function edrs_restore(mysqli $db): bool {
             $_SESSION['login_name']=(string)$user['name'];
             $_SESSION['login_school_id']=$school;
         }
+        // Recuperar la configuración global de la sesión que login.php
+        // carga normalmente al iniciar con contraseña.
+        try {
+            $settings = $db->query('SELECT * FROM system_settings LIMIT 1');
+            if ($settings && $system = $settings->fetch_assoc()) {
+                $_SESSION['system'] = $system;
+            }
+        } catch (Throwable $ignored) { /* La configuración no impide el acceso. */ }
         $_SESSION['csrf_token']=bin2hex(random_bytes(32));
         setcookie(EDRS_COOKIE,$selector.'.'.$replacement,edrs_cookie_options($expiry));
         return true;
