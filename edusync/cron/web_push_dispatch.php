@@ -107,8 +107,7 @@ try {
              provider_code=VALUES(provider_code),provider_message=VALUES(provider_message),
              next_retry_at=VALUES(next_retry_at),delivered_at=VALUES(delivered_at)");
         if (!$stmt) throw new RuntimeException($conn->error);
-        $stmt->bind_param('iisissisi',$school,$subscription,$kind,$eventId,$status,$code,$message,$next,$flag);
-        // The placeholder type string above must correspond to exactly 9 arguments.
+        $stmt->bind_param('iisisissi',$school,$subscription,$kind,$eventId,$status,$code,$message,$next,$flag);
         if (!$stmt->execute()) error_log('[EduSync web push delivery] '.$stmt->error);
         $stmt->close();
         if ($ok) $sent++; else $failed++;
