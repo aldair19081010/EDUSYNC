@@ -7,6 +7,12 @@ if (!empty($_SESSION['student_logged_in']) || (int)($_SESSION['login_type'] ?? 0
 include_once __DIR__ . '/../db_connect.php';
 $school = (int)($_SESSION['login_school_id'] ?? 0);
 $user = (int)($_SESSION['login_id'] ?? 0);
+$notificationRole=(int)($_SESSION['login_type'] ?? 0);
+$notificationHelp=[
+    1=>'Alertas académicas, cierres bimestrales y solicitudes que necesitan seguimiento.',
+    2=>'Avisos de tus cursos y estudiantes, evaluaciones y cierres bimestrales.',
+    3=>'Cambios de asistencia, solicitudes y comunicaciones dirigidas a tu perfil.',
+][$notificationRole] ?? 'Comunicaciones y avisos de la institución.';
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 $csrf = $_SESSION['csrf_token'];
 $ready = true;
@@ -30,6 +36,13 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
 .nt-priority{font-size:.7rem}
 .nt-date{white-space:nowrap;font-size:.82rem;color:#5e6679}
 .nt-resolved{background:#fbfcfe}
+.nt-type-icon{width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#edf3ff;color:#4e73df;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem}
+.nt-type-icon.attendance{background:#fff6e5;color:#b7791f}
+.nt-type-icon.alert{background:#fff0f0;color:#be3d3d}
+.nt-type-icon.finance{background:#eefaf1;color:#288452}
+.nt-event-copy{min-width:0;overflow-wrap:anywhere}
+.nt-actions .btn{padding:.32rem .48rem}
+@media(max-width:575px){.nt-stat{padding:.68rem .76rem}.nt-stat strong{font-size:1.12rem}.nt-panel{padding:.7rem}.nt-tabs{padding:.65rem}.nt-filter{padding:.7rem}}
 @media(max-width:767px){.nt-tabs .btn-group{display:flex;flex-wrap:wrap}.nt-tabs .btn{flex:1 0 42%}}
 </style>
 
@@ -37,7 +50,7 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
     <div class="nt-head d-flex flex-wrap align-items-center justify-content-between mb-3">
         <div>
             <h1 class="h4 mb-1 text-gray-800"><i class="fas fa-bell text-primary mr-2"></i>Centro de notificaciones</h1>
-            <div class="small text-muted">Alertas, autorizaciones y comunicaciones del sistema.</div>
+            <div class="small text-muted"><?php echo htmlspecialchars($notificationHelp, ENT_QUOTES, 'UTF-8'); ?></div>
         </div>
         <button id="nt-read-all" class="btn btn-outline-primary btn-sm mt-2 mt-md-0"><i class="fas fa-check-double mr-1"></i>Marcar visibles como leídas</button>
     </div>
@@ -71,7 +84,9 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
             <button data-tab="all" class="btn btn-outline-primary">Todas</button>
             <button data-tab="attendance" class="btn btn-outline-primary">Asistencia</button>
             <button data-tab="academic" class="btn btn-outline-primary">Académicas</button>
-            <button data-tab="student_alerts" class="btn btn-outline-primary">Alertas estudiantiles</button>
+            <?php if ($notificationRole === 1 || $notificationRole === 2): ?>
+            <button data-tab="student_alerts" class="btn btn-outline-primary">Seguimiento académico</button>
+            <?php endif; ?>
             <button data-tab="archived" class="btn btn-outline-primary">Archivadas</button>
         </div>
         <small class="text-muted mt-2 mt-md-0" id="nt-tab-help">Sin leer o que requieren atención.</small>
@@ -123,6 +138,23 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
 
     function post(action, data){
         return $.post(api + '?action=' + action, $.extend({csrf_token: csrf}, data || {}), null, 'json');
+    }
+
+    function notificationInfo(r) {
+        const source=String(r.source_type || '');
+        const category=String(r.category || '');
+        let icon='fa-bell',tone='';
+        if(source==='low_grade') {icon='fa-exclamation-triangle';tone='alert';}
+        else if(category==='Asistencia') {icon='fa-user-check';tone='attendance';}
+        else if(source.indexOf('grade')!==-1 || source==='evaluation' || category==='Académica') icon='fa-book-open';
+        else if(category==='Finanzas' || category==='Cobros') {icon='fa-wallet';tone='finance';}
+        else if(source.indexOf('announcement')!==-1) icon='fa-bullhorn';
+        const typeLabel=source==='low_grade'?'Seguimiento académico':category;
+        return '<div class="d-flex align-items-start" style="gap:.65rem">' +
+            '<span class="nt-type-icon ' + tone + '"><i class="fas ' + icon + '"></i></span>' +
+            '<div class="nt-event-copy"><div class="nt-title">' + esc(r.title) + '</div>' +
+            '<div class="nt-message">' + esc(r.message) + '</div>' +
+            '<div class="small text-muted mt-1">' + esc(typeLabel) + '</div></div></div>';
     }
 
     function priority(v){
@@ -188,7 +220,7 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
             },
             columns: [
                 {data:'created_at', render:date},
-                {data:null, render:r => '<div class="nt-title">' + esc(r.title) + '</div><div class="nt-message">' + esc(r.message) + '</div>'},
+                {data:null, render:notificationInfo},
                 {data:'category', render:v => '<span class="badge badge-light border">' + esc(v) + '</span>'},
                 {data:'priority', render:priority},
                 {data:null, render:stateBadge},
@@ -213,7 +245,7 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
             all:'Historial completo disponible.',
             attendance:'Solicitudes pendientes y resoluciones de asistencia.',
             academic:'Evaluaciones y actividad académica.',
-            student_alerts:'Alertas que requieren seguimiento.',
+            student_alerts:'Un caso nuevo aparece una sola vez. Si sigue en riesgo, conserva su estado de lectura.',
             archived:'Notificaciones retiradas de la bandeja.'
         }[tab]);
         init();
