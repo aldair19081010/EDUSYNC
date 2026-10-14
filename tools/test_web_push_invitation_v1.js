@@ -215,6 +215,12 @@ const flush=async()=>{
         'Do not interrupt login with popup after browser already granted permission');
     assert(stale.find('edwp-info').value.includes('campana'),
         'Explain that a missing subscription must be renewed manually');
+    assert.equal(stale.saved.get('edusync:webpush:enabled:student:1:42'),undefined,
+        'Clear stale enabled state so bell performs enable, not disable');
+    await stale.find('edwp-toggle').trigger('click');
+    await flush();
+    assert.equal(stale.output.registrations,1,
+        'Bell can recover a missing subscription after explicit user click');
 
     const disabled=scenario('granted',{'edusync:webpush:opted-out:student:1:42':'1'});
     await flush();
