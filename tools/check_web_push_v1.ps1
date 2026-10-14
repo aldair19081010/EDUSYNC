@@ -35,6 +35,7 @@ foreach ($relative in $phpFiles) {
 $node = Get-Command node -ErrorAction SilentlyContinue
 if ($null -ne $node) {
     $jsFiles = @(
+        'edusync/js/web_push_diagnostic.js',
         'edusync/js/web_push_fcm.js',
         'edusync/js/student_web_notifications.js',
         'edusync/firebase-messaging-sw.js'
