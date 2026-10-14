@@ -35,6 +35,7 @@ $node = Get-Command node -ErrorAction SilentlyContinue
 if ($null -ne $node) {
     $jsFiles = @(
         'edusync/js/web_push_fcm.js',
+        'edusync/js/web_push_invitation.js',
         'edusync/js/student_web_notifications.js',
         'edusync/firebase-messaging-sw.js'
     )
@@ -42,6 +43,14 @@ if ($null -ne $node) {
         & $node.Source --check (Join-Path $root $relative)
         if ($LASTEXITCODE -ne 0) { $errorsFound++ }
         else { Write-Host "[OK JS] $relative" -ForegroundColor Green }
+    }
+    $invitationTest = Join-Path $root 'tools/test_web_push_invitation_v2.js'
+    if (Test-Path $invitationTest) {
+        & $node.Source $invitationTest
+        if ($LASTEXITCODE -ne 0) { $errorsFound++ }
+    } else {
+        Write-Host '[FALTA] tools/test_web_push_invitation_v2.js' -ForegroundColor Red
+        $errorsFound++
     }
 } else {
     Write-Host 'Node.js no está disponible: se omite validación JS (opcional).' -ForegroundColor Yellow
