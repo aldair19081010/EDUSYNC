@@ -80,7 +80,7 @@ function edwp_send_student_event_now(mysqli $db, int $schoolId, int $eventId): a
                 provider_code=VALUES(provider_code),provider_message=VALUES(provider_message),
                 next_retry_at=VALUES(next_retry_at),delivered_at=VALUES(delivered_at)");
             if (!$insert) throw new RuntimeException($db->error);
-            $insert->bind_param('iiisiisi',$schoolId,$sub,$eventId,$status,$code,$message,$next,$flag);
+            $insert->bind_param('iiisissi',$schoolId,$sub,$eventId,$status,$code,$message,$next,$flag);
             if (!$insert->execute()) error_log('[EduSync immediate Web Push delivery] '.$insert->error);
             $insert->close();
             if ($ok) $summary['sent']++; else $summary['failed']++;
