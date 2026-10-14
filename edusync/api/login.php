@@ -127,8 +127,10 @@ if ($lastLoginCol && $lastLoginCol->num_rows > 0) {
 }
 
 // Cada login autenticado recibe una sesión independiente.
+$preLoginSettings = is_array($_SESSION['system'] ?? null) ? $_SESSION['system'] : null;
 session_regenerate_id(true);
 $_SESSION = [];
+if ($preLoginSettings !== null) $_SESSION['system'] = $preLoginSettings;
 $_SESSION['student_logged_in'] = true;
 $_SESSION['login_type'] = 4;
 $_SESSION['student_id'] = (int)$student['id'];
