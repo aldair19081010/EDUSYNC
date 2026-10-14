@@ -290,7 +290,12 @@ $base = "FROM ($union) n LEFT JOIN notification_user_state ns ON ns.school_id=$s
 if ($action === 'peek') {
     $eventId = max(0, (int)($_GET['id'] ?? 0));
     if (!$eventId) no(['status'=>0,'message'=>'Notificación inválida.'],422);
-    $eventKey = 'event:'.$eventId;
+    // Solo aceptar los dos tipos de enlace Push que realmente provienen
+    // de la bandeja; la consulta $base verifica usuario, rol y colegio.
+    $pushKind=(string)($_GET['kind']??'event');
+    if (!in_array($pushKind,['event','low_grade'],true))
+        no(['status'=>0,'message'=>'Tipo de notificación no permitido.'],422);
+    $eventKey = $pushKind.':'.$eventId;
     $peekValues = $params;
     $peekValues[] = $eventKey;
     $stmt = $conn->prepare("SELECT n.nkey,n.title,n.source_type,n.source_id,($effectiveRead) is_read $base AND n.nkey=? LIMIT 1");
