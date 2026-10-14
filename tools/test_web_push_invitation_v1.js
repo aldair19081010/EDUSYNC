@@ -161,7 +161,13 @@ function scenario(permission,initial={},options={}){
     return {output,find,saved,Notification,calls,window};
 }
 
-const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
+// Incluye un cambio de turno de Node: la carga simulada de Firebase,
+ // el registro del service worker y los límites de tiempo encadenan
+ // varias promesas. Contar 20 microtareas no garantiza su finalización.
+const flush=async()=>{
+    for(let i=0;i<40;i++)await Promise.resolve();
+    await new Promise(resolve=>setTimeout(resolve,0));
+};
 (async()=>{
     const newUser=scenario('default');
     assert(newUser.find('edwp-invite-dialog'),'First session must show invitation');
@@ -183,7 +189,7 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
         'Do not insist at next login while postponed');
 
     // Posponer no bloquea la activación manual de la campana.
-    revisiting.find('edwp-toggle').trigger('click');
+    await revisiting.find('edwp-toggle').trigger('click');
     await flush();
     assert.equal(revisiting.output.permissionRequests,1);
     assert.equal(revisiting.output.registrations,1);
@@ -197,7 +203,7 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     const disabled=scenario('granted',{'edusync:webpush:opted-out:student:1:42':'1'});
     await flush();
     assert.equal(disabled.output.registrations,0,'Honor manual deactivation');
-    disabled.find('edwp-toggle').trigger('click');
+    await disabled.find('edwp-toggle').trigger('click');
     await flush();
     assert.equal(disabled.output.registrations,1,'Allow explicit reactivation from bell');
     assert.equal(disabled.saved.get('edusync:webpush:opted-out:student:1:42'),undefined);
