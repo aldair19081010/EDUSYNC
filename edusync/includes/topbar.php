@@ -530,6 +530,12 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                     copy.append($('<div class="edusync-notification-detail"></div>').text(row.message || row.category || ''));
                     item.append(copy).on('click', function(e){
                         e.preventDefault();
+                        // Compartir lectura con la bandeja administrativa al abrir el aviso.
+                        if (row.nkey) {
+                            $.post('notifications_api.php?action=mark',
+                                {csrf_token: <?php echo json_encode($topbar_csrf); ?>,key:row.nkey}, null, 'json')
+                                .always(function(){ if (typeof window.refreshUnifiedNotifications === 'function') window.refreshUnifiedNotifications(); });
+                        }
                         if (row.open_mode === 'modal') waitForUniModal(function(){ window.uni_modal('Detalle de notificación', row.open_url, 'modal-lg'); });
                         else window.location.href = row.open_url || 'index.php?page=notifications';
                     });
