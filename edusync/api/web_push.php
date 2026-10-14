@@ -1,0 +1,172 @@
+<?php
+/**
+ * EduSync Web Push - suscripciones FCM por dispositivo/perfil/colegio.
+ * Conserva los endpoints de la app Android completamente independientes.
+ */
+ini_set('display_errors', '0');
+include_once __DIR__ . '/../session_config.php';
+require_once __DIR__ . '/../db_connect.php';
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, private');
+header('X-Content-Type-Options: nosniff');
+
+function wp_reply(array $data, int $status = 200): void {
+    http_response_code($status);
+    echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+function wp_exists(mysqli $db, string $name): bool {
+    $q = $db->query("SHOW TABLES LIKE '" . $db->real_escape_string($name) . "'");
+    return (bool)($q && $q->num_rows > 0);
+}
+function wp_identity(mysqli $db): ?array {
+    if (!empty($_SESSION['student_logged_in'])
+        && (int)($_SESSION['student_id'] ?? 0) > 0
+        && (int)($_SESSION['student_school_id'] ?? 0) > 0) {
+        $school = (int)$_SESSION['student_school_id'];
+        $id = (int)$_SESSION['student_id'];
+        $s = $db->prepare('SELECT id FROM student WHERE id=? AND school_id=? LIMIT 1');
+        if (!$s) return null;
+        $s->bind_param('ii', $id, $school);
+        $s->execute();
+        $ok = (bool)$s->get_result()->fetch_assoc();
+        $s->close();
+        return $ok ? ['school'=>$school,'id'=>$id,'kind'=>'student','role'=>4] : null;
+    }
+    $school = (int)($_SESSION['login_school_id'] ?? 0);
+    $id = (int)($_SESSION['login_id'] ?? 0);
+    $type = (int)($_SESSION['login_type'] ?? 0);
+    if ($school <= 0 || $id <= 0 || !in_array($type, [1,2,3], true)) return null;
+    $s = $db->prepare("SELECT u.type, u.teacher_id FROM users u WHERE u.id=? AND u.school_id=? LIMIT 1");
+    if (!$s) return null;
+    $s->bind_param('ii', $id, $school);
+    $s->execute();
+    $record = $s->get_result()->fetch_assoc();
+    $s->close();
+    if (!$record || (int)$record['type'] !== $type) return null;
+    $activeCol = $db->query("SHOW COLUMNS FROM users LIKE 'status'");
+    if ($activeCol && $activeCol->num_rows) {
+        $s = $db->prepare('SELECT id FROM users WHERE id=? AND school_id=? AND status=? LIMIT 1');
+        $active = 'Activo';
+        $s->bind_param('iis', $id, $school, $active);
+        $s->execute();
+        $ok = (bool)$s->get_result()->fetch_assoc();
+        $s->close();
+        if (!$ok) return null;
+    }
+    if ($type === 2) {
+        $teacher = (int)($record['teacher_id'] ?? 0);
+        if ($teacher <= 0) return null;
+        $s = $db->prepare("SELECT id FROM teacher WHERE id=? AND school_id=? AND status='Activo' LIMIT 1");
+        $s->bind_param('ii', $teacher, $school);
+        $s->execute();$ok = (bool)$s->get_result()->fetch_assoc();$s->close();
+        if (!$ok) return null;
+    }
+    return ['school'=>$school,'id'=>$id,'kind'=>'staff','role'=>$type];
+}
+
+$identity = wp_identity($conn);
+if (!$identity) wp_reply(['status'=>'error','message'=>'La sesión no es válida. Vuelve a ingresar.'],401);
+$action = (string)($_REQUEST['action'] ?? 'config');
+if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
+if ($action === 'config') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
+    $firebase = json_decode((string)(getenv('EDUSYNC_FIREBASE_WEB_CONFIG_JSON') ?: ''), true);
+    $vapid = trim((string)(getenv('EDUSYNC_FIREBASE_VAPID_KEY') ?: ''));
+    $fields = ['apiKey','authDomain','projectId','messagingSenderId','appId'];
+    $ok = is_array($firebase) && strlen($vapid) > 30;
+    if ($ok) foreach ($fields as $key) if (empty($firebase[$key])) $ok = false;
+    wp_reply([
+        'status'=>'ok','configured'=>$ok,
+        'firebase'=>$ok ? array_intersect_key($firebase,array_fill_keys($fields,true)) : null,
+        'vapid_key'=>$ok ? $vapid : '',
+        'csrf_token'=>$_SESSION['csrf_token'],
+        'identity'=>$identity['kind'].':'.$identity['school'].':'.$identity['id'],
+        'push_ready'=>wp_exists($conn,'web_push_subscriptions') && wp_exists($conn,'web_push_delivery'),
+    ]);
+}
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
+if (!hash_equals((string)$_SESSION['csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
+    wp_reply(['status'=>'error','message'=>'Sesión de seguridad vencida. Recarga EduSync.'],403);
+}
+if (!wp_exists($conn,'web_push_subscriptions')) {
+    wp_reply(['status'=>'error','migration_required'=>true,'message'=>'Falta ejecutar sql/web_push_fcm_v1.sql en la BD de pruebas.'],409);
+}
+$browserId = trim((string)($_POST['browser_id'] ?? ''));
+if (!preg_match('/^[a-zA-Z0-9._:-]{20,100}$/D', $browserId)) {
+    wp_reply(['status'=>'error','message'=>'Identificador de navegador inválido.'],422);
+}
+$school=$identity['school'];$id=$identity['id'];$kind=$identity['kind'];$role=$identity['role'];
+
+if ($action === 'unregister') {
+    $s = $conn->prepare("UPDATE web_push_subscriptions SET is_active=0 WHERE browser_id=? AND school_id=? AND account_kind=? AND account_id=?");
+    $s->bind_param('sisi',$browserId,$school,$kind,$id);
+    $s->execute();
+    $s->close();
+    // Se permite cerrar incluso si el navegador ya no tenía suscripción activa.
+    wp_reply(['status'=>'ok','message'=>'Notificaciones desactivadas en este navegador.']);
+}
+if ($action !== 'register' && $action !== 'test') {
+    wp_reply(['status'=>'error','message'=>'Acción no válida.'],400);
+}
+
+if ($action === 'register') {
+    $token=trim((string)($_POST['fcm_token'] ?? ''));
+    if (strlen($token)<30 || strlen($token)>1024) wp_reply(['status'=>'error','message'=>'Token FCM inválido.'],422);
+    $tokenHash=hash('sha256',$token);
+    $conn->begin_transaction();
+    try {
+        // Si no cambia la cuenta ni el token, NO reiniciar subscribed_at:
+        // esto evita perder avisos entre las navegaciones de EduSync.
+        $stmt=$conn->prepare('SELECT id,school_id,account_kind,account_id,token_hash FROM web_push_subscriptions WHERE browser_id=? FOR UPDATE');
+        $stmt->bind_param('s',$browserId);$stmt->execute();
+        $current=$stmt->get_result()->fetch_assoc();$stmt->close();
+        if ($current && (int)$current['school_id']===$school
+            && $current['account_kind']===$kind
+            && (int)$current['account_id']===$id
+            && hash_equals($current['token_hash'],$tokenHash)) {
+            $key=(int)$current['id'];
+            $stmt=$conn->prepare('UPDATE web_push_subscriptions SET role_type=?,is_active=1,last_seen_at=NOW() WHERE id=?');
+            $stmt->bind_param('ii',$role,$key);
+            if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+            $stmt->close();
+        } else {
+            // Al cambiar de perfil/colegio/token se elimina la asociación
+            // anterior para evitar entregar avisos de otra cuenta.
+            $stmt=$conn->prepare('DELETE FROM web_push_subscriptions WHERE browser_id=? OR token_hash=?');
+            $stmt->bind_param('ss',$browserId,$tokenHash);
+            if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+            $stmt->close();
+            $stmt=$conn->prepare('INSERT INTO web_push_subscriptions (school_id,account_kind,account_id,role_type,browser_id,fcm_token,token_hash,is_active,subscribed_at,last_seen_at) VALUES (?,?,?,?,?,?,?,1,NOW(),NOW())');
+            $stmt->bind_param('isiisss',$school,$kind,$id,$role,$browserId,$token,$tokenHash);
+            if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+            $stmt->close();
+        }
+        $conn->commit();
+        setcookie('edusync_web_push_browser',$browserId,[
+            'expires'=>time()+365*24*60*60,
+            'path'=>'/','secure'=>!empty($_SERVER['HTTPS'])&&$_SERVER['HTTPS']!=='off',
+            'httponly'=>true,'samesite'=>'Lax'
+        ]);
+        wp_reply(['status'=>'ok','message'=>'Este navegador recibirá notificaciones de EduSync.']);
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('[EduSync web push register] '.$e->getMessage());
+        wp_reply(['status'=>'error','message'=>'No se pudo registrar el navegador.'],500);
+    }
+}
+
+// Una prueba manual, dirigida únicamente a la sesión actual y este navegador.
+if (!wp_exists($conn,'web_push_delivery')) wp_reply(['status'=>'error','message'=>'Migración de entregas incompleta.'],409);
+if (time()-(int)($_SESSION['last_web_push_test']??0)<60) {
+    wp_reply(['status'=>'error','message'=>'Espera un minuto antes de repetir la prueba.'],429);
+}
+$s=$conn->prepare('SELECT fcm_token FROM web_push_subscriptions WHERE browser_id=? AND school_id=? AND account_kind=? AND account_id=? AND is_active=1 LIMIT 1');
+$s->bind_param('sisi',$browserId,$school,$kind,$id);
+$s->execute();$row=$s->get_result()->fetch_assoc();$s->close();
+if (!$row) wp_reply(['status'=>'error','message'=>'Primero activa las notificaciones en este navegador.'],404);
+require_once __DIR__ . '/../includes/web_push_fcm_sender.php';
+$_SESSION['last_web_push_test']=time();
+$answer=edwp_send_message((string)$row['fcm_token'],'Prueba de EduSync','Las notificaciones web están configuradas para este dispositivo.', 'index.php?page=notifications', 'test-'.time());
+wp_reply(['status'=>$answer['ok']?'ok':'error','message'=>$answer['ok']?'Se solicitó el envío de la prueba. Verifica las notificaciones del sistema.':'Firebase no pudo entregar la prueba; revisa las credenciales y los registros del servidor.','code'=>$answer['code']],$answer['ok']?200:502);
