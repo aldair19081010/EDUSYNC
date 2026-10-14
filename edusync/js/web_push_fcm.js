@@ -157,7 +157,7 @@
                 probe.prop('disabled',true).text('Probando (hasta 20 s)…');
                 content.text(content.text()+'\n\nPrueba Push nativa en curso…');
                 try {
-                    var result=await window.EduSyncWebPushDiagnostic.probe(config);
+                    var result=await window.EduSyncWebPushDiagnostic.probe(config,lastSw);
                     content.text(content.text()+'\n'+result.message);
                     report.text(content.text()).removeClass('d-none');
                     if(invite)invite.find('.edwp-invite-report').text(content.text()).removeClass('d-none');
