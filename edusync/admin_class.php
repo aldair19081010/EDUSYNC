@@ -2526,6 +2526,7 @@ function save_payment(){
                         throw new RuntimeException('No se pudo eliminar alerta duplicada.');
                 }
                 $plan=edun_academic_alert_plan($existing,$wanted);
+                $newAlertIds=[];
                 // Actualizar la información sin cambiar ID, fecha o lecturas.
                 foreach ($plan['refresh'] as $change) {
                     $id=(int)$change['existing']['id'];
@@ -2548,6 +2549,7 @@ function save_payment(){
                     if (!$stmt) throw new RuntimeException($this->db->error);
                     $stmt->bind_param('isisi',$sid,$bim,$count,$json,$teacher);
                     if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+                    $newAlertIds[]=(int)$stmt->insert_id;
                     $stmt->close();
                 }
                 // Resolver solo cuando deja de cumplirse el umbral.
@@ -2563,6 +2565,12 @@ function save_payment(){
                 }
                 $new=count($plan['create']);
                 $this->db->commit();
+                if ($newAlertIds) {
+                    // Solo nuevos episodios reciben un Push. Las ediciones de
+                    // un caso ya conocido preservan su estado de lectura.
+                    require_once __DIR__.'/includes/web_push_dispatcher.php';
+                    edwp_dispatch_now($this->db,'low_grade',$newAlertIds,12);
+                }
                 return $new;
             } catch (Throwable $e) {
                 $this->db->rollback();
