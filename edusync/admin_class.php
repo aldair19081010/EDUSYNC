@@ -2483,6 +2483,8 @@ function save_payment(){
                     WHERE l.student_id IN ($in) AND l.bimestre='$bimSql'
                     ORDER BY l.id ASC FOR UPDATE");
                 if (!$prior) throw new RuntimeException('Error consultando alertas anteriores: '.$this->db->error);
+                $stateTable=$this->db->query("SHOW TABLES LIKE 'notification_user_state'");
+                $hasUnifiedState=$stateTable && $stateTable->num_rows>0;
                 $existing=[];
                 $duplicates=[];
                 while ($row=$prior->fetch_assoc()) {
@@ -2499,6 +2501,25 @@ function save_payment(){
                           SELECT 1 FROM low_grade_notification_read k
                           WHERE k.notification_id=$keep AND k.user_id=r.user_id
                         )")) throw new RuntimeException('No se pudieron conservar lecturas.');
+                    if ($hasUnifiedState) {
+                        // La bandeja nueva conserva su propia lectura/archivo.
+                        // Un usuario que leyó el duplicado no vuelve a recibir
+                        // el mismo caso como nuevo tras la conciliación.
+                        $merge=$this->db->query("INSERT INTO notification_user_state
+                            (school_id,user_id,notification_key,is_read,is_archived,read_at,archived_at)
+                            SELECT school_id,user_id,'low_grade:$keep',is_read,is_archived,read_at,archived_at
+                            FROM notification_user_state
+                            WHERE school_id=$school AND notification_key='low_grade:$old'
+                            ON DUPLICATE KEY UPDATE
+                                is_read=GREATEST(is_read,VALUES(is_read)),
+                                is_archived=GREATEST(is_archived,VALUES(is_archived)),
+                                read_at=COALESCE(read_at,VALUES(read_at)),
+                                archived_at=COALESCE(archived_at,VALUES(archived_at))");
+                        if (!$merge) throw new RuntimeException('No se pudo conservar lectura unificada.');
+                        if (!$this->db->query("DELETE FROM notification_user_state
+                            WHERE school_id=$school AND notification_key='low_grade:$old'"))
+                            throw new RuntimeException('No se pudo retirar estado duplicado.');
+                    }
                     if (!$this->db->query("DELETE FROM low_grade_notification_read WHERE notification_id=$old"))
                         throw new RuntimeException('No se pudo limpiar lectura duplicada.');
                     if (!$this->db->query("DELETE FROM low_grade_notifications WHERE id=$old"))
@@ -2532,6 +2553,9 @@ function save_payment(){
                 // Resolver solo cuando deja de cumplirse el umbral.
                 foreach ($plan['resolved'] as $old) {
                     $id=(int)$old['id'];
+                    if ($hasUnifiedState && !$this->db->query("DELETE FROM notification_user_state
+                        WHERE school_id=$school AND notification_key='low_grade:$id'"))
+                        throw new RuntimeException('No se pudo retirar el estado resuelto.');
                     if (!$this->db->query("DELETE FROM low_grade_notification_read WHERE notification_id=$id"))
                         throw new RuntimeException('No se pudieron retirar lecturas antiguas.');
                     if (!$this->db->query("DELETE FROM low_grade_notifications WHERE id=$id"))
