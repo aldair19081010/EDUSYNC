@@ -134,6 +134,8 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#2459a8">
     <link href="css/web_notifications.css?v=<?php echo @filemtime(__DIR__.'/css/web_notifications.css') ?: time(); ?>" rel="stylesheet">
+    <!-- Sólo interfaz: no modifica Firebase ni la campana existente. -->
+    <link href="css/web_push_invitation.css?v=<?php echo @filemtime(__DIR__.'/css/web_push_invitation.css') ?: time(); ?>" rel="stylesheet">
     <?php if ($page === 'users'): ?>
     <?php
         $users_ui_css_version = @filemtime(__DIR__ . '/css/ui_consistency.css') ?: time();
@@ -287,6 +289,8 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
 
     <!-- Web Push FCM: receptor en segundo plano sin mantener EduSync abierto. -->
     <script src="js/web_push_fcm.js?v=<?php echo @filemtime(__DIR__.'/js/web_push_fcm.js') ?: time(); ?>"></script>
+    <!-- Invitación tras entrar: delega el clic al control manual ya probado. -->
+    <script src="js/web_push_invitation.js?v=<?php echo @filemtime(__DIR__.'/js/web_push_invitation.js') ?: time(); ?>"></script>
 
     <!-- Sidebar toggle guard: rebinds the click handlers in case another script detaches them -->
     <script>
