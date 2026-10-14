@@ -717,7 +717,9 @@ if ($update) {
 
 cnOut([
     'status' => 1,
-    'message' => 'Notificación de cobranza enviada.',
+    'message' => ($pushSent + (int)($webPush['sent'] ?? 0)) > 0
+        ? 'Cobranza registrada y enviada a dispositivos disponibles.'
+        : 'Cobranza registrada. Sin entrega Push confirmada por Firebase; verifica suscripciones o reintentos.',
     'campaign_id' => $campaignId,
     'recipients' => $recipientCount,
     'debts' => $debtCount,
