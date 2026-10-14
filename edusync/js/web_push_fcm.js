@@ -11,17 +11,12 @@
         var compatible=!!(window.isSecureContext && 'Notification' in window
             && 'serviceWorker' in navigator && 'PushManager' in window);
         var config=null, messaging=null, running=false;
-        var enabledKey='', browserId='', dismissedKey='', optedOutKey='', invitedKey='';
-        var invite=null, previousFocus=null;
-        var cooldownKey='', lastError=null, lastStage='Inicio', lastSw=null;
-        var inviteCooldown=30*24*60*60*1000; // «Ahora no»: 30 días.
+        var enabledKey='', browserId='';
         var opt=$('<div class="edwp-controls"></div>');
         var toggle=$('<button type="button" class="edwp-toggle btn btn-sm btn-outline-primary"></button>');
         var test=$('<button type="button" class="edwp-test btn btn-sm btn-light border d-none">Enviar prueba</button>');
         var info=$('<span class="edwp-info" role="status" aria-live="polite"></span>');
-        var diagnose=$('<button type="button" class="edwp-diagnose btn btn-sm btn-light border d-none">Diagnóstico</button>');
-        var report=$('<pre class="edwp-report d-none" role="status"></pre>');
-        opt.append(toggle,test,diagnose,info,report);
+        opt.append(toggle,test,info);
         menu.append(opt);
 
         function message(text, error) {
@@ -37,155 +32,11 @@
         }
         function saveEnabled(value) {
             try {
-                if (value) {
-                    localStorage.setItem(enabledKey,'1');
-                    localStorage.removeItem(optedOutKey);
-                    localStorage.removeItem(dismissedKey);
-                } else localStorage.removeItem(enabledKey);
+                if (value) localStorage.setItem(enabledKey,'1');
+                else localStorage.removeItem(enabledKey);
             } catch (_) {}
             label(value);
         }
-        function optedOut() {
-            try { return localStorage.getItem(optedOutKey)==='1'; }
-            catch (_) { return false; }
-        }
-        function recentlyDismissed() {
-            try {
-                var until=Number(localStorage.getItem(dismissedKey)||0);
-                return Number.isFinite(until) && until>Date.now();
-            } catch (_) { return false; }
-        }
-        function dismissInvite(defer) {
-            if (defer) {
-                try { localStorage.setItem(dismissedKey,String(Date.now()+inviteCooldown)); }
-                catch (_) {}
-            }
-            if (!invite) return;
-            invite.off().remove();
-            invite=null;
-            $('body').removeClass('edwp-invite-open');
-            if (previousFocus && document.contains(previousFocus) &&
-                typeof previousFocus.focus==='function') previousFocus.focus();
-            previousFocus=null;
-        }
-        function showInvite() {
-            if (invite || !config || !config.configured || !config.push_ready
-                || Notification.permission!=='default'
-                || recentlyDismissed() || optedOut() || $('.modal.show').length) return;
-            // No repetir la invitación al cambiar de módulo durante la sesión.
-            try {
-                if (sessionStorage.getItem(invitedKey)==='1') return;
-                sessionStorage.setItem(invitedKey,'1');
-            } catch (_) {}
-
-            previousFocus=document.activeElement;
-            var overlay=$('<div class="edwp-invite-layer"></div>');
-            var dialog=$('<section class="edwp-invite-dialog" role="dialog" aria-modal="true" aria-labelledby="edwp-invite-title" aria-describedby="edwp-invite-description"></section>');
-            dialog.append('<div class="edwp-invite-icon" aria-hidden="true"><i class="far fa-bell"></i></div>');
-            dialog.append($('<h2 id="edwp-invite-title" class="edwp-invite-title"></h2>').text('Mantente informado con EduSync'));
-            dialog.append($('<p id="edwp-invite-description" class="edwp-invite-description"></p>').text(
-                'Recibe avisos sobre notas, asistencias, pagos y comunicados incluso cuando EduSync esté cerrado.'
-            ));
-            var feedback=$('<p class="edwp-invite-feedback" role="status" aria-live="polite"></p>');
-            var actions=$('<div class="edwp-invite-actions"></div>');
-            var modalDiagnosis=$('<button type="button" class="btn btn-link btn-sm edwp-invite-diagnose d-none">Diagnóstico</button>');
-            var modalReport=$('<pre class="edwp-invite-report d-none" role="status"></pre>');
-            modalDiagnosis.on('click',showDiagnosis);
-            var accept=$('<button type="button" class="btn btn-primary edwp-invite-accept"></button>').text('Activar notificaciones');
-            var later=$('<button type="button" class="btn btn-light border edwp-invite-later"></button>').text('Ahora no');
-            accept.on('click',async function(){
-                // El permiso nativo sólo se pide durante esta interacción.
-                accept.prop('disabled',true);
-                later.prop('disabled',true);
-                var success=await enable(true);
-                if (success) dismissInvite(false);
-                else if (invite) {
-                    accept.prop('disabled',false);
-                    later.prop('disabled',false);
-                }
-            });
-            later.on('click',function(){dismissInvite(true);});
-            overlay.on('keydown.edwpInvite',function(event){
-                if (event.key==='Escape') {
-                    event.preventDefault();dismissInvite(true);return;
-                }
-                if (event.key!=='Tab') return;
-                var focusable=dialog.find('button:not(:disabled)');
-                if (!focusable.length) {event.preventDefault();return;}
-                var first=focusable[0],last=focusable[focusable.length-1];
-                if (event.shiftKey && document.activeElement===first){
-                    event.preventDefault();last.focus();
-                } else if (!event.shiftKey && document.activeElement===last){
-                    event.preventDefault();first.focus();
-                }
-            });
-            actions.append(accept,later);
-            dialog.append(feedback,actions,modalDiagnosis,modalReport);
-            overlay.append(dialog);
-            invite=overlay;
-            $('body').append(overlay).addClass('edwp-invite-open');
-            accept.trigger('focus');
-        }
-        async function showDiagnosis() {
-            diagnose.prop('disabled',true);
-            // Abrir en una ventana propia: el menú desplegable de la campana
-            // recortaba el informe y sólo dejaba ver las primeras líneas.
-            var layer=$('<div class="edwp-debug-layer"></div>');
-            var panel=$('<section class="edwp-debug-panel" role="dialog" aria-modal="true" aria-label="Diagnóstico de notificaciones"></section>');
-            var heading=$('<div class="edwp-debug-heading"></div>').text('Diagnóstico de notificaciones');
-            var content=$('<pre class="edwp-debug-content"></pre>').text('Revisando el navegador (máximo 5 segundos)…');
-            var controls=$('<div class="edwp-debug-actions"></div>');
-            var copy=$('<button type="button" class="btn btn-primary btn-sm"></button>').text('Copiar diagnóstico');
-            var probe=$('<button type="button" class="btn btn-outline-primary btn-sm"></button>').text('Probar servicio Push');
-            var close=$('<button type="button" class="btn btn-light border btn-sm"></button>').text('Cerrar');
-            function dismiss() {layer.remove();}
-            close.on('click',dismiss);
-            layer.on('keydown',function(e){if(e.key==='Escape'){e.preventDefault();dismiss();}});
-            copy.on('click',async function(){
-                try {
-                    if(!navigator.clipboard || !navigator.clipboard.writeText)
-                        throw new Error('Clipboard unsupported');
-                    await navigator.clipboard.writeText(content.text());
-                    copy.text('Copiado');
-                } catch (_) {
-                    copy.text('Selecciona el texto para copiar');
-                }
-            });
-            probe.on('click',async function(){
-                // Activación explícita del usuario, sin volver a pedir permiso.
-                // Si funciona, la suscripción es reutilizable por Firebase.
-                probe.prop('disabled',true).text('Probando (hasta 20 s)…');
-                content.text(content.text()+'\n\nPrueba Push nativa en curso…');
-                try {
-                    var result=await window.EduSyncWebPushDiagnostic.probe(config,lastSw);
-                    content.text(content.text()+'\n'+result.message);
-                    report.text(content.text()).removeClass('d-none');
-                    if(invite)invite.find('.edwp-invite-report').text(content.text()).removeClass('d-none');
-                    probe.text(result.ok?'Servicio Push responde':'Reintentar prueba Push');
-                } catch(e){
-                    content.text(content.text()+'\nNo se completó la prueba: '+String(e.name||'Error'));
-                    probe.text('Reintentar prueba Push');
-                } finally {probe.prop('disabled',false);}
-            });
-            panel.append(heading,content);
-            controls.append(probe,copy,close);
-            panel.append(controls);
-            layer.append(panel);
-            $('body').append(layer);
-            close.trigger('focus');
-            try {
-                var diagnostic=window.EduSyncWebPushDiagnostic;
-                var output=await diagnostic.report(config,lastError,lastStage,lastSw);
-                content.text(output);
-                report.text(output).removeClass('d-none');
-                if(invite)invite.find('.edwp-invite-report').text(output).removeClass('d-none');
-            } catch(err){
-                content.text('No se pudo completar el diagnóstico: '+String(err.name||'Error'));
-                message('No se pudo realizar el diagnóstico del navegador.',true);
-            } finally {diagnose.prop('disabled',false);}
-        }
-        diagnose.on('click',function(e){e.stopPropagation();showDiagnosis();});
-
         function deviceId() {
             try {
                 var id=localStorage.getItem('edusync:webpush:device');
@@ -217,9 +68,8 @@
         }
         async function firebaseClient() {
             if (messaging) return messaging;
-            var limited=window.EduSyncWebPushDiagnostic.limited;
-            await limited(script('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js'),10000,'descarga de Firebase App');
-            await limited(script('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js'),10000,'descarga de Firebase Messaging');
+            await script('https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js');
+            await script('https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js');
             if (!window.firebase || !firebase.messaging) throw new Error('Firebase no está disponible.');
             if (firebase.messaging.isSupported && !(await firebase.messaging.isSupported()))
                 throw new Error('Este navegador no admite Firebase Cloud Messaging.');
@@ -230,35 +80,21 @@
             return messaging;
         }
         async function fcmToken() {
-            lastStage='Validar Firebase y clave VAPID';
-            window.EduSyncWebPushDiagnostic.validate(config);
-            lastStage='Registrar Service Worker';
-            var limited=window.EduSyncWebPushDiagnostic.limited;
-            var sw=await limited(navigator.serviceWorker.register('firebase-messaging-sw.js',{
+            var sw=await navigator.serviceWorker.register('firebase-messaging-sw.js',{
                 scope:'./',updateViaCache:'none'
-            }),10000,'registro de Service Worker');
-            lastSw=sw;
-            // Evitar la carrera inicial: Firebase requiere un trabajador activo.
-            lastStage='Activar Service Worker';
-            if(!sw.active && navigator.serviceWorker.ready){
-                var active=await limited(navigator.serviceWorker.ready,6500,'activación de Service Worker');
-                if(!active || active.scope!==sw.scope || !active.active)
-                    throw new Error('El Service Worker de EduSync no se activó correctamente.');
-            }
-            lastStage='Inicializar Firebase';
-            var client=await limited(firebaseClient(),12000,'inicio de Firebase');
-            lastStage='Registrar dispositivo en Push';
-            var token=await limited(client.getToken({
+            });
+            // Uso explícito del service worker de EduSync: no afecta otro SW del hosting.
+            var client=await firebaseClient();
+            var token=await client.getToken({
                 vapidKey:config.vapid_key,serviceWorkerRegistration:sw
-            }),20000,'registro en el servicio Push del navegador');
+            });
             if (!token) throw new Error('Firebase no devolvió un token.');
-            lastStage='Registrar dispositivo en EduSync';
             return token;
         }
         function request(action,data) {
             return new Promise(function(resolve,reject){
                 $.ajax({
-                    url:'api/web_push.php',method:'POST',dataType:'json',timeout:12000,
+                    url:'api/web_push.php',method:'POST',dataType:'json',
                     data:$.extend({action:action,browser_id:browserId,
                         csrf_token:config.csrf_token},data||{})
                 }).done(function(result){
@@ -270,7 +106,7 @@
             });
         }
         async function enable(prompt) {
-            if (running) return false;
+            if (running) return;
             running=true;toggle.prop('disabled',true);
             try {
                 if (!config || !config.configured || !config.push_ready)
@@ -284,31 +120,10 @@
                 }
                 var token=await fcmToken();
                 await request('register',{fcm_token:token});
-                lastStage='Registro completado';
-                lastError=null;
-                try{localStorage.removeItem(cooldownKey)}catch(_){}
-                diagnose.addClass('d-none');
-                report.addClass('d-none').text('');
                 saveEnabled(true);
                 message('Avisos activados en este dispositivo.',false);
-                return true;
             } catch(err) {
-                lastError={name:err.name||'Error',code:err.code||'',message:err.message||''};
-                var diagnostic=window.EduSyncWebPushDiagnostic;
-                var reason=diagnostic.explain(err);
-                message(reason,true);
-                diagnose.removeClass('d-none');
-                if(invite){
-                    invite.find('.edwp-invite-feedback').text(reason);
-                    invite.find('.edwp-invite-diagnose').removeClass('d-none');
-                }
-                // Evitar solicitar una y otra vez el servicio Push tras fallos
-                // externos; un clic manual siempre permite reintentar.
-                if(diagnostic.isPushServiceError(err)){
-                    try{localStorage.setItem(cooldownKey,String(Date.now()+10*60*1000))}
-                    catch(_){}
-                }
-                return false;
+                message(err.message||'No se pudo activar Web Push.',true);
             } finally {
                 running=false;toggle.prop('disabled',false);
             }
@@ -322,9 +137,6 @@
                 try { if(messaging) await messaging.deleteToken(); }
                 catch (_) {}
                 saveEnabled(false);
-                // Si el usuario lo desactivó expresamente, no reactivarlo
-                // sólo por tener un permiso anterior del navegador.
-                try { localStorage.setItem(optedOutKey,'1'); } catch (_) {}
                 message('Este dispositivo ya no recibirá avisos.',false);
             } catch(err){
                 message(err.message||'No se pudo desactivar.',true);
@@ -333,10 +145,8 @@
 
         toggle.on('click',function(event){
             event.stopPropagation();
-            // Devolver la operación permite probar su finalización de forma
-            // determinista; no cambia la solicitud de permiso desde el clic.
-            if(currentEnabled()) return disable();
-            return enable(true);
+            if(currentEnabled())disable();
+            else enable(true); // Solicita permiso sólo como respuesta directa al clic.
         });
         test.on('click',async function(event){
             event.stopPropagation();
@@ -364,11 +174,7 @@
             if(!result||result.status!=='ok'){message('No se pudo verificar Web Push.',true);return;}
             config=result;
             enabledKey='edusync:webpush:enabled:'+result.identity;
-            dismissedKey='edusync:webpush:invite-dismissed:'+result.identity;
-            optedOutKey='edusync:webpush:opted-out:'+result.identity;
-            invitedKey='edusync:webpush:invite-shown:'+result.identity;
-            cooldownKey='edusync:webpush:failed-until:'+result.identity;
-            label(currentEnabled() && Notification.permission==='granted');
+            label(currentEnabled());
             if(!config.configured) {
                 toggle.prop('disabled',true);
                 message('Falta configurar Firebase web (clave VAPID y datos públicos).',false);
@@ -384,43 +190,8 @@
                 message('Permiso bloqueado. Debes cambiarlo en la configuración del navegador.',true);
                 return;
             }
-            // Solo renovar automáticamente si el propio usuario ya activó
-            // Web Push y el navegador conserva una suscripción existente.
-            // El permiso «granted» por sí solo NO implica consentimiento para
-            // registrar un dispositivo nuevo ni autoriza suscripciones automáticas.
-            if(Notification.permission==='granted' && currentEnabled() && !optedOut()) {
-                (async function() {
-                    try {
-                        var limited=window.EduSyncWebPushDiagnostic.limited;
-                        var registration=await limited(
-                            navigator.serviceWorker.getRegistration('./'),2500,
-                            'consulta de suscripción anterior');
-                        var subscription=registration&&registration.pushManager
-                            ? await limited(registration.pushManager.getSubscription(),2500,
-                                'comprobación de suscripción anterior') : null;
-                        if(!subscription) {
-                            // La suscripción anterior desapareció. Quitar el
-                            // indicador local también garantiza que «Activar»
-                            // vuelva a ejecutar enable(), y no disable().
-                            saveEnabled(false);
-                            message('El permiso ya está concedido, pero falta la suscripción Push. Actívala desde esta campana.',false);
-                            return;
-                        }
-                        var after=0;
-                        try {after=Number(localStorage.getItem(cooldownKey)||0);} catch(_){}
-                        if(!after || after<=Date.now()) enable(false);
-                        else message('Si deseas reactivar los avisos, usa la campana.',false);
-                    } catch(err) {
-                        message('No se comprobó la suscripción previa. Puedes activar desde la campana.',false);
-                    }
-                })();
-            } else if(!optedOut() && Notification.permission==='default') {
-                // La invitación es sólo para el primer permiso del navegador.
-                // Una vez concedido, la activación normal queda en la campana.
-                showInvite();
-            } else if(!optedOut() && Notification.permission==='granted' && !currentEnabled()) {
-                message('El navegador ya permitió avisos. Actívalos desde esta campana para vincular el dispositivo.',false);
-            }
+            // Renovar la vinculación sin volver a solicitar permisos después del login.
+            if(currentEnabled() && Notification.permission==='granted') enable(false);
         }).fail(function(){message('No se pudo consultar la configuración del servidor.',true);});
     });
 })(window.jQuery);
