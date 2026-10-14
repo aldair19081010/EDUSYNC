@@ -557,7 +557,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
         <?php if ($unified_notifications_ready && !$is_student): ?>
         var unifiedNotificationsLoading = false;
         window.refreshUnifiedNotifications = function(){
-            if (unifiedNotificationsLoading) return;
+            if (unifiedNotificationsLoading || document.hidden) return;
             unifiedNotificationsLoading = true;
             $.getJSON('notifications_api.php', {action:'list', tab:'pending', start:0, length:10, draw:1}).done(function(resp){
                 if (!resp || !Array.isArray(resp.data)) return;
@@ -575,8 +575,22 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                     copy.append($('<div class="edusync-notification-detail"></div>').text(row.message || row.category || ''));
                     item.append(copy).on('click', function(e){
                         e.preventDefault();
-                        if (row.open_mode === 'modal') waitForUniModal(function(){ window.uni_modal('Detalle de notificación', row.open_url, 'modal-lg'); });
-                        else window.location.href = row.open_url || 'index.php?page=notifications';
+                        // Al abrirla, guardar su lectura: no reaparecerá como
+                        // nueva cuando el sondeo vuelva a consultar la campana.
+                        var open = function(){
+                            if (row.open_mode === 'modal') {
+                                waitForUniModal(function(){
+                                    window.uni_modal('Detalle de notificación',row.open_url,'modal-lg');
+                                });
+                                window.refreshUnifiedNotifications();
+                            } else {
+                                window.location.href=row.open_url || 'index.php?page=notifications';
+                            }
+                        };
+                        if (Number(row.is_read)) return open();
+                        $.post('notifications_api.php?action=mark',
+                            {csrf_token: <?php echo json_encode($topbar_csrf); ?>,key:row.nkey},
+                            null,'json').always(open);
                     });
                     list.append(item);
                 });
@@ -588,7 +602,13 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
         };
 
         window.refreshUnifiedNotifications();
-        window.setInterval(window.refreshUnifiedNotifications, 7000);
+        // La entrega en segundo plano es responsabilidad de Firebase.
+        // Evitar consultar cada 7 segundos mientras el usuario está trabajando.
+        window.setInterval(window.refreshUnifiedNotifications, 20000);
+        $(document).on('visibilitychange.edusyncNotifications',function(){
+            if (!document.hidden) window.refreshUnifiedNotifications();
+        });
+        $(document).on('click.edusyncNotifications','#alertsDropdown',window.refreshUnifiedNotifications);
         $(document).on('attendance:request-reviewed.unified', window.refreshUnifiedNotifications);
         <?php endif; ?>
     });
