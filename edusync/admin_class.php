@@ -2021,6 +2021,12 @@ function save_payment(){
 			}
 		}
 		$this->audit_evaluation($eval_id, $school_id, $academic_year_id, $teacher_id, $id > 0 ? 'updated' : 'created', ['title'=>$title,'teacher_course_id'=>$teacher_course_id,'bimestre'=>$bimestre]);
+        if ($id <= 0 && $eval_id > 0) {
+            // La vista administrativa ya expone la nueva evaluación como aviso;
+            // enviar Push solo cuando realmente es nueva, no al editarla.
+            require_once __DIR__.'/includes/web_push_dispatcher.php';
+            edwp_dispatch_now($this->db,'evaluation',[(int)$eval_id],8);
+        }
 		return json_encode(['status' => 1, 'message' => 'Evaluación guardada exitosamente.']);
     } else {
         return json_encode(['status' => 0, 'message' => 'Error al guardar la evaluación: ' . $this->db->error]);
