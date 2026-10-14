@@ -9,6 +9,9 @@ const path=require('node:path');
 const vm=require('node:vm');
 
 const source=fs.readFileSync(path.join(__dirname,'../edusync/js/web_push_fcm.js'),'utf8');
+const diagnosticSource=fs.readFileSync(path.join(__dirname,'../edusync/js/web_push_diagnostic.js'),'utf8');
+const sampleVapid=Buffer.from(Uint8Array.from([4,...new Array(64).fill(17)])).toString('base64url');
+new vm.Script(diagnosticSource,{filename:'web_push_diagnostic.js'});
 new vm.Script(source,{filename:'web_push_fcm.js'});
 
 function scenario(permission,initial={},options={}){
@@ -58,8 +61,10 @@ function scenario(permission,initial={},options={}){
         done(callback){
             callback({status:'ok',configured:options.configured!==false,
                 push_ready:options.migrated!==false,csrf_token:'csrf',
-                identity:'student:1:42',firebase:{apiKey:'public-web-config'},
-                vapid_key:'public-vapid-key'});
+                identity:'student:1:42',
+                firebase:{apiKey:'public-web-config',
+                    messagingSenderId:'123456789',appId:'1:123456789:web:abc'},
+                vapid_key:options.invalidVapid?'invalid':' '+sampleVapid.trim()});
             return this;
         },
         fail(){return this;}
@@ -92,7 +97,14 @@ function scenario(permission,initial={},options={}){
         setItem:(key,value)=>session.set(key,String(value))
     };
     const messaging=()=>({
-        getToken:async()=>('browser-fcm-token-with-length-over-30'),
+        getToken:async()=>{
+            if(options.pushError){
+                const error=new Error('Registration failed - push service error');
+                error.name='AbortError';
+                throw error;
+            }
+            return 'browser-fcm-token-with-length-over-30';
+        },
         deleteToken:async()=>{}
     });
     messaging.isSupported=async()=>true;
@@ -104,7 +116,8 @@ function scenario(permission,initial={},options={}){
     const window={
         jQuery:$,isSecureContext:true,Notification,
         PushManager:function(){},
-        crypto:{getRandomValues(array){array.fill(42);}}
+        crypto:{getRandomValues(array){array.fill(42);}},
+        atob(input){return Buffer.from(input,'base64').toString('binary');}
     };
     const document={
         activeElement:null,
@@ -117,12 +130,22 @@ function scenario(permission,initial={},options={}){
         }}
     };
     document.activeElement=body[0];
+    const activeRegistration={
+        active:{},scope:'http://localhost/edusync/',
+        pushManager:{getSubscription:async()=>null}
+    };
     const navigator={
-        serviceWorker:{register:async()=>({})},
+        serviceWorker:{
+            register:async()=>activeRegistration,
+            getRegistration:async()=>activeRegistration,
+            ready:Promise.resolve(activeRegistration)
+        },
         userAgent:'Chrome test'
     };
+    window.navigator=navigator;
     const context={window,document,navigator,Notification,localStorage,
         sessionStorage,Uint8Array,Promise,firebase,console};
+    vm.runInNewContext(diagnosticSource,context,{filename:'web_push_diagnostic.js'});
     vm.runInNewContext(source,context,{filename:'web_push_fcm.js'});
     return {output,find,saved,Notification,calls};
 }
@@ -168,6 +191,22 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     assert.equal(disabled.output.registrations,1,'Allow explicit reactivation from bell');
     assert.equal(disabled.saved.get('edusync:webpush:opted-out:student:1:42'),undefined);
 
+    const broken=scenario('default',{}, {pushError:true});
+    await broken.find('edwp-invite-accept').trigger('click');
+    await flush();
+    assert.equal(broken.output.permissionRequests,1);
+    assert.equal(broken.output.registrations,0,'Do not register token after failed push service');
+    assert(broken.find('edwp-invite-diagnose').classes.includes('edwp-invite-diagnose'));
+    assert(broken.find('edwp-invite-feedback').value.includes('servicio Push'),
+        'Failure translated to Spanish with helpful guidance');
+    assert(Number(broken.saved.get('edusync:webpush:failed-until:student:1:42'))>Date.now(),
+        'Auto retry is postponed');
+
+    const invalid=scenario('granted',{}, {invalidVapid:true});
+    await flush();
+    assert.equal(invalid.output.registrations,0,'Invalid VAPID blocked before FCM');
+    assert(invalid.find('edwp-info').value.includes('VAPID'), 'Explain invalid VAPID');
+
     const denied=scenario('denied');
     await flush();
     assert.equal(denied.find('edwp-invite-dialog'),undefined);
@@ -178,5 +217,5 @@ const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
     const notConfigured=scenario('default',{}, {configured:false});
     assert.equal(notConfigured.find('edwp-invite-dialog'),undefined);
 
-    process.stdout.write('OK: invitación, clic autorizado, Ahora no (30 días), permiso previo, baja explícita, reactivación manual y bloqueos.\n');
+    process.stdout.write('OK: invitación, permisos, renovación, error Push, VAPID, diagnóstico y cooldown.\n');
 })().catch(error=>{console.error(error);process.exitCode=1;});
