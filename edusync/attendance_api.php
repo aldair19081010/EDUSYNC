@@ -14,8 +14,12 @@ function activeYear($db,$school,$date){$s=$db->prepare('SELECT id,year FROM acad
 function notifyAttendanceState($db,$school,$student,$attendance,$date,$oldStatus,$newStatus,$time=''){try{require_once __DIR__.'/includes/push_notifications.php';push_send_attendance_state_notification($db,(int)$school,(int)$student,(int)$attendance,(string)$date,(string)$oldStatus,(string)$newStatus,(string)$time);}catch(Throwable $e){error_log('[attendance state push] '.$e->getMessage());}}
 function notifyWebStaffAfterAttendance(mysqli $db,string $kind,int $requestId): void {
     if ($requestId<=0) return;
-    require_once __DIR__.'/includes/web_push_dispatcher.php';
-    edwp_dispatch_now($db,$kind,[$requestId],8);
+    try {
+        require_once __DIR__.'/includes/web_push_dispatcher.php';
+        edwp_dispatch_now($db,$kind,[$requestId],8);
+    } catch (Throwable $webPushError) {
+        error_log('[EduSync attendance web push] '.$webPushError->getMessage());
+    }
 }
 function createAttendanceRequest($db,$school,$attendance,$user,$type,$payload,$reason=''){$json=json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);if($attendance>0){$duplicate=$db->prepare("SELECT id FROM attendance_change_requests WHERE school_id=? AND attendance_id=? AND requested_by=? AND request_type=? AND status='Pendiente' LIMIT 1");$duplicate->bind_param('iiis',$school,$attendance,$user,$type);$duplicate->execute();$row=$duplicate->get_result()->fetch_assoc();$duplicate->close();if($row)return (int)$row['id'];}$s=$db->prepare("INSERT INTO attendance_change_requests(school_id,attendance_id,requested_by,request_type,request_payload,reason,status) VALUES(?,NULLIF(?,0),?,?,?,?, 'Pendiente')");$s->bind_param('iiisss',$school,$attendance,$user,$type,$json,$reason);if(!$s->execute())throw new Exception($s->error);$id=(int)$s->insert_id;$s->close();return $id;}
 $school=(int)($_SESSION['login_school_id']??0);$user=(int)($_SESSION['login_id']??0);$type=(int)($_SESSION['login_type']??0);$director=(int)($_SESSION['login_is_director']??0);$action=$_GET['action']??'meta';
