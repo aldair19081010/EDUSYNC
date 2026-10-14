@@ -331,8 +331,10 @@
 
         toggle.on('click',function(event){
             event.stopPropagation();
-            if(currentEnabled())disable();
-            else enable(true); // Solicita permiso sólo como respuesta directa al clic.
+            // Devolver la operación permite probar su finalización de forma
+            // determinista; no cambia la solicitud de permiso desde el clic.
+            if(currentEnabled()) return disable();
+            return enable(true);
         });
         test.on('click',async function(event){
             event.stopPropagation();
