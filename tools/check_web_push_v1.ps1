@@ -44,6 +44,15 @@ if ($null -ne $node) {
         if ($LASTEXITCODE -ne 0) { $errorsFound++ }
         else { Write-Host "[OK JS] $relative" -ForegroundColor Green }
     }
+    $invitationTest = Join-Path $root 'tools/test_web_push_invitation_v1.js'
+    if (Test-Path $invitationTest) {
+        & $node.Source $invitationTest
+        if ($LASTEXITCODE -ne 0) { $errorsFound++ }
+        else { Write-Host '[OK] Flujo de invitación post-login' -ForegroundColor Green }
+    } else {
+        Write-Host '[FALTA] tools/test_web_push_invitation_v1.js' -ForegroundColor Red
+        $errorsFound++
+    }
 } else {
     Write-Host 'Node.js no está disponible: se omite validación JS (opcional).' -ForegroundColor Yellow
 }
