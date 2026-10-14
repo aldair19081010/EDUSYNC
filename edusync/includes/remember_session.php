@@ -55,7 +55,7 @@ function edrs_fingerprint(string $storedCredential): string {
 
 function edrs_cookie_parts(): ?array {
     $cookie = (string)($_COOKIE[EDRS_COOKIE] ?? '');
-    if (!preg_match('/^([0-9a-f]{24})\\.([0-9a-f]{64})$/D', $cookie, $parts)) return null;
+    if (!preg_match('/^([0-9a-f]{24})\.([0-9a-f]{64})$/D', $cookie, $parts)) return null;
     return [$parts[1], $parts[2]];
 }
 
