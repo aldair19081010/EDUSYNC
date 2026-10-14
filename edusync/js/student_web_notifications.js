@@ -12,6 +12,7 @@
         var loading = false;
         var requestedOpen = Number(root.attr('data-open-id') || 0);
         var more = false;
+        var unreadTotal = 0;
 
         function kind(item) {
             var screen = String(item.screen || '').toLowerCase();
@@ -67,6 +68,7 @@
 
         function syncCounters(result) {
             var count = Number(result.unread_count || 0);
+            unreadTotal = count;
             $('#swn-unread-count').text(count ? count+' sin leer' : 'Todo leído');
             $('#swn-mark-all').toggleClass('d-none', !count);
             if (typeof window.refreshStudentWebNotifications === 'function') {
@@ -79,6 +81,9 @@
             return $.post(api, {action:'mark_read', id:item.id}, null, 'json').done(function(result) {
                 if (result && result.status === 'ok') {
                     item.is_read = true;
+                    unreadTotal = Math.max(0, unreadTotal - 1);
+                    $('#swn-unread-count').text(unreadTotal ? unreadTotal+' sin leer' : 'Todo leído');
+                    $('#swn-mark-all').toggleClass('d-none', unreadTotal === 0);
                     render();
                     if (typeof window.refreshStudentWebNotifications === 'function') window.refreshStudentWebNotifications();
                 }
@@ -190,12 +195,20 @@
                 }
                 rows.forEach(function(item){item.is_read=true;});
                 render();
+                unreadTotal = 0;
                 $('#swn-unread-count').text('Todo leído');
                 button.addClass('d-none');
                 $(document).trigger('notifications:all-read');
             }).fail(function(){
                 error('No se pudieron marcar los avisos como leídos.');
             }).always(function(){button.prop('disabled',false);});
+        });
+        $(document).on('notifications:all-read.studentCenter', function(){
+            rows.forEach(function(item){ item.is_read = true; });
+            unreadTotal = 0;
+            $('#swn-unread-count').text('Todo leído');
+            $('#swn-mark-all').addClass('d-none');
+            render();
         });
         load(false);
     });
