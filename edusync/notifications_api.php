@@ -283,6 +283,35 @@ if ($search !== '') {
 $whereSql = implode(' AND ', $where);
 $base = "FROM ($union) n LEFT JOIN notification_user_state ns ON ns.school_id=$school AND ns.user_id=$user AND ns.notification_key=n.nkey WHERE $whereSql";
 
+// Apertura desde una notificación Web Push: consulta un único evento
+// solamente después de aplicar exactamente los permisos de la bandeja.
+if ($action === 'peek') {
+    $eventId = max(0, (int)($_GET['id'] ?? 0));
+    if (!$eventId) no(['status'=>0,'message'=>'Notificación inválida.'],422);
+    $eventKey = 'event:'.$eventId;
+    $peekValues = $params;
+    $peekValues[] = $eventKey;
+    $stmt = $conn->prepare("SELECT n.nkey,n.title,n.source_type,n.source_id,($effectiveRead) is_read $base AND n.nkey=? LIMIT 1");
+    if (!$stmt) no(['status'=>0,'message'=>'No se pudo consultar el aviso.'],500);
+    nb($stmt, $types.'s', $peekValues);
+    $stmt->execute();
+    $event=$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$event) no(['status'=>0,'message'=>'Aviso no disponible para tu usuario.'],404);
+    $type=(string)$event['source_type'];
+    $id=(int)$event['source_id'];
+    if ($type==='grade_period_closed') $openUrl='grade_period_closure_detail.php?id='.$id;
+    elseif ($type==='grade_reopen_request') $openUrl='review_grade_reopen_request.php?id='.$id;
+    elseif ($type==='grade_reopen_result') $openUrl='grade_reopen_result.php?id='.$id;
+    elseif ($type==='attendance_request') $openUrl='review_attendance_request.php?id='.$id;
+    elseif ($type==='evaluation') $openUrl='manage_evaluation_grades.php?evaluation_id='.$id.'&from=notifications';
+    else $openUrl='notification_detail.php?type='.rawurlencode($type).'&id='.$id;
+    no(['status'=>1,'data'=>[
+        'nkey'=>$event['nkey'],'title'=>$event['title'],
+        'open_url'=>$openUrl,'is_read'=>(int)$event['is_read']
+    ]]);
+}
+
 if ($action === 'mark' || $action === 'archive' || $action === 'restore') {
     $key = trim($_POST['key'] ?? '');
     if ($key === '') no(['status' => 0, 'message' => 'Notificación inválida.']);
