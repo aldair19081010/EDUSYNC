@@ -74,6 +74,20 @@ if ($action === 'config') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
     $firebase = json_decode((string)(getenv('EDUSYNC_FIREBASE_WEB_CONFIG_JSON') ?: ''), true);
     $vapid = trim((string)(getenv('EDUSYNC_FIREBASE_VAPID_KEY') ?: ''));
+
+    // Desarrollo local Windows/XAMPP: fichero público de Firebase fuera
+    // de htdocs, en la misma carpeta de configuración ya utilizada
+    // por el proyecto. No se debe guardar en GitHub.
+    if ((!is_array($firebase) || $vapid === '') && DIRECTORY_SEPARATOR === '\\\\') {
+        $localFile=dirname(__DIR__,4).'/firebase/edusync-web-public.json';
+        if (is_readable($localFile)) {
+            $local=json_decode((string)file_get_contents($localFile),true);
+            if (is_array($local)) {
+                if (!is_array($firebase)) $firebase=$local['firebase'] ?? null;
+                if ($vapid === '') $vapid=trim((string)($local['vapid_key'] ?? ''));
+            }
+        }
+    }
     $fields = ['apiKey','authDomain','projectId','messagingSenderId','appId'];
     $ok = is_array($firebase) && strlen($vapid) > 30;
     if ($ok) foreach ($fields as $key) if (empty($firebase[$key])) $ok = false;
