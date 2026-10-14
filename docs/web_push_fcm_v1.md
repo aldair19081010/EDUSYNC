@@ -99,6 +99,24 @@ Usa **Chrome o Edge** desde `http://localhost/interfaz/edusync` para probar: `lo
 6. Usa un aviso estudiantil existente de asistencia/pago/nota/comunicado y comprueba que llegue a la app y al navegador suscrito.
 7. Prueba que **otro colegio**, otra cuenta o un perfil sin permiso no reciba el mensaje.
 
+## Diagnóstico: `Registration failed - push service error`
+
+Este mensaje se produce al solicitar al **servicio Push del navegador** una suscripción para obtener el token FCM. La base de datos puede estar correcta y el permiso ya concedido. No implica que el servidor PHP de EduSync haya enviado un mensaje.
+
+Al entrar en la web, el registro valida ahora que `messagingSenderId` concuerde con `appId`, que la clave VAPID pública sea una clave EC P-256 válida de 65 bytes y que el Service Worker esté activo antes de pedir el token.
+
+Si falla, EduSync muestra un aviso en español y **Diagnóstico** en la invitación y en la campana. El informe contiene únicamente estado del permiso, Service Worker, etapa fallida y error del navegador: **no incluye claves, tokens FCM ni datos escolares**. Copia el texto mostrado para poder revisar el problema sin compartir credenciales.
+
+Comprobación sugerida, sin borrar datos:
+
+1. Prueba desde el **Chrome o Edge oficial**, en ventana normal (no de incógnito ni un navegador integrado), usando exactamente `http://localhost/interfaz/edusync/index.php` o la ruta local que ya funciona en tu instalación. No uses IP local `http://192.168.x.x` sin HTTPS.
+2. Comprueba los permisos de notificaciones del sitio en Chrome/Edge (icono a la izquierda de la URL). Si se había bloqueado, habilítalo manualmente.
+3. Verifica la conexión de la computadora con los servicios de Google: VPN, proxy, antivirus y filtros corporativos pueden impedir la suscripción Push. Prueba una red diferente si es posible; no desactives permanentemente la protección del equipo.
+4. En `F12 → Application → Service Workers` comprueba que EduSync tiene un Service Worker activo. Si el diagnóstico señala clave VAPID inválida, contrástala con Firebase Console → Configuración del proyecto → Cloud Messaging → Certificados push web **sin generar claves nuevas innecesariamente**.
+5. Pulsa de nuevo **Activar notificaciones** desde la campana. Tras un error del servicio Push, EduSync espera diez minutos antes de otro intento automático, para no repetir solicitudes fallidas; el reintento manual está permitido.
+
+Si el mismo fallo aparece tanto en Chrome como en Edge, envía el **texto del diagnóstico**, e indica el navegador y si estás en Windows o Android. De ese modo se distingue un problema local de conectividad de una configuración Firebase incompatible.
+
 ## 4. Configurar en hosting (solo tras aprobar las pruebas)
 
 - Publicar los archivos de esta rama respetando las rutas. `firebase-messaging-sw.js` debe estar servido bajo el mismo origen HTTPS y dominio/ruta de la web de EduSync, con MIME JavaScript.
