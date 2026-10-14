@@ -15,6 +15,10 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 }
 use PhpOffice\PhpSpreadsheet\IOFactory;
 include 'db_connect.php';
+require_once __DIR__.'/includes/remember_session.php';
+// Las acciones AJAX también recuperan la sesión si PHP expiró, sin volver a
+// pedir la contraseña en un dispositivo recordado.
+if (!edrs_has_session() && isset($_COOKIE[EDRS_COOKIE])) edrs_restore($conn);
 $action = $_GET['action'] ?? null;
 $reportDirector = false;
 $reportCatalogActions = ['get_grados_by_nivel', 'get_secciones_by_grado_nivel', 'get_courses_by_aula', 'get_students_by_grado_seccion', 'get_evaluations_by_filters', 'get_levels_by_academic_year'];
