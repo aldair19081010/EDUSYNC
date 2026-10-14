@@ -19,7 +19,7 @@ foreach (['web_push_subscriptions','web_push_delivery'] as $table) {
 }
 // No consumir reintentos si olvidaron configurar Firebase: detener
 // el proceso sin registrar fallos hasta que las credenciales estén listas.
-$credentials=push_load_firebase_credentials();
+$credentials=edwp_load_firebase_credentials();
 if (!$credentials || !push_firebase_access_token($credentials)) {
     fwrite(STDERR,"Firebase no está configurado para el proceso de consola.\n");
     exit(1);
