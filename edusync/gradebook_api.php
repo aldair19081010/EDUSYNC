@@ -387,16 +387,12 @@ if ($action === 'save') {
                 if(!$deleteMatching->execute())throw new RuntimeException($deleteMatching->error);
             }elseif($existing){
                 $gradeId=(int)$existing['id'];
-                // Primero retirar duplicados de la misma celda. Si una fila
-                // antigua tiene competencia_id NULL/0 y otra ya apunta a la
-                // competencia, actualizar antes de limpiar puede chocar con
-                // el índice único y fallar solo al sobreescribir una nota.
-                // Eliminar y actualizar ocurren en la misma transacción.
-                $deleteDuplicates->bind_param('iiiii',$evaluationId,$studentId,$competencyId,$allowLegacy,$gradeId);
-                if(!$deleteDuplicates->execute())throw new RuntimeException($deleteDuplicates->error);
-                // Normalizar filas históricas sin competencia al actualizar.
+                // Si era una fila legacy 0/NULL, migrarla a la competencia
+                // canónica al primer guardado normal del docente.
                 $update->bind_param('sii',$value,$competencyId,$gradeId);
                 if(!$update->execute())throw new RuntimeException($update->error);
+                $deleteDuplicates->bind_param('iiiii',$evaluationId,$studentId,$competencyId,$allowLegacy,$gradeId);
+                if(!$deleteDuplicates->execute())throw new RuntimeException($deleteDuplicates->error);
             }else{
                 $insert->bind_param('iiis',$evaluationId,$studentId,$competencyId,$value);
                 if(!$insert->execute())throw new RuntimeException($insert->error);
