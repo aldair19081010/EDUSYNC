@@ -622,6 +622,7 @@ require_once __DIR__ . '/includes/push_notifications.php';
 $studentsWithDevices = 0;
 $pushSent = 0;
 $pushFailed = 0;
+$webEventIds = [];
 
 $recipientStmt = $conn->prepare(
     'INSERT INTO student_collection_recipients
@@ -634,6 +635,8 @@ if (!$recipientStmt) {
     cnOut(['status' => 0, 'message' => 'La campaña fue creada, pero no se pudo preparar su detalle.'], 500);
 }
 
+// En una campaña masiva se registra primero todo y se entrega en lote.
+$GLOBALS['edwp_defer_immediate'] = true;
 foreach ($resolved['students'] as $student) {
     $studentId = (int)$student['student_id'];
     $studentDebtCount = (int)$student['debt_count'];
@@ -658,6 +661,7 @@ foreach ($resolved['students'] as $student) {
             $studentBalance
         );
         $eventId = (int)($push['event_id'] ?? 0);
+        if ($eventId > 0) $webEventIds[] = $eventId;
         $deviceCount = (int)($push['devices'] ?? 0);
         $sent = (int)($push['sent'] ?? 0);
         $failed = (int)($push['failed'] ?? 0);
@@ -689,6 +693,16 @@ foreach ($resolved['students'] as $student) {
     }
 }
 $recipientStmt->close();
+unset($GLOBALS['edwp_defer_immediate']);
+
+// Web Push también se despacha en esta misma petición, sin esperar a cron.
+// Se limita el lote para que cientos de destinatarios no bloqueen el login;
+// cron (mismo despachador) completa el resto y reintenta fallos.
+$webPush = ['sent' => 0, 'failed' => 0, 'skipped' => false, 'error' => ''];
+if ($webEventIds) {
+    require_once __DIR__.'/includes/web_push_dispatcher.php';
+    $webPush = edwp_dispatch_now($conn, 'student', $webEventIds, 20);
+}
 
 $update = $conn->prepare(
     'UPDATE student_collection_campaigns
@@ -710,6 +724,10 @@ cnOut([
     'total_balance' => $totalBalance,
     'students_with_devices' => $studentsWithDevices,
     'students_without_devices' => max(0, $recipientCount - $studentsWithDevices),
-    'push_sent' => $pushSent,
+    'push_sent' => $pushSent, // Dispositivos Android
     'push_failed' => $pushFailed,
+    'web_push_sent' => (int)($webPush['sent'] ?? 0),
+    'web_push_failed' => (int)($webPush['failed'] ?? 0),
+    'web_push_deferred' => (bool)($webPush['skipped'] ?? false)
+        || count($webEventIds) > 20 || !empty($webPush['error']),
 ]);
