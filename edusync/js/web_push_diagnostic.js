@@ -45,15 +45,16 @@
     }
     function isPushServiceError(error) {
         var content=String(error&&error.name||'')+' '+String(error&&error.message||'');
-        return /push service error|registration failed|token-subscribe-failed/i.test(content);
+        return !!(error&&error.code==='edusync-push-timeout') ||
+            /push service error|registration failed|token-subscribe-failed/i.test(content);
     }
     function explain(error) {
         var detail=String(error&&error.message||'').slice(0,180);
+        if (error && error.code==='edusync-push-timeout') {
+            return 'El navegador no respondió durante '+String(error.message||'el registro Push').slice(0,115)+'. EduSync detuvo la espera; consulta el diagnóstico. No necesitas volver a autorizar notificaciones.';
+        }
         if (isPushServiceError(error)) {
             return 'El navegador no logró conectarse a su servicio Push. No es un fallo de MySQL. Prueba con Chrome o Edge normal, sin incógnito; revisa conexión, VPN y bloqueadores. Pulsa «Diagnóstico».';
-        }
-        if (error && error.code==='edusync-push-timeout') {
-            return 'El navegador dejó de responder durante el registro Push. EduSync canceló la espera en su interfaz. Revisa el diagnóstico, la conexión y el Service Worker; no necesitas volver a autorizar las notificaciones.';
         }
         if (/applicationServerKey|vapid|InvalidAccessError|DataError/i.test(detail)) {
             return 'La clave VAPID fue rechazada. Comprueba que corresponde a Firebase Cloud Messaging del mismo proyecto.';
