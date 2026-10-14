@@ -24,3 +24,10 @@
 .swn-empty{padding:3rem 1.5rem;text-align:center;color:#8290a5;font-size:.85rem}
 .swn-status{border:1px solid #dae5f8;background:#f3f7ff;border-radius:.55rem;padding:.7rem 1rem;font-size:.81rem;color:#506181;margin-bottom:1rem}
 @media(max-width:575px){.swn-head{padding:.85rem}.swn-list .swn-item{padding:13px}.swn-tab{padding:7px 12px}}
+
+/* Web Push real: controles discretos dentro de la campana de EduSync. */
+.edwp-controls{padding:.7rem .85rem .8rem;border-top:1px solid #ebeff5;background:#fff;display:flex;align-items:center;justify-content:center;gap:.42rem;flex-wrap:wrap;max-width:100%}
+.edwp-controls .btn{font-size:.73rem;line-height:1.2;padding:.43rem .62rem;white-space:normal}
+.edwp-info{display:block;flex-basis:100%;font-size:.7rem;line-height:1.4;color:#69788f;text-align:center;overflow-wrap:anywhere}
+.edwp-info:empty{display:none}
+@media(max-width:440px){.edwp-controls{padding:.6rem}.edwp-controls .btn{flex:1 1 120px}}
