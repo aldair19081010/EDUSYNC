@@ -210,7 +210,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
     </div>
 
     <ul class="navbar-nav ml-auto align-items-center">
-        <?php if (in_array($user_type, [1, 2, 3], true)): ?>
+        <?php if ($is_student || in_array($user_type, [1, 2, 3], true)): ?>
         <li class="nav-item dropdown no-arrow mx-1">
             <a class="nav-link dropdown-toggle edusync-alert-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones">
                 <i class="fas fa-bell fa-fw"></i>
@@ -221,7 +221,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             <div class="dropdown-list dropdown-menu dropdown-menu-right shadow animated--grow-in edusync-notification-menu" aria-labelledby="alertsDropdown">
                 <h6 class="dropdown-header d-flex align-items-center justify-content-between mb-0">
                     <span><i class="far fa-bell mr-1"></i>Notificaciones</span>
-                    <?php if ($unified_notifications_ready || $notifications_count > 0): ?>
+                    <?php if ($is_student || $unified_notifications_ready || $notifications_count > 0): ?>
                     <button type="button" class="btn btn-light btn-sm py-1 px-2 font-weight-bold mark-all-read-topbar<?php echo $notifications_count > 0 ? '' : ' d-none'; ?>" title="Marcar todas como leídas">
                         <i class="fas fa-check-double mr-1"></i>Marcar leídas
                     </button>
@@ -375,7 +375,23 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             e.stopPropagation();
             var button = $(this).addClass('disabled').attr('aria-disabled', 'true');
 
-            <?php if ($unified_notifications_ready): ?>
+            <?php if ($is_student): ?>
+            $.post('api/student_notifications.php', {action:'mark_all_read'}, null, 'json')
+                .done(function(resp){
+                    if (resp && resp.status === 'ok') {
+                        setNotificationBadge(0);
+                        if (typeof window.refreshStudentWebNotifications === 'function') window.refreshStudentWebNotifications();
+                        $(document).trigger('notifications:all-read');
+                    } else if (typeof alert_toast === 'function') {
+                        alert_toast((resp && resp.message) || 'No se pudieron marcar los avisos.', 'error');
+                    }
+                })
+                .fail(function(xhr){
+                    if (typeof alert_toast === 'function')
+                        alert_toast((xhr.responseJSON || {}).message || 'Error de comunicación.', 'error');
+                })
+                .always(function(){ button.removeClass('disabled').removeAttr('aria-disabled'); });
+            <?php elseif ($unified_notifications_ready): ?>
             $.post('notifications_api.php?action=mark_all', {csrf_token: <?php echo json_encode($topbar_csrf); ?>, tab: 'pending'}, null, 'json')
                 .done(function(resp){
                     if (!resp || Number(resp.status) !== 1) {
@@ -493,7 +509,52 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             <?php if ($can_review_attendance && !$unified_notifications_ready): ?>refreshAttendanceNotifications();<?php endif; ?>
         });
 
-        <?php if ($unified_notifications_ready): ?>
+
+        <?php if ($is_student): ?>
+        // Los avisos del estudiante son los mismos eventos que recibe la app.
+        // La consulta periódica sólo actualiza la campana; la notificación
+        // persistente la entrega FCM al Service Worker sin página abierta.
+        var studentWebBellLoading=false;
+        window.refreshStudentWebNotifications=function(){
+            if(studentWebBellLoading)return;
+            studentWebBellLoading=true;
+            $.getJSON('api/student_notifications.php',{action:'list',limit:12})
+                .done(function(resp){
+                    if(!resp||resp.status!=='ok'||!Array.isArray(resp.items))return;
+                    var list=$('#topbar-notification-list').empty();
+                    var pending=resp.items.filter(function(item){return !item.is_read;}).slice(0,10);
+                    pending.forEach(function(item){
+                        var screen=String(item.screen||'');
+                        var icon=screen==='attendance'?'fa-calendar-check':
+                            screen==='payments'?'fa-receipt':
+                            screen==='debts'?'fa-file-invoice-dollar':
+                            screen==='grades'?'fa-graduation-cap':
+                            screen==='announcements'?'fa-bullhorn':'fa-bell';
+                        var row=$('<a href="#" class="dropdown-item d-flex align-items-center system-notification-item"></a>');
+                        row.append($('<div class="mr-3"></div>').append(
+                            $('<span class="icon-circle bg-primary"></span>').append(
+                                $('<i class="fas text-white"></i>').addClass(icon))));
+                        var copy=$('<div class="edusync-notification-copy"></div>');
+                        copy.append($('<span class="font-weight-bold edusync-notification-title"></span>').text(item.title||'Notificación'));
+                        copy.append($('<div class="edusync-notification-detail"></div>').text(item.body||''));
+                        row.append(copy).on('click',function(event){
+                            event.preventDefault();
+                            // El destino consulta el evento y valida el propietario.
+                            window.location.href='index.php?page=notifications&notification_id='+encodeURIComponent(item.id);
+                        });
+                        list.append(row);
+                    });
+                    if(!pending.length)list.append(emptyNotificationState());
+                    var unread=Number(resp.unread_count||0);
+                    setNotificationBadge(unread);
+                    $('.mark-all-read-topbar').toggleClass('d-none',unread===0);
+                }).always(function(){studentWebBellLoading=false;});
+        };
+        window.refreshStudentWebNotifications();
+        window.setInterval(window.refreshStudentWebNotifications,12000);
+        <?php endif; ?>
+
+        <?php if ($unified_notifications_ready && !$is_student): ?>
         var unifiedNotificationsLoading = false;
         window.refreshUnifiedNotifications = function(){
             if (unifiedNotificationsLoading) return;
