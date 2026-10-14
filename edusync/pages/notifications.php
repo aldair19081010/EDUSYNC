@@ -272,9 +272,11 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
 
     // El usuario toca un Web Push con EduSync cerrado: abrir el aviso
     // exacto tras verificar que realmente pertenece a su perfil/colegio.
-    const pushEventId = Number(new URLSearchParams(window.location.search).get('push_event_id') || 0);
+    const pushParams = new URLSearchParams(window.location.search);
+    const pushEventId = Number(pushParams.get('push_event_id') || 0);
+    const pushKind = pushParams.get('push_kind') === 'low_grade' ? 'low_grade' : 'event';
     if(ready && Number.isSafeInteger(pushEventId) && pushEventId > 0){
-        $.getJSON(api,{action:'peek',tab:'all',id:pushEventId}).done(function(result){
+        $.getJSON(api,{action:'peek',tab:'all',id:pushEventId,kind:pushKind}).done(function(result){
             if(!result || Number(result.status)!==1 || !result.data)return;
             const item=result.data;
             let attempt=0;
