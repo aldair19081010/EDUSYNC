@@ -21,8 +21,8 @@ $isStudentWeb = !empty($_SESSION['student_logged_in']) && !empty($_SESSION['stud
     <div class="swn-tabs" role="tablist" aria-label="Filtrar notificaciones">
       <button type="button" class="swn-tab active" data-filter="all" aria-selected="true">Todas</button>
       <button type="button" class="swn-tab" data-filter="announcements" aria-selected="false">Comunicados</button>
-      <button type="button" class="swn-tab" data-filter="alerts" aria-selected="false">Alertas</button>
-      <button type="button" class="swn-tab" data-filter="activity" aria-selected="false">Actividad</button>
+      <button type="button" class="swn-tab" data-filter="alerts" aria-selected="false">Notas y deudas</button>
+      <button type="button" class="swn-tab" data-filter="activity" aria-selected="false">Asistencia y pagos</button>
     </div>
     <div class="swn-list" id="swn-items" aria-live="polite"><div class="swn-empty"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando tus notificaciones...</div></div>
     <div class="text-center mt-3"><button type="button" id="swn-load-more" class="btn btn-sm btn-outline-secondary d-none">Cargar anteriores</button></div>
