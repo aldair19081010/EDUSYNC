@@ -32,14 +32,14 @@ wu_assert(str_contains($cron,'edwp_dispatch_pending($conn)')
 wu_assert(str_contains($dispatch,"GET_LOCK('edusync_web_push_fcm_v1',0)")
     && str_contains($dispatch,"RELEASE_LOCK('edusync_web_push_fcm_v1')")
     && str_contains($dispatch,'web_push_delivery')
-    && str_contains($dispatch,"$pending"),
+    && str_contains($dispatch,'$pending'),
     'Evitar carreras y reenvíos sobre el mismo dispositivo.');
 wu_assert(str_contains($android,'push_schedule_web_delivery($db,$result[\'event_id\'])')
     && str_contains($android,'register_shutdown_function')
     && str_contains($android,'@@in_transaction'),
     'Solo enviar eventos estudiantiles después de la operación.');
-wu_assert(str_contains($collection,"$GLOBALS['edwp_defer_immediate']")
-    && str_contains($collection,"edwp_dispatch_now($conn, 'student', $webEventIds, 20)")
+wu_assert(str_contains($collection,'$GLOBALS[\'edwp_defer_immediate\']')
+    && str_contains($collection,'edwp_dispatch_now($conn, \'student\', $webEventIds, 20)')
     && str_contains($collection,"'web_push_sent'")
     && str_contains($collection,"'push_sent'"),
     'Las cobranzas usan lote Web Push y métricas separadas de Android.');
@@ -47,13 +47,13 @@ wu_assert(str_contains($dispatch,"notification_type='collection_notice'")
     && str_contains($dispatch,'Consulta Mis Deudas en EduSync.')
     && !str_contains($dispatch,'e.body,e.screen'),
     'No mostrar importes de cobranza en pantalla bloqueada.');
-wu_assert(str_contains($academic,"edwp_dispatch_now($this->db,'low_grade'")
-    && str_contains($academic,"edwp_dispatch_now($this->db,'evaluation'"),
+wu_assert(str_contains($academic,'edwp_dispatch_now($this->db,\'low_grade\'')
+    && str_contains($academic,'edwp_dispatch_now($this->db,\'evaluation\''),
     'Activar solo nuevos episodios académicos y nuevas evaluaciones.');
-wu_assert(str_contains($closures,"edwp_dispatch_now($conn,'staff'")
-    && str_contains($closures,"edwp_dispatch_now($conn,'reopen_req'"),
+wu_assert(str_contains($closures,'edwp_dispatch_now($conn,\'staff\'')
+    && str_contains($closures,'edwp_dispatch_now($conn,\'reopen_req\''),
     'El cierre, la resolución y solicitud de reapertura necesitan Push.');
-wu_assert(str_contains($admin,"edwp_dispatch_now($conn,'staff'"),
+wu_assert(str_contains($admin,'edwp_dispatch_now($conn,\'staff\''),
     'Administración debe activar avisos docentes después del COMMIT.');
 wu_assert(str_contains($attendance,"'att_request'")
     && str_contains($attendance,"'att_result'")
