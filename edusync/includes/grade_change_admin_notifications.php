@@ -40,13 +40,13 @@ if (!function_exists('edun_notify_admin_grade_changes')) {
         // Protege la agrupación cuando llegan dos autoguardados simultáneos.
         $lockName='edusync_grade_change_'.substr(hash('sha256',
             $schoolId.'|'.$userId.'|'.$teacherCourseId.'|'.$bimester),0,35);
-        $lockStmt=$db->prepare('SELECT GET_LOCK(?,5) locked');
+        $lockStmt=$db->prepare('SELECT GET_LOCK(?,5) acquired');
         if (!$lockStmt) return $result;
         $lockStmt->bind_param('s',$lockName);
         $lockStmt->execute();
         $lockRow=$lockStmt->get_result()->fetch_assoc();
         $lockStmt->close();
-        if ((int)($lockRow['locked']??0)!==1) {
+        if ((int)($lockRow['acquired']??0)!==1) {
             error_log('[EduSync grade change admin] Timeout del bloqueo de agrupación.');
             return $result;
         }
