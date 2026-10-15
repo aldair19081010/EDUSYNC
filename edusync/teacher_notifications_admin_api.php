@@ -247,14 +247,14 @@ try {
         if(!$target||(int)$target['pending']<1)
             taca_response(['status'=>0,'message'=>'El docente no tiene cursos pendientes o no pertenece al colegio.'],409);
         $teacher=(int)$target['teacher_id'];
-        $lockName='taca_manual_'.substr(hash('sha256',"$school:$yearId:$bim:$recipient"),0,39);
+        $lockName='taca_manual_'.substr(hash('sha256',"$school:$yearId:$bim:$teacher"),0,39);
         $lock=$conn->prepare('SELECT GET_LOCK(?,5) acquired');
         $lock->bind_param('s',$lockName);$lock->execute();
         $acquired=(int)($lock->get_result()->fetch_assoc()['acquired']??0);$lock->close();
         if($acquired!==1)taca_response(['status'=>0,'message'=>'Ya se está procesando un aviso para este docente.'],409);
         try {
-            $last=$conn->prepare('SELECT id,created_at FROM teacher_alert_manual_log WHERE school_id=? AND academic_year_id=? AND bimester=? AND recipient_user_id=? AND created_at>=DATE_SUB(NOW(),INTERVAL 24 HOUR) ORDER BY id DESC LIMIT 1');
-            $last->bind_param('iiii',$school,$yearId,$bim,$recipient);$last->execute();
+            $last=$conn->prepare('SELECT id,created_at FROM teacher_alert_manual_log WHERE school_id=? AND academic_year_id=? AND bimester=? AND teacher_id=? AND created_at>=DATE_SUB(NOW(),INTERVAL 24 HOUR) ORDER BY id DESC LIMIT 1');
+            $last->bind_param('iiii',$school,$yearId,$bim,$teacher);$last->execute();
             $previous=$last->get_result()->fetch_assoc();$last->close();
             if($previous) {
                 $unlock=$conn->prepare('SELECT RELEASE_LOCK(?)');
