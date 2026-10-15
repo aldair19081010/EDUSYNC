@@ -53,7 +53,8 @@ function edwp_send_message(
         error_log('[EduSync web push] No se pudo autenticar Firebase.');
         return ['ok'=>false,'code'=>0,'message'=>'FCM auth failed'];
     }
-    // No se usa notification: el Service Worker controla una sola notificación.
+    // Navegador: sólo data para no duplicar la notificación del Service Worker.
+    // App Flutter: se añade notification Android sólo al token nativo.
     // Todos los valores de data son cadenas según el contrato de FCM.
     $payload = [
         'message'=>[
