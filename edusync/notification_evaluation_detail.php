@@ -71,7 +71,7 @@ edn_header('evaluation','Nueva evaluación: '.(string)$evaluation['title'],
   $('.edn-view-evaluation').off('click.edn').on('click.edn',function(){
     var id=Number($(this).data('id'));
     if (!id || typeof window.uni_modal!=='function') return;
-    window.uni_modal('Ver evaluación','manage_evaluation_grades.php?evaluation_id='+id+'&from=notifications','modal-lg');
+    window.uni_modal('Calificaciones de la evaluación','notification_evaluation_grades.php?evaluation_id='+id,'modal-lg');
   });
 })(jQuery);
 </script>
