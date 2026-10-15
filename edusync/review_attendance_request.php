@@ -125,11 +125,11 @@ edn_header('attendance','Solicitud de asistencia: '.$request['request_type'],
 <?php else: ?>
     <div class="card shadow-sm mt-3 mb-3 border-left-<?= $status === 'Aprobada' ? 'success' : 'danger' ?>"><div class="card-body">
         <div class="font-weight-bold mb-2"><i class="fas <?= $status === 'Aprobada' ? 'fa-check-circle text-success' : 'fa-times-circle text-danger' ?> mr-1"></i>Esta solicitud ya fue atendida</div>
-        <div class="arr-resolution-grid">
-            <div><div class="arr-label">Resultado</div><div class="arr-value"><?= htmlspecialchars($status) ?></div></div>
-            <div><div class="arr-label">Revisada por</div><div class="arr-value"><?= htmlspecialchars($request['reviewer_name'] ?: 'Administrador') ?></div></div>
-            <div><div class="arr-label">Fecha de resolución</div><div class="arr-value"><?= htmlspecialchars(arr_datetime($request['reviewed_at'])) ?></div></div>
-            <div class="wide"><div class="arr-label">Observación</div><div class="arr-value"><?= htmlspecialchars($request['review_notes'] ?: 'Sin observación adicional') ?></div></div>
+        <div class="row">
+            <div class="col-md-6 mb-2"><div class="arr-label">Resultado</div><div class="arr-value"><?= htmlspecialchars($status) ?></div></div>
+            <div class="col-md-6 mb-2"><div class="arr-label">Revisada por</div><div class="arr-value"><?= htmlspecialchars($request['reviewer_name'] ?: 'Administrador') ?></div></div>
+            <div class="col-md-6 mb-2"><div class="arr-label">Fecha de resolución</div><div class="arr-value"><?= htmlspecialchars(arr_datetime($request['reviewed_at'])) ?></div></div>
+            <div class="col-12 mt-2"><div class="arr-label">Observación</div><div class="arr-value"><?= htmlspecialchars($request['review_notes'] ?: 'Sin observación adicional') ?></div></div>
         </div>
     </div></div>
 <?php endif; ?>
