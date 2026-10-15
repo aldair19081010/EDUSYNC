@@ -2028,6 +2028,11 @@ function save_payment(){
 			}
 		}
 		$this->audit_evaluation($eval_id, $school_id, $academic_year_id, $teacher_id, $id > 0 ? 'updated' : 'created', ['title'=>$title,'teacher_course_id'=>$teacher_course_id,'bimestre'=>$bimestre]);
+		if ($id <= 0) {
+			// Nueva evaluación: enviar aviso web sin depender de la frecuencia del cron.
+			require_once __DIR__ . '/includes/web_push_staff_events.php';
+			edwp_queue_staff_event($this->db, $school_id, 'evaluation', (int)$eval_id);
+		}
 		return json_encode(['status' => 1, 'message' => 'Evaluación guardada exitosamente.']);
     } else {
         return json_encode(['status' => 0, 'message' => 'Error al guardar la evaluación: ' . $this->db->error]);
@@ -2545,6 +2550,7 @@ function save_payment(){
                     if (!$stmt->execute()) throw new RuntimeException($stmt->error);
                     $stmt->close();
                 }
+                $createdAlertIds = [];
                 // low_grade_notifications.created_at es DATETIME: persistir UTC sin
                 // depender de la zona horaria configurada en MySQL/Hostinger.
                 // Su visualización se convierte a America/Lima al consultar.
@@ -2558,6 +2564,7 @@ function save_payment(){
                     if (!$stmt) throw new RuntimeException($this->db->error);
                     $stmt->bind_param('isisi',$sid,$bim,$count,$json,$teacher);
                     if (!$stmt->execute()) throw new RuntimeException($stmt->error);
+                    $createdAlertIds[] = (int)$stmt->insert_id;
                     $stmt->close();
                 }
                 // Resolver solo cuando deja de cumplirse el umbral.
@@ -2573,6 +2580,14 @@ function save_payment(){
                 }
                 $new=count($plan['create']);
                 $this->db->commit();
+                // Envío inmediato limitado para no alargar el cierre de peticiones
+                // grandes; el cron completa el resto desde la cola persistida.
+                if ($createdAlertIds) {
+                    require_once __DIR__ . '/includes/web_push_staff_events.php';
+                    foreach (array_slice($createdAlertIds, 0, 10) as $newAlertId) {
+                        edwp_queue_staff_event($this->db, $school, 'low_grade', $newAlertId);
+                    }
+                }
                 return $new;
             } catch (Throwable $e) {
                 $this->db->rollback();
