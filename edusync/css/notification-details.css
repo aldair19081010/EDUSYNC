@@ -1,77 +1,57 @@
-/* EduSync · Detalle contextual de notificaciones (web).
-   Un mismo lenguaje visual para avisos académicos y administrativos.
-   Las clases se acotan a edn-view para no alterar otros formularios. */
-.edn-view{--edn-accent:#2459a8;--edn-tint:#eef4ff;--edn-edge:#dbe7fb;--edn-ink:#233551;--edn-muted:#64748b;--edn-border:#e2e8f0;color:var(--edn-ink);font-size:.9rem}
-.edn-view.edn-theme--warning{--edn-accent:#b7791f;--edn-tint:#fff8e8;--edn-edge:#f1dfa9}
-.edn-view.edn-theme--danger{--edn-accent:#bd4242;--edn-tint:#fff0ef;--edn-edge:#f0c7c4}
-.edn-view.edn-theme--success{--edn-accent:#18815c;--edn-tint:#eaf9f0;--edn-edge:#bfe7d2}
-.edn-view.edn-theme--teal{--edn-accent:#087d8b;--edn-tint:#eaf8fa;--edn-edge:#b8e6e9}
-.edn-view *{box-sizing:border-box}
-.edn-hero{display:flex;align-items:flex-start;gap:14px;border:1px solid var(--edn-edge);border-radius:14px;padding:18px;background:linear-gradient(110deg,var(--edn-tint),#fff 82%);margin-bottom:16px}
-.edn-hero-icon{width:48px;height:48px;flex:0 0 48px;display:flex;align-items:center;justify-content:center;background:#fff;color:var(--edn-accent);border:1px solid var(--edn-edge);border-radius:14px;font-size:1.25rem}
-.edn-hero-main{flex:1;min-width:0}
-.edn-eyebrow{font-size:.69rem;letter-spacing:.08em;text-transform:uppercase;font-weight:800;color:var(--edn-accent);margin-bottom:4px}
-.edn-title{font-size:1.13rem;line-height:1.32;font-weight:800;color:#223654;margin:0 0 7px;overflow-wrap:anywhere}
-.edn-subtitle{color:#53677e;font-size:.83rem;line-height:1.5;overflow-wrap:anywhere}
-.edn-tags{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:10px}
-.edn-tag{display:inline-flex;gap:5px;align-items:center;padding:5px 9px;background:#fff;color:#475569;border:1px solid #dae3ed;border-radius:50px;font-size:.72rem;font-weight:700;line-height:1.25}
-.edn-tag--accent{background:var(--edn-tint);color:var(--edn-accent);border-color:var(--edn-edge)}
-.edn-meta-date{display:inline-flex;align-items:center;gap:5px;font-size:.73rem;color:#718096}
-.edn-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}
-.edn-card,.edn-view .nd-box,.edn-view .grr-box,.edn-view .gcd-box,.edn-view .arr-box{border:1px solid var(--edn-border)!important;border-radius:12px!important;background:#fff!important;box-shadow:0 1px 3px rgba(29,54,92,.035);padding:14px!important;height:100%;min-width:0}
-.edn-card--tint{background:var(--edn-tint)!important;border-color:var(--edn-edge)!important}
-.edn-card--accent{border-left:3px solid var(--edn-accent)!important}
-.edn-card-label,.edn-view .nd-box span,.edn-view .nd-section>span,.edn-view .grr-label,.edn-view .gcd-label,.edn-view .arr-label{display:block;color:#708099;font-size:.68rem;font-weight:800;letter-spacing:.045em;text-transform:uppercase;margin-bottom:6px}
-.edn-card-value,.edn-view .nd-box strong,.edn-view .grr-value,.edn-view .gcd-value,.edn-view .arr-value{display:block;color:#233551;font-size:.91rem;font-weight:800;line-height:1.45;overflow-wrap:anywhere}
-.edn-card-help,.edn-view .nd-box small{display:block;color:#748399;font-size:.76rem;margin-top:4px}
-.edn-section,.edn-view .nd-section{border:1px solid var(--edn-border);border-radius:12px;background:#fff;padding:15px;margin-bottom:12px}
-.edn-section-title{font-size:.84rem;font-weight:800;color:#2b4366;display:flex;align-items:center;gap:7px;margin:0 0 11px}
-.edn-section-title i{color:var(--edn-accent)}
-.edn-view .nd-section{height:auto!important}
-.edn-highlight{background:var(--edn-tint);border:1px solid var(--edn-edge);border-radius:12px;padding:14px 16px;margin-bottom:13px;display:flex;align-items:center;gap:14px}
-.edn-highlight-number{color:var(--edn-accent);font-weight:900;font-size:1.75rem;line-height:1}
-.edn-highlight-label{color:#34465f;font-size:.81rem;line-height:1.4}
-.edn-view .table-responsive{border:1px solid var(--edn-border);border-radius:12px;overflow-x:auto;margin-bottom:10px}
-.edn-view table{margin-bottom:0!important;font-size:.8rem;color:#34465f}
-.edn-view table thead th{border-top:0!important;border-bottom:1px solid #dfe7f0!important;background:#f2f6fb!important;color:#5e718b!important;font-size:.7rem!important;text-transform:uppercase;letter-spacing:.035em;padding:11px 10px!important;vertical-align:middle}
-.edn-view table td{padding:11px 10px!important;vertical-align:middle!important;border-color:#e7edf4!important}
-.edn-view table tbody tr:last-child td{border-bottom:0}
-.edn-view .badge{padding:.35em .6em;border-radius:6px}
-.edn-grade--old{background:#edf1f5!important;color:#526173!important}
-.edn-grade--new{background:#e3f6ed!important;color:#156447!important}
-.edn-grade--removed{background:#fff0ee!important;color:#b04242!important}
-.edn-grade--updated{background:#e8effe!important;color:#2459a8!important}
-.edn-arrow{color:#98a8b9;font-size:.75rem;margin:0 7px}
-.edn-mini-kpi{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
-.edn-mini-kpi-item{padding:9px 12px;border:1px solid #e4ebf3;border-radius:9px;background:#f7f9fc;color:#445973;font-size:.77rem}
-.edn-mini-kpi-item strong{color:var(--edn-accent);font-size:.98rem}
-.edn-footer{border-top:1px solid #e5ebf2;margin-top:16px;padding-top:14px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px}
-.edn-footer .btn{border-radius:8px!important;font-weight:700;padding:.48rem .9rem}
-.edn-view .btn-primary{background-color:#2459a8;border-color:#2459a8}
-.edn-view .btn-primary:hover{background-color:#1a4789;border-color:#1a4789}
-.edn-view .arr-resolution{border-radius:11px!important}
-.edn-view .alert{border-radius:10px!important;font-size:.83rem}
-.edn-view .grr-context{border-left:3px solid var(--edn-accent)!important}
-.edn-course{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:10px 12px;border:1px solid #e5ebf3;border-radius:10px;margin-bottom:8px;background:#fafcff}
-.edn-course strong{color:#2b4261;overflow-wrap:anywhere}
-.edn-course .badge{flex:0 0 auto}
+/* EduSync · Avisos dentro del modal global Bootstrap 4 / SB Admin 2.
+   Sólo ajustes de lectura y responsive. Card, badge, table, alert, row,
+   col-* y botones provienen de SB Admin 2; no se replica su sistema visual. */
+.edn-view{min-width:0;color:#344054;font-size:.875rem}
+.edn-view .edn-title{font-size:1rem;line-height:1.35;overflow-wrap:anywhere}
+.edn-view .edn-wrap{overflow-wrap:anywhere}
+.edn-view .edn-icon{display:flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.35rem;font-size:1rem}
+.edn-view .edn-meta{gap:0 .15rem}
+.edn-view .edn-footer .btn{min-width:88px}
+.edn-view .card{min-width:0}
+.edn-view .card-header{background:#f8f9fc}
+.edn-view .card-header h6{line-height:1.4}
+.edn-view .table-responsive{max-width:100%;overflow-x:auto}
+.edn-view .table td,.edn-view .table th{vertical-align:middle}
+.edn-view .table td{overflow-wrap:anywhere}
+.edn-view .edn-evaluation-table{max-height:58vh;overflow:auto;overscroll-behavior:contain}
+.edn-view .edn-evaluation-table th{min-width:100px;white-space:normal}
+.edn-view .edn-evaluation-table th:nth-child(2){min-width:195px}
+.edn-view .edn-evaluation-table .edn-score{font-size:.82rem;padding:.45em .65em;min-width:36px}
+.edn-view .edn-grade--old{background:#e9ecef;color:#5a5c69}
+.edn-view .edn-grade--new{background:#e7f5ed;color:#19714f}
+.edn-view .edn-grade--removed{background:#fdecea;color:#b2332a}
+.edn-view .edn-grade--updated{background:#e8f0fe;color:#3155a8}
 .edn-view .edn-responsive-grades{display:none}
-@media(max-width:767px){
-  .edn-hero{padding:14px;gap:11px}
-  .edn-hero-icon{width:40px;height:40px;flex-basis:40px;border-radius:11px}
-  .edn-title{font-size:1rem}
-  .edn-grid{gap:8px}
-  .edn-card,.edn-view .nd-box,.edn-view .grr-box,.edn-view .gcd-box,.edn-view .arr-box{padding:12px!important}
+.edn-view .edn-grade-row{padding:.75rem;border:1px solid #e3e6f0;border-radius:.35rem;margin-bottom:.6rem}
+.edn-view .edn-grade-row-head{font-weight:700;color:#344054}
+.edn-view .edn-grade-row-context{color:#858796;font-size:.75rem;margin-top:.25rem}
+.edn-view .edn-grade-row-values{display:flex;justify-content:flex-end;align-items:center;gap:.4rem;margin-top:.65rem}
+.edn-view .edn-grade-row-values .badge{font-size:.82rem}
+.edn-view .edn-arrow{font-size:.7rem;color:#858796}
+/* Compatibilidad con detalles académicos anteriores, adaptados a SB Admin 2. */
+.edn-view .edn-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin-bottom:1rem}
+.edn-view .edn-card,.edn-view .nd-box,.edn-view .grr-box,.edn-view .gcd-box,.edn-view .arr-box{background:#fff;border:1px solid #e3e6f0;border-radius:.35rem;padding:.85rem;height:100%;min-width:0}
+.edn-view .edn-card-label,.edn-view .nd-box>span,.edn-view .grr-label,.edn-view .gcd-label,.edn-view .arr-label{display:block;font-size:.72rem;font-weight:700;color:#858796;text-transform:uppercase;margin-bottom:.3rem}
+.edn-view .edn-card-value,.edn-view .nd-box>strong,.edn-view .grr-value,.edn-view .gcd-value,.edn-view .arr-value{display:block;color:#344054;font-weight:700;overflow-wrap:anywhere}
+.edn-view .edn-card-help,.edn-view .nd-box>small{display:block;color:#858796;font-size:.75rem;margin-top:.3rem}
+.edn-view .edn-section,.edn-view .nd-section{padding:.85rem;border:1px solid #e3e6f0;border-radius:.35rem;margin-bottom:.75rem}
+.edn-view .edn-section-title{font-size:.85rem;color:#4e73df;font-weight:700;margin-bottom:.7rem}
+.edn-view .edn-section-title i{margin-right:.4rem}
+.edn-view .edn-highlight{display:flex;gap:1rem;align-items:center;padding:.85rem;border-left:4px solid #f6c23e;background:#f8f9fc;margin-bottom:.9rem}
+.edn-view .edn-highlight-number{font-size:1.7rem;font-weight:800;color:#5a5c69}
+.edn-view .edn-highlight-label{font-size:.83rem}
+.edn-view .edn-mini-kpi{display:flex;flex-wrap:wrap;gap:.45rem;margin-bottom:.8rem}
+.edn-view .edn-mini-kpi-item{font-size:.75rem;padding:.4rem .6rem;background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.25rem}
+.edn-view .edn-mini-kpi-item strong{color:#4e73df}
+.edn-view .edn-course{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.65rem;border-bottom:1px solid #eaecf4}
+.edn-view .edn-course:last-child{border-bottom:0}
+.edn-view .arr-arrow{color:#858796}
+@media(max-width:767.98px){
   .edn-view .edn-desktop-grades{display:none}
   .edn-view .edn-responsive-grades{display:block}
-  .edn-grade-row{padding:12px 13px;border:1px solid #e2e8f0;border-radius:11px;margin-bottom:9px;background:#fff}
-  .edn-grade-row-head{font-weight:800;font-size:.82rem;color:#273b5a;overflow-wrap:anywhere}
-  .edn-grade-row-context{color:#75849a;font-size:.75rem;margin-top:3px}
-  .edn-grade-row-values{display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-top:10px}
+  .edn-view .edn-evaluation-table th:nth-child(2){min-width:160px}
 }
-@media(max-width:480px){
-  .edn-grid{grid-template-columns:1fr}
-  .edn-hero{gap:9px}
-  .edn-tag{font-size:.68rem}
-  .edn-footer .btn{flex:1 0 auto}
+@media(max-width:575.98px){
+  .edn-view .edn-grid{grid-template-columns:1fr}
+  .edn-view .edn-footer .btn{width:100%;margin-top:.25rem}
 }
