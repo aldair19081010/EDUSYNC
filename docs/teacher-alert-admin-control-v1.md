@@ -1,21 +1,30 @@
 # EduSync · Panel administrativo de avisos docentes
 
-Rama: teacher-alerts-admin-control-v1 (basada en teacher-academic-alerts-v1).
+Rama original: teacher-alerts-admin-control-v1.
+Rama de pantalla independiente: teacher-followup-standalone-v1.
 NO integrado en main ni producción.
 
 ## Ubicación
-Administrador > Años académicos > Gestionar año > Cierre de notas >
-Notificaciones a docentes.
+Administrador > menú «Académico» > «Seguimiento Docente».
 
-Se mantiene la pantalla de cierres que usa SB Admin 2. Se añade una sección
-debajo del control habitual con:
-- Indicadores de asignaciones cerradas, pendientes y con calificaciones faltantes.
-- Tabla compacta por docente y cursos abiertos, búsqueda, bimestre y progreso.
-- Configuración por colegio / año / bimestre con fecha límite opcional y avisos
-  automáticos configurables: cierres, notas incompletas y correcciones de notas
-  hechas por administración (según historial con usuario editor de tipo 1).
-- Un botón «Recordar» por docente con confirmación y observación opcional.
-- Historial de 30 avisos de ese bimestre y estados de entrega FCM cuando existen.
+Este es un módulo administrativo independiente. La pantalla de «Años Académicos
+> Gestionar > Cierre de notas» queda dedicada exclusivamente a cierres y
+bloqueos. Comunicados, Cobranza y Notificaciones conservan su ubicación y
+funcionamiento.
+
+La nueva página usa SB Admin 2, filtros compactos y acciones bajo demanda.
+Ofrece:
+- Tres indicadores compactos: asignaciones cerradas, pendientes y con notas
+  incompletas; filtro de año, bimestre, estado y búsqueda.
+- Una fila resumida por docente con progreso y botón «Avisar».
+- Botón «Configuración» que abre un modal para definir fechas límite y activar
+  o desactivar tipos de avisos automáticos para ese colegio/año/bimestre.
+- Botón «Historial» que abre otro modal con los últimos 30 avisos,
+  destinatarios y estados FCM.
+- Envío manual con confirmación y observación opcional.
+- Años anteriores consultables sin permitir guardado ni avisos manuales.
+- Se conserva la migración y la API original; no hay tablas nuevas en
+  esta reubicación.
 
 ## Diferencia entre fecha y bloqueo
 La fecha límite de avisos PUEDE diferir de academic_periods.end_date.
@@ -69,10 +78,11 @@ Con PHP de XAMPP:
     C:\xampp\php\php.exe tools/test_teacher_alert_admin_control_v1.php
     C:\xampp\php\php.exe edusync/cron/teacher_action_notifications.php --dry-run
 
-Después de importar la migración, entrar al perfil Administrador, configurar
-una fecha y guardar. Recargar para comprobar persistencia; comprobar cada
-bimestre de forma independiente. Verificar que NO se habiliten botones para
-un año cerrado. Filtrar un docente con cursos abiertos; enviar recordatorio.
+Después de importar la migración, entrar al perfil Administrador >
+Académico > Seguimiento Docente. Configurar una fecha en el modal y guardar.
+Recargar para comprobar persistencia; comprobar cada bimestre.
+Verificar que NO se habiliten los envíos ni el guardado al elegir un año
+cerrado. Filtrar un docente con cursos abiertos; enviar recordatorio.
 Repetir en menos de 24 h debe rechazar duplicado. El docente correcto verá
 un solo evento en su bandeja. Comprobar que otro docente no lo ve.
 
@@ -93,7 +103,10 @@ la tarea programada por sí mismo.
 - sql/teacher_alert_admin_control_v1.sql
 - edusync/teacher_notifications_admin_api.php
 - edusync/includes/teacher_action_notifications.php
-- edusync/academic_year.php
+- edusync/academic_year.php (se retiró el panel añadido previamente)
+- edusync/index.php (ruta en la lista blanca de administradores)
+- edusync/includes/navbar_view.php (entrada de menú)
+- edusync/pages/teacher_followup.php (nueva pantalla)
 - edusync/js/teacher_notifications_admin.js
 - edusync/css/teacher_notifications_admin.css
 - edusync/notifications_api.php
