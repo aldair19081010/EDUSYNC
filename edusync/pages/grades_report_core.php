@@ -184,10 +184,13 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
         WHERE tc.academic_year_id=?
           AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
           AND tc.grado=? AND tc.seccion=?
+          AND (?=0 OR tc.teacher_id=?)
         ORDER BY s.name");
     if ($stmt2) {
         $yearId=(int)$selected_academic_year;
-        $stmt2->bind_param("iisss",$school_id,$yearId,$level_key,$selected_grado,$selected_seccion);
+        $allowedTeacherId=($is_teacher && $teacher_id) ? (int)$teacher_id : 0;
+        $stmt2->bind_param("iisssii",$school_id,$yearId,$level_key,$selected_grado,$selected_seccion,
+            $allowedTeacherId,$allowedTeacherId);
         $stmt2->execute();
         $result=$stmt2->get_result();
         while ($row=$result->fetch_assoc()) $students[(int)$row['id']]=$row;
