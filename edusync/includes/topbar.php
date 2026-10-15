@@ -249,7 +249,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                             $link = '#';
                             $onclick = '';
                             if ($type === 'evaluation') {
-                                $onclick = "onclick=\"uni_modal('Ver Evaluación', 'manage_evaluation_grades.php?evaluation_id=" . (int)$notification['notification_id'] . "&from=notifications', 'large'); return false;\"";
+                                $onclick = "onclick=\"uni_modal('Detalle de evaluación', 'notification_evaluation_detail.php?id=" . (int)$notification['notification_id'] . "', 'modal-lg'); return false;\"";
                             } elseif ($type === 'attendance_request') {
                                 $onclick = "onclick=\"uni_modal('Autorizar cambio de asistencia', 'review_attendance_request.php?id=" . (int)$notification['notification_id'] . "', 'modal-lg'); return false;\"";
                             } else {
