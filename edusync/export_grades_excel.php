@@ -251,7 +251,7 @@ if (!empty($selected_level) && !empty($selected_grado) && !empty($selected_secci
         $activeStmt->close();
         if ($info && (int)$info['is_active'] !== 1) {
             require_once __DIR__.'/includes/grades_report_historical_level.php';
-            $sql .= grhl_sql($conn, 's', 'tc', 'ac');
+            $sql .= grhl_sql($conn, 's', 'tc', 'ac', (int)$school_id, $academicYearForExport, $selected_level);
         }
     }
     $sql .= ' ORDER BY s.name ASC';
