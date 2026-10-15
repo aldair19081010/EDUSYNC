@@ -10,6 +10,20 @@ date_default_timezone_set('America/Lima');
 require_once __DIR__.'/../db_connect.php';
 require_once __DIR__.'/../includes/notification_date_timezone.php';
 require_once __DIR__.'/../includes/web_push_fcm_sender.php';
+// Los avisos docentes se generan desde las fechas del año académico y la
+// auditoría de notas. Ejecutar el barrido cada 10 minutos: misma cola FCM,
+// sin crear tareas adicionales ni producir eventos duplicados.
+if ((int)date('i') % 10 === 0) {
+    try {
+        require_once __DIR__.'/../includes/teacher_action_notifications.php';
+        $teacherScan=tna_run($conn);
+        if (array_sum(array_filter($teacherScan,'is_int')) > 0) {
+            echo '[Teacher alerts] '.json_encode($teacherScan,JSON_UNESCAPED_UNICODE)."\n";
+        }
+    } catch (Throwable $e) {
+        error_log('[EduSync teacher notification scan] '.$e->getMessage());
+    }
+}
 // Comparar TIMESTAMP con subscribed_at/last_seen_at (DATETIME) en la misma zona.
 // Las suscripciones Web Push se registran en UTC.
 $conn->query("SET time_zone = '+00:00'");
