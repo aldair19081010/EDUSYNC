@@ -168,7 +168,7 @@ try {
             $parts[]="SELECT 'low_grade' kind,lgn.id event_id,st.school_id,s.id subscription_id,s.fcm_token,
                      'EduSync · Seguimiento académico' title,
                      CONCAT('Nuevo caso para revisar · ',st.nivel,' · ',
-                         st.grado,'° ',COALESCE(st.seccion,''),
+                         TRIM(TRAILING '°' FROM TRIM(st.grado)),'° ',COALESCE(st.seccion,''),
                          ' · Bimestre ',lgn.bimestre) body,
                      'low_grade' screen,lgn.created_at created,COALESCE(d.attempts,0) attempts
                      FROM low_grade_notifications lgn
