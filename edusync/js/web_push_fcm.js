@@ -14,9 +14,8 @@
         var enabledKey='', browserId='';
         var opt=$('<div class="edwp-controls"></div>');
         var toggle=$('<button type="button" class="edwp-toggle btn btn-sm btn-outline-primary"></button>');
-        var test=$('<button type="button" class="edwp-test btn btn-sm btn-light border d-none">Enviar prueba</button>');
         var info=$('<span class="edwp-info" role="status" aria-live="polite"></span>');
-        opt.append(toggle,test,info);
+        opt.append(toggle,info);
         menu.append(opt);
 
         function message(text, error) {
@@ -24,7 +23,6 @@
         }
         function label(enabled) {
             toggle.text(enabled?'Desactivar avisos del dispositivo':'Activar notificaciones');
-            test.toggleClass('d-none',!enabled);
         }
         function currentEnabled() {
             try { return localStorage.getItem(enabledKey)==='1'; }
@@ -147,15 +145,6 @@
             event.stopPropagation();
             if(currentEnabled())disable();
             else enable(true); // Solicita permiso sólo como respuesta directa al clic.
-        });
-        test.on('click',async function(event){
-            event.stopPropagation();
-            test.prop('disabled',true);
-            try {
-                var result=await request('test');
-                message(result.message||'Se solicitó el envío de prueba.',false);
-            } catch(err){message(err.message,true)}
-            finally{test.prop('disabled',false)}
         });
 
         if(!compatible) {
