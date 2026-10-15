@@ -160,7 +160,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
                            ORDER BY name ASC")
         : null;
     if ($studentStmt) {
-    $studentStmt->bind_param('i', $schoolId);
+        $studentStmt->bind_param('i', $schoolId);
     $studentStmt->execute();
     $studentResult = $studentStmt->get_result();
     while ($row = $studentResult->fetch_assoc()) {
@@ -188,7 +188,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
         WHERE e.teacher_course_id IN ($tcList)");
     if ($historyStmt) {
-        $historyStmt->bind_param('ii', $schoolId, $yearId);
+        $historyStmt->bind_param('i', $schoolId);
         $historyStmt->execute();
         $historicRows = $historyStmt->get_result();
         while ($historic = $historicRows->fetch_assoc()) {
