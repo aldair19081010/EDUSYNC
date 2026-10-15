@@ -923,21 +923,9 @@ if ($action == 'get_students_by_grado_seccion') {
                 $yearStmt->close();
             }
 
-            // Alumnos actuales sin notas: sólo para el periodo activo.
-            if ($isActiveYear) {
-                $q = $conn->prepare("SELECT DISTINCT id,name,id_no FROM student
-                    WHERE school_id=? AND LOWER(REPLACE(TRIM(nivel),' ',''))=?
-                      AND grado=? AND seccion=?
-                      AND (status='Activo' OR status='1' OR status IS NULL)");
-                if ($q) {
-                    $q->bind_param('isss', $school, $levelKey, $grado, $seccion);
-                    $q->execute();
-                    $rows = $q->get_result();
-                    while ($stu = $rows->fetch_assoc()) $resultStudents[(int)$stu['id']] = $stu;
-                    $q->close();
-                }
-            }
-
+            // La consulta histórica sólo se aplica a años anteriores.
+            // El año activo mantiene la implementación original del sistema.
+            if (!$isActiveYear) {
             // Alumnos que realmente tienen notas del grado/sección de ese
             // año, aunque hayan sido promovidos o estén inactivos hoy.
             $historicalSql = "SELECT DISTINCT s.id,s.name,s.id_no
@@ -974,6 +962,7 @@ if ($action == 'get_students_by_grado_seccion') {
             echo json_encode(['status' => 1, 'students' => $students,
                 'message' => $students ? '' : 'No hay calificaciones registradas para esta aula en el año seleccionado.']);
             exit;
+            }
         }
 
 		$students = [];
