@@ -976,7 +976,7 @@ if ($action == 'get_students_by_grado_seccion') {
             exit;
         }
 
-\t\t$students = [];
+		$students = [];
 		$student_ids = []; // Para evitar duplicados
 		
 		if ($grado && $seccion && $level) {
