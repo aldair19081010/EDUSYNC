@@ -203,6 +203,7 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
                                     </div>
                                 </div>
                             </div>
+                            </div><!-- /an-student-target -->
                             <div id="an-teacher-target" class="d-none">
                                 <div class="form-group mb-2">
                                     <label class="small font-weight-bold">Enviar a</label>
@@ -509,11 +510,13 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
 
     function validate(){
         if(mode==='teachers'&&!teacherReady)return 'Ejecuta sql/teacher_announcements_v1.sql antes de enviar.';
-        if(mode==='teachers'&&recipientRows().length<1)return 'Selecciona por lo menos un docente activo.';
         const title=$.trim($('#an-title').val()),content=$.trim($('#an-content').val()),type=$('#an-audience').val()||'all';
         if(title.length<3)return 'Escribe un título de al menos 3 caracteres.';
         if(content.length<3)return 'Escribe el contenido del comunicado.';
-        if(mode==='teachers')return '';
+        if(mode==='teachers'){
+            if(recipientRows().length<1)return 'Selecciona por lo menos un docente activo.';
+            return '';
+        }
         if(type==='level'&&!$('#an-level').val())return 'Selecciona el nivel.';
         if(type==='grade'&&(!$('#an-level').val()||!$('#an-grade').val()))return 'Selecciona nivel y grado.';
         if(type==='section'&&(!$('#an-level').val()||!$('#an-grade').val()||!$('#an-section').val()))return 'Selecciona nivel, grado y sección.';
@@ -536,7 +539,10 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function loadSummary(){
-        if(mode==='students'&&!ready || mode==='teachers'&&!teacherReady)return;
+        if(mode==='students'&&!ready || mode==='teachers'&&!teacherReady){
+            $('#an-stat-month,#an-stat-recipients,#an-stat-sent,#an-stat-failed').text('—');
+            return;
+        }
         const current=mode,source=current==='teachers'?teacherApi:api;
         $.getJSON(source,{action:'summary'}).done(r=>{
             if(current!==mode)return;
