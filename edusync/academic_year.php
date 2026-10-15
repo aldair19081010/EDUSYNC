@@ -71,7 +71,7 @@ function ay_date($v){return $v?date('d/m/Y',strtotime($v)):'—';}
            <div class="taca-panel-heading mb-2"><div><h6 class="font-weight-bold text-gray-800 mb-1"><i class="fas fa-sliders-h text-primary mr-2"></i>Configuración de avisos</h6><div class="taca-settings-description">La fecha de cierre puede ser distinta del fin del bimestre.</div></div><span class="badge badge-light border">Solo administración</span></div>
            <form id="taca-settings-form">
              <div class="form-row mt-2">
-               <div class="form-group col-md-6"><label for="taca-date" class="small font-weight-bold">Fecha límite de cierre de notas</label><input type="date" class="form-control form-control-sm" id="taca-date"><small class="text-muted">Vacío: usar fin del periodo académico.</small></div>
+               <div class="form-group col-md-6"><label for="taca-date" class="small font-weight-bold">Fecha límite de cierre de notas</label><input type="date" class="form-control form-control-sm" id="taca-date"><small class="text-muted">Vacío: usar fin del periodo académico. Esta fecha controla avisos, no bloquea notas.</small></div>
                <div class="form-group col-md-6"><label for="taca-days" class="small font-weight-bold">Avisar con anticipación</label><select class="form-control form-control-sm" id="taca-days"><option value="1">1 día</option><option value="2">2 días</option><option value="3" selected>3 días</option><option value="5">5 días</option><option value="7">7 días</option><option value="10">10 días</option><option value="14">14 días</option></select><small id="taca-effective" class="text-muted"></small></div>
              </div>
              <div class="row">
