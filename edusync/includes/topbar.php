@@ -4,8 +4,12 @@ include_once 'db_connect.php';
 if (!function_exists('time_elapsed_string')) {
     function time_elapsed_string($datetime, $full = false) {
         try {
-            $now = new DateTime();
-            $ago = new DateTime($datetime);
+            // Los TIMESTAMP de la API se consultan en hora peruana.
+            // No utilizar la zona por defecto de PHP del hosting (habitualmente UTC).
+            $peru = new DateTimeZone('America/Lima');
+            $now = new DateTime('now', $peru);
+            $ago = new DateTime((string)$datetime, $peru);
+            if ($ago > $now) return 'justo ahora';
             $diff = $now->diff($ago);
             $weeks = floor($diff->days / 7);
             $days_remaining = $diff->days % 7;
@@ -341,6 +345,18 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
     if (typeof window.jQuery === 'undefined') return setTimeout(initTopbar, 50);
     var $ = window.jQuery;
 
+    // MySQL entrega aquí la fecha/hora local de Perú (sin sufijo de zona).
+    // No convertir con new Date(): el navegador podría aplicar otro huso.
+    function notificationTimePeru(value) {
+        var match = String(value || '').trim().match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{2}):(\\d{2})(?::\\d{2})?/);
+        if (!match) return value || 'Ahora';
+        var hour = Number(match[4]);
+        var suffix = hour >= 12 ? 'p. m.' : 'a. m.';
+        hour = hour % 12 || 12;
+        return match[3] + '/' + match[2] + '/' + match[1] + ' · ' +
+            String(hour).padStart(2,'0') + ':' + match[5] + ' ' + suffix;
+    }
+
     function badgeValue(total) {
         total = Number(total) || 0;
         return total > 99 ? '99+' : String(total);
@@ -475,7 +491,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             var copy = $('<div class="edusync-notification-copy"></div>');
             var meta = $('<div class="edusync-notification-meta"></div>');
             meta.append('<span class="edusync-notification-kind kind-attendance">Asistencia</span>');
-            meta.append($('<span class="small text-gray-500"></span>').text(row.created_at || 'Ahora'));
+            meta.append($('<span class="small text-gray-500"></span>').text(notificationTimePeru(row.created_at)));
             copy.append(meta);
             copy.append($('<span class="font-weight-bold edusync-notification-title"></span>').text((row.requester || 'Usuario') + ' solicita: ' + (row.request_type || 'cambio de asistencia')));
             copy.append('<div class="edusync-notification-detail">Requiere autorización</div>');
@@ -537,6 +553,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                         var copy=$('<div class="edusync-notification-copy"></div>');
                         copy.append($('<span class="font-weight-bold edusync-notification-title"></span>').text(item.title||'Notificación'));
                         copy.append($('<div class="edusync-notification-detail"></div>').text(item.body||''));
+                        copy.append($('<div class="small text-gray-500"></div>').text(notificationTimePeru(item.created_at)));
                         row.append(copy).on('click',function(event){
                             event.preventDefault();
                             // El destino consulta el evento y valida el propietario.
@@ -569,7 +586,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                     var copy = $('<div class="edusync-notification-copy"></div>');
                     var meta = $('<div class="edusync-notification-meta"></div>');
                     meta.append($('<span class="edusync-notification-kind' + kind.cls + '"></span>').text(kind.label));
-                    meta.append($('<span class="small text-gray-500"></span>').text(row.created_at || 'Ahora'));
+                    meta.append($('<span class="small text-gray-500"></span>').text(notificationTimePeru(row.created_at)));
                     copy.append(meta);
                     copy.append($('<span class="font-weight-bold edusync-notification-title"></span>').text(row.title || 'Notificación'));
                     copy.append($('<div class="edusync-notification-detail"></div>').text(row.message || row.category || ''));
