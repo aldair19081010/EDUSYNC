@@ -54,7 +54,21 @@ if ($type === 'attendance_result') {
     $stmt=$conn->prepare("SELECT lgn.*,DATE_SUB(lgn.created_at, INTERVAL 5 HOUR) created_at_peru,s.name student_name,s.id_no,s.nivel,s.grado,s.seccion FROM low_grade_notifications lgn INNER JOIN student s ON s.id=lgn.student_id WHERE lgn.id=? AND s.school_id=? AND (?=1 OR lgn.teacher_id=?) LIMIT 1");$approverFlag=$isApprover?1:0;$stmt->bind_param('iiii',$id,$school,$approverFlag,$teacherId);$stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();
     if(!$row){echo '<div class="alert alert-warning">La alerta no existe o no corresponde a su colegio y rol.</div>';return;}
     $title='Alerta de notas bajas';$category='Alerta estudiantil';$priority='Alta';$createdAt=$row['created_at_peru'];$status='Requiere seguimiento';$courses=json_decode($row['failed_courses'],true)?:[];
-    ob_start();?><div class="row mb-3"><div class="col-md-6 mb-2"><div class="nd-box"><span>Estudiante</span><strong><?=nd_e($row['student_name'])?></strong><small><?=nd_e($row['id_no'])?></small></div></div><div class="col-md-6 mb-2"><div class="nd-box"><span>Aula</span><strong><?=nd_e($row['nivel'].' · '.$row['grado'].' '.$row['seccion'])?></strong><small>Bimestre <?=nd_e($row['bimestre'])?></small></div></div></div><div class="nd-section"><span>Resumen</span><div><strong><?=nd_e($row['count_low_grades'])?></strong> calificaciones bajas detectadas.</div></div><?php if($courses):?><h6 class="font-weight-bold mt-3">Cursos involucrados</h6><ul class="list-group"><?php foreach($courses as $course):?><li class="list-group-item py-2"><?=nd_e(is_array($course)?($course['name']??$course['course']??json_encode($course,JSON_UNESCAPED_UNICODE)):$course)?></li><?php endforeach;?></ul><?php endif;$content=ob_get_clean();
+    ob_start(); ?>
+    <div class="edn-grid">
+      <div class="edn-card"><span class="edn-card-label">Estudiante</span><strong class="edn-card-value"><?=nd_e($row['student_name'])?></strong><small class="edn-card-help"><?=nd_e($row['id_no'])?></small></div>
+      <div class="edn-card"><span class="edn-card-label">Aula y periodo</span><strong class="edn-card-value"><?=nd_e($row['nivel'].' · '.$row['grado'].' '.$row['seccion'])?></strong><small class="edn-card-help"><?=nd_e($row['bimestre'])?>° bimestre</small></div>
+    </div>
+    <div class="edn-highlight"><div class="edn-highlight-number"><?=(int)$row['count_low_grades']?></div><div class="edn-highlight-label"><strong>Calificaciones desaprobatorias detectadas</strong><div>Este caso requiere seguimiento académico.</div></div></div>
+    <?php if($courses): ?>
+      <section class="edn-section"><h6 class="edn-section-title"><i class="fas fa-book"></i>Cursos involucrados</h6>
+      <?php foreach($courses as $course): ?>
+        <?php $courseName=is_array($course)?($course['name']??$course['course']??'Curso'):$course;
+              $failedCount=is_array($course)?(int)($course['count']??0):0; ?>
+        <div class="edn-course"><strong><?=nd_e($courseName)?></strong><?php if($failedCount>0):?><span class="badge badge-danger"><?=$failedCount?> bajas</span><?php endif;?></div>
+      <?php endforeach; ?></section>
+    <?php endif; ?>
+    <?php $content=ob_get_clean();
 } elseif ($type === 'grade_changes') {
     if (!$isApprover) {
         echo '<div class="alert alert-warning">Solo Administración puede consultar este historial.</div>';
@@ -77,7 +91,23 @@ if ($type === 'attendance_result') {
     $content='<div class="nd-section"><span>Mensaje</span><div>'.nl2br(nd_e($message?:'Sin información adicional.')).'</div></div>';
 } else { echo '<div class="alert alert-warning">Utilice la vista especializada de esta notificación.</div>'; return; }
 ?>
-<style>.nd-head{border-bottom:1px solid #e3e6f0;padding-bottom:.8rem;margin-bottom:1rem}.nd-icon{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#edf2ff;color:#4e73df;font-size:1.1rem}.nd-box,.nd-section{border:1px solid #e3e6f0;border-radius:.5rem;padding:.75rem 1rem;background:#f8f9fc;height:100%}.nd-box span,.nd-section>span{display:block;text-transform:uppercase;font-size:.68rem;font-weight:700;color:#6e7891;margin-bottom:.25rem}.nd-box strong{display:block;color:#263754}.nd-box small{color:#6e7891}.nd-section{height:auto;background:#fff;margin-bottom:.65rem}.nd-section div{color:#344054}.nd-meta{font-size:.78rem;color:#6e7891}</style>
-<div class="nd-head d-flex align-items-center"><div class="nd-icon mr-3"><i class="fas <?=$category==='Asistencia'?'fa-user-check':($category==='Alerta estudiantil'?'fa-exclamation-triangle':'fa-bell')?>"></i></div><div class="flex-grow-1"><h5 class="mb-1 text-gray-800"><?=nd_e($title)?></h5><div class="nd-meta"><?=nd_e($category)?> · <?=nd_date($createdAt)?></div></div><div class="text-right"><span class="badge <?=$priority==='Alta'?'badge-danger':'badge-primary'?>"><?=nd_e($priority)?></span><?php if($status):?><div class="mt-1"><span class="badge <?=$status==='Aprobada'?'badge-success':($status==='Rechazada'?'badge-danger':'badge-secondary')?>"><?=nd_e($status)?></span></div><?php endif;?></div></div>
-<?=$content?>
-<div class="d-flex justify-content-end mt-3"><button type="button" class="btn btn-light border" data-dismiss="modal">Cerrar</button></div>
+<?php
+require_once __DIR__ . '/includes/notification_detail_ui.php';
+$kind='general';
+if ($type==='grade_changes') $kind='grade_changes';
+elseif ($type==='low_grade') $kind='low_grade';
+elseif (strpos($type,'attendance')===0 || $category==='Asistencia') $kind='attendance';
+elseif ($type==='grade_period_closed') $kind='closure';
+elseif (strpos($type,'grade_reopen')===0) $kind='reopen';
+elseif ($status==='Aprobada') $kind='success';
+elseif ($status==='Rechazada') $kind='rejected';
+$subtitle = '';
+if ($type==='grade_changes') $subtitle='Registro de modificaciones de calificaciones realizado por un docente.';
+elseif ($type==='low_grade') $subtitle='Caso detectado por el seguimiento académico de EduSync.';
+elseif ($type==='attendance_result') $subtitle='Resultado de la solicitud de cambio de asistencia.';
+else $subtitle=(string)$message;
+$badge=$status!==''?$status:$category;
+edn_header($kind,$title,$subtitle,$createdAt,$badge,$priority==='Alta'?'Prioridad alta':'');
+?>
+<div class="edn-detail-body"><?=$content?></div>
+<?php edn_footer(); ?>
