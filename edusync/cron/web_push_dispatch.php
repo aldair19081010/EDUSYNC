@@ -16,8 +16,23 @@ require_once __DIR__.'/../includes/web_push_fcm_sender.php';
 // evaluation_grade_history puede incluir TIMESTAMP: comparar en Lima.
 $conn->query("SET time_zone = '-05:00'");
 try {
-    require_once __DIR__.'/../includes/teacher_action_notifications.php';
-    $teacherScan=tna_run($conn);
+    // Saltar barridos repetidos: el despacho FCM continúa ejecutándose
+    // en cada tick y el control persiste también tras reinicios de PHP.
+    $due=true;
+    if (push_table_exists($conn,'teacher_alert_scan_state')) {
+        $conn->query("INSERT IGNORE INTO teacher_alert_scan_state(id,last_run_at) VALUES(1,'1970-01-01 00:00:00')");
+        if (!$conn->query("UPDATE teacher_alert_scan_state SET last_run_at=NOW()
+            WHERE id=1 AND last_run_at<=DATE_SUB(NOW(),INTERVAL 10 MINUTE)")) {
+            throw new RuntimeException($conn->error);
+        }
+        $due=$conn->affected_rows>0;
+    }
+    if ($due) {
+        require_once __DIR__.'/../includes/teacher_action_notifications.php';
+        $teacherScan=tna_run($conn);
+    } else {
+        $teacherScan=['skipped'=>true];
+    }
     if (array_sum(array_filter($teacherScan,'is_int')) > 0) {
         echo '[Teacher alerts] '.json_encode($teacherScan,JSON_UNESCAPED_UNICODE)."\n";
     }
