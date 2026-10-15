@@ -40,6 +40,7 @@
 .edn-grade--old{background:#edf1f5!important;color:#526173!important}
 .edn-grade--new{background:#e3f6ed!important;color:#156447!important}
 .edn-grade--removed{background:#fff0ee!important;color:#b04242!important}
+.edn-grade--updated{background:#e8effe!important;color:#2459a8!important}
 .edn-arrow{color:#98a8b9;font-size:.75rem;margin:0 7px}
 .edn-mini-kpi{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
 .edn-mini-kpi-item{padding:9px 12px;border:1px solid #e4ebf3;border-radius:9px;background:#f7f9fc;color:#445973;font-size:.77rem}
