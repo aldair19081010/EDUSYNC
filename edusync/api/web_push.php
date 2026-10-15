@@ -198,7 +198,11 @@ if ($action === 'app_status') {
         $stmt->bind_param('ii',$identity['school'],$subscriptionId);
         $stmt->execute();$delivery=$stmt->get_result()->fetch_assoc();$stmt->close();
     }
+    require_once __DIR__ . '/../includes/web_push_fcm_sender.php';
+    $credentials=edwp_load_firebase_credentials();
+    $projectId=is_array($credentials)?(string)($credentials['project_id']??''):'';
     wp_reply(['status'=>'ok','registered'=>(bool)$subscription,'push_ready'=>true,
+        'sender_project_id'=>$projectId,
         'last_seen_at_utc'=>$subscription['last_seen_at']??null,
         'latest_delivery_status'=>$delivery['status']??null,
         'latest_delivery_at_utc'=>$delivery['updated_at']??null]);
