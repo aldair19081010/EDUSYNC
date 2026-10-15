@@ -33,8 +33,17 @@ assertion(strpos($scan,"COALESCE(tns.deadline_date,ap.end_date)")!==false
     && strpos($scan,"COALESCE(tns.incomplete_enabled,1)")!==false
     && strpos($scan,"COALESCE(tns.admin_edits_enabled,1)")!==false,
     'El generador respeta plazos y preferencias de cada bimestre.');
-assertion(strpos($api,"taca_missing_cells")===false && strpos($api,"tna_missing_cells")!==false,
-    'El panel reutiliza el cálculo existente de notas sin completar.');
+assertion(strpos($api,'function taca_missing_by_course(')!==false &&
+    strpos($api,'GROUP BY tc.id')!==false &&
+    strpos($api,'function taca_teachers(')!==false,
+    'Las notas incompletas se agrupan por asignación en una sola consulta.');
+assertion(strpos($api,"if($action==='missing_counts')")!==false &&
+    strpos($api,"if($action==='history')")!==false,
+    'Carga separada de notas e historial bajo demanda.');
+assertion(strpos($api,'session_write_close()')!==false,
+    'La consulta de notas no bloquea la sesión PHP del administrador.');
+assertion(strpos($api,"AND event_id IN ($in)")!==false,
+    'Las entregas FCM se limitan a los eventos seleccionados.');
 assertion(strpos($page,'teacher-followup-root')!==false &&
     strpos($page,'taca-reminder-modal')!==false,
     'Interfaz y confirmación de recordatorio en página independiente.');
@@ -50,8 +59,16 @@ assertion(strpos($page,'taca-settings-modal')!==false &&
     strpos($js,"$('#taca-history-open')")!==false,
     'Configuración e historial accesibles en diálogos separados.');
 assertion(strpos($js,"$('#taca-year')")!==false &&
-    strpos($js,'function isEditable()')!==false,
+    strpos($js,'function canEdit()')!==false,
     'Cambio de año y protección de años históricos en UI.');
+assertion(strpos($page,'id="taca-teachers-table"')!==false &&
+    strpos($js,"$('#taca-teachers-table').DataTable(")!==false,
+    'Listado normalizado con DataTables, paginación, búsqueda y ordenación.');
+assertion(strpos($js,"api({action:'history'},false)")!==false &&
+    strpos($js,"api({action:'missing_counts'},false)")!==false,
+    'Notas y FCM cargan después de los cierres, sin bloquear el render inicial.');
+assertion(strpos($page,'id="taca-search"')===false,
+    'Se utiliza el buscador propio de DataTables, sin buscadores duplicados.');
 assertion(strpos($notificationApi,"'teacher_manual_reminder'")!==false,
     'La bandeja usa el ID autorizado del evento manual.');
 assertion(strpos($js,'function esc(value)')!==false,
