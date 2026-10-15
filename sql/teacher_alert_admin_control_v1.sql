@@ -30,3 +30,11 @@ CREATE TABLE IF NOT EXISTS teacher_alert_manual_log (
     KEY idx_teacher_manual_cooldown (school_id, academic_year_id, bimester, recipient_user_id, created_at),
     KEY idx_teacher_manual_event (school_id, event_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+
+-- Un solo control de frecuencia para el barrido automático de recordatorios.
+-- Evita recalcular notas incompletas en cada tick del despachador FCM.
+CREATE TABLE IF NOT EXISTS teacher_alert_scan_state (
+    id TINYINT UNSIGNED PRIMARY KEY,
+    last_run_at DATETIME NOT NULL DEFAULT '1970-01-01 00:00:00'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
