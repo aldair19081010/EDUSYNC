@@ -152,7 +152,7 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
         AND bl.academic_year_id=ap.academic_year_id AND bl.bimester=ap.period_number
       WHERE ap.period_number BETWEEN 1 AND 4
         AND $dueSql BETWEEN ? AND ?
-        AND ap.start_date IS NOT NULL AND ap.start_date<=?
+        AND COALESCE(ap.start_date,ay.start_date)<=?
         AND ap.is_locked=0 AND COALESCE(bl.is_locked,0)=0
         AND gpc.id IS NULL
       ORDER BY ap.school_id,u.id,ap.id,tc.id";
@@ -188,7 +188,7 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
         $courses=count($group['courses']);
         $msg="Tienes $courses ".($courses===1?'curso':'cursos').
             " sin cierre registrado del $bim.º bimestre de ".$meta['year'].
-            ". Fecha de fin del periodo: ".$due.".";
+            ". Fecha límite de cierre: ".$due.".";
 
         if ($days>=0 && $days<=(int)$meta['days_before']) {
             if ((int)$meta['closure_enabled']===1
@@ -210,7 +210,7 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
                 $body="$missingCourses ".($missingCourses===1?'curso tiene':'cursos tienen').
                     " calificaciones pendientes ($missingCells celdas sin nota) ".
                     "en el $bim.º bimestre. Revisa el Libro de Notas antes del ".
-                    "fin del periodo ($due).";
+                    "cierre ($due).";
                 if (tna_emit($db,$school,$user,'teacher_grades_incomplete',
                     $periodId,'Evaluaciones con notas pendientes',
                     $body,'Alta',$dryRun)) {
