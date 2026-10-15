@@ -39,7 +39,8 @@ function edwp_send_message(
     string $title,
     string $body,
     string $url,
-    string $tag
+    string $tag,
+    bool $nativeApp = false
 ): array {
     $credentials = edwp_load_firebase_credentials();
     if (!$credentials) {
@@ -71,6 +72,20 @@ function edwp_send_message(
             'android'=>['priority'=>'high','ttl'=>'86400s'],
         ],
     ];
+    if ($nativeApp) {
+        // Sólo para la suscripción nativa app-*: Android puede presentar la
+        // notificación al cerrar Flutter y reenviar data.tag al abrirla.
+        // Chrome conserva data-only y su Service Worker, sin doble aviso.
+        $payload['message']['notification']=[
+            'title'=>mb_substr($title,0,150,'UTF-8'),
+            'body'=>mb_substr($body,0,450,'UTF-8'),
+        ];
+        $payload['message']['android']['notification']=[
+            'channel_id'=>'staff_alerts',
+            'tag'=>mb_substr($tag,0,96,'UTF-8'),
+            'sound'=>'default',
+        ];
+    }
     $endpoint='https://fcm.googleapis.com/v1/projects/'.rawurlencode($project).'/messages:send';
     $response=push_http_post($endpoint,[
         'Authorization: Bearer '.$oauth,
