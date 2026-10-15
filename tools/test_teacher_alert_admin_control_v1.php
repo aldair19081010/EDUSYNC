@@ -37,12 +37,12 @@ assertion(strpos($api,'function taca_missing_by_course(')!==false &&
     strpos($api,'GROUP BY tc.id')!==false &&
     strpos($api,'function taca_teachers(')!==false,
     'Las notas incompletas se agrupan por asignación en una sola consulta.');
-assertion(strpos($api,"if($action==='missing_counts')")!==false &&
-    strpos($api,"if($action==='history')")!==false,
+assertion(strpos($api,"if(\$action==='missing_counts')")!==false &&
+    strpos($api,"if(\$action==='history')")!==false,
     'Carga separada de notas e historial bajo demanda.');
 assertion(strpos($api,'session_write_close()')!==false,
     'La consulta de notas no bloquea la sesión PHP del administrador.');
-assertion(strpos($api,"AND event_id IN ($in)")!==false,
+assertion(strpos($api,'AND event_id IN ($in)')!==false,
     'Las entregas FCM se limitan a los eventos seleccionados.');
 assertion(strpos($page,'teacher-followup-root')!==false &&
     strpos($page,'taca-reminder-modal')!==false,
