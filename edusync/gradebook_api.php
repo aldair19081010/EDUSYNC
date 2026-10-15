@@ -251,7 +251,7 @@ if ($action === 'save') {
     $update=$conn->prepare('UPDATE evaluation_grades SET grade=? WHERE id=?');
     $delete=$conn->prepare('DELETE FROM evaluation_grades WHERE id=?');
     $historyReady=gradebook_table_exists($conn,'evaluation_grade_history');$academicYearId=(int)$assignment['academic_year_id'];
-    $saved=0;$gradePushChanges=[];
+    $saved=0;$gradePushChanges=[];$adminGradeChanges=[];
     $conn->begin_transaction();
     try{
         foreach($changes as $change){
@@ -278,6 +278,14 @@ if ($action === 'save') {
 
             $changedForPush=$currentValue!==mb_strtoupper(trim((string)$value),'UTF-8');
             if($gradingSystem==='numeric'&&$currentValue!==''&&$value!==''&&is_numeric($currentValue)&&is_numeric($value))$changedForPush=abs((float)$currentValue-(float)$value)>=0.0001;
+            // Administración sólo recibe modificaciones de notas existentes,
+            // incluidas eliminaciones; las notas nuevas avisan al estudiante.
+            if($changedForPush&&$currentValue!==''){
+                $adminGradeChanges[]=[
+                    'student_id'=>$studentId,'evaluation_id'=>$evaluationId,
+                    'old_grade'=>$currentValue,'new_grade'=>$value
+                ];
+            }
             if($changedForPush&&$value!==''){
                 $isNewGrade=$currentValue==='';
                 if(!isset($gradePushChanges[$studentId]))$gradePushChanges[$studentId]=['created'=>0,'updated'=>0,'evaluation_ids'=>[]];
@@ -323,6 +331,19 @@ if ($action === 'save') {
         }
     }
 
+    if($adminGradeChanges){
+        try{
+            require_once __DIR__.'/includes/grade_change_admin_notifications.php';
+            edun_notify_admin_grade_changes(
+                $conn,$schoolId,$teacherId,(int)($_SESSION['login_id']??0),
+                $teacherCourseId,$academicYearId,$bimester,
+                (string)$assignment['course_name'],(string)$assignment['grado'],
+                (string)$assignment['seccion'],$notificationSource,$adminGradeChanges
+            );
+        }catch(Throwable $e){
+            error_log('[EduSync gradebook admin grade changes] '.$e->getMessage());
+        }
+    }
     include_once __DIR__.'/admin_class.php';
     $actions=new Action();foreach(array_keys($validEvaluations) as $evaluationId)$actions->generate_low_grade_notifications($evaluationId);
     gradebook_response(['status'=>1,'message'=>"Se guardaron $saved celdas correctamente.",'saved'=>$saved,'push'=>$pushSummary]);
