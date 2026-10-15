@@ -1,0 +1,26 @@
+/* EduSync - extensión del control bimestral basada en Bootstrap / SB Admin 2. */
+#ay-teacher-alert-control{scroll-margin-top:82px}
+#ay-teacher-alert-control .taca-card{border:1px solid #e3e6f0;border-radius:9px;background:#fff}
+#ay-teacher-alert-control .taca-stat{display:flex;align-items:center;gap:12px;height:100%;padding:15px;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:8px;background:#fff}
+#ay-teacher-alert-control .taca-stat-success{border-left-color:#1cc88a}
+#ay-teacher-alert-control .taca-stat-warning{border-left-color:#f6c23e}
+#ay-teacher-alert-control .taca-stat-danger{border-left-color:#e74a3b}
+#ay-teacher-alert-control .taca-stat-primary{border-left-color:#4e73df}
+#ay-teacher-alert-control .taca-stat-icon{font-size:1.55rem;min-width:29px}
+#ay-teacher-alert-control .taca-stat-count{font-size:1.35rem;line-height:1.35;font-weight:700;color:#34415e}
+#ay-teacher-alert-control .taca-panel-heading{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+#ay-teacher-alert-control .taca-teacher-row{border-top:1px solid #edf0f6}
+#ay-teacher-alert-control .taca-teacher-row:first-child{border-top:0}
+#ay-teacher-alert-control .taca-progress{height:5px;background:#eaecf4}
+#ay-teacher-alert-control .taca-settings-description{font-size:.8rem;color:#858796}
+#ay-teacher-alert-control .custom-control-label{line-height:1.45}
+#ay-teacher-alert-control .taca-teacher-row .btn{white-space:nowrap}
+#ay-teacher-alert-control .table td{vertical-align:middle}
+#ay-teacher-alert-control .table .small{max-width:340px}
+@media(max-width:767.98px){
+  #ay-teacher-alert-control .taca-stat{padding:10px;gap:8px}
+  #ay-teacher-alert-control .taca-stat-count{font-size:1.17rem}
+  #ay-teacher-alert-control .taca-stat-icon{font-size:1.25rem;min-width:24px}
+  #ay-teacher-alert-control .taca-panel-heading{align-items:flex-start}
+  #ay-teacher-alert-control .taca-teacher-row{padding:12px!important}
+}
