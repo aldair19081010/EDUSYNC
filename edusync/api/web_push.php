@@ -167,6 +167,43 @@ if ($action === 'status') {
     ]);
 }
 
+// Diagnóstico privado de la APP NATIVA: un navegador registrado no equivale
+// a que Flutter tenga su propia suscripción FCM. Nunca exponer el token.
+if ($action === 'app_status') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+        wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
+    }
+    if ($identity['kind'] !== 'staff' || (int)$identity['role'] !== 2) {
+        wp_reply(['status'=>'error','message'=>'Sólo disponible para docentes.'],403);
+    }
+    $browserId = trim((string)($_GET['browser_id'] ?? ''));
+    if (!preg_match('/^app-[a-zA-Z0-9._:-]{16,96}$/D', $browserId)) {
+        wp_reply(['status'=>'error','message'=>'Identificador de aplicación inválido.'],422);
+    }
+    if (!wp_exists($conn,'web_push_subscriptions')) {
+        wp_reply(['status'=>'ok','registered'=>false,'push_ready'=>false,
+            'latest_delivery_status'=>null,'last_seen_at_utc'=>null]);
+    }
+    $stmt=$conn->prepare("SELECT id,last_seen_at FROM web_push_subscriptions
+        WHERE school_id=? AND account_kind='staff' AND role_type=2
+          AND account_id=? AND browser_id=? AND is_active=1 LIMIT 1");
+    $stmt->bind_param('iis',$identity['school'],$identity['id'],$browserId);
+    $stmt->execute();$subscription=$stmt->get_result()->fetch_assoc();$stmt->close();
+    $delivery=null;
+    if ($subscription && wp_exists($conn,'web_push_delivery')) {
+        $stmt=$conn->prepare("SELECT status,updated_at FROM web_push_delivery
+            WHERE school_id=? AND subscription_id=?
+            ORDER BY id DESC LIMIT 1");
+        $subscriptionId=(int)$subscription['id'];
+        $stmt->bind_param('ii',$identity['school'],$subscriptionId);
+        $stmt->execute();$delivery=$stmt->get_result()->fetch_assoc();$stmt->close();
+    }
+    wp_reply(['status'=>'ok','registered'=>(bool)$subscription,'push_ready'=>true,
+        'last_seen_at_utc'=>$subscription['last_seen_at']??null,
+        'latest_delivery_status'=>$delivery['status']??null,
+        'latest_delivery_at_utc'=>$delivery['updated_at']??null]);
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
 if (!hash_equals((string)$_SESSION['csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
     wp_reply(['status'=>'error','message'=>'Sesión de seguridad vencida. Recarga EduSync.'],403);
