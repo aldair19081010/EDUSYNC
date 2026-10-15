@@ -50,86 +50,154 @@ function taca_user_status_condition(mysqli $db):string {
     $q=$db->query("SHOW COLUMNS FROM users LIKE 'status'");
     return ($q&&$q->num_rows>0)?" AND u.status='Activo'":"";
 }
-function taca_teachers(mysqli $db,int $school,int $year,int $bim,bool $scanMissing=true):array {
+/**
+ * Primer render: sólo asignaciones y cierres, sin consultar cada nota.
+ * Se retiene el argumento opcional por compatibilidad interna.
+ */
+function taca_teachers(mysqli $db,int $school,int $year,int $bim,bool $scanMissing=false):array {
     $extra=taca_user_status_condition($db);
-    $sql="SELECT u.id recipient_user_id, t.id teacher_id,t.name teacher_name,
-        tc.id teacher_course_id,tc.grado,tc.seccion,ac.level,ac.name course_name,
-        (gpc.id IS NOT NULL) closed
-      FROM teacher_courses tc
-      INNER JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id AND t.status='Activo'
-      INNER JOIN users u ON u.teacher_id=t.id AND u.school_id=tc.school_id AND u.type=2 $extra
-      INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
-      LEFT JOIN grade_period_closures gpc ON gpc.teacher_course_id=tc.id
-          AND gpc.school_id=tc.school_id AND gpc.bimester=?
-          AND gpc.status='Cerrado'
-      WHERE tc.school_id=? AND tc.academic_year_id=?
-      ORDER BY t.name,ac.name,tc.grado,tc.seccion";
+    $sql="SELECT u.id recipient_user_id,t.id teacher_id,t.name teacher_name,
+                 tc.id teacher_course_id,tc.grado,tc.seccion,ac.level,ac.name course_name,
+                 (gpc.id IS NOT NULL) closed
+          FROM teacher_courses tc
+          INNER JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id
+               AND t.status='Activo'
+          INNER JOIN users u ON u.teacher_id=t.id AND u.school_id=tc.school_id
+               AND u.type=2 $extra
+          INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
+          LEFT JOIN grade_period_closures gpc ON gpc.teacher_course_id=tc.id
+               AND gpc.school_id=tc.school_id AND gpc.bimester=?
+               AND gpc.status='Cerrado'
+          WHERE tc.school_id=? AND tc.academic_year_id=?
+          ORDER BY t.name,ac.name,tc.grado,tc.seccion";
     $s=$db->prepare($sql);if(!$s)throw new RuntimeException($db->error);
-    $s->bind_param('iii',$bim,$school,$year);$s->execute();$rows=$s->get_result();
-    $teachers=[];
-    while($row=$rows->fetch_assoc()) {
+    $s->bind_param('iii',$bim,$school,$year);$s->execute();
+    $result=$s->get_result();$teachers=[];
+    while($row=$result->fetch_assoc()){
         $uid=(int)$row['recipient_user_id'];
-        if(!isset($teachers[$uid])) {
+        if(!isset($teachers[$uid])){
             $teachers[$uid]=['recipient_user_id'=>$uid,'teacher_id'=>(int)$row['teacher_id'],
                 'teacher_name'=>$row['teacher_name'],'total'=>0,'closed'=>0,'pending'=>0,
-                'incomplete_courses'=>0,'missing_cells'=>0,'pending_courses'=>[]];
+                'incomplete_courses'=>0,'missing_cells'=>0,'pending_courses'=>[],
+                'pending_course_ids'=>[]];
         }
         $teachers[$uid]['total']++;
-        if((int)$row['closed']===1) {
+        if((int)$row['closed']===1){
             $teachers[$uid]['closed']++;
-        } else {
+        }else{
             $teachers[$uid]['pending']++;
-            $teachers[$uid]['pending_courses'][]=$row['course_name'].' · '.$row['grado'].' '.$row['seccion'];
-            $missing=$scanMissing?tna_missing_cells($db,(int)$row['teacher_course_id'],$bim):0;
-            if($missing>0) {
-                $teachers[$uid]['incomplete_courses']++;
-                $teachers[$uid]['missing_cells']+=$missing;
-            }
+            $teachers[$uid]['pending_courses'][]=
+                $row['course_name'].' · '.$row['level'].' · '.$row['grado'].'° '.$row['seccion'];
+            $teachers[$uid]['pending_course_ids'][]=(int)$row['teacher_course_id'];
         }
     }
     $s->close();
     return array_values($teachers);
 }
+
+/**
+ * Segunda fase: una sola consulta agrupada por asignación para todas las
+ * calificaciones faltantes del colegio/año/bimestre. Ya no se realizan
+ * N consultas pesadas por cada asignación.
+ */
+function taca_missing_by_course(mysqli $db,int $school,int $year,int $bim):array {
+    $extra='';
+    $hasStatus=$db->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+    if($hasStatus&&$hasStatus->num_rows>0){
+        $extra=" AND (e.status IS NULL OR e.status<>'Anulada')";
+    }
+    $sql="SELECT tc.id teacher_course_id,COUNT(*) missing_cells
+        FROM teacher_courses tc
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id
+            AND ac.school_id=tc.school_id
+        INNER JOIN evaluations e ON e.teacher_course_id=tc.id
+            AND e.academic_year_id=tc.academic_year_id
+            AND CAST(e.bimestre AS UNSIGNED)=?
+        INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id
+        INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+            AND gcc.course_id=tc.course_id AND gcc.teacher_id=tc.teacher_id
+            AND gcc.academic_year_id=tc.academic_year_id
+            AND gcc.is_active=1 AND gcc.percentage>0
+        INNER JOIN student st ON st.school_id=tc.school_id
+            AND (st.status='Activo' OR st.status IS NULL)
+            AND LOWER(TRIM(st.nivel))=LOWER(TRIM(ac.level))
+            AND st.grado=tc.grado
+            AND (
+               st.seccion=tc.seccion OR (
+                   UPPER(TRIM(COALESCE(tc.seccion,''))) IN ('U','UNICA','ÚNICA')
+                   AND UPPER(TRIM(COALESCE(st.seccion,''))) IN ('','U','UNICA','ÚNICA')
+               )
+            )
+        LEFT JOIN grade_period_closures gpc ON gpc.teacher_course_id=tc.id
+            AND gpc.school_id=tc.school_id AND gpc.bimester=?
+            AND gpc.status='Cerrado'
+        WHERE tc.school_id=? AND tc.academic_year_id=?
+            AND gpc.id IS NULL $extra
+            AND NOT EXISTS (
+                SELECT 1 FROM evaluation_grades eg
+                WHERE eg.evaluation_id=e.id AND eg.student_id=st.id
+                  AND eg.competencia_id=ec.competencia_id
+                  AND eg.grade IS NOT NULL AND TRIM(eg.grade)<>''
+            )
+        GROUP BY tc.id";
+    $s=$db->prepare($sql);
+    if(!$s)throw new RuntimeException($db->error);
+    $s->bind_param('iiii',$bim,$bim,$school,$year);
+    $s->execute();$r=$s->get_result();$items=[];
+    while($row=$r->fetch_assoc())$items[(string)(int)$row['teacher_course_id']]=(int)$row['missing_cells'];
+    $s->close();
+    return $items;
+}
+
+/**
+ * Carga diferida del historial: primero obtiene 30 eventos del bimestre,
+ * luego consulta FCM SOLO para esos IDs. No agrega la tabla histórica entera.
+ */
 function taca_history(mysqli $db,int $school,int $year,int $bim,int $periodId):array {
     $sql="SELECT ne.id,ne.title,ne.message,ne.source_type,ne.created_at,
-            COALESCE(u.name,'Docente') recipient_name,
-            COALESCE(p.sent,0) sent,COALESCE(p.failed,0) failed,COALESCE(p.pending,0) pending
+                 COALESCE(u.name,'Docente') recipient_name
           FROM notification_events ne
           LEFT JOIN users u ON u.id=ne.recipient_user_id AND u.school_id=ne.school_id
           LEFT JOIN teacher_alert_manual_log ml ON ne.source_type='teacher_manual_reminder'
-                 AND ne.source_id=ml.id AND ml.school_id=ne.school_id
-          LEFT JOIN (
-            SELECT event_id,
-               SUM(status='delivered') sent,
-               SUM(status='failed') failed,
-               SUM(status='retry') pending
-            FROM web_push_delivery WHERE event_kind='staff'
-            GROUP BY event_id
-          ) p ON p.event_id=ne.id
+               AND ne.source_id=ml.id AND ml.school_id=ne.school_id
           WHERE ne.school_id=?
             AND (
-              (ne.source_type IN ('teacher_closure_soon','teacher_closure_pending','teacher_grades_incomplete')
-                 AND ne.source_id=?)
-              OR (ne.source_type='teacher_manual_reminder'
-                 AND ml.academic_year_id=? AND ml.bimester=?)
+                (ne.source_type IN ('teacher_closure_soon','teacher_closure_pending',
+                     'teacher_grades_incomplete') AND ne.source_id=?)
+                OR (ne.source_type='teacher_manual_reminder'
+                     AND ml.academic_year_id=? AND ml.bimester=?)
             )
           ORDER BY ne.id DESC LIMIT 30";
-    // La bandeja funciona aunque todavía no exista la infraestructura de entregas FCM.
-    if(!tna_table($db,'web_push_delivery')) {
-        $sql=str_replace(
-            "COALESCE(p.sent,0) sent,COALESCE(p.failed,0) failed,COALESCE(p.pending,0) pending",
-            "0 sent,0 failed,0 pending",$sql
-        );
-        $start=strpos($sql,"          LEFT JOIN (\n            SELECT event_id,");
-        $end=strpos($sql,"          WHERE ne.school_id=?", $start===false?0:$start);
-        if($start!==false && $end!==false)$sql=substr($sql,0,$start).substr($sql,$end);
-    }
     $s=$db->prepare($sql);if(!$s)throw new RuntimeException($db->error);
     $s->bind_param('iiii',$school,$periodId,$year,$bim);
-    $s->execute();$res=$s->get_result();$items=[];
-    while($row=$res->fetch_assoc())$items[]=$row;
+    $s->execute();$result=$s->get_result();$items=[];$ids=[];
+    while($row=$result->fetch_assoc()){
+        $row['sent']=0;$row['failed']=0;$row['pending']=0;
+        $ids[]=(int)$row['id'];$items[(int)$row['id']]=$row;
+    }
     $s->close();
-    return $items;
+    if($ids && tna_table($db,'web_push_delivery')){
+        $in=implode(',',array_map('intval',$ids));
+        $sql="SELECT event_id,
+                  SUM(status='delivered') sent,
+                  SUM(status='failed') failed,
+                  SUM(status='retry') pending
+              FROM web_push_delivery
+              WHERE school_id=? AND event_kind='staff' AND event_id IN ($in)
+              GROUP BY event_id";
+        $p=$db->prepare($sql);
+        if($p){
+            $p->bind_param('i',$school);$p->execute();$del=$p->get_result();
+            while($row=$del->fetch_assoc()){
+                $id=(int)$row['event_id'];
+                if(isset($items[$id])){
+                    foreach(['sent','failed','pending'] as $k)$items[$id][$k]=(int)$row[$k];
+                }
+            }
+            $p->close();
+        }
+    }
+    return array_values($items);
 }
 
 $school=(int)($_SESSION['login_school_id']??0);
@@ -167,8 +235,7 @@ try {
             $globalLock->close();
             $period['global_locked']=(int)($globalRow['is_locked']??0);
         }
-        $teachers=taca_teachers($conn,$school,$yearId,$bim,
-            ($year['status']??'')==='Activo' && (int)$year['is_active']===1);
+        $teachers=taca_teachers($conn,$school,$yearId,$bim);
         $totals=['teachers'=>count($teachers),'assignments'=>0,'closed'=>0,
                  'pending'=>0,'incomplete'=>0];
         foreach($teachers as $t) {
@@ -179,9 +246,21 @@ try {
         }
         taca_response(['status'=>1,'year'=>$year,'period'=>$period,'settings'=>$settings,
             'effective_deadline'=>$settings['deadline_date']?:$period['end_date'],
-            'totals'=>$totals,'teachers'=>$teachers,
-            'history'=>taca_history($conn,$school,$yearId,$bim,(int)$period['id'])]);
+            'totals'=>$totals,'teachers'=>$teachers]);
     }
+    if($action==='history') {
+        taca_response(['status'=>1,'history'=>
+            taca_history($conn,$school,$yearId,$bim,(int)$period['id'])]);
+    }
+    if($action==='missing_counts') {
+        // Los registros de otros años no usan el padrón activo como base.
+        if(($year['status']??'')!=='Activo'||(int)$year['is_active']!==1) {
+            taca_response(['status'=>1,'missing_by_course'=>[],'historical'=>true]);
+        }
+        taca_response(['status'=>1,'missing_by_course'=>
+            taca_missing_by_course($conn,$school,$yearId,$bim)]);
+    }
+
     if(($year['status']??'')!=='Activo'||(int)$year['is_active']!==1)
         taca_response(['status'=>0,'message'=>'Solo puede modificar avisos del año activo.'],409);
 
