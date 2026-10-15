@@ -78,6 +78,26 @@ $show_avg = isset($_POST['show_avg']) && $_POST['show_avg'] == '1';
 
 $normalized_level_key = normalize_level_for_key($level_filter);
 
+// Validación adicional de nivel únicamente al consultar años anteriores.
+// Si el alumno pasó de Primaria a Secundaria, la matrícula de 2026 no
+// se usa para filtrar su 2024: se verifica el nivel documentado ese año.
+$historicalLevelGuard = '';
+if ((int)$academic_year_id > 0) {
+    $queryYear = $conn->prepare('SELECT is_active FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
+    if ($queryYear) {
+        $wantedYearId = (int)$academic_year_id;
+        $queryYear->bind_param('ii', $wantedYearId, $school_id);
+        $queryYear->execute();
+        $yearInfo = $queryYear->get_result()->fetch_assoc();
+        $queryYear->close();
+        if ($yearInfo && (int)$yearInfo['is_active'] !== 1) {
+            require_once __DIR__.'/includes/grades_report_historical_level.php';
+            $historicalLevelGuard = grhl_sql($conn, 's', 'tc', 'ac');
+        }
+    }
+}
+
+
 if ($show_avg && !empty($student_id_filter)) {    
     if (empty($bimestre_filter)) {        
         echo '<div class="alert alert-warning alert-dismissible fade show" role="alert">
@@ -230,6 +250,7 @@ if ($show_avg && !empty($student_id_filter)) {
             $types_comp .= "s";
         }
         
+        $sql_competencias .= $historicalLevelGuard;
         $sql_competencias .= " ORDER BY gcc.id, e.title";
         
         $stmt_comp = $conn->prepare($sql_competencias);
@@ -400,6 +421,7 @@ if ($show_avg && !empty($student_id_filter)) {
         $types_avg .= "i";
     }
     
+    $sql_grades .= $historicalLevelGuard;
     $promedio_final = null;
     $stmt_avg = $conn->prepare($sql_grades);
     if ($stmt_avg) {
@@ -551,6 +573,9 @@ if ($show_avg && !empty($student_id_filter)) {
         $types .= "s"; 
     }
 
+    if ($historicalLevelGuard !== '') {
+        $where_clauses[] = substr($historicalLevelGuard, 5); // quitar " AND "
+    }
     if (count($where_clauses) > 0) {
         $sql_main .= " WHERE " . implode(" AND ", $where_clauses);
     }
