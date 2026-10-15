@@ -206,7 +206,8 @@ if ($show_avg && !empty($student_id_filter)) {
         }
         
         if ($normalized_level_key !== null) {
-            $sql_competencias .= " AND LOWER(REPLACE(TRIM(s.nivel), ' ', '')) = ?";
+            // Nivel histórico del curso, no nivel actual del estudiante.
+            $sql_competencias .= " AND LOWER(REPLACE(TRIM(ac.level), ' ', '')) = ?";
             $params_comp[] = $normalized_level_key;
             $types_comp .= "s";
         }
@@ -366,25 +367,19 @@ if ($show_avg && !empty($student_id_filter)) {
         $sql_grades .= " AND LOWER(REPLACE(TRIM(ac.level), ' ', '')) = ?"; 
         $params_avg[] = $normalized_level_key; 
         $types_avg .= "s"; 
-        $sql_grades .= " AND LOWER(REPLACE(TRIM(s.nivel), ' ', '')) = ?"; 
-        $params_avg[] = $normalized_level_key; 
-        $types_avg .= "s"; 
+
     }
     if (!empty($grado_filter)) { 
         $sql_grades .= " AND tc.grado = ?"; 
         $params_avg[] = $grado_filter; 
         $types_avg .= "s"; 
-        $sql_grades .= " AND s.grado = ?"; 
-        $params_avg[] = $grado_filter; 
-        $types_avg .= "s"; 
+
     }
     if (!empty($seccion_filter)) { 
         $sql_grades .= " AND tc.seccion = ?"; 
         $params_avg[] = $seccion_filter; 
         $types_avg .= "s"; 
-        $sql_grades .= " AND s.seccion = ?"; 
-        $params_avg[] = $seccion_filter; 
-        $types_avg .= "s"; 
+
     }
     if (!empty($bimestre_filter)) { 
         $sql_grades .= " AND e.bimestre = ?"; 
@@ -495,7 +490,7 @@ if ($show_avg && !empty($student_id_filter)) {
                         e.title as evaluation_title, 
                         e.bimestre, eg.grade as nota
                  FROM evaluation_grades eg
-                 INNER JOIN student s ON eg.student_id = s.id AND s.school_id = ? AND (s.status = 'Activo' OR s.status IS NULL)
+                 INNER JOIN student s ON eg.student_id = s.id AND s.school_id = ?
                  INNER JOIN evaluations e ON eg.evaluation_id = e.id
                  INNER JOIN teacher_courses tc ON e.teacher_course_id = tc.id
                  INNER JOIN academic_courses ac ON tc.course_id = ac.id AND ac.school_id = ? ";
@@ -526,23 +521,19 @@ if ($show_avg && !empty($student_id_filter)) {
         $params[] = $normalized_level_key; 
         $types .= "s"; 
         
-        $where_clauses[] = "LOWER(REPLACE(TRIM(s.nivel), ' ', '')) = ?"; 
-        $params[] = $normalized_level_key; 
-        $types .= "s";
+
     }
     
     if (!empty($grado_filter)) { 
-        $where_clauses[] = "(tc.grado = ? OR s.grado = ?)"; 
+        $where_clauses[] = "tc.grado = ?"; 
         $params[] = $grado_filter;
-        $params[] = $grado_filter;
-        $types .= "ss";
+        $types .= "s";
     }
     
     if (!empty($seccion_filter)) { 
-        $where_clauses[] = "(tc.seccion = ? OR s.seccion = ?)"; 
+        $where_clauses[] = "tc.seccion = ?";
         $params[] = $seccion_filter;
-        $params[] = $seccion_filter;
-        $types .= "ss";
+        $types .= "s";
     }
     if (!empty($student_id_filter)) { 
         $where_clauses[] = "eg.student_id = ?"; 
