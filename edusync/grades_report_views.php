@@ -90,6 +90,7 @@ function report_competency_stats($course, $bi) {
     return $result;
 }
 
+try {
 // Seleccionar primero la nómina real del año y aula. Usar un EXISTS
 // correlacionado en cada evaluación x alumno disparaba consultas enormes,
 // especialmente en años históricos con estudiantes promovidos.
@@ -111,6 +112,7 @@ if ($loginType === 2 && $teacherId > 0 && !$reportDirector) {
 }
 $rosterIds = [];
 $rosterStmt = $conn->prepare($rosterSql);
+if (!$rosterStmt) throw new RuntimeException('Error preparando nómina histórica: '.$conn->error);
 if ($rosterStmt) {
     report_bind($rosterStmt, $rosterTypes, $rosterParams);
     $rosterStmt->execute();
@@ -218,6 +220,16 @@ while ($row = $result->fetch_assoc()) {
     $rows[] = $row;
 }
 $stmt->close();
+} catch (Throwable $ex) {
+    error_log('[EduSync grades_report_views] year='.$yearId.' view='.$view.': '.$ex->getMessage());
+    if ($dataMode === 'trend') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['status'=>0,'message'=>'No se pudo consultar el historial de notas.']);
+        exit;
+    }
+    http_response_code(500);
+    exit('<div class="alert alert-danger mb-0"><i class="fas fa-exclamation-triangle mr-2"></i>No se pudo consultar el historial de notas. Revise el registro de errores del servidor.</div>');
+}
 
 $students = [];
 foreach ($rows as $row) {
