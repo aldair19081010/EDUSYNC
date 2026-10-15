@@ -316,7 +316,7 @@ if ($action === 'peek') {
     elseif ($type==='grade_reopen_request') $openUrl='review_grade_reopen_request.php?id='.$id;
     elseif ($type==='grade_reopen_result') $openUrl='grade_reopen_result.php?id='.$id;
     elseif ($type==='attendance_request') $openUrl='review_attendance_request.php?id='.$id;
-    elseif ($type==='evaluation') $openUrl='manage_evaluation_grades.php?evaluation_id='.$id.'&from=notifications';
+    elseif ($type==='evaluation') $openUrl='notification_evaluation_detail.php?id='.$id;
     else $openUrl='notification_detail.php?type='.rawurlencode($type).'&id='.$id;
     no(['status'=>1,'data'=>[
         'nkey'=>$event['nkey'],'title'=>$event['title'],
@@ -402,7 +402,7 @@ while ($r = $res->fetch_assoc()) {
     } elseif ($r['source_type'] === 'grade_period_closed') {
         $r['open_url'] = 'grade_period_closure_detail.php?id=' . $r['source_id'];
     } elseif ($r['source_type'] === 'evaluation') {
-        $r['open_url'] = 'manage_evaluation_grades.php?evaluation_id=' . $r['source_id'] . '&from=notifications';
+        $r['open_url'] = 'notification_evaluation_detail.php?id=' . $r['source_id'];
     } else {
         $r['open_url'] = 'notification_detail.php?type=' . rawurlencode($r['source_type']) . '&id=' . (int)$r['source_id'];
     }
