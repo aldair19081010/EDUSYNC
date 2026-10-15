@@ -706,7 +706,7 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
             const webSkipped=Number(r.web_push_skipped||0);
             let msg='Cobranza enviada a '+Number(r.recipients||0)+' estudiante(s). Android: '+
                 Number(r.push_sent||0)+' aceptados por Firebase. Web: '+webSent+' aceptados por Firebase.';
-            if(!webSubscriptions)msg+=' Ningún navegador estudiantil suscrito para estos avisos.';
+            if(!webSubscriptions && !webSkipped)msg+=' Ningún navegador estudiantil suscrito para estos avisos.';
             if(missing)msg+=' '+missing+' sin dispositivo Android registrado.';
             if(Number(r.push_failed||0))msg+=' '+Number(r.push_failed)+' fallos Android.';
             if(webFailed)msg+=' '+webFailed+' fallos Web.';
