@@ -33,7 +33,7 @@ if($tfYearId>0){
     if($tfPeriodQuery){
         $tfPeriodQuery->bind_param('ii',$tfSchool,$tfYearId);
         $tfPeriodQuery->execute();$tfPeriods=$tfPeriodQuery->get_result();
-        $tfToday=date('Y-m-d');$tfBest=null;
+        $tfToday=(new DateTimeImmutable('now',new DateTimeZone('America/Lima')))->format('Y-m-d');$tfBest=null;
         while($tfP=$tfPeriods->fetch_assoc()){
             $tfN=(int)$tfP['period_number'];
             if($tfN<1||$tfN>4)continue;
