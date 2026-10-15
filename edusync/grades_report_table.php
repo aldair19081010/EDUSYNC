@@ -92,7 +92,7 @@ if ((int)$academic_year_id > 0) {
         $queryYear->close();
         if ($yearInfo && (int)$yearInfo['is_active'] !== 1) {
             require_once __DIR__.'/includes/grades_report_historical_level.php';
-            $historicalLevelGuard = grhl_sql($conn, 's', 'tc', 'ac');
+            $historicalLevelGuard = grhl_sql($conn, 's', 'tc', 'ac', (int)$school_id, (int)$academic_year_id, (string)$level_filter);
         }
     }
 }
