@@ -14,8 +14,17 @@ if(!$allowed){echo '<div class="alert alert-danger">No tienes permiso para ver e
 function gr_result_date($value){if(!$value)return '—';$ts=strtotime($value);return $ts?date('d/m/Y h:i a',$ts):htmlspecialchars($value,ENT_QUOTES,'UTF-8');}
 $status=$request['status'];$badge=$status==='Aprobada'?'success':($status==='Rechazada'?'danger':'warning');
 ?>
+<?php
+require_once __DIR__ . '/includes/notification_detail_ui.php';
+edn_header($status==='Aprobada'?'success':($status==='Rechazada'?'rejected':'reopen'),
+    'Resultado de reapertura: '.$request['course_name'],
+    $request['level'].' · '.$request['grado'].' '.$request['seccion'],
+    $request['reviewed_at']?:$request['created_at'],$status,(int)$request['bimester'].'° bimestre');
+?>
 <div class="mb-3"><span class="badge badge-<?php echo $badge; ?> px-2 py-1"><?php echo htmlspecialchars($status); ?></span></div>
 <div class="card border-left-<?php echo $badge; ?> shadow-sm mb-3"><div class="card-body"><h6 class="font-weight-bold mb-2"><?php echo htmlspecialchars($request['course_name'].' · '.$request['grado'].' '.$request['seccion']); ?></h6><div class="small text-muted"><?php echo htmlspecialchars($request['level'].' · '.$request['year'].' · '.$request['bimester'].'° Bimestre'); ?></div></div></div>
 <div class="row"><div class="col-md-6 mb-3"><div class="border rounded p-3 h-100"><small class="text-muted font-weight-bold text-uppercase">Motivo solicitado</small><div class="mt-1"><?php echo nl2br(htmlspecialchars($request['reason'],ENT_QUOTES,'UTF-8')); ?></div></div></div><div class="col-md-6 mb-3"><div class="border rounded p-3 h-100"><small class="text-muted font-weight-bold text-uppercase">Resolución</small><div class="mt-1">Revisada por <strong><?php echo htmlspecialchars($request['reviewed_by_name']?:'Administración'); ?></strong><br><?php echo gr_result_date($request['reviewed_at']); ?></div></div></div></div>
 <?php if(trim((string)$request['review_notes'])!==''): ?><div class="alert alert-light border mb-0"><strong>Observación:</strong><br><?php echo nl2br(htmlspecialchars($request['review_notes'],ENT_QUOTES,'UTF-8')); ?></div><?php endif; ?>
 <?php if($status==='Aprobada'): ?><div class="alert alert-success mt-3 mb-0"><i class="fas fa-unlock mr-1"></i>El bimestre fue reabierto y ya puede volver a editarse hasta que el docente lo cierre nuevamente.</div><?php elseif($status==='Rechazada'): ?><div class="alert alert-danger mt-3 mb-0"><i class="fas fa-lock mr-1"></i>El bimestre continúa cerrado.</div><?php endif; ?>
+
+<?php edn_footer(); ?>
