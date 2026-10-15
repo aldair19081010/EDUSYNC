@@ -21,10 +21,34 @@ edn_header('closure','Cierre de bimestre: '.$row['course_name'],
     $row['level'].' · '.$row['grado'].' '.$row['seccion'],
     $row['closed_at'],$row['status'],(int)$row['bimester'].'° bimestre');
 ?>
-<div class="mb-3"><span class="badge badge-<?php echo $row['status']==='Cerrado'?'info':'success'; ?> px-2 py-1"><?php echo htmlspecialchars($row['status']); ?></span><span class="badge badge-light border ml-1"><?php echo (int)$row['bimester']; ?>° Bimestre</span></div>
-<div class="gcd-box mb-3"><div class="gcd-label">Curso y aula</div><div class="gcd-value"><?php echo htmlspecialchars($row['course_name'].' · '.$row['level'].' · '.$row['grado'].' '.$row['seccion']); ?></div><div class="small text-muted">Año académico <?php echo htmlspecialchars($row['year']); ?> · Docente: <?php echo htmlspecialchars($row['teacher_name']?:'—'); ?></div></div>
-<div class="row mb-3"><div class="col-md-6 mb-2"><div class="gcd-box"><div class="gcd-label">Cierre</div><div class="gcd-value"><?php echo gcd_date($row['closed_at']); ?></div><small>Por <?php echo htmlspecialchars($row['closed_by_name']?:'Docente'); ?> · versión <?php echo (int)$row['closure_version']; ?></small></div></div><div class="col-md-6 mb-2"><div class="gcd-box"><div class="gcd-label">Estado actual</div><div class="gcd-value"><?php echo htmlspecialchars($row['status']); ?></div><?php if($row['reopened_at']): ?><small>Reabierto <?php echo gcd_date($row['reopened_at']); ?> por <?php echo htmlspecialchars($row['reopened_by_name']?:'Administración'); ?></small><?php endif; ?></div></div></div>
-<div class="mb-3"><span class="gcd-pill"><?php echo (int)($summary['competencies']??0); ?> competencias</span><span class="gcd-pill"><?php echo (int)($summary['evaluations']??0); ?> evaluaciones</span><span class="gcd-pill"><?php echo (int)($summary['students']??0); ?> estudiantes</span><span class="gcd-pill"><?php echo number_format((float)($summary['percentage_total']??0),2); ?>% ponderación</span><span class="gcd-pill"><?php echo number_format((float)($summary['progress']??0),1); ?>% completo</span></div>
-<?php if($row['reopen_reason']): ?><div class="alert alert-light border mb-0"><strong>Motivo de la última reapertura:</strong><br><?php echo nl2br(htmlspecialchars($row['reopen_reason'],ENT_QUOTES,'UTF-8')); ?></div><?php endif; ?>
-
+<div class="edn-grid">
+  <div class="edn-card"><span class="edn-card-label">Curso y aula</span>
+    <strong class="edn-card-value"><?= edn_escape($row['course_name']) ?></strong>
+    <span class="edn-card-help"><?= edn_escape($row['level'].' · '.$row['grado'].' '.$row['seccion']) ?> · <?= edn_escape($row['year']) ?></span></div>
+  <div class="edn-card"><span class="edn-card-label">Docente</span>
+    <strong class="edn-card-value"><?= edn_escape($row['teacher_name']?:'Docente') ?></strong>
+    <span class="edn-card-help">Cierre realizado por <?= edn_escape($row['closed_by_name']?:'Docente') ?></span></div>
+  <div class="edn-card"><span class="edn-card-label">Fecha de cierre</span>
+    <strong class="edn-card-value"><?= gcd_date($row['closed_at']) ?></strong>
+    <span class="edn-card-help">Versión de cierre <?= (int)$row['closure_version'] ?></span></div>
+  <div class="edn-card edn-card--tint"><span class="edn-card-label">Estado actual</span>
+    <strong class="edn-card-value"><?= edn_escape($row['status']) ?></strong>
+    <?php if($row['reopened_at']): ?>
+    <span class="edn-card-help">Reabierto el <?= gcd_date($row['reopened_at']) ?> por <?= edn_escape($row['reopened_by_name']?:'Administración') ?></span>
+    <?php endif; ?></div>
+</div>
+<section class="edn-section">
+ <h6 class="edn-section-title"><i class="fas fa-chart-bar"></i>Resumen del bimestre</h6>
+ <div class="edn-mini-kpi">
+   <span class="edn-mini-kpi-item"><strong><?= (int)($summary['competencies']??0) ?></strong> competencias</span>
+   <span class="edn-mini-kpi-item"><strong><?= (int)($summary['evaluations']??0) ?></strong> evaluaciones</span>
+   <span class="edn-mini-kpi-item"><strong><?= (int)($summary['students']??0) ?></strong> estudiantes</span>
+   <span class="edn-mini-kpi-item"><strong><?= number_format((float)($summary['percentage_total']??0),2) ?>%</strong> ponderación</span>
+   <span class="edn-mini-kpi-item"><strong><?= number_format((float)($summary['progress']??0),1) ?>%</strong> completo</span>
+ </div>
+</section>
+<?php if(trim((string)($row['reopen_reason']??''))!==''): ?>
+<section class="edn-section"><h6 class="edn-section-title"><i class="fas fa-comment-alt"></i>Motivo de la última reapertura</h6>
+ <div><?= nl2br(edn_escape($row['reopen_reason'])) ?></div></section>
+<?php endif; ?>
 <?php edn_footer(); ?>
