@@ -34,8 +34,8 @@ deberá integrarse ese editor al historial antes de considerarlo cubierto.
 ## Activación y dependencia operativa
 
 El despachador existente edusync/cron/web_push_dispatch.php revisa los
-avisos nuevos cada 10 minutos cuando se ejecuta de manera frecuente
-(por ejemplo cada minuto). Reutiliza notification_events y las
+avisos nuevos cada vez que el proceso de cron se ejecuta (por ejemplo
+cada minuto o cada cinco minutos). Reutiliza notification_events y las
 suscripciones Web Push / app existentes. No requiere SQL nuevo, pero sí
 las migraciones que ya utiliza la web para periodos académicos,
 cierre de notas, notificaciones, historial de notas y Web Push.
