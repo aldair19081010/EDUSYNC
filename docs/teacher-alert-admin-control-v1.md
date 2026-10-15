@@ -82,8 +82,11 @@ tiene tokens FCM reales conectados, el envío puede llegar a esos dispositivos.
 Configurar tokens de prueba y usar una base de datos de pruebas.
 
 El cron ya existente edusync/cron/web_push_dispatch.php genera avisos
-automáticos cuando la tarea esté configurada y ejecutándose. Tener la rama
-en Git no habilita la tarea programada por sí mismo.
+automáticos cuando la tarea esté configurada y ejecutándose. El barrido de
+evaluaciones se limita a una vez cada 10 minutos usando
+teacher_alert_scan_state para proteger el rendimiento; la cola FCM sigue
+despachándose en cada ejecución del cron. Tener la rama en Git no habilita
+la tarea programada por sí mismo.
 
 ## Archivos nuevos y modificados
 
