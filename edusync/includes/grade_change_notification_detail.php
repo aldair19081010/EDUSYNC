@@ -57,6 +57,19 @@ function edun_grade_change_detail(mysqli $db,int $schoolId,int $auditId): ?array
             $updated=$date->format('d/m/Y H:i');
         } catch(Throwable $exception) {}
     }
+    $gradeTone=static function(string $old,string $new): string {
+        if ($new==='') return 'edn-grade--removed';
+        $rank=['C'=>0,'B'=>1,'A'=>2,'AD'=>3];
+        $oldUpper=mb_strtoupper(trim($old),'UTF-8');
+        $newUpper=mb_strtoupper(trim($new),'UTF-8');
+        if (isset($rank[$oldUpper],$rank[$newUpper])) {
+            return $rank[$newUpper]<$rank[$oldUpper]?'edn-grade--removed':'edn-grade--new';
+        }
+        if (is_numeric($old) && is_numeric($new)) {
+            return (float)$new<(float)$old?'edn-grade--removed':'edn-grade--new';
+        }
+        return 'edn-grade--updated';
+    };
     ob_start();
     ?>
     <div class="edn-grid">
@@ -87,7 +100,7 @@ function edun_grade_change_detail(mysqli $db,int $schoolId,int $auditId): ?array
             <tr><td><strong><?= $e($students[$sid]??'Estudiante no disponible') ?></strong></td>
               <td><?= $e($evaluations[$eid]??'Evaluación no disponible') ?></td>
               <td><span class="badge edn-grade--old"><?= $e($old!==''?$old:'—') ?></span></td>
-              <td><span class="badge <?= $new===''?'edn-grade--removed':'edn-grade--new' ?>"><?= $e($new!==''?$new:'Sin nota') ?></span></td>
+              <td><span class="badge <?= $gradeTone($old,$new) ?>"><?= $e($new!==''?$new:'Sin nota') ?></span></td>
             </tr>
           <?php endforeach; ?>
           </tbody>
@@ -103,7 +116,7 @@ function edun_grade_change_detail(mysqli $db,int $schoolId,int $auditId): ?array
             <div class="edn-grade-row-values">
               <span class="badge edn-grade--old"><?= $e($old!==''?$old:'—') ?></span>
               <i class="fas fa-arrow-right edn-arrow"></i>
-              <span class="badge <?= $new===''?'edn-grade--removed':'edn-grade--new' ?>"><?= $e($new!==''?$new:'Sin nota') ?></span>
+              <span class="badge <?= $gradeTone($old,$new) ?>"><?= $e($new!==''?$new:'Sin nota') ?></span>
             </div>
           </div>
         <?php endforeach; ?>
