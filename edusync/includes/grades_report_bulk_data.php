@@ -191,7 +191,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         WHERE e.teacher_course_id IN ($tcList)";
     if (!$isCurrentAcademicYear) {
         require_once __DIR__.'/grades_report_historical_level.php';
-        $historySql .= grhl_sql($conn, 's', 'tc', 'ac');
+        $historySql .= grhl_sql($conn, 's', 'tc', 'ac', $schoolId, $yearId, $level);
     }
     $historyStmt = $conn->prepare($historySql);
     if ($historyStmt) {
