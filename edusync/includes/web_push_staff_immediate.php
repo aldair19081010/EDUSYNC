@@ -25,7 +25,11 @@ function edwp_send_staff_attendance_now(mysqli $db, int $schoolId, int $requestI
         $summary['skipped']=true;
         return $summary;
     }
+    $priorTimeZone = '';
     try {
+        $tz = $db->query("SELECT @@session.time_zone AS tz");
+        if ($tz) $priorTimeZone = (string)($tz->fetch_assoc()['tz'] ?? '');
+        $db->query("SET time_zone = '+00:00'");
         $resolved='COALESCE(r.reviewed_at,r.updated_at,r.created_at)';
         $when=$kind==='att_request'?'r.created_at':$resolved;
         $userStatus=push_column_exists($db,'users','status')?" AND u.status='Activo'":'';
@@ -77,7 +81,7 @@ function edwp_send_staff_attendance_now(mysqli $db, int $schoolId, int $requestI
             $message=mb_substr((string)($answer['message']??''),0,500,'UTF-8');
             $attempts=(int)$event['attempts'];
             $status=$ok?'delivered':($attempts>=2?'failed':'retry');
-            $next=$ok||$status==='failed'?null:date('Y-m-d H:i:s',time()+300*($attempts+1));
+            $next=$ok||$status==='failed'?null:gmdate('Y-m-d H:i:s',time()+300*($attempts+1));
             $flag=$ok?1:0;
             $sub=(int)$event['subscription_id'];
             $insert=$db->prepare("INSERT INTO web_push_delivery
@@ -104,6 +108,7 @@ function edwp_send_staff_attendance_now(mysqli $db, int $schoolId, int $requestI
         }
         return $summary;
     } finally {
+        if ($priorTimeZone !== '') $db->query("SET time_zone='" . $db->real_escape_string($priorTimeZone) . "'");
         $db->query("SELECT RELEASE_LOCK('edusync_web_push_fcm_v1')");
     }
 }
