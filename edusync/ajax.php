@@ -947,7 +947,7 @@ if ($action == 'get_students_by_grado_seccion') {
                 $paramTypes .= 'i';
             }
             require_once __DIR__.'/includes/grades_report_historical_level.php';
-            $historicalSql .= grhl_sql($conn, 's', 'tc', 'ac');
+            $historicalSql .= grhl_sql($conn, 's', 'tc', 'ac', $school, $year, $level);
             $historicalSql .= ' ORDER BY s.name';
             $q = $conn->prepare($historicalSql);
             if ($q) {
