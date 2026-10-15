@@ -22,6 +22,7 @@ if ($isStudentNotificationSession) {
 
 require_login_modal();
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/notification_date_timezone.php';
 $conn->query("SET time_zone = '-05:00'");
 header('Content-Type: application/json; charset=utf-8');
 
@@ -187,12 +188,13 @@ if ($approver && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_course
 }
 
 if ($approver && nt($conn, 'evaluations')) {
+    $evaluationTimeSql = edun_evaluation_created_at_lima_sql($conn);
     $parts[] = "SELECT CONCAT('evaluation:',e.id) COLLATE utf8mb4_general_ci nkey,
         'Académica' COLLATE utf8mb4_general_ci category,
         'Normal' COLLATE utf8mb4_general_ci priority,
         CONCAT('Nueva evaluación: ',e.title) COLLATE utf8mb4_general_ci title,
         CONCAT(COALESCE(ac.name,'Curso'),' · ',COALESCE(t.name,'Docente')) COLLATE utf8mb4_general_ci message,
-        e.created_at,
+        {$evaluationTimeSql} created_at,
         'evaluation' COLLATE utf8mb4_general_ci source_type,
         e.id source_id,
         '' COLLATE utf8mb4_general_ci workflow_status
