@@ -142,6 +142,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#2459a8">
     <link href="css/web_notifications.css?v=<?php echo @filemtime(__DIR__.'/css/web_notifications.css') ?: time(); ?>" rel="stylesheet">
+    <link href="css/notification-details.css?v=<?php echo @filemtime(__DIR__.'/css/notification-details.css') ?: time(); ?>" rel="stylesheet">
     <!-- Sólo interfaz: no modifica Firebase ni la campana existente. -->
     <link href="css/web_push_invitation.css?v=<?php echo @filemtime(__DIR__.'/css/web_push_invitation.css') ?: time(); ?>" rel="stylesheet">
     <?php if ($page === 'users'): ?>
