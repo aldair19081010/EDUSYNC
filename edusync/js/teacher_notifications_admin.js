@@ -2,7 +2,7 @@
 'use strict';
 if(!$ || !window.EduSyncTeacherAlerts) return;
 var cfg=window.EduSyncTeacherAlerts, endpoint='teacher_notifications_admin_api.php';
-var $root=$('#ay-teacher-alert-control'), state=null, search='';
+var $root=$('#ay-teacher-alert-control'), state=null, search='', initialized=false;
 if(!$root.length || !cfg.yearId) return;
 
 function esc(s){return $('<span>').text(s==null?'':String(s)).html();}
@@ -31,7 +31,7 @@ function teacherRows(teachers){
     return !q || String(x.teacher_name||'').toLowerCase().includes(q) ||
       (x.pending_courses||[]).join(' ').toLowerCase().includes(q);
   }),active=cfg.yearStatus==='Activo' && state &&
-     Number(state.period.is_locked)!==1;
+     Number(state.period.is_locked)!==1 && Number(state.period.global_locked||0)!==1;
   $('#taca-teacher-count').text(filtered.length+' docente(s)');
   if(!filtered.length){
     $('#taca-teacher-list').html('<div class="alert alert-light border mb-0">No se encontraron docentes para este filtro.</div>');
@@ -146,7 +146,32 @@ $('#taca-reminder-form').on('submit',function(e){
     }).fail(function(x){alertMessage((x.responseJSON||{}).message||'No se pudo enviar el aviso.','danger');})
     .always(function(){btn.prop('disabled',false);});
 });
-$('a[href="#ay-cierre-notas"]').on('shown.bs.tab',function(){load();});
+function initialPeriod(){
+  if(initialized)return load();
+  initialized=true;
+  return $.getJSON('ajax.php?action=get_academic_periods',
+      {academic_year_id:cfg.yearId})
+    .done(function(result){
+      var periods=(result&&result.periods)||[];
+      var today=new Date(), yyyy=today.getFullYear(),mm=String(today.getMonth()+1).padStart(2,'0'),dd=String(today.getDate()).padStart(2,'0');
+      var date=yyyy+'-'+mm+'-'+dd;
+      var current=periods.find(function(p){
+        return p.start_date&&p.end_date&&date>=p.start_date&&date<=p.end_date;
+      });
+      if(!current){
+        var previous=periods.filter(function(p){return p.start_date&&p.start_date<=date;});
+        current=previous[previous.length-1]||null;
+      }
+      if(current && Number(current.period_number)>=1 && Number(current.period_number)<=4){
+        $('#taca-bim').val(String(current.period_number));
+      }
+    }).always(load);
+}
+$('a[href="#ay-cierre-notas"]').on('shown.bs.tab',initialPeriod);
+$(document).on('change','#ayf-bim',function(){
+  var bim=String($(this).val()||'');
+  if(['1','2','3','4'].includes(bim) && $('#taca-bim').val()!==bim)$('#taca-bim').val(bim).trigger('change');
+});
 $('#ay-refresh-grade-control').on('click',function(){
   if($('#ay-cierre-notas').hasClass('show'))load();
 });
