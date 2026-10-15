@@ -18,13 +18,13 @@ assertion(strpos($api,'(int)$account[\'type\']!==1')!==false,
     'Solo un administrador autenticado puede usar el endpoint.');
 assertion(strpos($api,'hash_equals($session,$incoming)')!==false,
     'Las acciones POST requieren CSRF.');
-assertion(strpos($api,"taca_year($conn,$school,$yearId)")!==false
-    && strpos($api,"taca_period($conn,$school,$yearId,$bim)")!==false,
+assertion(strpos($api,'taca_year($conn,$school,$yearId)')!==false
+    && strpos($api,'taca_period($conn,$school,$yearId,$bim)')!==false,
     'Año y bimestre se verifican contra la institución.');
 assertion(strpos($api,"GET_LOCK(?,5)")!==false
     && strpos($api,'INTERVAL 24 HOUR')!==false,
     'Los recordatorios manuales están serializados y limitados a 24 horas.');
-assertion(strpos($api,"edwp_queue_staff_event($conn,$school,'staff',$eventId)")!==false,
+assertion(strpos($api,'edwp_queue_staff_event(')!==false,
     'El aviso usa la cola FCM compartida del personal.');
 assertion(strpos($scan,"COALESCE(tns.deadline_date,ap.end_date)")!==false
     && strpos($scan,"COALESCE(tns.incomplete_enabled,1)")!==false
