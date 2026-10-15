@@ -91,7 +91,8 @@ $parts[] = "SELECT CONCAT('event:',ne.id) COLLATE utf8mb4_general_ci nkey,
     COALESCE(ne.source_type,'') COLLATE utf8mb4_general_ci source_type,
     CASE WHEN ne.source_type IN
       ('teacher_closure_soon','teacher_closure_pending',
-       'teacher_grades_incomplete','teacher_admin_grade_change','teacher_manual_reminder')
+       'teacher_grades_incomplete','teacher_admin_grade_change','teacher_manual_reminder',
+       'teacher_announcement')
       THEN ne.id ELSE COALESCE(ne.source_id,0) END source_id,
     '' COLLATE utf8mb4_general_ci workflow_status
     FROM notification_events ne
