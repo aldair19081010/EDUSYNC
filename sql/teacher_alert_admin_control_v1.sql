@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS teacher_alert_manual_log (
     event_id BIGINT NULL,
     created_by INT NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_teacher_manual_cooldown (school_id, academic_year_id, bimester, recipient_user_id, created_at),
+    KEY idx_teacher_manual_cooldown (school_id, academic_year_id, bimester, teacher_id, created_at),
     KEY idx_teacher_manual_event (school_id, event_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
