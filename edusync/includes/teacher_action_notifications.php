@@ -229,7 +229,7 @@ function tna_admin_grade_changes(mysqli $db, bool $dryRun): int {
         AND t.status='Activo'
       INNER JOIN users u ON u.teacher_id=tc.teacher_id
         AND u.school_id=h.school_id AND u.type=2
-      WHERE h.created_at>=DATE_SUB(NOW(), INTERVAL 2 HOUR)
+      WHERE h.created_at>=DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 HOUR),'%Y-%m-%d %H:00:00')
         AND h.previous_grade IS NOT NULL AND TRIM(h.previous_grade)<>''
         AND COALESCE(h.previous_grade,'')<>COALESCE(h.new_grade,'')
       GROUP BY h.school_id,u.id,e.teacher_course_id,
