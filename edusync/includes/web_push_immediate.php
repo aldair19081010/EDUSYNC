@@ -27,7 +27,11 @@ function edwp_send_student_event_now(mysqli $db, int $schoolId, int $eventId): a
         $summary['skipped']=true;
         return $summary;
     }
+    $priorTimeZone = '';
     try {
+        $tz = $db->query("SELECT @@session.time_zone AS tz");
+        if ($tz) $priorTimeZone = (string)($tz->fetch_assoc()['tz'] ?? '');
+        $db->query("SET time_zone = '+00:00'");
         $sql="SELECT e.id event_id,e.school_id,s.id subscription_id,s.fcm_token,
                      e.title,e.body,e.screen,COALESCE(d.attempts,0) attempts
               FROM student_notification_events e
@@ -71,7 +75,7 @@ function edwp_send_student_event_now(mysqli $db, int $schoolId, int $eventId): a
             $message=mb_substr((string)($answer['message']??''),0,500,'UTF-8');
             $attempts=(int)$event['attempts'];
             $status=$ok?'delivered':($attempts>=2?'failed':'retry');
-            $next=$ok||$status==='failed'?null:date('Y-m-d H:i:s',time()+300*($attempts+1));
+            $next=$ok||$status==='failed'?null:gmdate('Y-m-d H:i:s',time()+300*($attempts+1));
             $flag=$ok?1:0;
             $sub=(int)$event['subscription_id'];
             $insert=$db->prepare("INSERT INTO web_push_delivery
@@ -98,6 +102,7 @@ function edwp_send_student_event_now(mysqli $db, int $schoolId, int $eventId): a
         }
         return $summary;
     } finally {
+        if ($priorTimeZone !== '') $db->query("SET time_zone='" . $db->real_escape_string($priorTimeZone) . "'");
         $db->query("SELECT RELEASE_LOCK('edusync_web_push_fcm_v1')");
     }
 }
