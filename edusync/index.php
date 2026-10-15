@@ -35,7 +35,7 @@ $allowed_pages = [
     // Admin pages
     'students', 'bulk_student_update',
     'teachers', 'teacher_courses',
-    'academic_management', 'academic_year',
+    'academic_management', 'academic_year', 'teacher_followup',
     'competencias',
     'concepts', 'fees', 'payments', 'discounts',
     'asistencia', 'attendance_rules_page',
