@@ -75,17 +75,43 @@ if ($action === 'config') {
     $firebase = json_decode((string)(getenv('EDUSYNC_FIREBASE_WEB_CONFIG_JSON') ?: ''), true);
     $vapid = trim((string)(getenv('EDUSYNC_FIREBASE_VAPID_KEY') ?: ''));
 
-    // Desarrollo local Windows/XAMPP: fichero público de Firebase fuera
-    // de htdocs, en la misma carpeta de configuración ya utilizada
-    // por el proyecto. No se debe guardar en GitHub.
-    if ((!is_array($firebase) || $vapid === '') && DIRECTORY_SEPARATOR === '\\') {
-        $localFile=dirname(__DIR__,4).'/firebase/edusync-web-public.json';
-        if (is_readable($localFile)) {
-            $local=json_decode((string)file_get_contents($localFile),true);
-            if (is_array($local)) {
-                if (!is_array($firebase)) $firebase=$local['firebase'] ?? null;
-                if ($vapid === '') $vapid=trim((string)($local['vapid_key'] ?? ''));
+    // hPanel/Hostinger: el archivo de configuración Web se instala FUERA
+    // de public_html, junto a la carpeta pública del dominio:
+    // /home/usuario/domains/dominio.tld/firebase/edusync-web-public.json
+    // Conserva el fallback existente de Windows/XAMPP.
+    // Opcionalmente se puede indicar una ruta absoluta con
+    // EDUSYNC_FIREBASE_WEB_CONFIG_FILE (también fuera de la carpeta pública).
+    if (!is_array($firebase) || $vapid === '') {
+        $candidates = [];
+        $specifiedFile = trim((string)(getenv('EDUSYNC_FIREBASE_WEB_CONFIG_FILE') ?: ''));
+        if ($specifiedFile !== '') $candidates[] = $specifiedFile;
+
+        $documentRoot = realpath((string)($_SERVER['DOCUMENT_ROOT'] ?? ''));
+        if ($documentRoot !== false) {
+            $candidates[] = dirname($documentRoot) . '/firebase/edusync-web-public.json';
+        }
+        // Alternativa para EduSync instalado en public_html/edusync/.
+        $candidates[] = dirname(__DIR__, 3) . '/firebase/edusync-web-public.json';
+
+        if (DIRECTORY_SEPARATOR === '\\') {
+            $candidates[] = dirname(__DIR__, 4) . '/firebase/edusync-web-public.json';
+        }
+        $publicRoot = $documentRoot !== false ? rtrim($documentRoot, '/\\') : '';
+        foreach (array_unique($candidates) as $candidate) {
+            $filePath = realpath($candidate);
+            if ($filePath === false || !is_file($filePath) || !is_readable($filePath)) continue;
+            // Nunca usar un archivo ubicado dentro del directorio público.
+            if ($publicRoot !== '' && (
+                strcasecmp($filePath, $publicRoot) === 0 ||
+                strncasecmp($filePath, $publicRoot . DIRECTORY_SEPARATOR, strlen($publicRoot) + 1) === 0
+            )) continue;
+            $local = json_decode((string)file_get_contents($filePath), true);
+            if (!is_array($local)) continue;
+            if (!is_array($firebase) && isset($local['firebase']) && is_array($local['firebase'])) {
+                $firebase = $local['firebase'];
             }
+            if ($vapid === '') $vapid = trim((string)($local['vapid_key'] ?? ''));
+            if (is_array($firebase) && $vapid !== '') break;
         }
     }
     $fields = ['apiKey','authDomain','projectId','messagingSenderId','appId'];
