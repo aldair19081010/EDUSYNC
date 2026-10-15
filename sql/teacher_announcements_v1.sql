@@ -7,9 +7,11 @@ CREATE TABLE IF NOT EXISTS teacher_announcements (
  content TEXT NOT NULL,
  audience_type VARCHAR(20) NOT NULL,
  recipient_count INT NOT NULL DEFAULT 0,
+ request_key CHAR(32) NOT NULL,
  created_by INT NOT NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
- KEY idx_teacher_ann_school (school_id,id)
+ KEY idx_teacher_ann_school (school_id,id),
+ UNIQUE KEY uniq_teacher_announcement_request (school_id,request_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS teacher_announcement_recipients (
