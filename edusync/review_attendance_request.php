@@ -54,18 +54,7 @@ $wanted = $payload['requested'] ?? [];
 $status = (string)$request['status'];
 $statusClass = $status === 'Pendiente' ? 'warning' : ($status === 'Aprobada' ? 'success' : 'danger');
 ?>
-<style>
-.arr-box{border:1px solid #e4e7ec;border-radius:8px;padding:12px;background:#f8fafc}
-.arr-label{font-size:.75rem;color:#667085;text-transform:uppercase;font-weight:700}
-.arr-value{color:#344054;font-weight:600}
-.arr-arrow{display:flex;align-items:center;justify-content:center;color:#4e73df;font-size:1.2rem}
-.arr-resolution{border-radius:9px;padding:14px;border:1px solid #d9e2ec}
-.arr-resolution.approved{background:#f0fff5;border-color:#b7e4c7}
-.arr-resolution.rejected{background:#fff5f5;border-color:#f3b8b8}
-.arr-resolution-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem 1rem}
-.arr-resolution-grid .wide{grid-column:1/-1}
-@media(max-width:767px){.arr-arrow{transform:rotate(90deg);padding:8px}.arr-resolution-grid{grid-template-columns:1fr}}
-</style>
+
 
 <?php
 require_once __DIR__ . '/includes/notification_detail_ui.php';
@@ -76,21 +65,16 @@ edn_header('attendance','Solicitud de asistencia: '.$request['request_type'],
 <div id="arr-message"></div>
 
 
-<div class="edn-section-title"><i class="fas fa-clipboard-list"></i>Información de la solicitud</div>
 <div class="row mb-3">
-    <div class="col-md-6 mb-2 mb-md-0">
-        <div class="arr-box h-100">
-            <div class="arr-label">Solicitado por</div>
-            <div class="arr-value"><?= htmlspecialchars($request['requester']) ?></div>
-            <div class="small text-muted mt-2"><?= htmlspecialchars(arr_datetime($request['created_at'])) ?></div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="arr-box h-100">
-            <div class="arr-label">Motivo</div>
-            <div class="arr-value"><?= htmlspecialchars($request['reason'] ?: 'Sin motivo adicional') ?></div>
-        </div>
-    </div>
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Solicitado por</div>
+    <div class="font-weight-bold text-gray-800"><?= edn_escape($request['requester']) ?></div>
+    <small class="text-muted"><?= edn_escape(arr_datetime($request['created_at'])) ?></small>
+  </div></div></div>
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Motivo</div>
+    <div class="text-gray-800"><?= edn_escape($request['reason'] ?: 'Sin motivo adicional') ?></div>
+  </div></div></div>
 </div>
 
 <?php if ($request['request_type'] === 'Editar nómina'): $changes = $payload['changes'] ?? []; ?>
@@ -116,17 +100,20 @@ edn_header('attendance','Solicitud de asistencia: '.$request['request_type'],
 <?php elseif ($request['request_type'] === 'Editar registro'): ?>
     <div class="mb-2 font-weight-bold"><?= htmlspecialchars($request['student_name'] ?: 'Estudiante') ?> · <?= htmlspecialchars($request['fecha'] ?: ($payload['date'] ?? '')) ?></div>
     <div class="row align-items-stretch">
-        <div class="col-md-5"><div class="arr-box h-100"><div class="arr-label mb-2">Registro actual</div><div>Estado: <strong><?= htmlspecialchars($request['attendance_status']) ?></strong></div><div>Hora: <strong><?= htmlspecialchars($request['attendance_time']) ?></strong></div><div>Observación: <?= htmlspecialchars($request['attendance_notes'] ?: '—') ?></div></div></div>
-        <div class="col-md-2 arr-arrow"><i class="fas fa-arrow-right"></i></div>
-        <div class="col-md-5"><div class="arr-box h-100 border-primary"><div class="arr-label mb-2">Cambio solicitado</div><div>Estado: <strong><?= htmlspecialchars($wanted['status'] ?? '') ?></strong></div><div>Hora: <strong><?= htmlspecialchars($wanted['time'] ?? '') ?></strong></div><div>Observación: <?= htmlspecialchars($wanted['notes'] ?? '—') ?></div></div></div>
+        <div class="col-md-5 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3"><div class="text-xs font-weight-bold text-info text-uppercase mb-2">Registro actual</div><div>Estado: <strong><?= edn_escape($request['attendance_status']) ?></strong></div><div>Hora: <strong><?= edn_escape($request['attendance_time']) ?></strong></div><div>Observación: <?= edn_escape($request['attendance_notes'] ?: '—') ?></div></div></div></div>
+        <div class="col-md-2 d-flex align-items-center justify-content-center text-primary mb-2"><i class="fas fa-arrow-right"></i></div>
+        <div class="col-md-5 mb-2"><div class="card shadow-sm border-left-primary h-100"><div class="card-body py-3"><div class="text-xs font-weight-bold text-primary text-uppercase mb-2">Cambio solicitado</div><div>Estado: <strong><?= edn_escape($wanted['status'] ?? '') ?></strong></div><div>Hora: <strong><?= edn_escape($wanted['time'] ?? '') ?></strong></div><div>Observación: <?= edn_escape($wanted['notes'] ?? '—') ?></div></div></div></div>
     </div>
 <?php elseif ($request['request_type'] === 'Reabrir día'): ?>
-    <div class="arr-box"><div class="arr-label mb-2">Día que se solicita reabrir</div><div class="arr-value"><?= htmlspecialchars(($payload['date'] ?? '') . ' · ' . ($payload['nivel'] ?? '') . ' ' . ($payload['grado'] ?? '') . ' ' . ($payload['seccion'] ?? '')) ?></div></div>
+    <div class="card shadow-sm mb-3"><div class="card-body"><h6 class="font-weight-bold text-info">Día que se solicita reabrir</h6><div><?= edn_escape(($payload['date'] ?? '') . ' · ' . ($payload['nivel'] ?? '') . ' ' . ($payload['grado'] ?? '') . ' ' . ($payload['seccion'] ?? '')) ?></div></div></div>
 <?php else: ?>
-    <div class="arr-box"><div class="arr-label mb-2">Detalle</div><div class="arr-value"><?= htmlspecialchars($request['student_name'] ?: 'Registro de asistencia') ?></div><div class="small text-muted mt-2"><?= htmlspecialchars($request['request_type']) ?></div></div>
+    <div class="card shadow-sm mb-3"><div class="card-body"><h6 class="font-weight-bold text-info">Detalle</h6><div class="font-weight-bold"><?= edn_escape($request['student_name'] ?: 'Registro de asistencia') ?></div><small class="text-muted"><?= edn_escape($request['request_type']) ?></small></div></div>
 <?php endif; ?>
 
 <?php if ($status === 'Pendiente'): ?>
+    <div class="card shadow-sm mt-3 mb-3">
+      <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Resolver solicitud de asistencia</h6></div>
+      <div class="card-body">
     <div class="form-group mt-3">
         <label>Observación de la revisión</label>
         <textarea id="arr-notes" class="form-control" maxlength="255" placeholder="Opcional al aprobar; recomendable al rechazar"></textarea>
@@ -134,9 +121,9 @@ edn_header('attendance','Solicitud de asistencia: '.$request['request_type'],
     <div class="d-flex justify-content-end">
         <button type="button" class="btn btn-outline-danger mr-2 arr-review" data-decision="Rechazada"><i class="fas fa-times mr-1"></i>Rechazar</button>
         <button type="button" class="btn btn-success arr-review" data-decision="Aprobada"><i class="fas fa-check mr-1"></i>Aprobar y aplicar</button>
-    </div>
+    </div></div></div>
 <?php else: ?>
-    <div class="arr-resolution mt-3 <?= $status === 'Aprobada' ? 'approved' : 'rejected' ?>">
+    <div class="card shadow-sm mt-3 mb-3 border-left-<?= $status === 'Aprobada' ? 'success' : 'danger' ?>"><div class="card-body">
         <div class="font-weight-bold mb-2"><i class="fas <?= $status === 'Aprobada' ? 'fa-check-circle text-success' : 'fa-times-circle text-danger' ?> mr-1"></i>Esta solicitud ya fue atendida</div>
         <div class="arr-resolution-grid">
             <div><div class="arr-label">Resultado</div><div class="arr-value"><?= htmlspecialchars($status) ?></div></div>
@@ -144,7 +131,7 @@ edn_header('attendance','Solicitud de asistencia: '.$request['request_type'],
             <div><div class="arr-label">Fecha de resolución</div><div class="arr-value"><?= htmlspecialchars(arr_datetime($request['reviewed_at'])) ?></div></div>
             <div class="wide"><div class="arr-label">Observación</div><div class="arr-value"><?= htmlspecialchars($request['review_notes'] ?: 'Sin observación adicional') ?></div></div>
         </div>
-    </div>
+    </div></div>
 <?php endif; ?>
 
 
