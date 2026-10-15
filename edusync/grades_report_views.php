@@ -103,9 +103,30 @@ $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
         INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id
         INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
         INNER JOIN student s ON s.school_id=?
-            AND LOWER(REPLACE(TRIM(s.nivel),' ',''))=?
-            AND s.grado=? AND s.seccion=?
-            AND (s.status='Activo' OR s.status='1' OR s.status IS NULL)
+            AND (
+                -- La nómina actual sólo sirve para el año activo.
+                (EXISTS (SELECT 1 FROM academic_year ay_history
+                         WHERE ay_history.id=tc.academic_year_id
+                           AND ay_history.school_id=tc.school_id
+                           AND ay_history.is_active=1)
+                 AND LOWER(REPLACE(TRIM(s.nivel),' ',''))=?
+                 AND s.grado=? AND s.seccion=?
+                 AND (s.status='Activo' OR s.status='1' OR s.status IS NULL))
+                OR
+                -- En un año pasado, los registros de notas determinan
+                -- la pertenencia al aula, aunque el alumno haya ascendido.
+                EXISTS (
+                    SELECT 1 FROM evaluation_grades eg_history
+                    INNER JOIN evaluations e_history ON e_history.id=eg_history.evaluation_id
+                    INNER JOIN teacher_courses tc_history ON tc_history.id=e_history.teacher_course_id
+                    INNER JOIN academic_courses ac_history ON ac_history.id=tc_history.course_id
+                    WHERE eg_history.student_id=s.id
+                      AND tc_history.school_id=tc.school_id
+                      AND tc_history.academic_year_id=tc.academic_year_id
+                      AND LOWER(REPLACE(TRIM(ac_history.level),' ',''))=LOWER(REPLACE(TRIM(ac.level),' ',''))
+                      AND tc_history.grado=tc.grado AND tc_history.seccion=tc.seccion
+                )
+            )
         LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id
             AND eg.student_id=s.id
             AND (eg.competencia_id=ec.competencia_id OR eg.competencia_id IS NULL)
