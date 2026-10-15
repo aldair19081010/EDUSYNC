@@ -22,7 +22,7 @@ if(!$can_access_notification && ($session_type!==2||$session_teacher_id<=0||$ses
 }
 
 if ($can_access_notification) {
-    $eval_query=$conn->query("SELECT e.* FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$evaluation_id LIMIT 1");
+    $eval_query=$conn->query("SELECT e.* FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$evaluation_id AND tc.school_id=$session_school_id LIMIT 1");
 } else {
     $eval_query=$conn->query("SELECT e.* FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=$evaluation_id AND e.teacher_id=$session_teacher_id AND tc.teacher_id=$session_teacher_id AND tc.school_id=$session_school_id LIMIT 1");
 }
