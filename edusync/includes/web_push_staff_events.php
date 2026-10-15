@@ -67,7 +67,7 @@ function edwp_send_staff_event_now(mysqli $db, int $school, string $kind, int $i
                            AND d.event_kind='$kind' AND d.event_id=";
 
         if ($kind === 'staff') {
-            $sql = "SELECT s.id subscription_id,s.fcm_token,e.title,
+            $sql = "SELECT s.id subscription_id,s.fcm_token,s.browser_id,e.title,
                            COALESCE(e.message,'') body,COALESCE(d.attempts,0) attempts
                     FROM notification_events e
                     JOIN web_push_subscriptions s ON s.account_kind='staff' AND s.school_id=e.school_id
@@ -86,7 +86,7 @@ function edwp_send_staff_event_now(mysqli $db, int $school, string $kind, int $i
                 $result['skipped']=true;
                 return $result;
             }
-            $sql = "SELECT s.id subscription_id,s.fcm_token,
+            $sql = "SELECT s.id subscription_id,s.fcm_token,s.browser_id,
                            CONCAT('Nueva evaluación: ',e.title) title,
                            CONCAT(COALESCE(ac.name,'Curso'),' · ',COALESCE(te.name,'Docente')) body,
                            COALESCE(d.attempts,0) attempts
@@ -104,7 +104,7 @@ function edwp_send_staff_event_now(mysqli $db, int $school, string $kind, int $i
                           WHERE ne.school_id=tc.school_id AND ne.source_type='evaluation'
                             AND ne.source_id=e.id) LIMIT 100";
         } elseif ($kind === 'low_grade') {
-            $sql = "SELECT s.id subscription_id,s.fcm_token,
+            $sql = "SELECT s.id subscription_id,s.fcm_token,s.browser_id,
                            'EduSync · Seguimiento académico' title,
                            CONCAT('Nuevo caso para revisar · ',st.nivel,' · ',
                                 TRIM(TRAILING '°' FROM TRIM(st.grado)),'° ',COALESCE(st.seccion,''),
@@ -128,7 +128,7 @@ function edwp_send_staff_event_now(mysqli $db, int $school, string $kind, int $i
                 $result['skipped']=true;
                 return $result;
             }
-            $sql = "SELECT s.id subscription_id,s.fcm_token,
+            $sql = "SELECT s.id subscription_id,s.fcm_token,s.browser_id,
                            'Solicitud de reapertura de notas' title,
                            CONCAT(ac.name,' · ',tc.grado,' ',COALESCE(tc.seccion,''),
                                   ' · ',r.bimester,'° Bimestre') body,
@@ -158,7 +158,8 @@ function edwp_send_staff_event_now(mysqli $db, int $school, string $kind, int $i
         foreach ($events as $event) {
             $answer=edwp_send_message((string)$event['fcm_token'],
                 (string)$event['title'],(string)$event['body'],$url,
-                'edusync-'.$kind.'-'.$school.'-'.$id);
+                'edusync-'.$kind.'-'.$school.'-'.$id,
+                strncmp((string)$event['browser_id'],'app-',4)===0);
             $ok=!empty($answer['ok']);
             $providerCode=(int)($answer['code'] ?? 0);
             $providerMessage=mb_substr((string)($answer['message'] ?? ''),0,500,'UTF-8');
