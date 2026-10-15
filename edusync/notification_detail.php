@@ -3,6 +3,7 @@ date_default_timezone_set('America/Lima');
 include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
+$conn->query("SET time_zone='-05:00'");
 
 function nd_e($value) { return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8'); }
 function nd_date($value) {
@@ -54,6 +55,20 @@ if ($type === 'attendance_result') {
     if(!$row){echo '<div class="alert alert-warning">La alerta no existe o no corresponde a su colegio y rol.</div>';return;}
     $title='Alerta de notas bajas';$category='Alerta estudiantil';$priority='Alta';$createdAt=$row['created_at_peru'];$status='Requiere seguimiento';$courses=json_decode($row['failed_courses'],true)?:[];
     ob_start();?><div class="row mb-3"><div class="col-md-6 mb-2"><div class="nd-box"><span>Estudiante</span><strong><?=nd_e($row['student_name'])?></strong><small><?=nd_e($row['id_no'])?></small></div></div><div class="col-md-6 mb-2"><div class="nd-box"><span>Aula</span><strong><?=nd_e($row['nivel'].' · '.$row['grado'].' '.$row['seccion'])?></strong><small>Bimestre <?=nd_e($row['bimestre'])?></small></div></div></div><div class="nd-section"><span>Resumen</span><div><strong><?=nd_e($row['count_low_grades'])?></strong> calificaciones bajas detectadas.</div></div><?php if($courses):?><h6 class="font-weight-bold mt-3">Cursos involucrados</h6><ul class="list-group"><?php foreach($courses as $course):?><li class="list-group-item py-2"><?=nd_e(is_array($course)?($course['name']??$course['course']??json_encode($course,JSON_UNESCAPED_UNICODE)):$course)?></li><?php endforeach;?></ul><?php endif;$content=ob_get_clean();
+} elseif ($type === 'grade_changes') {
+    if (!$isApprover) {
+        echo '<div class="alert alert-warning">Solo Administración puede consultar este historial.</div>';
+        return;
+    }
+    require_once __DIR__ . '/includes/grade_change_notification_detail.php';
+    $detail=edun_grade_change_detail($conn,$school,$id);
+    if (!$detail) {
+        echo '<div class="alert alert-warning">No se encontró el detalle de este cambio para su colegio.</div>';
+        return;
+    }
+    $title=$detail['title'];$category=$detail['category'];
+    $priority=$detail['priority'];$message=$detail['message'];
+    $createdAt=$detail['created_at'];$content=$detail['content'];
 } elseif ($type !== 'evaluation' && $type !== 'attendance_request') {
     $roleName=$isApprover?'Administrador':((int)$roleData['type']===3?'Auxiliar':((int)$roleData['type']===2?'Docente':'Usuario'));
     $stmt=$conn->prepare("SELECT * FROM notification_events WHERE id=? AND school_id=? AND (recipient_user_id=? OR (recipient_user_id IS NULL AND recipient_role=?)) LIMIT 1");$stmt->bind_param('iiis',$id,$school,$user,$roleName);$stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();
