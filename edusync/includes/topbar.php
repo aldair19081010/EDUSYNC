@@ -132,7 +132,7 @@ if ($unified_check && $unified_check->num_rows) $unified_notifications_ready = t
 $notifications = [];
 if (!$unified_notifications_ready && in_array($user_type, [1, 2, 3], true)) {
     $eval_query = "SELECT 'evaluation' AS type, e.id AS notification_id, e.title, e.created_at, ac.name AS course_name, tc.level, tc.grado, tc.seccion, t.name AS teacher_name, NULL AS student_name, NULL AS student_id, NULL AS bimestre, NULL AS count_low_grades, NULL AS failed_courses, NULL AS teacher_id FROM evaluations e JOIN teacher_courses tc ON e.teacher_course_id = tc.id JOIN academic_courses ac ON tc.course_id = ac.id JOIN teacher t ON tc.teacher_id = t.id LEFT JOIN notification_read nr ON nr.evaluation_id = e.id AND nr.user_id = {$user_id} WHERE nr.id IS NULL AND tc.school_id = {$school_id_topbar}";
-    $low_grades_query = "SELECT 'low_grade' AS type, lgn.id AS notification_id, CONCAT('Notas Bajas - Bimestre ', lgn.bimestre) AS title, lgn.created_at, NULL AS course_name, s.nivel AS level, s.grado, s.seccion, NULL AS teacher_name, s.name AS student_name, lgn.student_id, lgn.bimestre, lgn.count_low_grades, lgn.failed_courses, lgn.teacher_id FROM low_grade_notifications lgn JOIN student s ON lgn.student_id = s.id LEFT JOIN low_grade_notification_read lgnr ON lgn.id = lgnr.notification_id AND lgnr.user_id = {$user_id} WHERE lgnr.id IS NULL AND s.school_id = {$school_id_topbar}";
+    $low_grades_query = "SELECT 'low_grade' AS type, lgn.id AS notification_id, CONCAT('Notas Bajas - Bimestre ', lgn.bimestre) AS title, DATE_SUB(lgn.created_at, INTERVAL 5 HOUR) AS created_at, NULL AS course_name, s.nivel AS level, s.grado, s.seccion, NULL AS teacher_name, s.name AS student_name, lgn.student_id, lgn.bimestre, lgn.count_low_grades, lgn.failed_courses, lgn.teacher_id FROM low_grade_notifications lgn JOIN student s ON lgn.student_id = s.id LEFT JOIN low_grade_notification_read lgnr ON lgn.id = lgnr.notification_id AND lgnr.user_id = {$user_id} WHERE lgnr.id IS NULL AND s.school_id = {$school_id_topbar}";
     if ($user_type === 2 && $teacher_id > 0) $low_grades_query .= " AND lgn.teacher_id = {$teacher_id}";
     elseif ($user_type === 1) $low_grades_query .= ' AND lgn.teacher_id IS NULL';
     else $low_grades_query .= ' AND 1 = 0';
@@ -261,7 +261,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                             <div class="edusync-notification-copy">
                                 <div class="edusync-notification-meta">
                                     <span class="edusync-notification-kind<?php echo $kindClass; ?>"><?php echo $kind; ?></span>
-                                    <span class="small text-gray-500"><?php echo htmlspecialchars($time_ago, ENT_QUOTES, 'UTF-8'); ?></span>
+                                    <span class="small text-gray-500 edusync-notification-date"><?php echo htmlspecialchars($time_ago, ENT_QUOTES, 'UTF-8'); ?></span>
                                 </div>
                                 <span class="font-weight-bold edusync-notification-title">
                                     <?php if ($type === 'evaluation'): ?>
@@ -357,6 +357,11 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             String(hour).padStart(2,'0') + ':' + match[5] + ' ' + suffix;
     }
 
+    // Vista compacta para la campana; el año completo queda en el tooltip.
+    function notificationTimePeruCompact(value) {
+        return notificationTimePeru(value).replace(/^(\d{2}\/\d{2})\/\d{4}/, '$1');
+    }
+
     function badgeValue(total) {
         total = Number(total) || 0;
         return total > 99 ? '99+' : String(total);
@@ -381,7 +386,8 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
 
     function notificationKind(category, priority) {
         if (category === 'Asistencia') return {label:'Asistencia', cls:' kind-attendance', bg:'bg-warning', icon:'fa-user-check'};
-        if (category === 'Alerta estudiantil' || priority === 'Alta') return {label:'Alerta académica', cls:' kind-alert', bg:'bg-danger', icon:'fa-exclamation-triangle'};
+        if (category === 'Alerta estudiantil') return {label:'Académica', cls:' kind-alert', bg:'bg-danger', icon:'fa-exclamation-triangle'};
+        if (priority === 'Alta') return {label:'Importante', cls:' kind-alert', bg:'bg-danger', icon:'fa-exclamation-triangle'};
         return {label:category || 'Notificación', cls:'', bg:'bg-primary', icon:'fa-bell'};
     }
 
@@ -491,7 +497,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
             var copy = $('<div class="edusync-notification-copy"></div>');
             var meta = $('<div class="edusync-notification-meta"></div>');
             meta.append('<span class="edusync-notification-kind kind-attendance">Asistencia</span>');
-            meta.append($('<span class="small text-gray-500"></span>').text(notificationTimePeru(row.created_at)));
+            meta.append($('<span class="small text-gray-500 edusync-notification-date"></span>').text(notificationTimePeruCompact(row.created_at)).attr('title',notificationTimePeru(row.created_at)));
             copy.append(meta);
             copy.append($('<span class="font-weight-bold edusync-notification-title"></span>').text((row.requester || 'Usuario') + ' solicita: ' + (row.request_type || 'cambio de asistencia')));
             copy.append('<div class="edusync-notification-detail">Requiere autorización</div>');
@@ -586,7 +592,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
                     var copy = $('<div class="edusync-notification-copy"></div>');
                     var meta = $('<div class="edusync-notification-meta"></div>');
                     meta.append($('<span class="edusync-notification-kind' + kind.cls + '"></span>').text(kind.label));
-                    meta.append($('<span class="small text-gray-500"></span>').text(notificationTimePeru(row.created_at)));
+                    meta.append($('<span class="small text-gray-500 edusync-notification-date"></span>').text(notificationTimePeruCompact(row.created_at)).attr('title',notificationTimePeru(row.created_at)));
                     copy.append(meta);
                     copy.append($('<span class="font-weight-bold edusync-notification-title"></span>').text(row.title || 'Notificación'));
                     copy.append($('<div class="edusync-notification-detail"></div>').text(row.message || row.category || ''));
