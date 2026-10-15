@@ -240,8 +240,21 @@ if (!empty($selected_level) && !empty($selected_grado) && !empty($selected_secci
             WHERE LOWER(REPLACE(TRIM(ac.level), ' ', '')) = ?
               AND tc.academic_year_id = ?
               AND tc.grado = ?
-              AND tc.seccion = ?
-            ORDER BY s.name ASC";
+              AND tc.seccion = ?";
+    // Aplicar la verificación adicional solo a años cerrados o anteriores.
+    $academicYearForExport = (int)$selected_academic_year;
+    $activeStmt = $conn->prepare('SELECT is_active FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
+    if ($activeStmt) {
+        $activeStmt->bind_param('ii', $academicYearForExport, $school_id);
+        $activeStmt->execute();
+        $info = $activeStmt->get_result()->fetch_assoc();
+        $activeStmt->close();
+        if ($info && (int)$info['is_active'] !== 1) {
+            require_once __DIR__.'/includes/grades_report_historical_level.php';
+            $sql .= grhl_sql($conn, 's', 'tc', 'ac');
+        }
+    }
+    $sql .= ' ORDER BY s.name ASC';
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("isiss", $school_id, $level_key, $selected_academic_year, $selected_grado, $selected_seccion);
     $stmt->execute();
