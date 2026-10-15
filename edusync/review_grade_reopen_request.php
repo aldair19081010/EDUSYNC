@@ -16,7 +16,14 @@ if(!$request){echo '<div class="alert alert-warning">La solicitud no existe o pe
 function grr_date($value){if(!$value)return '—';$ts=strtotime($value);return $ts?date('d/m/Y h:i a',$ts):htmlspecialchars($value,ENT_QUOTES,'UTF-8');}
 $status=$request['status'];$badge=$status==='Pendiente'?'warning':($status==='Aprobada'?'success':'danger');
 ?>
-<style>.grr-box{border:1px solid #e3e6f0;border-radius:.5rem;background:#f8f9fc;padding:.85rem 1rem}.grr-label{font-size:.72rem;text-transform:uppercase;font-weight:800;color:#6c757d}.grr-value{font-weight:700;color:#344054}.grr-context{border-left:4px solid #4e73df}</style>
+
+<?php
+require_once __DIR__ . '/includes/notification_detail_ui.php';
+edn_header($status==='Aprobada'?'success':($status==='Rechazada'?'rejected':'reopen'),
+    'Solicitud de reapertura: '.$request['course_name'],
+    $request['level'].' · '.$request['grado'].' '.$request['seccion'],
+    $request['created_at'],$status,(int)$request['bimester'].'° bimestre');
+?>
 <div id="grr-message"></div>
 <div class="d-flex justify-content-between align-items-center mb-3"><div><span class="badge badge-<?php echo $badge; ?>"><?php echo htmlspecialchars($status); ?></span><span class="badge badge-light border ml-1"><?php echo (int)$request['bimester']; ?>° Bimestre</span></div><small class="text-muted"><?php echo grr_date($request['created_at']); ?></small></div>
 <div class="grr-box grr-context mb-3"><div class="grr-label">Curso y aula</div><div class="grr-value"><?php echo htmlspecialchars($request['course_name'].' · '.$request['level'].' · '.$request['grado'].' '.$request['seccion'],ENT_QUOTES,'UTF-8'); ?></div><div class="small text-muted mt-1">Año académico <?php echo htmlspecialchars($request['year']); ?></div></div>
@@ -27,6 +34,8 @@ $status=$request['status'];$badge=$status==='Pendiente'?'warning':($status==='Ap
 <?php else: ?>
 <div class="alert alert-<?php echo $status==='Aprobada'?'success':'danger'; ?> mb-0"><strong>Solicitud <?php echo strtolower(htmlspecialchars($status)); ?>.</strong><br>Revisada por: <?php echo htmlspecialchars($request['reviewed_by_name']?:'Administración'); ?><br>Fecha: <?php echo grr_date($request['reviewed_at']); ?><?php if(trim((string)$request['review_notes'])!==''): ?><br>Observación: <?php echo nl2br(htmlspecialchars($request['review_notes'],ENT_QUOTES,'UTF-8')); ?><?php endif; ?></div>
 <?php endif; ?>
+
+<?php edn_footer(); ?>
 <script>
 (function($){
  $('.grr-review').off('click.gradeReopen').on('click.gradeReopen',function(){
