@@ -121,7 +121,7 @@ if ($action === 'unregister') {
     // Se permite cerrar incluso si el navegador ya no tenía suscripción activa.
     wp_reply(['status'=>'ok','message'=>'Notificaciones desactivadas en este navegador.']);
 }
-if ($action !== 'register' && $action !== 'test') {
+if ($action !== 'register') {
     wp_reply(['status'=>'error','message'=>'Acción no válida.'],400);
 }
 
@@ -170,17 +170,3 @@ if ($action === 'register') {
         wp_reply(['status'=>'error','message'=>'No se pudo registrar el navegador.'],500);
     }
 }
-
-// Una prueba manual, dirigida únicamente a la sesión actual y este navegador.
-if (!wp_exists($conn,'web_push_delivery')) wp_reply(['status'=>'error','message'=>'Migración de entregas incompleta.'],409);
-if (time()-(int)($_SESSION['last_web_push_test']??0)<60) {
-    wp_reply(['status'=>'error','message'=>'Espera un minuto antes de repetir la prueba.'],429);
-}
-$s=$conn->prepare('SELECT fcm_token FROM web_push_subscriptions WHERE browser_id=? AND school_id=? AND account_kind=? AND account_id=? AND is_active=1 LIMIT 1');
-$s->bind_param('sisi',$browserId,$school,$kind,$id);
-$s->execute();$row=$s->get_result()->fetch_assoc();$s->close();
-if (!$row) wp_reply(['status'=>'error','message'=>'Primero activa las notificaciones en este navegador.'],404);
-require_once __DIR__ . '/../includes/web_push_fcm_sender.php';
-$_SESSION['last_web_push_test']=time();
-$answer=edwp_send_message((string)$row['fcm_token'],'Prueba de EduSync','Las notificaciones web están configuradas para este dispositivo.', 'index.php?page=notifications', 'test-'.time());
-wp_reply(['status'=>$answer['ok']?'ok':'error','message'=>$answer['ok']?'Se solicitó el envío de la prueba. Verifica las notificaciones del sistema.':'Firebase no pudo entregar la prueba; revisa las credenciales y los registros del servidor.','code'=>$answer['code']],$answer['ok']?200:502);
