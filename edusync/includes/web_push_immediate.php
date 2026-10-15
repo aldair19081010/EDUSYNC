@@ -8,7 +8,7 @@
 require_once __DIR__.'/web_push_fcm_sender.php';
 
 function edwp_send_student_event_now(mysqli $db, int $schoolId, int $eventId): array {
-    $summary=['sent'=>0,'failed'=>0,'skipped'=>false];
+    $summary=['sent'=>0,'failed'=>0,'skipped'=>false,'subscriptions'=>0];
     if ($schoolId <= 0 || $eventId <= 0
         || !push_table_exists($db,'web_push_subscriptions')
         || !push_table_exists($db,'web_push_delivery')
@@ -51,6 +51,7 @@ function edwp_send_student_event_now(mysqli $db, int $schoolId, int $eventId): a
         $stmt->execute();
         $rows=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
+        $summary['subscriptions']=count($rows);
         $routes=[
             'attendance'=>'student_attendances','payments'=>'student_payments',
             'debts'=>'student_debts','grades'=>'student_grades',
