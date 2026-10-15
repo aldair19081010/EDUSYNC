@@ -135,58 +135,68 @@ if ($is_admin) {
     $q->close();
 }
 
-// --- Cargar alumnos si hay filtros ---
+// --- Nómina de reportes históricos ---
+// Los alumnos pueden haber cambiado de grado, nivel, sección o estado.
+// Para años cerrados, la evidencia válida es evaluation_grades -> evaluations
+// -> teacher_courses (año/aula de entonces), no student.grado actual.
 if ($selected_level && $selected_grado && $selected_seccion && $selected_academic_year) {
     $students = [];
     $level_key = normalize_level_for_key($selected_level);
-    
-    $sql1 = "
-        SELECT DISTINCT s.id, s.name, s.id_no 
-        FROM student s
-        WHERE LOWER(REPLACE(TRIM(s.nivel), ' ', '')) = ? 
-        AND s.school_id = ? 
-        AND (s.status = 'Activo' OR s.status IS NULL)
-        AND s.grado = ?
-        AND s.seccion = ?
-        ORDER BY s.name ASC
-    ";
-    $stmt1 = $conn->prepare($sql1);
-    $stmt1->bind_param("siss", $level_key, $school_id, $selected_grado, $selected_seccion);
-    $stmt1->execute();
-    $res1 = $stmt1->get_result();
-    while($row = $res1->fetch_assoc()) {
-        $students[$row['id']] = $row;
+    $yearIsActive = false;
+    foreach ($academic_years as $ay) {
+        if ((int)$ay['id'] === (int)$selected_academic_year) {
+            $yearIsActive = (int)$ay['is_active'] === 1;
+            break;
+        }
     }
-    $stmt1->close();
-    
-    $sql2 = "
-        SELECT DISTINCT s.id, s.name, s.id_no 
-        FROM student s
-        INNER JOIN evaluation_grades eg ON s.id = eg.student_id
-        INNER JOIN evaluations e ON eg.evaluation_id = e.id
-        INNER JOIN teacher_courses tc ON e.teacher_course_id = tc.id
-        WHERE LOWER(REPLACE(TRIM(s.nivel), ' ', '')) = ? 
-        AND s.school_id = ? 
-        AND (s.status = 'Activo' OR s.status IS NULL)
-        AND tc.academic_year_id = ?
-        AND tc.grado = ?
-        AND tc.seccion = ?
-        ORDER BY s.name ASC
-    ";
-    $stmt2 = $conn->prepare($sql2);
-    $academic_year_id = (int) $selected_academic_year;
-    $stmt2->bind_param("sisss", $level_key, $school_id, $academic_year_id, $selected_grado, $selected_seccion);
-    $stmt2->execute();
-    $res2 = $stmt2->get_result();
-    while($row = $res2->fetch_assoc()) {
-        $students[$row['id']] = $row;
+
+    // Sólo el año activo puede utilizar la nómina actual para mostrar
+    // estudiantes aún sin calificaciones.
+    if ($yearIsActive) {
+        $stmt1 = $conn->prepare("
+            SELECT DISTINCT s.id,s.name,s.id_no
+            FROM student s
+            WHERE s.school_id=?
+              AND LOWER(REPLACE(TRIM(s.nivel),' ',''))=?
+              AND s.grado=? AND s.seccion=?
+              AND (s.status='Activo' OR s.status='1' OR s.status IS NULL)
+            ORDER BY s.name");
+        if ($stmt1) {
+            $stmt1->bind_param("isss", $school_id,$level_key,$selected_grado,$selected_seccion);
+            $stmt1->execute();
+            $result=$stmt1->get_result();
+            while ($row=$result->fetch_assoc()) $students[(int)$row['id']]=$row;
+            $stmt1->close();
+        }
     }
-    $stmt2->close();
-    
-    usort($students, function($a, $b) {
-        return strcmp($a['name'], $b['name']);
+
+    // Para cualquier año, recuperar estudiantes vinculados a notas de
+    // aquella aula, incluso si hoy cursan otro grado o están inactivos.
+    $stmt2 = $conn->prepare("
+        SELECT DISTINCT s.id,s.name,s.id_no
+        FROM evaluation_grades eg
+        INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
+        INNER JOIN evaluations e ON e.id=eg.evaluation_id
+        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+             AND tc.school_id=s.school_id
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id
+             AND ac.school_id=tc.school_id
+        WHERE tc.academic_year_id=?
+          AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
+          AND tc.grado=? AND tc.seccion=?
+        ORDER BY s.name");
+    if ($stmt2) {
+        $yearId=(int)$selected_academic_year;
+        $stmt2->bind_param("iisss",$school_id,$yearId,$level_key,$selected_grado,$selected_seccion);
+        $stmt2->execute();
+        $result=$stmt2->get_result();
+        while ($row=$result->fetch_assoc()) $students[(int)$row['id']]=$row;
+        $stmt2->close();
+    }
+    $students=array_values($students);
+    usort($students, static function($a,$b) {
+        return strcasecmp((string)$a['name'],(string)$b['name']);
     });
-    $students = array_values($students);
 }
 ?>
 
