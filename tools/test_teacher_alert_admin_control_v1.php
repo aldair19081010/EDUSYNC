@@ -10,7 +10,10 @@ function assertion(bool $test,string $name):void {
 $root=dirname(__DIR__);
 $api=file_get_contents($root.'/edusync/teacher_notifications_admin_api.php');
 $scan=file_get_contents($root.'/edusync/includes/teacher_action_notifications.php');
-$page=file_get_contents($root.'/edusync/academic_year.php');
+$oldPage=file_get_contents($root.'/edusync/academic_year.php');
+$page=file_get_contents($root.'/edusync/pages/teacher_followup.php');
+$index=file_get_contents($root.'/edusync/index.php');
+$sidebar=file_get_contents($root.'/edusync/includes/navbar_view.php');
 $js=file_get_contents($root.'/edusync/js/teacher_notifications_admin.js');
 $notificationApi=file_get_contents($root.'/edusync/notifications_api.php');
 $sql=file_get_contents($root.'/sql/teacher_alert_admin_control_v1.sql');
@@ -32,12 +35,26 @@ assertion(strpos($scan,"COALESCE(tns.deadline_date,ap.end_date)")!==false
     'El generador respeta plazos y preferencias de cada bimestre.');
 assertion(strpos($api,"taca_missing_cells")===false && strpos($api,"tna_missing_cells")!==false,
     'El panel reutiliza el cálculo existente de notas sin completar.');
-assertion(strpos($page,'ay-teacher-alert-control')!==false &&
+assertion(strpos($page,'teacher-followup-root')!==false &&
     strpos($page,'taca-reminder-modal')!==false,
-    'Interfaz y confirmación de recordatorio disponibles en cierre de notas.');
+    'Interfaz y confirmación de recordatorio en página independiente.');
+assertion(strpos($oldPage,'ay-teacher-alert-control')===false &&
+    strpos($oldPage,'taca-reminder-modal')===false,
+    'El cierre de notas ya no incluye el panel ni el modal de avisos.');
+assertion(strpos($index,"'teacher_followup'")!==false &&
+    strpos($sidebar,"'page' => 'teacher_followup'")!==false,
+    'Nuevo módulo registrado en whitelist y menú del administrador.');
+assertion(strpos($page,'taca-settings-modal')!==false &&
+    strpos($page,'taca-history-modal')!==false &&
+    strpos($js,"$('#taca-settings-open')")!==false &&
+    strpos($js,"$('#taca-history-open')")!==false,
+    'Configuración e historial accesibles en diálogos separados.');
+assertion(strpos($js,"$('#taca-year')")!==false &&
+    strpos($js,'function isEditable()')!==false,
+    'Cambio de año y protección de años históricos en UI.');
 assertion(strpos($notificationApi,"'teacher_manual_reminder'")!==false,
     'La bandeja usa el ID autorizado del evento manual.');
-assertion(strpos($js,'escape')===false && strpos($js,"function esc(s)")!==false,
+assertion(strpos($js,'function esc(value)')!==false,
     'El renderizado HTML del panel escapa las cadenas mostradas.');
 assertion(strpos($sql,'UNIQUE KEY uniq_teacher_alert_period')!==false,
     'Configuración única por institución/año/bimestre.');
