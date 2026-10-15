@@ -6,6 +6,8 @@
 ini_set('display_errors', '0');
 include_once __DIR__ . '/../session_config.php';
 require_once __DIR__ . '/../db_connect.php';
+// subscribed_at y last_seen_at son DATETIME: almacenar siempre en UTC.
+$conn->query("SET time_zone = '+00:00'");
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
