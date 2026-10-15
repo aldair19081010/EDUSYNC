@@ -8,6 +8,7 @@ if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }
 ini_set('display_errors','0');
 date_default_timezone_set('America/Lima');
 require_once __DIR__.'/../db_connect.php';
+require_once __DIR__.'/../includes/notification_date_timezone.php';
 require_once __DIR__.'/../includes/web_push_fcm_sender.php';
 $conn->query("SET time_zone = '-05:00'");
 
@@ -146,20 +147,21 @@ try {
         if (push_table_exists($conn,'evaluations')
             && push_table_exists($conn,'teacher_courses')
             && push_table_exists($conn,'academic_courses')) {
+            $evaluationTimeSql = edun_evaluation_created_at_lima_sql($conn);
             $parts[]="SELECT 'evaluation' kind,e.id event_id,tc.school_id,s.id subscription_id,s.fcm_token,
                      CONCAT('Nueva evaluación: ',e.title) title,
                      CONCAT(COALESCE(ac.name,'Curso'),' · ',COALESCE(te.name,'Docente')) body,
-                     'evaluation' screen,e.created_at created,COALESCE(d.attempts,0) attempts
+                     'evaluation' screen,{$evaluationTimeSql} created,COALESCE(d.attempts,0) attempts
                      FROM evaluations e
                      JOIN teacher_courses tc ON tc.id=e.teacher_course_id
                      LEFT JOIN academic_courses ac ON ac.id=tc.course_id
                      LEFT JOIN teacher te ON te.id=tc.teacher_id
                      JOIN web_push_subscriptions s ON s.account_kind='staff' AND s.role_type=1
-                       AND s.school_id=tc.school_id AND e.created_at>=s.subscribed_at
+                       AND s.school_id=tc.school_id AND {$evaluationTimeSql}>=s.subscribed_at
                      $validStaff
                      {$delivery}'evaluation' AND d.event_id=e.id
                      WHERE $active AND $pending AND $staffEligible
-                       AND e.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)
+                       AND {$evaluationTimeSql}>=DATE_SUB(NOW(),INTERVAL 3 DAY)
                        AND NOT EXISTS (SELECT 1 FROM notification_events ne
                          WHERE ne.school_id=tc.school_id AND ne.source_type='evaluation'
                            AND ne.source_id=e.id)";
