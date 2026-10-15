@@ -313,6 +313,7 @@ if ($action === 'status' || $action === 'close' || $action === 'request_reopen')
             $stmt->close();
             $closure = gc_period_row($conn, $schoolId, $teacherCourseId, $bimester);
             gc_audit($conn,$schoolId,$yearId,$teacherCourseId,$teacherId,$bimester,$userId,'period_closed',['closure_id'=>(int)$closure['id'],'snapshot'=>$validation['snapshot']]);
+            $createdEventId = 0;
             if (gc_table($conn,'notification_events')) {
                 $recipientRole='Administrador';$notificationType='Académica';$priority='Normal';
                 $title='Notas cerradas: ' . $assignment['course_name'] . ' · ' . $assignment['grado'] . ' ' . $assignment['seccion'];
@@ -321,9 +322,14 @@ if ($action === 'status' || $action === 'close' || $action === 'request_reopen')
                 $event=$conn->prepare('INSERT INTO notification_events(school_id,recipient_role,notification_type,priority,title,message,source_type,source_id,created_by) VALUES(?,?,?,?,?,?,?,?,?)');
                 $event->bind_param('issssssii',$schoolId,$recipientRole,$notificationType,$priority,$title,$message,$sourceType,$sourceId,$userId);
                 if(!$event->execute()) throw new RuntimeException($event->error);
+                $createdEventId = (int)$event->insert_id;
                 $event->close();
             }
             $conn->commit();
+            if ($createdEventId > 0) {
+                require_once __DIR__ . '/includes/web_push_staff_events.php';
+                edwp_queue_staff_event($conn, $schoolId, 'staff', $createdEventId);
+            }
             gc_response(['status'=>1,'message'=>'Notas cerradas correctamente. El bimestre quedó en modo solo lectura.','closure_id'=>(int)$closure['id']]);
         } catch (Throwable $e) {
             $conn->rollback();
@@ -343,6 +349,8 @@ if ($action === 'status' || $action === 'close' || $action === 'request_reopen')
         if(!$stmt->execute()) gc_response(['status'=>0,'message'=>'No se pudo registrar la solicitud.','detail'=>$stmt->error],500);
         $requestId=(int)$stmt->insert_id;$stmt->close();
         gc_audit($conn,$schoolId,$yearId,$teacherCourseId,$teacherId,$bimester,$userId,'reopen_requested',['request_id'=>$requestId,'reason'=>$reason]);
+        require_once __DIR__ . '/includes/web_push_staff_events.php';
+        edwp_queue_staff_event($conn, $schoolId, 'reopen_req', $requestId);
         gc_response(['status'=>1,'message'=>'Solicitud de reapertura enviada a Administración.','request_id'=>$requestId]);
     }
 }
@@ -364,15 +372,20 @@ if ($action === 'review_reopen') {
         $update=$conn->prepare('UPDATE grade_reopen_requests SET status=?,reviewed_by=?,reviewed_at=NOW(),review_notes=? WHERE id=? AND school_id=?');
         $update->bind_param('sisii',$decision,$userId,$notes,$requestId,$schoolId);if(!$update->execute())throw new RuntimeException($update->error);$update->close();
         gc_audit($conn,$schoolId,(int)$request['academic_year_id'],(int)$request['teacher_course_id'],(int)$request['teacher_id'],(int)$request['bimester'],$userId,$decision==='Aprobada'?'reopen_approved':'reopen_rejected',['request_id'=>$requestId,'reason'=>$request['reason'],'review_notes'=>$notes]);
+        $createdEventId = 0;
         if(gc_table($conn,'notification_events')){
             $recipient=(int)$request['requested_by'];$notificationType='Académica';$priority=$decision==='Aprobada'?'Normal':'Alta';
             $title=$decision==='Aprobada'?'Reapertura de notas aprobada':'Reapertura de notas rechazada';
             $message=$request['course_name'].' · '.$request['grado'].' '.$request['seccion'].' · '.$request['bimester'].'° Bimestre'.($notes!==''?' · '.$notes:'');
             $sourceType='grade_reopen_result';$sourceId=$requestId;
             $event=$conn->prepare('INSERT INTO notification_events(school_id,recipient_user_id,notification_type,priority,title,message,source_type,source_id,created_by) VALUES(?,?,?,?,?,?,?,?,?)');
-            $event->bind_param('iisssssii',$schoolId,$recipient,$notificationType,$priority,$title,$message,$sourceType,$sourceId,$userId);if(!$event->execute())throw new RuntimeException($event->error);$event->close();
+            $event->bind_param('iisssssii',$schoolId,$recipient,$notificationType,$priority,$title,$message,$sourceType,$sourceId,$userId);if(!$event->execute())throw new RuntimeException($event->error);$createdEventId=(int)$event->insert_id;$event->close();
         }
         $conn->commit();
+        if ($createdEventId > 0) {
+            require_once __DIR__ . '/includes/web_push_staff_events.php';
+            edwp_queue_staff_event($conn, $schoolId, 'staff', $createdEventId);
+        }
         gc_response(['status'=>1,'message'=>$decision==='Aprobada'?'Reapertura autorizada. El docente ya puede editar nuevamente.':'Solicitud de reapertura rechazada.','decision'=>$decision]);
     }catch(Throwable $e){$conn->rollback();gc_response(['status'=>0,'message'=>$e->getMessage()]);}
 }
