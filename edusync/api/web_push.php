@@ -128,6 +128,45 @@ if ($action === 'config') {
         'push_ready'=>wp_exists($conn,'web_push_subscriptions') && wp_exists($conn,'web_push_delivery'),
     ]);
 }
+if ($action === 'status') {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
+        wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
+    }
+    $ready=wp_exists($conn,'web_push_subscriptions') && wp_exists($conn,'web_push_delivery');
+    require_once __DIR__ . '/../includes/web_push_fcm_sender.php';
+    $private=edwp_load_firebase_credentials();
+    $senderReady=is_array($private) && !empty($private['project_id'])
+        && !empty($private['client_email']) && !empty($private['private_key']);
+    $activeCount=0;
+    $latest=null;
+    $stats=[];
+    if ($ready) {
+        $stmt=$conn->prepare('SELECT COUNT(*) total FROM web_push_subscriptions WHERE school_id=? AND account_kind=? AND account_id=? AND is_active=1');
+        $stmt->bind_param('isi',$identity['school'],$identity['kind'],$identity['id']);
+        $stmt->execute();
+        $activeCount=(int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
+        $stmt->close();
+        $stmt=$conn->prepare('SELECT d.event_kind,d.status,d.updated_at FROM web_push_delivery d INNER JOIN web_push_subscriptions s ON s.id=d.subscription_id WHERE s.school_id=? AND s.account_kind=? AND s.account_id=? ORDER BY d.updated_at DESC LIMIT 12');
+        $stmt->bind_param('isi',$identity['school'],$identity['kind'],$identity['id']);
+        $stmt->execute();
+        $res=$stmt->get_result();
+        while ($row=$res->fetch_assoc()) {
+            if ($latest === null) $latest=(string)$row['updated_at'];
+            $key=(string)$row['status'];
+            $stats[$key]=($stats[$key] ?? 0)+1;
+        }
+        $stmt->close();
+    }
+    wp_reply([
+        'status'=>'ok',
+        'push_tables_ready'=>$ready,
+        'sender_credentials_present'=>$senderReady,
+        'active_subscriptions'=>$activeCount,
+        'latest_delivery_attempt_utc'=>$latest,
+        'recent_delivery_status'=>$stats,
+    ]);
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
 if (!hash_equals((string)$_SESSION['csrf_token'], (string)($_POST['csrf_token'] ?? ''))) {
     wp_reply(['status'=>'error','message'=>'Sesión de seguridad vencida. Recarga EduSync.'],403);
