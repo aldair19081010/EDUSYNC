@@ -159,6 +159,14 @@ if(!$year||!$period)taca_response(['status'=>0,'message'=>'El periodo no pertene
 try {
     if($action==='status') {
         $settings=taca_settings($conn,$school,$yearId,$bim);
+        $globalLock=$conn->prepare('SELECT is_locked FROM bimester_locks WHERE school_id=? AND academic_year_id=? AND bimester=? LIMIT 1');
+        if($globalLock) {
+            $globalLock->bind_param('iii',$school,$yearId,$bim);
+            $globalLock->execute();
+            $globalRow=$globalLock->get_result()->fetch_assoc();
+            $globalLock->close();
+            $period['global_locked']=(int)($globalRow['is_locked']??0);
+        }
         $teachers=taca_teachers($conn,$school,$yearId,$bim);
         $totals=['teachers'=>count($teachers),'assignments'=>0,'closed'=>0,
                  'pending'=>0,'incomplete'=>0];
@@ -247,7 +255,11 @@ try {
             $last=$conn->prepare('SELECT id,created_at FROM teacher_alert_manual_log WHERE school_id=? AND academic_year_id=? AND bimester=? AND recipient_user_id=? AND created_at>=DATE_SUB(NOW(),INTERVAL 24 HOUR) ORDER BY id DESC LIMIT 1');
             $last->bind_param('iiii',$school,$yearId,$bim,$recipient);$last->execute();
             $previous=$last->get_result()->fetch_assoc();$last->close();
-            if($previous)taca_response(['status'=>0,'message'=>'Ya se envió un recordatorio a este docente en las últimas 24 horas.'],409);
+            if($previous) {
+                $unlock=$conn->prepare('SELECT RELEASE_LOCK(?)');
+                if($unlock){$unlock->bind_param('s',$lockName);$unlock->execute();$unlock->close();}
+                taca_response(['status'=>0,'message'=>'Ya se envió un recordatorio a este docente en las últimas 24 horas.'],409);
+            }
             $conn->begin_transaction();
             $log=$conn->prepare('INSERT INTO teacher_alert_manual_log(school_id,academic_year_id,bimester,teacher_id,recipient_user_id,created_by) VALUES(?,?,?,?,?,?)');
             $log->bind_param('iiiiii',$school,$yearId,$bim,$teacher,$recipient,$user);
