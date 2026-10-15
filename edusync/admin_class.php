@@ -2538,13 +2538,16 @@ function save_payment(){
                     if (!$stmt->execute()) throw new RuntimeException($stmt->error);
                     $stmt->close();
                 }
+                // low_grade_notifications.created_at es DATETIME: persistir UTC sin
+                // depender de la zona horaria configurada en MySQL/Hostinger.
+                // Su visualización se convierte a America/Lima al consultar.
                 foreach ($plan['create'] as $alert) {
                     $sid=(int)$alert['student'];
                     $teacher=$alert['teacher']; // NULL cuando va a Administración.
                     $count=(int)$alert['count'];$json=(string)$alert['json'];
                     $stmt=$this->db->prepare('INSERT INTO low_grade_notifications
                         (student_id,bimestre,count_low_grades,failed_courses,teacher_id,created_at)
-                        VALUES (?,?,?,?,?,NOW())');
+                        VALUES (?,?,?,?,?,UTC_TIMESTAMP())');
                     if (!$stmt) throw new RuntimeException($this->db->error);
                     $stmt->bind_param('isisi',$sid,$bim,$count,$json,$teacher);
                     if (!$stmt->execute()) throw new RuntimeException($stmt->error);
