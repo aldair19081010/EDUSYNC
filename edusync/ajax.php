@@ -901,8 +901,82 @@ if ($action == 'get_students_by_grado_seccion') {
         $level = $_POST['level'] ?? '';
         $academic_year_id = $_POST['academic_year_id'] ?? '';
         $school_id = $_SESSION['login_school_id'] ?? 0;
-		
-		$students = [];
+
+        // Reporte de notas: la matrícula actual no es la nómina histórica.
+        // Limitar este cambio a la página del reporte para no modificar
+        // los filtros de nómina utilizados en otras pantallas.
+        if (($_POST['report_scope'] ?? '') === 'grades_report'
+            && (int)$academic_year_id > 0
+            && $school_id && $grado && $seccion && $level) {
+            $school = (int)$school_id;
+            $year = (int)$academic_year_id;
+            $levelKey = strtolower(str_replace(' ', '', trim((string)$level)));
+            $resultStudents = [];
+
+            $yearStmt = $conn->prepare('SELECT is_active FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
+            $isActiveYear = false;
+            if ($yearStmt) {
+                $yearStmt->bind_param('ii', $year, $school);
+                $yearStmt->execute();
+                $info = $yearStmt->get_result()->fetch_assoc();
+                $isActiveYear = $info && (int)$info['is_active'] === 1;
+                $yearStmt->close();
+            }
+
+            // Alumnos actuales sin notas: sólo para el periodo activo.
+            if ($isActiveYear) {
+                $q = $conn->prepare("SELECT DISTINCT id,name,id_no FROM student
+                    WHERE school_id=? AND LOWER(REPLACE(TRIM(nivel),' ',''))=?
+                      AND grado=? AND seccion=?
+                      AND (status='Activo' OR status='1' OR status IS NULL)");
+                if ($q) {
+                    $q->bind_param('isss', $school, $levelKey, $grado, $seccion);
+                    $q->execute();
+                    $rows = $q->get_result();
+                    while ($stu = $rows->fetch_assoc()) $resultStudents[(int)$stu['id']] = $stu;
+                    $q->close();
+                }
+            }
+
+            // Alumnos que realmente tienen notas del grado/sección de ese
+            // año, aunque hayan sido promovidos o estén inactivos hoy.
+            $historicalSql = "SELECT DISTINCT s.id,s.name,s.id_no
+                FROM evaluation_grades eg
+                INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
+                INNER JOIN evaluations e ON e.id=eg.evaluation_id
+                INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                    AND tc.school_id=s.school_id
+                INNER JOIN academic_courses ac ON ac.id=tc.course_id
+                    AND ac.school_id=tc.school_id
+                WHERE tc.academic_year_id=?
+                  AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
+                  AND tc.grado=? AND tc.seccion=?";
+            $params = [$school, $year, $levelKey, $grado, $seccion];
+            $paramTypes = 'iisss';
+            if (!$reportDirector && (int)($_SESSION['login_type'] ?? 0) === 2) {
+                $historicalSql .= " AND tc.teacher_id=?";
+                $params[] = (int)($_SESSION['login_teacher_id'] ?? 0);
+                $paramTypes .= 'i';
+            }
+            $historicalSql .= ' ORDER BY s.name';
+            $q = $conn->prepare($historicalSql);
+            if ($q) {
+                $q->bind_param($paramTypes, ...$params);
+                $q->execute();
+                $rows = $q->get_result();
+                while ($stu = $rows->fetch_assoc()) $resultStudents[(int)$stu['id']] = $stu;
+                $q->close();
+            }
+            $students = array_values($resultStudents);
+            usort($students, static fn($a, $b) => strcasecmp((string)$a['name'], (string)$b['name']));
+            foreach ($students as &$stu) $stu['name'] = ucwords((string)$stu['name']);
+            unset($stu);
+            echo json_encode(['status' => 1, 'students' => $students,
+                'message' => $students ? '' : 'No hay calificaciones registradas para esta aula en el año seleccionado.']);
+            exit;
+        }
+
+\t\t$students = [];
 		$student_ids = []; // Para evitar duplicados
 		
 		if ($grado && $seccion && $level) {
