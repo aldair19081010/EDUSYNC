@@ -96,7 +96,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         throw new RuntimeException('Debe seleccionar año, nivel, grado, sección y bimestre.');
     }
 
-    $yearStmt = $conn->prepare('SELECT year FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
+    $yearStmt = $conn->prepare('SELECT year,is_active FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
     $yearStmt->bind_param('ii', $yearId, $schoolId);
     $yearStmt->execute();
     $year = $yearStmt->get_result()->fetch_assoc();
@@ -151,10 +151,15 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
     uasort($courses, function ($a, $b) { return strcasecmp($a['name'], $b['name']); });
 
     $students = [];
-    $studentStmt = $conn->prepare("SELECT id,name,id_no,nivel,grado,COALESCE(NULLIF(TRIM(seccion),''),'U') seccion
-                                  FROM student
-                                  WHERE school_id=? AND (status='Activo' OR status='1' OR status IS NULL)
-                                  ORDER BY name ASC");
+    // Sólo la matrícula del año activo representa correctamente el aula.
+    $isCurrentAcademicYear = (int)($year['is_active'] ?? 0) === 1;
+    $studentStmt = $isCurrentAcademicYear
+        ? $conn->prepare("SELECT id,name,id_no,nivel,grado,COALESCE(NULLIF(TRIM(seccion),''),'U') seccion
+                           FROM student
+                           WHERE school_id=? AND (status='Activo' OR status='1' OR status IS NULL)
+                           ORDER BY name ASC")
+        : null;
+    if ($studentStmt) {
     $studentStmt->bind_param('i', $schoolId);
     $studentStmt->execute();
     $studentResult = $studentStmt->get_result();
@@ -169,10 +174,33 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         ];
     }
     $studentStmt->close();
-    uasort($students, function ($a, $b) { return strcasecmp($a['name'], $b['name']); });
+    }
 
     $tcIds = array_keys($assignments);
     $tcList = implode(',', array_map('intval', $tcIds));
+
+    // Nómina histórica: los IDs de estudiante salen de sus calificaciones
+    // asociadas a cursos/asignaciones del año, independientemente de su grado
+    // actual o del estado (trasladado, retirado, egresado, etc.).
+    $historyStmt = $conn->prepare("SELECT DISTINCT s.id,s.name,s.id_no
+        FROM evaluation_grades eg
+        INNER JOIN evaluations e ON e.id=eg.evaluation_id
+        INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
+        WHERE e.teacher_course_id IN ($tcList) AND e.academic_year_id=?");
+    if ($historyStmt) {
+        $historyStmt->bind_param('ii', $schoolId, $yearId);
+        $historyStmt->execute();
+        $historicRows = $historyStmt->get_result();
+        while ($historic = $historicRows->fetch_assoc()) {
+            $students[(int)$historic['id']] = [
+                'id' => (int)$historic['id'],
+                'name' => (string)$historic['name'],
+                'dni' => (string)$historic['id_no']
+            ];
+        }
+        $historyStmt->close();
+    }
+    uasort($students, function ($a, $b) { return strcasecmp($a['name'], $b['name']); });
     $statusClause = '';
     $statusCheck = $conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
     if ($statusCheck && $statusCheck->num_rows > 0) {
