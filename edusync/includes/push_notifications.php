@@ -432,16 +432,20 @@ function push_send_student_event(
     $result['event_id'] = (int)$event['id'];
     $result['event_created'] = !empty($event['created']);
     $result['retry'] = !$result['event_created'];
-    // La asistencia dispara Web Push en el momento del registro, sin
-    // depender del cron ni modificar la entrega Android existente.
-    // Se evita repetir un evento ya creado; el cron conserva reintentos.
-    if ($result['event_created'] && $result['event_id'] > 0
-        && strpos($notificationType, 'attendance_') === 0) {
+    // Todos los eventos estudiantiles (asistencia, cobranza, pagos, notas,
+    // deudas y comunicados) intentan Web Push al crearse, igual que Android.
+    // Solo una creación nueva dispara el envío: el cron comparte la tabla
+    // web_push_delivery y recupera pendientes, sin generar duplicados.
+    $result['web_push'] = ['sent'=>0,'failed'=>0,'skipped'=>false,'subscriptions'=>0];
+    if ($result['event_created'] && $result['event_id'] > 0) {
         try {
             require_once __DIR__.'/web_push_immediate.php';
-            edwp_send_student_event_now($db, $schoolId, $result['event_id']);
+            $result['web_push'] = edwp_send_student_event_now(
+                $db, $schoolId, $result['event_id']
+            );
         } catch (Throwable $e) {
-            error_log('[EduSync attendance Web Push] '.$e->getMessage());
+            $result['web_push']['skipped'] = true;
+            error_log('[EduSync student immediate Web Push] '.$e->getMessage());
         }
     }
 
