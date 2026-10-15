@@ -187,7 +187,7 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
           AND (?=0 OR tc.teacher_id=?)";
     if (!$yearIsActive) {
         require_once dirname(__DIR__) . '/includes/grades_report_historical_level.php';
-        $historySql .= grhl_sql($conn, 's', 'tc', 'ac');
+        $historySql .= grhl_sql($conn, 's', 'tc', 'ac', (int)$school_id, (int)$selected_academic_year, $selected_level);
     }
     $historySql .= ' ORDER BY s.name';
     $stmt2 = $conn->prepare($historySql);
