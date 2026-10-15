@@ -136,6 +136,19 @@ $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
 
 $params = [$schoolId, $schoolId, $schoolId, report_level_key($level), $grade, $section, $yearId, report_level_key($level), $grade, $section];
 $types = 'iiisssisss';
+// Solo para años históricos: validar el nivel al que realmente
+// pertenecía el estudiante, sin utilizar student.nivel actual.
+$yearStmt = $conn->prepare('SELECT is_active FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
+if ($yearStmt) {
+    $yearStmt->bind_param('ii', $yearId, $schoolId);
+    $yearStmt->execute();
+    $selectedYear = $yearStmt->get_result()->fetch_assoc();
+    $yearStmt->close();
+    if ($selectedYear && (int)$selectedYear['is_active'] !== 1) {
+        require_once __DIR__.'/includes/grades_report_historical_level.php';
+        $sql .= grhl_sql($conn, 's', 'tc', 'ac');
+    }
+}
 if ($loginType === 2 && $teacherId > 0 && !$reportDirector) {
     $sql .= ' AND tc.teacher_id=?';
     $params[] = $teacherId;
