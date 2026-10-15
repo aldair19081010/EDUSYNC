@@ -74,11 +74,9 @@ edn_header('attendance','Solicitud de asistencia: '.$request['request_type'],
     $request['created_at'],$status);
 ?>
 <div id="arr-message"></div>
-<div class="mb-3">
-    <span class="badge badge-secondary"><?= htmlspecialchars($request['request_type']) ?></span>
-    <span class="badge badge-<?= $statusClass ?>"><?= htmlspecialchars($status) ?></span>
-</div>
 
+
+<div class="edn-section-title"><i class="fas fa-clipboard-list"></i>Información de la solicitud</div>
 <div class="row mb-3">
     <div class="col-md-6 mb-2 mb-md-0">
         <div class="arr-box h-100">
