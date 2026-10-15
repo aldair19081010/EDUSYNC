@@ -27,6 +27,26 @@ if($tfQuery){
     $tfQuery->close();
 }
 $tfYearId=$tfYears?(int)$tfYears[0]['id']:0;
+$tfBimester=1;
+if($tfYearId>0){
+    $tfPeriodQuery=$conn->prepare('SELECT period_number,start_date,end_date FROM academic_periods WHERE school_id=? AND academic_year_id=? ORDER BY period_number');
+    if($tfPeriodQuery){
+        $tfPeriodQuery->bind_param('ii',$tfSchool,$tfYearId);
+        $tfPeriodQuery->execute();$tfPeriods=$tfPeriodQuery->get_result();
+        $tfToday=date('Y-m-d');$tfBest=null;
+        while($tfP=$tfPeriods->fetch_assoc()){
+            $tfN=(int)$tfP['period_number'];
+            if($tfN<1||$tfN>4)continue;
+            if(!$tfBest)$tfBest=$tfN;
+            if($tfP['start_date']&&$tfP['start_date']<=$tfToday)$tfBest=$tfN;
+            if($tfP['start_date']&&$tfP['end_date']&&$tfToday>=$tfP['start_date']&&$tfToday<=$tfP['end_date']){
+                $tfBest=$tfN;break;
+            }
+        }
+        $tfBimester=$tfBest?:1;
+        $tfPeriodQuery->close();
+    }
+}
 if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
 $tfCssVersion=@filemtime(__DIR__.'/../css/teacher_notifications_admin.css')?:1;
 $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
@@ -54,7 +74,7 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
   <div class="card shadow-sm border-0 mb-3">
     <div class="card-body py-3">
       <div class="form-row align-items-end">
-        <div class="form-group col-md-4 col-lg-3 mb-2">
+        <div class="form-group col-md-5 col-lg-4 mb-2">
           <label class="small font-weight-bold text-gray-700 mb-1" for="taca-year">Año académico</label>
           <select id="taca-year" class="form-control form-control-sm" <?php echo !$tfYears?'disabled':''; ?>>
             <?php foreach($tfYears as $tfYear): ?>
@@ -65,21 +85,16 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="form-group col-md-3 col-lg-2 mb-2">
+        <div class="form-group col-md-3 col-lg-3 mb-2">
           <label class="small font-weight-bold text-gray-700 mb-1" for="taca-bim">Bimestre</label>
           <select id="taca-bim" class="form-control form-control-sm">
-            <option value="1">I Bimestre</option><option value="2">II Bimestre</option>
-            <option value="3">III Bimestre</option><option value="4">IV Bimestre</option>
+            <option value="1"<?php echo $tfBimester===1?' selected':''; ?>>I Bimestre</option>
+            <option value="2"<?php echo $tfBimester===2?' selected':''; ?>>II Bimestre</option>
+            <option value="3"<?php echo $tfBimester===3?' selected':''; ?>>III Bimestre</option>
+            <option value="4"<?php echo $tfBimester===4?' selected':''; ?>>IV Bimestre</option>
           </select>
         </div>
-        <div class="form-group col-md-5 col-lg-4 mb-2">
-          <label class="small font-weight-bold text-gray-700 mb-1" for="taca-search">Buscar docente</label>
-          <div class="input-group input-group-sm">
-            <div class="input-group-prepend"><span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span></div>
-            <input id="taca-search" type="search" class="form-control" placeholder="Nombre o curso" autocomplete="off">
-          </div>
-        </div>
-        <div class="form-group col-md-4 col-lg-3 mb-2">
+        <div class="form-group col-md-4 col-lg-5 mb-2">
           <label class="small font-weight-bold text-gray-700 mb-1" for="taca-filter">Estado</label>
           <select id="taca-filter" class="form-control form-control-sm">
             <option value="pending" selected>Pendientes</option>
@@ -104,9 +119,20 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
           <strong class="text-gray-800">Estado de docentes</strong>
           <div class="small text-muted">Seguimiento por asignación; recordatorios individuales.</div>
         </div>
-        <span id="taca-teacher-count" class="badge badge-light border mt-2 mt-sm-0"></span>
+        <div class="d-flex align-items-center flex-wrap">
+          <small class="text-muted mr-2" id="taca-grades-status" aria-live="polite"></small>
+          <span id="taca-teacher-count" class="badge badge-light border mt-2 mt-sm-0"></span>
+        </div>
       </div>
-      <div class="card-body py-0 px-3" id="taca-teacher-list"></div>
+      <div class="card-body pt-3 pb-2 px-3">
+        <div class="table-responsive" id="taca-table-wrap">
+          <table class="table table-bordered table-hover table-sm w-100" id="taca-teachers-table">
+            <thead class="thead-light">
+              <tr><th>Docente</th><th>Cierres</th><th>Pendientes</th><th>Notas faltantes</th><th>Estado</th><th class="text-center">Acción</th></tr>
+            </thead><tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
     <p class="small text-muted mb-3"><i class="fas fa-info-circle mr-1"></i>Los recordatorios se registran en la bandeja del docente. Máximo un envío manual cada 24 horas.</p>
   </div>
