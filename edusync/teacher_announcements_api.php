@@ -102,11 +102,40 @@ try {
           FROM teacher_announcements WHERE school_id=?");
         $s->bind_param('i',$school);$s->execute();
         $summary=$s->get_result()->fetch_assoc();$s->close();
+        $summary['month_push_sent']=0;
+        $summary['month_push_failed']=0;
+        if(ta_exists($conn,'web_push_delivery')){
+            $p=$conn->prepare("SELECT
+                COUNT(DISTINCT CASE WHEN d.status='delivered' THEN ar.id END) sent,
+                COUNT(DISTINCT CASE WHEN d.status='failed' THEN ar.id END) failed
+                FROM teacher_announcements a
+                INNER JOIN teacher_announcement_recipients ar
+                    ON ar.announcement_id=a.id AND ar.school_id=a.school_id
+                INNER JOIN web_push_delivery d
+                    ON d.event_id=ar.notification_event_id
+                    AND d.school_id=ar.school_id AND d.event_kind='staff'
+                WHERE a.school_id=? AND a.created_at>=DATE_FORMAT(CURDATE(),'%Y-%m-01')");
+            if($p){
+                $p->bind_param('i',$school);$p->execute();
+                $counts=$p->get_result()->fetch_assoc()?:[];$p->close();
+                $summary['month_push_sent']=(int)($counts['sent']??0);
+                $summary['month_push_failed']=(int)($counts['failed']??0);
+            }
+        }
         ta_reply(['status'=>1,'summary'=>$summary]);
     }
     if($action==='list') {
+        $statsColumns=ta_exists($conn,'web_push_delivery')
+          ? "(SELECT COUNT(DISTINCT ar.recipient_user_id)
+              FROM teacher_announcement_recipients ar
+              INNER JOIN web_push_delivery d
+                ON d.event_id=ar.notification_event_id
+                AND d.school_id=ar.school_id AND d.event_kind='staff'
+                AND d.status='delivered'
+              WHERE ar.school_id=a.school_id AND ar.announcement_id=a.id) push_sent_count"
+          : "0 push_sent_count";
         $s=$conn->prepare("SELECT a.id,a.title,a.content,a.audience_type,a.recipient_count,a.created_at,
-                COALESCE(u.name,'Administración') created_by_name
+                COALESCE(u.name,'Administración') created_by_name,$statsColumns
                 FROM teacher_announcements a
                 LEFT JOIN users u ON u.id=a.created_by AND u.school_id=a.school_id
                 WHERE a.school_id=? ORDER BY a.id DESC LIMIT 100");
@@ -140,6 +169,9 @@ try {
                SUM(d.status='retry') retrying,
                COUNT(*) device_count
               FROM web_push_delivery d
+              INNER JOIN teacher_announcement_recipients match_ar
+                ON match_ar.notification_event_id=d.event_id
+                AND match_ar.school_id=d.school_id AND match_ar.announcement_id=?
               WHERE d.event_kind='staff' AND d.school_id=?
               GROUP BY d.event_id
             ) p ON p.event_id=ar.notification_event_id
@@ -159,7 +191,7 @@ try {
             $s=$conn->prepare($sql);
             $s->bind_param('ii',$school,$id);
         } else {
-            $s->bind_param('iii',$school,$school,$id);
+            $s->bind_param('iiii',$id,$school,$school,$id);
         }
         if(!$s)throw new RuntimeException('No se pudo preparar el historial.');
         $s->execute();$rows=$s->get_result();$delivery=[];
