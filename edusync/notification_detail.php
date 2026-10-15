@@ -105,7 +105,25 @@ if ($type === 'attendance_result') {
     $stmt=$conn->prepare("SELECT * FROM notification_events WHERE id=? AND school_id=? AND (recipient_user_id=? OR (recipient_user_id IS NULL AND recipient_role=?)) LIMIT 1");$stmt->bind_param('iiis',$id,$school,$user,$roleName);$stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();
     if(!$row){echo '<div class="alert alert-warning">La notificación no existe o no está dirigida a su usuario y rol.</div>';return;}
     $title=$row['title'];$category=$row['notification_type'];$priority=$row['priority'];$message=$row['message'];$createdAt=$row['created_at'];
-    $content='<div class="card shadow-sm mb-3"><div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Detalle del aviso</h6></div><div class="card-body">'.nl2br(nd_e($message?:'Sin información adicional.')).'</div></div>';
+    if ($row['source_type']==='teacher_announcement') {
+        // Ya se verificó que el evento pertenece al usuario y colegio.
+        // El contenido completo no se replica en notification_events.message (500 chars).
+        $stmt=$conn->prepare("SELECT a.content,COALESCE(u.name,'Administración') author
+            FROM teacher_announcements a
+            INNER JOIN teacher_announcement_recipients ar ON ar.announcement_id=a.id
+                AND ar.school_id=a.school_id AND ar.notification_event_id=?
+                AND ar.recipient_user_id=?
+            LEFT JOIN users u ON u.id=a.created_by AND u.school_id=a.school_id
+            WHERE a.id=? AND a.school_id=? LIMIT 1");
+        if(!$stmt){echo '<div class="alert alert-warning">El contenido de este comunicado no está disponible.</div>';return;}
+        $announcementId=(int)$row['source_id'];
+        $stmt->bind_param('iiii',$id,$user,$announcementId,$school);
+        $stmt->execute();$full=$stmt->get_result()->fetch_assoc();$stmt->close();
+        if(!$full){echo '<div class="alert alert-warning">No se encontró el comunicado para este usuario.</div>';return;}
+        $content='<div class="card shadow-sm mb-3"><div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-bullhorn mr-2"></i>Comunicado institucional</h6></div><div class="card-body"><div class="small text-muted mb-3">Emitido por '.nd_e($full['author']).'</div><div style="white-space:pre-wrap;overflow-wrap:anywhere">'.nd_e($full['content']).'</div></div></div>';
+    } else {
+        $content='<div class="card shadow-sm mb-3"><div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Detalle del aviso</h6></div><div class="card-body">'.nl2br(nd_e($message?:'Sin información adicional.')).'</div></div>';
+    }
 } else { echo '<div class="alert alert-warning">Utilice la vista especializada de esta notificación.</div>'; return; }
 ?>
 <?php
