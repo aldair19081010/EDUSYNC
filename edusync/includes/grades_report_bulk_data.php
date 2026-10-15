@@ -186,7 +186,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         FROM evaluation_grades eg
         INNER JOIN evaluations e ON e.id=eg.evaluation_id
         INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
-        WHERE e.teacher_course_id IN ($tcList) AND e.academic_year_id=?");
+        WHERE e.teacher_course_id IN ($tcList)");
     if ($historyStmt) {
         $historyStmt->bind_param('ii', $schoolId, $yearId);
         $historyStmt->execute();
@@ -210,10 +210,9 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
     $evalStmt = $conn->prepare("SELECT e.id,e.teacher_course_id,e.title
                                FROM evaluations e
                                WHERE e.teacher_course_id IN ($tcList)
-                                 AND e.academic_year_id=?
                                  AND CAST(e.bimestre AS UNSIGNED)=?$statusClause
                                ORDER BY e.teacher_course_id,e.id");
-    $evalStmt->bind_param('ii', $yearId, $bimester);
+    $evalStmt->bind_param('i', $bimester);
     $evalStmt->execute();
     $evalResult = $evalStmt->get_result();
     $evaluations = [];
@@ -241,7 +240,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
                     FROM evaluation_competencias ec
                     INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
                     WHERE ec.evaluation_id IN ($evalList)
-                      AND (gcc.is_active=1 OR gcc.is_active IS NULL)
+
                     ORDER BY gcc.id,ec.evaluation_id";
         $links = $conn->query($linkSql);
         while ($links && ($row = $links->fetch_assoc())) {
