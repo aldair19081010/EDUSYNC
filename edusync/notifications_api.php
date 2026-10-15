@@ -203,6 +203,9 @@ if ($approver && nt($conn, 'evaluations')) {
         WHERE tc.school_id=$school";
 }
 
+// low_grade_notifications.created_at es DATETIME almacenado en UTC,
+// a diferencia de notification_events.created_at (TIMESTAMP).
+// Convertir sólo esta fuente para evitar restar cinco horas dos veces.
 if (nt($conn, 'low_grade_notifications')) {
     $teacherFilter = $type === 2 && $teacher > 0 ? "lgn.teacher_id=$teacher" : ($approver ? 'lgn.teacher_id IS NULL' : '1=0');
     $parts[] = "SELECT CONCAT('low_grade:',lgn.id) COLLATE utf8mb4_general_ci nkey,
@@ -212,7 +215,7 @@ if (nt($conn, 'low_grade_notifications')) {
         CONCAT(lgn.count_low_grades,' notas desaprobatorias · ',s.nivel,
             ' · ',TRIM(TRAILING '°' FROM TRIM(s.grado)),'° ',COALESCE(s.seccion,''),' · Bimestre ',lgn.bimestre)
             COLLATE utf8mb4_general_ci message,
-        lgn.created_at,
+        DATE_SUB(lgn.created_at, INTERVAL 5 HOUR) created_at,
         'low_grade' COLLATE utf8mb4_general_ci source_type,
         lgn.id source_id,
         '' COLLATE utf8mb4_general_ci workflow_status
