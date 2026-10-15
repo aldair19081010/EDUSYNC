@@ -6,6 +6,8 @@ $csrf = $_SESSION['csrf_token'];
 $ready = false;
 $q = $conn->query("SHOW TABLES LIKE 'student_announcements'");
 $ready = $q && $q->num_rows > 0;
+$teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->num_rows??0)
+    && (bool)($conn->query("SHOW TABLES LIKE 'teacher_announcement_recipients'")?->num_rows??0);
 ?>
 <style>
 /* Solo patrones propios de Comunicados que Bootstrap/ed-* no cubren. */
@@ -29,7 +31,7 @@ $ready = $q && $q->num_rows > 0;
             <div class="ed-page-icon"><i class="fas fa-bullhorn"></i></div>
             <div>
                 <h1 class="ed-page-title">Comunicados institucionales</h1>
-                <p class="ed-page-subtitle">Crea y envía comunicaciones oficiales a estudiantes desde EduSync.</p>
+                <p class="ed-page-subtitle">Crea comunicados institucionales para estudiantes y docentes desde un solo lugar.</p>
             </div>
         </div>
         <div class="ed-page-actions">
@@ -49,6 +51,16 @@ $ready = $q && $q->num_rows > 0;
         </div>
     <?php endif; ?>
 
+    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+        <div class="btn-group btn-group-sm an-mode-switch" role="group" aria-label="Tipo de destinatario">
+            <button class="btn btn-primary active an-mode" data-kind="students" type="button"><i class="fas fa-user-graduate mr-1"></i>Estudiantes</button>
+            <button class="btn btn-outline-primary an-mode" data-kind="teachers" type="button"><i class="fas fa-chalkboard-teacher mr-1"></i>Docentes</button>
+        </div>
+        <small class="text-muted" id="an-current-mode-help">Historial de comunicados a estudiantes</small>
+    </div>
+    <div id="an-teacher-migration" class="alert alert-warning d-none">
+        Para comunicados docentes, ejecuta <strong>sql/teacher_announcements_v1.sql</strong> en la base local.
+    </div>
     <div class="row mb-3">
         <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
             <div class="ed-stat-card">
@@ -61,7 +73,7 @@ $ready = $q && $q->num_rows > 0;
             <div class="ed-stat-card">
                 <div class="ed-stat-label">Alcance</div>
                 <strong class="ed-stat-value" id="an-stat-recipients">—</strong>
-                <div class="ed-stat-meta">Estudiantes destinatarios este mes</div>
+                <div class="ed-stat-meta" id="an-recipients-description">Estudiantes destinatarios este mes</div>
             </div>
         </div>
         <div class="col-xl-3 col-md-6 mb-3 mb-md-0">
@@ -150,6 +162,11 @@ $ready = $q && $q->num_rows > 0;
 
                         <div class="ed-modal-section">
                             <div class="ed-modal-section-title mb-2">2. Destinatarios</div>
+                            <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Destino del comunicado">
+                                <button class="btn btn-primary an-compose-kind" type="button" data-kind="students">Estudiantes</button>
+                                <button class="btn btn-outline-primary an-compose-kind" type="button" data-kind="teachers">Docentes</button>
+                            </div>
+                            <div id="an-student-target">
                             <div class="row no-gutters mx-n1 mb-3">
                                 <div class="col-6 col-md px-1 mb-2"><div class="an-audience-option is-active border rounded p-2 text-center" data-type="all"><i class="fas fa-school d-block mb-1"></i><strong>Todo el colegio</strong></div></div>
                                 <div class="col-6 col-md px-1 mb-2"><div class="an-audience-option border rounded p-2 text-center" data-type="level"><i class="fas fa-layer-group d-block mb-1"></i><strong>Nivel</strong></div></div>
@@ -186,6 +203,33 @@ $ready = $q && $q->num_rows > 0;
                                     </div>
                                 </div>
                             </div>
+                            <div id="an-teacher-target" class="d-none">
+                                <div class="form-group mb-2">
+                                    <label class="small font-weight-bold">Enviar a</label>
+                                    <div class="custom-control custom-radio mb-2">
+                                        <input type="radio" class="custom-control-input" name="an-teacher-scope" id="an-teacher-all" value="all" checked>
+                                        <label class="custom-control-label small" for="an-teacher-all">Todos los docentes activos</label>
+                                    </div>
+                                    <div class="custom-control custom-radio mb-2">
+                                        <input type="radio" class="custom-control-input" name="an-teacher-scope" id="an-teacher-selected" value="selected">
+                                        <label class="custom-control-label small" for="an-teacher-selected">Seleccionar docentes</label>
+                                    </div>
+                                </div>
+                                <div id="an-teacher-select-wrap" class="form-group d-none">
+                                    <label class="small font-weight-bold" for="an-teacher-select">Docentes destinatarios</label>
+                                    <select id="an-teacher-select" class="form-control" multiple="multiple" style="width:100%"></select>
+                                    <small class="text-muted">Solo docentes activos del colegio. Puedes buscar y elegir varios.</small>
+                                </div>
+                                <div class="ed-filter-card mb-0">
+                                    <div class="d-flex align-items-center justify-content-between">
+                                        <div>
+                                            <strong id="an-teacher-recipient-label">Todos los docentes</strong>
+                                            <div class="small text-muted">El comunicado llegará a la bandeja docente web y Flutter.</div>
+                                        </div>
+                                        <strong id="an-teacher-recipient-count">0</strong>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -206,13 +250,13 @@ $ready = $q && $q->num_rows > 0;
                                         <div class="an-preview-body mt-1" id="an-preview-body">El mensaje del comunicado aparecerá aquí.</div>
                                     </div>
                                     <div class="small text-muted text-center mt-3">
-                                        Al tocarla, el estudiante abrirá el comunicado completo.
+                                        Al tocarla, el destinatario podrá abrir el comunicado completo.
                                     </div>
                                 </div>
                             </div>
                             <div class="alert alert-light border small mt-3 mb-0">
                                 <i class="fas fa-info-circle text-primary mr-1"></i>
-                                El comunicado se envía inmediatamente y queda guardado en el Centro de Notificaciones del estudiante.
+                                El comunicado queda guardado en la bandeja del destinatario. Las alertas push se procesan por Firebase.
                             </div>
                         </div>
                     </div>
@@ -232,7 +276,7 @@ $ready = $q && $q->num_rows > 0;
             <div class="modal-header">
                 <div>
                     <h5 class="modal-title"><i class="fas fa-bullhorn text-primary mr-2"></i>Detalle del comunicado</h5>
-                    <div class="small text-muted mt-1">Contenido, alcance y estado de entrega por estudiante.</div>
+                    <div class="small text-muted mt-1">Contenido, destinatarios y estado de entrega.</div>
                 </div>
                 <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
             </div>
@@ -264,12 +308,12 @@ $ready = $q && $q->num_rows > 0;
                     <div class="ed-toolbar justify-content-end mb-2">
                         <div class="input-group input-group-sm" style="max-width:260px">
                             <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
-                            <input id="an-detail-search" class="form-control" placeholder="Buscar estudiante...">
+                            <input id="an-detail-search" class="form-control" placeholder="Buscar destinatario...">
                         </div>
                     </div>
                     <div class="table-responsive ed-table-responsive">
                         <table class="table table-hover table-sm ed-table mb-0">
-                            <thead><tr><th>Estudiante</th><th>Aula</th><th>Entrega</th><th>Lectura</th></tr></thead>
+                            <thead><tr><th id="an-detail-name-heading">Estudiante</th><th id="an-detail-context-heading">Aula</th><th>Entrega</th><th>Lectura</th></tr></thead>
                             <tbody id="an-detail-body"></tbody>
                         </table>
                     </div>
