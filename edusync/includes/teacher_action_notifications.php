@@ -117,9 +117,21 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
 
     $today=$now->format('Y-m-d');
     $old=$now->modify('-14 days')->format('Y-m-d');
-    $future=$now->modify('+3 days')->format('Y-m-d');
+    $future=$now->modify('+14 days')->format('Y-m-d');
+    $hasSettings=tna_table($db,'teacher_alert_settings');
+    $settingsJoin=$hasSettings
+        ? " LEFT JOIN teacher_alert_settings tns ON tns.school_id=ap.school_id
+                AND tns.academic_year_id=ap.academic_year_id
+                AND tns.bimester=ap.period_number "
+        : "";
+    $dueSql=$hasSettings?'COALESCE(tns.deadline_date,ap.end_date)':'ap.end_date';
+    $daysSql=$hasSettings?'COALESCE(tns.notice_days_before,3)':'3';
+    $closureSql=$hasSettings?'COALESCE(tns.closure_enabled,1)':'1';
+    $incompleteSql=$hasSettings?'COALESCE(tns.incomplete_enabled,1)':'1';
     $sql="SELECT ap.id period_id,ap.school_id,ap.academic_year_id,
-          ap.period_number bimester,ap.end_date,ay.year,tc.id teacher_course_id,
+          ap.period_number bimester,$dueSql due_date,
+          $daysSql days_before,$closureSql closure_enabled,
+          $incompleteSql incomplete_enabled,ay.year,tc.id teacher_course_id,
           ac.name course_name,u.id recipient
       FROM academic_periods ap
       INNER JOIN academic_year ay ON ay.id=ap.academic_year_id
@@ -132,13 +144,14 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
         AND t.status='Activo'
       INNER JOIN users u ON u.teacher_id=tc.teacher_id AND u.school_id=tc.school_id
         AND u.type=2
+      $settingsJoin
       LEFT JOIN grade_period_closures gpc ON gpc.school_id=tc.school_id
         AND gpc.teacher_course_id=tc.id AND gpc.bimester=ap.period_number
         AND gpc.status='Cerrado'
       LEFT JOIN bimester_locks bl ON bl.school_id=ap.school_id
         AND bl.academic_year_id=ap.academic_year_id AND bl.bimester=ap.period_number
       WHERE ap.period_number BETWEEN 1 AND 4
-        AND ap.end_date BETWEEN ? AND ?
+        AND $dueSql BETWEEN ? AND ?
         AND ap.start_date IS NOT NULL AND ap.start_date<=?
         AND ap.is_locked=0 AND COALESCE(bl.is_locked,0)=0
         AND gpc.id IS NULL
@@ -166,7 +179,7 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
 
     foreach ($groups as $group) {
         $meta=$group['meta'];
-        $due=(string)$meta['end_date'];
+        $due=(string)$meta['due_date'];
         $days=(int)(new DateTimeImmutable($today))->diff(
             new DateTimeImmutable($due)
         )->format('%r%a');
@@ -177,11 +190,13 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
             " sin cierre registrado del $bim.º bimestre de ".$meta['year'].
             ". Fecha de fin del periodo: ".$due.".";
 
-        if ($days>=0 && $days<=3) {
-            if (tna_emit($db,$school,$user,'teacher_closure_soon',$periodId,
-                'Cierre bimestral próximo',$msg,'Normal',$dryRun)) {
+        if ($days>=0 && $days<=(int)$meta['days_before']) {
+            if ((int)$meta['closure_enabled']===1
+                && tna_emit($db,$school,$user,'teacher_closure_soon',$periodId,
+                    'Cierre bimestral próximo',$msg,'Normal',$dryRun)) {
                 $summary['closure_soon']++;
             }
+            if ((int)$meta['incomplete_enabled']!==1) continue;
             // Evitar releer miles de celdas de notas cada vez que el
             // despachador se ejecuta, si ya se emitió este resumen.
             if (tna_notice_exists($db,$school,$user,
@@ -202,7 +217,7 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
                     $summary['grades_incomplete']++;
                 }
             }
-        } elseif ($days<0) {
+        } elseif ($days<0 && (int)$meta['closure_enabled']===1) {
             if (tna_emit($db,$school,$user,'teacher_closure_pending',$periodId,
                 'Cierre bimestral pendiente',$msg.' Revisa el estado del cierre.',
                 'Alta',$dryRun)) {
@@ -222,6 +237,12 @@ function tna_admin_grade_changes(mysqli $db, bool $dryRun): int {
     if (!tna_table($db,'evaluation_grade_history')
         || !tna_table($db,'notification_events')) return 0;
 
+    $settingsJoin=tna_table($db,'teacher_alert_settings')
+        ? " LEFT JOIN teacher_alert_settings tns
+          ON tns.school_id=h.school_id AND tns.academic_year_id=h.academic_year_id
+          AND tns.bimester=CAST(e.bimestre AS UNSIGNED) "
+        : "";
+    $settingsFilter=$settingsJoin!=='' ? ' AND COALESCE(tns.admin_edits_enabled,1)=1 ' : '';
     $sql="SELECT h.school_id,u.id recipient,
         e.teacher_course_id course_id,MIN(h.id) first_history_id,
         COUNT(*) changes,COUNT(DISTINCT h.student_id) students,
@@ -240,9 +261,11 @@ function tna_admin_grade_changes(mysqli $db, bool $dryRun): int {
         AND t.status='Activo'
       INNER JOIN users u ON u.teacher_id=tc.teacher_id
         AND u.school_id=h.school_id AND u.type=2
+      $settingsJoin
       WHERE h.created_at>=DATE_FORMAT(DATE_SUB(NOW(), INTERVAL 2 HOUR),'%Y-%m-%d %H:00:00')
         AND h.previous_grade IS NOT NULL AND TRIM(h.previous_grade)<>''
         AND COALESCE(h.previous_grade,'')<>COALESCE(h.new_grade,'')
+        $settingsFilter
       GROUP BY h.school_id,u.id,e.teacher_course_id,
         FLOOR(UNIX_TIMESTAMP(h.created_at)/3600),
         ac.name,tc.grado,tc.seccion,e.bimestre";
