@@ -700,10 +700,18 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
             if(!r||Number(r.status)!==1){ inline((r&&r.message)||'No se pudo enviar la cobranza.','danger'); return; }
             $('#cn-compose-modal').modal('hide');
             const missing=Number(r.students_without_devices||0);
-            let msg='Cobranza enviada a '+Number(r.recipients||0)+' estudiante(s). '+Number(r.push_sent||0)+' push enviados.';
-            if(missing)msg+=' '+missing+' sin dispositivo registrado.';
-            if(Number(r.push_failed||0))msg+=' '+Number(r.push_failed)+' push fallidos.';
-            toast(msg,(missing||Number(r.push_failed||0))?'warning':'success');
+            const webSent=Number(r.web_push_sent||0);
+            const webFailed=Number(r.web_push_failed||0);
+            const webSubscriptions=Number(r.web_push_subscriptions||0);
+            const webSkipped=Number(r.web_push_skipped||0);
+            let msg='Cobranza enviada a '+Number(r.recipients||0)+' estudiante(s). Android: '+
+                Number(r.push_sent||0)+' aceptados por Firebase. Web: '+webSent+' aceptados por Firebase.';
+            if(!webSubscriptions)msg+=' Ningún navegador estudiantil suscrito para estos avisos.';
+            if(missing)msg+=' '+missing+' sin dispositivo Android registrado.';
+            if(Number(r.push_failed||0))msg+=' '+Number(r.push_failed)+' fallos Android.';
+            if(webFailed)msg+=' '+webFailed+' fallos Web.';
+            if(webSkipped)msg+=' '+webSkipped+' envíos Web pendientes de reintento mediante cron.';
+            toast(msg,(missing||Number(r.push_failed||0)||webFailed||!webSubscriptions||webSkipped)?'warning':'success');
             loadSummary();
             loadHistory();
         }).fail(x=>inline((x.responseJSON||{}).message||'No se pudo enviar la cobranza.','danger'))
