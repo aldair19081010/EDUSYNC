@@ -176,13 +176,13 @@ if (!empty($selected_course)) {
                  AND tc.school_id = ?
                  AND tc.academic_year_id = ?
                  AND e.bimestre = ?
-                 AND gcc.is_active = 1";
+";
     
     $params_comp = [$selected_course, $school_id, $selected_academic_year, $selected_bimestre];
     $types_comp = "iiis";
         $level_key = normalize_level_for_key($selected_level);
     if (!empty($selected_level)) {
-        $sql_comp .= " AND LOWER(REPLACE(TRIM(tc.level), ' ', '')) = ?";
+        $sql_comp .= " AND LOWER(REPLACE(TRIM((SELECT ac.level FROM academic_courses ac WHERE ac.id=tc.course_id)), ' ', '')) = ?";
         $params_comp[] = $level_key;
         $types_comp .= "s";
     }
@@ -230,21 +230,20 @@ if (!empty($selected_course)) {
 $students = [];
 if (!empty($selected_level) && !empty($selected_grado) && !empty($selected_seccion) && !empty($selected_academic_year)) {
     $level_key = normalize_level_for_key($selected_level);
-    // Solo consultar estudiantes ACTIVOS con evaluaciones en el aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±o acadÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©mico especÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­fico
+    // Nómina histórica desde notas del aula y año seleccionados.
     $sql = "SELECT DISTINCT s.id, s.name, s.id_no 
-            FROM student s
-            INNER JOIN evaluation_grades eg ON s.id = eg.student_id
+            FROM evaluation_grades eg
+            INNER JOIN student s ON s.id = eg.student_id AND s.school_id=?
             INNER JOIN evaluations e ON eg.evaluation_id = e.id
-            INNER JOIN teacher_courses tc ON e.teacher_course_id = tc.id
-            WHERE LOWER(REPLACE(TRIM(s.nivel), ' ', '')) = ? 
-            AND s.school_id = ? 
-            AND tc.academic_year_id = ?
-            AND tc.grado = ?
-            AND tc.seccion = ?
-            AND s.status = 1
+            INNER JOIN teacher_courses tc ON e.teacher_course_id = tc.id AND tc.school_id=s.school_id
+            INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
+            WHERE LOWER(REPLACE(TRIM(ac.level), ' ', '')) = ?
+              AND tc.academic_year_id = ?
+              AND tc.grado = ?
+              AND tc.seccion = ?
             ORDER BY s.name ASC";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sisss", $level_key, $school_id, $selected_academic_year, $selected_grado, $selected_seccion);
+    $stmt->bind_param("isiss", $school_id, $level_key, $selected_academic_year, $selected_grado, $selected_seccion);
     $stmt->execute();
     $res = $stmt->get_result();
     while($row = $res->fetch_assoc()) {
@@ -269,7 +268,7 @@ if (!empty($selected_course) && !empty($selected_bimestre) && !empty($selected_a
     $types_eval = "iisi";
     
     if (!empty($selected_level)) {
-        $sql_eval .= " AND LOWER(REPLACE(TRIM(tc.level), ' ', '')) = ?";
+        $sql_eval .= " AND LOWER(REPLACE(TRIM((SELECT ac.level FROM academic_courses ac WHERE ac.id=tc.course_id)), ' ', '')) = ?";
         $params_eval[] = normalize_level_for_key($selected_level);
         $types_eval .= "s";
     }
@@ -343,7 +342,7 @@ if (!empty($evaluations)) {
         }
         
         if (!empty($selected_level)) {
-            $sql_grades .= " AND LOWER(REPLACE(TRIM(tc.level), ' ', '')) = ?";
+            $sql_grades .= " AND LOWER(REPLACE(TRIM(ac.level), ' ', '')) = ?";
             $params[] = normalize_level_for_key($selected_level);
             $types .= 's';
         }
