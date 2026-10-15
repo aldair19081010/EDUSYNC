@@ -1,26 +1,52 @@
-/* EduSync - extensión del control bimestral basada en Bootstrap / SB Admin 2. */
-#ay-teacher-alert-control{scroll-margin-top:82px}
-#ay-teacher-alert-control .taca-card{border:1px solid #e3e6f0;border-radius:9px;background:#fff}
-#ay-teacher-alert-control .taca-stat{display:flex;align-items:center;gap:12px;height:100%;padding:15px;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:8px;background:#fff}
-#ay-teacher-alert-control .taca-stat-success{border-left-color:#1cc88a}
-#ay-teacher-alert-control .taca-stat-warning{border-left-color:#f6c23e}
-#ay-teacher-alert-control .taca-stat-danger{border-left-color:#e74a3b}
-#ay-teacher-alert-control .taca-stat-primary{border-left-color:#4e73df}
-#ay-teacher-alert-control .taca-stat-icon{font-size:1.55rem;min-width:29px}
-#ay-teacher-alert-control .taca-stat-count{font-size:1.35rem;line-height:1.35;font-weight:700;color:#34415e}
-#ay-teacher-alert-control .taca-panel-heading{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
-#ay-teacher-alert-control .taca-teacher-row{border-top:1px solid #edf0f6}
-#ay-teacher-alert-control .taca-teacher-row:first-child{border-top:0}
-#ay-teacher-alert-control .taca-progress{height:5px;background:#eaecf4}
-#ay-teacher-alert-control .taca-settings-description{font-size:.8rem;color:#858796}
-#ay-teacher-alert-control .custom-control-label{line-height:1.45}
-#ay-teacher-alert-control .taca-teacher-row .btn{white-space:nowrap}
-#ay-teacher-alert-control .table td{vertical-align:middle}
-#ay-teacher-alert-control .table .small{max-width:340px}
+/* EduSync / Seguimiento docente - Bootstrap 4 + SB Admin 2.
+ * La bandeja de Notificaciones, Cobranza y Comunicados no se ven afectados.
+ */
+#teacher-followup-root{max-width:1600px}
+#teacher-followup-root .card{border-radius:.6rem}
+#teacher-followup-root .form-group label{letter-spacing:.01em}
+#teacher-followup-root .tf-stat{
+  display:flex;align-items:center;gap:.75rem;min-height:68px;
+  padding:.75rem 1rem;background:#fff;border:1px solid #e3e6f0;
+  border-left:4px solid #4e73df;border-radius:.5rem;box-shadow:0 .05rem .25rem rgba(58,59,69,.05)
+}
+#teacher-followup-root .tf-stat-success{border-left-color:#1cc88a}
+#teacher-followup-root .tf-stat-warning{border-left-color:#f6c23e}
+#teacher-followup-root .tf-stat-danger{border-left-color:#e74a3b}
+#teacher-followup-root .tf-stat-icon{font-size:1.35rem;min-width:1.65rem;text-align:center}
+#teacher-followup-root .tf-stat-value{display:block;font-size:1.4rem;line-height:1.25;color:#3a3b45}
+#teacher-followup-root .tf-stat-caption{font-size:.75rem;color:#858796;line-height:1.35}
+#teacher-followup-root .tf-teacher-row{
+  display:grid;grid-template-columns:minmax(0,1fr) 108px 132px 94px;
+  gap:1rem;align-items:center;padding:.9rem .35rem;border-bottom:1px solid #eaecf4
+}
+#teacher-followup-root .tf-teacher-row:last-child{border-bottom:0}
+#teacher-followup-root .tf-teacher-identity{min-width:0}
+#teacher-followup-root .tf-teacher-identity strong{display:block;color:#3a3b45;overflow-wrap:anywhere}
+#teacher-followup-root .tf-teacher-identity .small{margin-top:.2rem}
+#teacher-followup-root .tf-teacher-progress .progress{height:5px;margin-top:.4rem;background:#eaecf4}
+#teacher-followup-root .tf-teacher-state{text-align:center}
+#teacher-followup-root .tf-teacher-action{text-align:right}
+#teacher-followup-root .tf-teacher-action .btn{white-space:nowrap}
+#taca-settings-modal .modal-content,#taca-history-modal .modal-content,#taca-reminder-modal .modal-content{border-radius:.6rem}
+#taca-history-modal .table td{vertical-align:middle}
+#taca-history-modal .table td:nth-child(3){min-width:230px;max-width:430px;white-space:normal;overflow-wrap:anywhere}
 @media(max-width:767.98px){
-  #ay-teacher-alert-control .taca-stat{padding:10px;gap:8px}
-  #ay-teacher-alert-control .taca-stat-count{font-size:1.17rem}
-  #ay-teacher-alert-control .taca-stat-icon{font-size:1.25rem;min-width:24px}
-  #ay-teacher-alert-control .taca-panel-heading{align-items:flex-start}
-  #ay-teacher-alert-control .taca-teacher-row{padding:12px!important}
+  #teacher-followup-root .tf-stat{padding:.65rem .5rem;gap:.35rem;min-height:64px}
+  #teacher-followup-root .tf-stat-icon{font-size:1rem;min-width:1rem}
+  #teacher-followup-root .tf-stat-value{font-size:1.2rem}
+  #teacher-followup-root .tf-stat-caption{font-size:.67rem}
+  #teacher-followup-root .tf-teacher-row{grid-template-columns:minmax(0,1fr) auto;gap:.5rem}
+  #teacher-followup-root .tf-teacher-identity{grid-column:1}
+  #teacher-followup-root .tf-teacher-state{grid-column:2;grid-row:1;text-align:right}
+  #teacher-followup-root .tf-teacher-progress{grid-column:1;grid-row:2}
+  #teacher-followup-root .tf-teacher-action{grid-column:2;grid-row:2}
+  #teacher-followup-root .tf-teacher-identity .small{max-width:310px}
+  #teacher-followup-root .tf-teacher-action .btn{width:100%}
+}
+@media(max-width:359.98px){
+  #teacher-followup-root .tf-stat{display:block;text-align:center}
+  #teacher-followup-root .tf-stat-icon{display:none}
+  #teacher-followup-root .tf-stat-caption{font-size:.65rem}
+  #teacher-followup-root .tf-top-actions{gap:.3rem}
+  #teacher-followup-root .tf-top-actions .btn{margin-right:0!important}
 }
