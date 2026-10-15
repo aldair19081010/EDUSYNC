@@ -224,6 +224,9 @@ if($yearId<=0||$bim<1||$bim>4)taca_response(['status'=>0,'message'=>'Año y bime
 $year=taca_year($conn,$school,$yearId);
 $period=taca_period($conn,$school,$yearId,$bim);
 if(!$year||!$period)taca_response(['status'=>0,'message'=>'El periodo no pertenece a tu institución.'],404);
+// Evita que la consulta agrupada de notas bloquee, por la sesión PHP,
+// la bandeja y otras peticiones del mismo administrador.
+if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
 try {
     if($action==='status') {
         $settings=taca_settings($conn,$school,$yearId,$bim);
