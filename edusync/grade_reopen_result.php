@@ -21,29 +21,33 @@ edn_header($status==='Aprobada'?'success':($status==='Rechazada'?'rejected':'reo
     $request['level'].' · '.$request['grado'].' '.$request['seccion'],
     $request['reviewed_at']?:$request['created_at'],$status,(int)$request['bimester'].'° bimestre');
 ?>
-<div class="edn-grid">
-  <div class="edn-card"><span class="edn-card-label">Curso y aula</span>
-    <strong class="edn-card-value"><?= edn_escape($request['course_name']) ?></strong>
-    <span class="edn-card-help"><?= edn_escape($request['level'].' · '.$request['grado'].' '.$request['seccion']) ?> · <?= edn_escape($request['year']) ?></span></div>
-  <div class="edn-card"><span class="edn-card-label">Resolución administrativa</span>
-    <strong class="edn-card-value"><?= edn_escape($request['reviewed_by_name']?:'Administración') ?></strong>
-    <span class="edn-card-help"><?= gr_result_date($request['reviewed_at']) ?></span></div>
+<div class="row mb-3">
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Curso y aula</div>
+    <div class="font-weight-bold text-gray-800"><?= edn_escape($request['course_name']) ?></div>
+    <small class="text-muted"><?= edn_escape($request['level'].' · '.$request['grado'].' '.$request['seccion']) ?> · <?= edn_escape($request['year']) ?></small>
+  </div></div></div>
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Revisada por</div>
+    <div class="font-weight-bold text-gray-800"><?= edn_escape($request['reviewed_by_name']?:'Administración') ?></div>
+    <small class="text-muted"><?= gr_result_date($request['reviewed_at']) ?></small>
+  </div></div></div>
 </div>
-<section class="edn-section">
-  <h6 class="edn-section-title"><i class="fas fa-comment-alt"></i>Motivo presentado</h6>
-  <div><?= nl2br(edn_escape($request['reason'])) ?></div>
-</section>
-<?php if(trim((string)$request['review_notes'])!==''): ?>
-<section class="edn-section"><h6 class="edn-section-title"><i class="fas fa-clipboard-check"></i>Respuesta de Administración</h6>
-  <div><?= nl2br(edn_escape($request['review_notes'])) ?></div>
-</section>
-<?php endif; ?>
-<div class="edn-highlight">
-  <div class="edn-hero-icon"><i class="fas <?= $status==='Aprobada'?'fa-unlock-alt':($status==='Rechazada'?'fa-lock':'fa-clock') ?>"></i></div>
-  <div class="edn-highlight-label"><strong><?= edn_escape($status) ?></strong>
-    <div><?= $status==='Aprobada'
-      ?'El bimestre ha sido reabierto y permite modificaciones hasta su próximo cierre.'
-      :($status==='Rechazada'?'El bimestre continúa cerrado.':'La solicitud aún no tiene una resolución.') ?></div>
-  </div>
+<div class="card shadow-sm mb-3"><div class="card-body">
+  <h6 class="font-weight-bold text-gray-800">Motivo solicitado</h6>
+  <div class="small"><?= nl2br(edn_escape($request['reason'])) ?></div>
+  <?php if(trim((string)$request['review_notes'])!==''): ?>
+    <hr>
+    <h6 class="font-weight-bold text-gray-800">Respuesta de Administración</h6>
+    <div class="small"><?= nl2br(edn_escape($request['review_notes'])) ?></div>
+  <?php endif; ?>
+</div></div>
+<?php $statusTone=$status==='Aprobada'?'success':($status==='Rechazada'?'danger':'warning'); ?>
+<div class="alert alert-<?= $statusTone ?> mb-3">
+  <i class="fas <?= $status==='Aprobada'?'fa-unlock':($status==='Rechazada'?'fa-lock':'fa-clock') ?> mr-1"></i>
+  <strong><?= edn_escape($status) ?>.</strong>
+  <?= $status==='Aprobada'
+      ?'El bimestre puede editarse nuevamente hasta que el docente lo cierre.'
+      :($status==='Rechazada'?'El bimestre continúa cerrado.':'La solicitud está pendiente de revisión.') ?>
 </div>
 <?php edn_footer(); ?>
