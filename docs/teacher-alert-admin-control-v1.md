@@ -2,6 +2,7 @@
 
 Rama original: teacher-alerts-admin-control-v1.
 Rama de pantalla independiente: teacher-followup-standalone-v1.
+Rama con rendimiento y tabla mejorados: teacher-followup-fast-table-v1.
 NO integrado en main ni producción.
 
 ## Ubicación
@@ -14,9 +15,15 @@ funcionamiento.
 
 La nueva página usa SB Admin 2, filtros compactos y acciones bajo demanda.
 Ofrece:
-- Tres indicadores compactos: asignaciones cerradas, pendientes y con notas
-  incompletas; filtro de año, bimestre, estado y búsqueda.
-- Una fila resumida por docente con progreso y botón «Avisar».
+- Tres indicadores compactos: cierres, pendientes e incompletos. Filtros de año,
+  bimestre y estado; búsqueda, ordenamiento y paginación estándar de DataTables.
+- Una fila por docente en tabla Bootstrap/DataTables, con progreso y «Avisar».
+- La tabla de cierres carga primero; las notas se calculan en una consulta
+  agrupada y se muestran de forma progresiva.
+- El historial FCM se consulta únicamente al abrir su modal, limitado a
+  los 30 eventos mostrados.
+- La sesión PHP se libera antes de las consultas lentas para no bloquear
+  otras peticiones del administrador.
 - Botón «Configuración» que abre un modal para definir fechas límite y activar
   o desactivar tipos de avisos automáticos para ese colegio/año/bimestre.
 - Botón «Historial» que abre otro modal con los últimos 30 avisos,
@@ -101,7 +108,7 @@ la tarea programada por sí mismo.
 ## Archivos nuevos y modificados
 
 - sql/teacher_alert_admin_control_v1.sql
-- edusync/teacher_notifications_admin_api.php
+- edusync/teacher_notifications_admin_api.php (listado rápido y consultas diferidas)
 - edusync/includes/teacher_action_notifications.php
 - edusync/academic_year.php (se retiró el panel añadido previamente)
 - edusync/index.php (ruta en la lista blanca de administradores)
@@ -120,3 +127,19 @@ a un sistema que no tiene instaladas las ramas base de notificaciones.
 Validar pruebas de base de datos, permisos de otros colegios, estados de
 cierres y bloqueos, compatibilidad con las variantes de esquema ya desplegadas,
 sintaxis PHP/JS y entrega FCM con la app cerrada. No fusionar sin aprobación.
+
+
+## Comprobación de rendimiento
+
+1. Abrir Seguimiento Docente y comprobar que aparecen la tabla y los cierres
+   antes de finalizar «Calculando notas…».
+2. Probar la búsqueda, paginación de 10/25/50 y ordenamiento DataTables sin
+   recargar la página.
+3. Comprobar que el historial solo consulta el servidor cuando se abre.
+4. Cambiar año/bimestre rápidamente y verificar que no se mezclan respuestas.
+5. En la pestaña Red del navegador, verificar que action=status es una
+   solicitud separada de action=missing_counts y action=history.
+
+Las comprobaciones del código no reemplazan las pruebas de consultas SQL ni
+la medición de tiempos reales con datos de XAMPP. Esta rama no añade tablas
+ni necesita migraciones adicionales respecto de la rama anterior.
