@@ -67,6 +67,12 @@ $statusClass = $status === 'Pendiente' ? 'warning' : ($status === 'Aprobada' ? '
 @media(max-width:767px){.arr-arrow{transform:rotate(90deg);padding:8px}.arr-resolution-grid{grid-template-columns:1fr}}
 </style>
 
+<?php
+require_once __DIR__ . '/includes/notification_detail_ui.php';
+edn_header('attendance','Solicitud de asistencia: '.$request['request_type'],
+    (string)($request['requester']??'Usuario').' · Revisión administrativa',
+    $request['created_at'],$status);
+?>
 <div id="arr-message"></div>
 <div class="mb-3">
     <span class="badge badge-secondary"><?= htmlspecialchars($request['request_type']) ?></span>
@@ -143,6 +149,8 @@ $statusClass = $status === 'Pendiente' ? 'warning' : ($status === 'Aprobada' ? '
     </div>
 <?php endif; ?>
 
+
+<?php edn_footer(); ?>
 <script>
 (function($){
     function refreshResolution(message){
