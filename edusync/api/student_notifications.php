@@ -15,6 +15,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
 ob_start();
 include_once __DIR__ . '/../session_config.php';
 include __DIR__ . '/../db_connect.php';
+// Las columnas TIMESTAMP se devuelven siempre en horario de Perú.
+// La base del hosting puede estar configurada en UTC.
+$conn->query("SET time_zone = '-05:00'");
 if (ob_get_length()) ob_end_clean();
 
 header('Content-Type: application/json; charset=utf-8');
