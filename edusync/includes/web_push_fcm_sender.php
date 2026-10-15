@@ -10,6 +10,18 @@ function edwp_load_firebase_credentials(): ?array {
     $credentials=push_load_firebase_credentials();
     if ($credentials) return $credentials;
 
+    // Credencial privada fuera de public_html para Hostinger. No es el JSON
+    // público de Firebase Web/VAPID; éste no puede firmar mensajes FCM.
+    // Respetar primero las variables de entorno de producción.
+    $privateFile = dirname(__DIR__, 3) . '/firebase/edusync-service-account.json';
+    if (is_file($privateFile) && is_readable($privateFile)) {
+        $data = json_decode((string)file_get_contents($privateFile), true);
+        if (is_array($data) && !empty($data['project_id'])
+            && !empty($data['client_email']) && !empty($data['private_key'])) {
+            return $data;
+        }
+    }
+
     // Compatibilidad con el archivo privado ya instalado para desarrollo XAMPP.
     if (DIRECTORY_SEPARATOR === '\\') {
         $localFile=dirname(__DIR__,4).'/firebase/edusync-service-account.json';
