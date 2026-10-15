@@ -50,7 +50,7 @@ function taca_user_status_condition(mysqli $db):string {
     $q=$db->query("SHOW COLUMNS FROM users LIKE 'status'");
     return ($q&&$q->num_rows>0)?" AND u.status='Activo'":"";
 }
-function taca_teachers(mysqli $db,int $school,int $year,int $bim):array {
+function taca_teachers(mysqli $db,int $school,int $year,int $bim,bool $scanMissing=true):array {
     $extra=taca_user_status_condition($db);
     $sql="SELECT u.id recipient_user_id, t.id teacher_id,t.name teacher_name,
         tc.id teacher_course_id,tc.grado,tc.seccion,ac.level,ac.name course_name,
@@ -80,7 +80,7 @@ function taca_teachers(mysqli $db,int $school,int $year,int $bim):array {
         } else {
             $teachers[$uid]['pending']++;
             $teachers[$uid]['pending_courses'][]=$row['course_name'].' · '.$row['grado'].' '.$row['seccion'];
-            $missing=tna_missing_cells($db,(int)$row['teacher_course_id'],$bim);
+            $missing=$scanMissing?tna_missing_cells($db,(int)$row['teacher_course_id'],$bim):0;
             if($missing>0) {
                 $teachers[$uid]['incomplete_courses']++;
                 $teachers[$uid]['missing_cells']+=$missing;
@@ -167,7 +167,8 @@ try {
             $globalLock->close();
             $period['global_locked']=(int)($globalRow['is_locked']??0);
         }
-        $teachers=taca_teachers($conn,$school,$yearId,$bim);
+        $teachers=taca_teachers($conn,$school,$yearId,$bim,
+            ($year['status']??'')==='Activo' && (int)$year['is_active']===1);
         $totals=['teachers'=>count($teachers),'assignments'=>0,'closed'=>0,
                  'pending'=>0,'incomplete'=>0];
         foreach($teachers as $t) {
