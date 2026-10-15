@@ -90,52 +90,98 @@ function report_competency_stats($course, $bi) {
     return $result;
 }
 
-// Se parte de las evaluaciones esperadas y se hace LEFT JOIN a las notas.
-// Así también podemos detectar evaluaciones aún sin calificación.
+// Seleccionar primero la nómina real del año y aula. Usar un EXISTS
+// correlacionado en cada evaluación x alumno disparaba consultas enormes,
+// especialmente en años históricos con estudiantes promovidos.
+$rosterSql = "SELECT DISTINCT s.id
+    FROM evaluation_grades eg
+    INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
+    INNER JOIN evaluations e_history ON e_history.id=eg.evaluation_id
+    INNER JOIN teacher_courses tc_history ON tc_history.id=e_history.teacher_course_id AND tc_history.school_id=s.school_id
+    INNER JOIN academic_courses ac_history ON ac_history.id=tc_history.course_id AND ac_history.school_id=s.school_id
+    WHERE tc_history.academic_year_id=?
+      AND LOWER(REPLACE(TRIM(ac_history.level),' ',''))=?
+      AND tc_history.grado=? AND tc_history.seccion=?";
+$rosterTypes = 'iisss';
+$rosterParams = [$schoolId, $yearId, report_level_key($level), $grade, $section];
+if ($loginType === 2 && $teacherId > 0 && !$reportDirector) {
+    $rosterSql .= ' AND tc_history.teacher_id=?';
+    $rosterTypes .= 'i';
+    $rosterParams[] = $teacherId;
+}
+$rosterIds = [];
+$rosterStmt = $conn->prepare($rosterSql);
+if ($rosterStmt) {
+    report_bind($rosterStmt, $rosterTypes, $rosterParams);
+    $rosterStmt->execute();
+    $rosterResults = $rosterStmt->get_result();
+    while ($rosterRow = $rosterResults->fetch_assoc()) {
+        $rosterIds[(int)$rosterRow['id']] = (int)$rosterRow['id'];
+    }
+    $rosterStmt->close();
+}
+
+// En el año académico activo se incluyen alumnos aún sin evaluaciones;
+// en años pasados no se utiliza su grado/sección actual.
+$yearStmt = $conn->prepare('SELECT is_active FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
+$activeYear = false;
+if ($yearStmt) {
+    $yearStmt->bind_param('ii', $yearId, $schoolId);
+    $yearStmt->execute();
+    $yearRow = $yearStmt->get_result()->fetch_assoc();
+    $activeYear = $yearRow && (int)$yearRow['is_active'] === 1;
+    $yearStmt->close();
+}
+if ($activeYear) {
+    $currentStmt = $conn->prepare("SELECT id FROM student
+        WHERE school_id=? AND LOWER(REPLACE(TRIM(nivel),' ',''))=?
+          AND grado=? AND seccion=?
+          AND (status='Activo' OR status='1' OR status IS NULL)");
+    if ($currentStmt) {
+        $levelKey = report_level_key($level);
+        $currentStmt->bind_param('isss', $schoolId, $levelKey, $grade, $section);
+        $currentStmt->execute();
+        $currentRows = $currentStmt->get_result();
+        while ($currentRow = $currentRows->fetch_assoc()) {
+            $rosterIds[(int)$currentRow['id']] = (int)$currentRow['id'];
+        }
+        $currentStmt->close();
+    }
+}
+if (!$rosterIds) {
+    if ($dataMode === 'trend') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['status'=>0,'message'=>'No hay estudiantes con notas en esta aula y año.']);
+        exit;
+    }
+    exit('<div class="alert alert-info mb-0">No hay notas o estudiantes asociados al aula durante el año seleccionado.</div>');
+}
+$rosterList = implode(',', array_map('intval', array_values($rosterIds)));
+
+// Se parte de las evaluaciones del curso y año seleccionado. LEFT JOIN
+// permite identificar notas pendientes, sin mezclar alumnos de otros años.
 $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
                ac.id course_id, ac.name course_name,
                e.id evaluation_id, e.title evaluation_title, e.bimestre,
-               eg.grade, ec.competencia_id competency_id,
-               gcc.name competency_name, gcc.percentage
+               eg.grade,
+               COALESCE(ec.competencia_id,eg.competencia_id,0) competency_id,
+               COALESCE(gcc.name,'Calificación general') competency_name,
+               COALESCE(gcc.percentage,100) percentage
         FROM evaluations e
         INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=?
         INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=?
-        INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id
-        INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
-        INNER JOIN student s ON s.school_id=?
-            AND (
-                -- La nómina actual sólo sirve para el año activo.
-                (EXISTS (SELECT 1 FROM academic_year ay_history
-                         WHERE ay_history.id=tc.academic_year_id
-                           AND ay_history.school_id=tc.school_id
-                           AND ay_history.is_active=1)
-                 AND LOWER(REPLACE(TRIM(s.nivel),' ',''))=?
-                 AND s.grado=? AND s.seccion=?
-                 AND (s.status='Activo' OR s.status='1' OR s.status IS NULL))
-                OR
-                -- En un año pasado, los registros de notas determinan
-                -- la pertenencia al aula, aunque el alumno haya ascendido.
-                EXISTS (
-                    SELECT 1 FROM evaluation_grades eg_history
-                    INNER JOIN evaluations e_history ON e_history.id=eg_history.evaluation_id
-                    INNER JOIN teacher_courses tc_history ON tc_history.id=e_history.teacher_course_id
-                    INNER JOIN academic_courses ac_history ON ac_history.id=tc_history.course_id
-                    WHERE eg_history.student_id=s.id
-                      AND tc_history.school_id=tc.school_id
-                      AND tc_history.academic_year_id=tc.academic_year_id
-                      AND LOWER(REPLACE(TRIM(ac_history.level),' ',''))=LOWER(REPLACE(TRIM(ac.level),' ',''))
-                      AND tc_history.grado=tc.grado AND tc_history.seccion=tc.seccion
-                )
-            )
+        LEFT JOIN evaluation_competencias ec ON ec.evaluation_id=e.id
+        INNER JOIN student s ON s.school_id=? AND s.id IN ($rosterList)
         LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id
             AND eg.student_id=s.id
-            AND (eg.competencia_id=ec.competencia_id OR eg.competencia_id IS NULL)
+            AND (eg.competencia_id=ec.competencia_id OR eg.competencia_id IS NULL OR ec.competencia_id IS NULL)
+        LEFT JOIN general_course_competencies gcc ON gcc.id=COALESCE(ec.competencia_id,eg.competencia_id)
         WHERE tc.academic_year_id=?
           AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
           AND tc.grado=? AND tc.seccion=?";
 
-$params = [$schoolId, $schoolId, $schoolId, report_level_key($level), $grade, $section, $yearId, report_level_key($level), $grade, $section];
-$types = 'iiisssisss';
+$params = [$schoolId, $schoolId, $schoolId, $yearId, report_level_key($level), $grade, $section];
+$types = 'iiiisss';
 if ($loginType === 2 && $teacherId > 0 && !$reportDirector) {
     $sql .= ' AND tc.teacher_id=?';
     $params[] = $teacherId;
@@ -146,7 +192,7 @@ if ($courseId > 0) {
     $params[] = $courseId;
     $types .= 'i';
 }
-// Para el gráfico alumno vs aula necesitamos consultar todo el salón.
+// Comparación alumno vs aula: el gráfico necesita la nómina completa.
 if ($studentId > 0 && $dataMode !== 'trend') {
     $sql .= ' AND s.id=?';
     $params[] = $studentId;
