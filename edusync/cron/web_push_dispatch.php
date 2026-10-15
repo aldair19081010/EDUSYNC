@@ -238,7 +238,7 @@ try {
         $message=mb_substr((string)$answer['message'],0,500,'UTF-8');
         $code=(int)$answer['code'];
         $status=$ok ? 'delivered' : ((int)$event['attempts'] >= 2 ? 'failed' : 'retry');
-        $next=$ok||$status==='failed' ? null : date('Y-m-d H:i:s',time()+300*((int)$event['attempts']+1));
+        $next=$ok||$status==='failed' ? null : gmdate('Y-m-d H:i:s',time()+300*((int)$event['attempts']+1));
         $flag=$ok?1:0;
         $stmt=$conn->prepare("INSERT INTO web_push_delivery(school_id,subscription_id,event_kind,event_id,status,attempts,provider_code,provider_message,next_retry_at,delivered_at)
            VALUES(?,?,?,?,?,1,?,?,?,IF(?=1,NOW(),NULL))
