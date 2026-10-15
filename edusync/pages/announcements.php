@@ -555,7 +555,11 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function loadHistory(){
-        if(mode==='students'&&!ready || mode==='teachers'&&!teacherReady)return;
+        if(mode==='students'&&!ready || mode==='teachers'&&!teacherReady){
+            history=[];
+            $('#an-history').html('<tr class="ed-empty-row"><td colspan="5">Activa la base de comunicados de este perfil para ver el historial.</td></tr>');
+            return;
+        }
         const current=mode,source=current==='teachers'?teacherApi:api;
         $('#an-history').html('<tr class="ed-empty-row"><td colspan="5"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando...</td></tr>');
         $.getJSON(source,{action:'list'}).done(r=>{if(current!==mode)return;history=(r&&r.items)||[];renderHistory();})
@@ -586,7 +590,7 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function stateBadge(state){
-        if(state==='sent')return '<span class="badge badge-success ed-badge"><i class="fas fa-check mr-1"></i>Entregado</span>';
+        if(state==='sent')return '<span class="badge badge-success ed-badge"><i class="fas fa-check mr-1"></i>'+(mode==='teachers'?'Aceptado FCM':'Entregado')+'</span>';
         if(state==='failed')return '<span class="badge badge-danger ed-badge"><i class="fas fa-times mr-1"></i>Fallido</span>';
         if(state==='no_device')return '<span class="badge badge-secondary ed-badge"><i class="fas fa-mobile-alt mr-1"></i>Sin dispositivo</span>';
         return '<span class="badge badge-warning ed-badge"><i class="fas fa-clock mr-1"></i>Pendiente</span>';
@@ -646,7 +650,8 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
         const count=recipientRows().length;
         const message='<div class="text-left"><p class="mb-2">El comunicado se enviará inmediatamente y quedará disponible en la app EduSync.</p>'+
             '<div class="border rounded p-2 bg-light"><div><strong>'+esc($.trim($('#an-title').val()))+'</strong></div>'+
-            '<div class="small text-muted mt-1">'+esc(audienceLabel())+' · '+count+' '+(current==='teachers'?'docente(s)':'estudiante(s)')+'</div></div></div>';
+            '<div class="small text-muted mt-1">'+esc(audienceLabel())+' · '+count+' '+(current==='teachers'?'docente(s)':'estudiante(s)')+'</div></div>'+
+            '<div class="small text-muted mt-2">'+(current==='teachers'?'Quedará registrado en la bandeja docente; el envío push se procesará por Firebase.':'Se notificará mediante la app EduSync.')+'</div></div>';
 
         let accepted=true;
         if(window.EduSyncFeedback&&EduSyncFeedback.confirm){
