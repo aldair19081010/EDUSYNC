@@ -348,7 +348,7 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
     // MySQL entrega aquí la fecha/hora local de Perú (sin sufijo de zona).
     // No convertir con new Date(): el navegador podría aplicar otro huso.
     function notificationTimePeru(value) {
-        var match = String(value || '').trim().match(/^(\\d{4})-(\\d{2})-(\\d{2})[ T](\\d{2}):(\\d{2})(?::\\d{2})?/);
+        var match = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::\d{2})?/);
         if (!match) return value || 'Ahora';
         var hour = Number(match[4]);
         var suffix = hour >= 12 ? 'p. m.' : 'a. m.';
