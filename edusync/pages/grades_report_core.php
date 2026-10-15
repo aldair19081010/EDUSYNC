@@ -172,7 +172,7 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
 
     // Para cualquier año, recuperar estudiantes vinculados a notas de
     // aquella aula, incluso si hoy cursan otro grado o están inactivos.
-    $stmt2 = $conn->prepare("
+    $historySql = "
         SELECT DISTINCT s.id,s.name,s.id_no
         FROM evaluation_grades eg
         INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
@@ -184,8 +184,13 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
         WHERE tc.academic_year_id=?
           AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
           AND tc.grado=? AND tc.seccion=?
-          AND (?=0 OR tc.teacher_id=?)
-        ORDER BY s.name");
+          AND (?=0 OR tc.teacher_id=?)";
+    if (!$yearIsActive) {
+        require_once dirname(__DIR__) . '/includes/grades_report_historical_level.php';
+        $historySql .= grhl_sql($conn, 's', 'tc', 'ac');
+    }
+    $historySql .= ' ORDER BY s.name';
+    $stmt2 = $conn->prepare($historySql);
     if ($stmt2) {
         $yearId=(int)$selected_academic_year;
         $allowedTeacherId=($is_teacher && $teacher_id) ? (int)$teacher_id : 0;
