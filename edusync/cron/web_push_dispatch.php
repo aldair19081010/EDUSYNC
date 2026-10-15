@@ -10,7 +10,9 @@ date_default_timezone_set('America/Lima');
 require_once __DIR__.'/../db_connect.php';
 require_once __DIR__.'/../includes/notification_date_timezone.php';
 require_once __DIR__.'/../includes/web_push_fcm_sender.php';
-$conn->query("SET time_zone = '-05:00'");
+// Comparar TIMESTAMP con subscribed_at/last_seen_at (DATETIME) en la misma zona.
+// Las suscripciones Web Push se registran en UTC.
+$conn->query("SET time_zone = '+00:00'");
 
 foreach (['web_push_subscriptions','web_push_delivery'] as $table) {
     if (!push_table_exists($conn,$table)) {
@@ -147,7 +149,8 @@ try {
         if (push_table_exists($conn,'evaluations')
             && push_table_exists($conn,'teacher_courses')
             && push_table_exists($conn,'academic_courses')) {
-            $evaluationTimeSql = edun_evaluation_created_at_lima_sql($conn);
+            // Evaluations DATETIME se guarda en UTC y TIMESTAMP ya sale UTC por la sesion.
+            $evaluationTimeSql = 'e.created_at';
             $parts[]="SELECT 'evaluation' kind,e.id event_id,tc.school_id,s.id subscription_id,s.fcm_token,
                      CONCAT('Nueva evaluación: ',e.title) title,
                      CONCAT(COALESCE(ac.name,'Curso'),' · ',COALESCE(te.name,'Docente')) body,
@@ -172,17 +175,17 @@ try {
                      CONCAT('Nuevo caso para revisar · ',st.nivel,' · ',
                          TRIM(TRAILING '°' FROM TRIM(st.grado)),'° ',COALESCE(st.seccion,''),
                          ' · Bimestre ',lgn.bimestre) body,
-                     'low_grade' screen,DATE_SUB(lgn.created_at,INTERVAL 5 HOUR) created,COALESCE(d.attempts,0) attempts
+                     'low_grade' screen,lgn.created_at created,COALESCE(d.attempts,0) attempts
                      FROM low_grade_notifications lgn
                      JOIN student st ON st.id=lgn.student_id
                      JOIN web_push_subscriptions s ON s.account_kind='staff'
-                       AND s.school_id=st.school_id AND DATE_SUB(lgn.created_at,INTERVAL 5 HOUR)>=s.subscribed_at
+                       AND s.school_id=st.school_id AND lgn.created_at>=s.subscribed_at
                      $validStaff
                      {$delivery}'low_grade' AND d.event_id=lgn.id
                      WHERE $active AND $pending AND $staffEligible
                        AND ((s.role_type=1 AND lgn.teacher_id IS NULL)
                          OR (s.role_type=2 AND lgn.teacher_id=u.teacher_id))
-                       AND DATE_SUB(lgn.created_at,INTERVAL 5 HOUR)>=DATE_SUB(NOW(),INTERVAL 3 DAY)
+                       AND lgn.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)
                        AND NOT EXISTS (SELECT 1 FROM notification_events ne
                          WHERE ne.school_id=st.school_id AND ne.source_type='low_grade'
                            AND ne.source_id=lgn.id)";
