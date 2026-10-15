@@ -14,6 +14,9 @@ require_once __DIR__.'/../includes/web_push_fcm_sender.php';
 // auditoría de notas. Ejecutar el barrido cada 10 minutos: misma cola FCM,
 // sin crear tareas adicionales ni producir eventos duplicados.
 if ((int)date('i') % 10 === 0) {
+    // evaluation_grade_history puede incluir TIMESTAMP: comparar en hora
+    // institucional, luego restaurar UTC para la cola web_push_delivery.
+    $conn->query("SET time_zone = '-05:00'");
     try {
         require_once __DIR__.'/../includes/teacher_action_notifications.php';
         $teacherScan=tna_run($conn);
@@ -22,6 +25,8 @@ if ((int)date('i') % 10 === 0) {
         }
     } catch (Throwable $e) {
         error_log('[EduSync teacher notification scan] '.$e->getMessage());
+    } finally {
+        $conn->query("SET time_zone = '+00:00'");
     }
 }
 // Comparar TIMESTAMP con subscribed_at/last_seen_at (DATETIME) en la misma zona.
