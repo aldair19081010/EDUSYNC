@@ -45,25 +45,43 @@ edn_header('evaluation','Nueva evaluación: '.(string)$evaluation['title'],
     ($evaluation['status']??'Activa')==='Anulada'?'Anulada':'Registrada',
     (int)$evaluation['bimestre'].'° bimestre');
 ?>
-<div class="edn-grid">
-    <div class="edn-card"><span class="edn-card-label">Docente</span><strong class="edn-card-value"><?= $e($evaluation['teacher_name']??'Docente') ?></strong></div>
-    <div class="edn-card"><span class="edn-card-label">Nivel y aula</span><strong class="edn-card-value"><?= $e($evaluation['level'].' · '.$evaluation['grado'].' '.$evaluation['seccion']) ?></strong></div>
-    <div class="edn-card"><span class="edn-card-label">Tipo de evaluación</span><strong class="edn-card-value"><?= $e($evaluation['type']?:'Evaluación') ?></strong></div>
-    <div class="edn-card"><span class="edn-card-label">Año académico</span><strong class="edn-card-value"><?= $e($evaluation['academic_year']) ?></strong></div>
+<div class="row mb-3">
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100">
+    <div class="card-body py-3">
+      <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Docente responsable</div>
+      <div class="font-weight-bold text-gray-800"><?= $e($evaluation['teacher_name']??'Docente') ?></div>
+      <small class="text-muted"><?= $e($evaluation['type']?:'Evaluación') ?></small>
+    </div>
+  </div></div>
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100">
+    <div class="card-body py-3">
+      <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Curso y aula</div>
+      <div class="font-weight-bold text-gray-800"><?= $e($evaluation['course_name']) ?></div>
+      <small class="text-muted"><?= $e($evaluation['level'].' · '.$evaluation['grado'].' '.$evaluation['seccion']) ?> · <?= $e($evaluation['academic_year']) ?></small>
+    </div>
+  </div></div>
 </div>
-<div class="edn-mini-kpi">
-    <span class="edn-mini-kpi-item"><strong><?= (int)$evaluation['grades_count'] ?></strong> calificaciones registradas</span>
-    <span class="edn-mini-kpi-item"><strong><?= (int)$evaluation['students_graded'] ?></strong> estudiantes calificados</span>
+<div class="card shadow-sm mb-3">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-chart-bar mr-2"></i>Resumen de la evaluación</h6>
+  </div>
+  <div class="card-body py-3">
+    <div class="row text-center">
+      <div class="col-6 border-right"><div class="h5 mb-0 font-weight-bold text-gray-800"><?= (int)$evaluation['grades_count'] ?></div><div class="small text-muted mt-1">Notas registradas</div></div>
+      <div class="col-6"><div class="h5 mb-0 font-weight-bold text-gray-800"><?= (int)$evaluation['students_graded'] ?></div><div class="small text-muted mt-1">Estudiantes calificados</div></div>
+    </div>
+    <?php if(trim((string)($evaluation['description']??''))!==''): ?>
+      <hr class="my-3">
+      <div class="small font-weight-bold text-gray-700 mb-1">Descripción</div>
+      <div class="small text-gray-700"><?= nl2br($e($evaluation['description'])) ?></div>
+    <?php endif; ?>
+  </div>
 </div>
-<?php if(trim((string)$evaluation['description'])!==''): ?>
-<section class="edn-section">
-  <h6 class="edn-section-title"><i class="fas fa-align-left"></i>Descripción</h6>
-  <div><?= nl2br($e($evaluation['description'])) ?></div>
-</section>
-<?php endif; ?>
-<div class="edn-footer">
-  <button type="button" class="btn btn-light border" data-dismiss="modal">Cerrar</button>
-  <button type="button" class="btn btn-primary edn-view-evaluation" data-id="<?= (int)$evaluation['id'] ?>"><i class="fas fa-eye mr-1"></i>Ver calificaciones</button>
+<div class="d-flex justify-content-end flex-wrap border-top pt-3 mt-3">
+  <button type="button" class="btn btn-light btn-sm border mr-2 mb-1" data-dismiss="modal">Cerrar</button>
+  <button type="button" class="btn btn-primary btn-sm mb-1 edn-view-evaluation" data-id="<?= (int)$evaluation['id'] ?>">
+    <i class="fas fa-eye mr-1"></i>Ver calificaciones
+  </button>
 </div>
 </div>
 <script>
