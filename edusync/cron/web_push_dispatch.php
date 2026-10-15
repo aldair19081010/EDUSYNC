@@ -170,17 +170,17 @@ try {
                      CONCAT('Nuevo caso para revisar · ',st.nivel,' · ',
                          TRIM(TRAILING '°' FROM TRIM(st.grado)),'° ',COALESCE(st.seccion,''),
                          ' · Bimestre ',lgn.bimestre) body,
-                     'low_grade' screen,lgn.created_at created,COALESCE(d.attempts,0) attempts
+                     'low_grade' screen,DATE_SUB(lgn.created_at,INTERVAL 5 HOUR) created,COALESCE(d.attempts,0) attempts
                      FROM low_grade_notifications lgn
                      JOIN student st ON st.id=lgn.student_id
                      JOIN web_push_subscriptions s ON s.account_kind='staff'
-                       AND s.school_id=st.school_id AND lgn.created_at>=s.subscribed_at
+                       AND s.school_id=st.school_id AND DATE_SUB(lgn.created_at,INTERVAL 5 HOUR)>=s.subscribed_at
                      $validStaff
                      {$delivery}'low_grade' AND d.event_id=lgn.id
                      WHERE $active AND $pending AND $staffEligible
                        AND ((s.role_type=1 AND lgn.teacher_id IS NULL)
                          OR (s.role_type=2 AND lgn.teacher_id=u.teacher_id))
-                       AND lgn.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)
+                       AND DATE_SUB(lgn.created_at,INTERVAL 5 HOUR)>=DATE_SUB(NOW(),INTERVAL 3 DAY)
                        AND NOT EXISTS (SELECT 1 FROM notification_events ne
                          WHERE ne.school_id=st.school_id AND ne.source_type='low_grade'
                            AND ne.source_id=lgn.id)";
