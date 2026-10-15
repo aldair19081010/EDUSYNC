@@ -59,51 +59,59 @@ function edun_grade_change_detail(mysqli $db,int $schoolId,int $auditId): ?array
     }
     ob_start();
     ?>
-    <div class="row mb-2">
-        <div class="col-md-6 mb-2"><div class="nd-box">
-            <span>Docente</span><strong><?= $e($row['teacher_name']??'Docente') ?></strong>
-        </div></div>
-        <div class="col-md-6 mb-2"><div class="nd-box">
-            <span>Curso y aula</span><strong><?= $e($info['course']??'Curso') ?></strong>
-            <small><?= $e(trim(($info['grade']??'').' '.($info['section']??''))) ?>
-                · <?= (int)($info['bimester']??0) ?>° Bimestre</small>
-        </div></div>
+    <div class="edn-grid">
+      <div class="edn-card"><span class="edn-card-label">Docente responsable</span>
+        <strong class="edn-card-value"><?= $e($row['teacher_name']??'Docente') ?></strong>
+        <span class="edn-card-help">Registro de auditoría académica</span></div>
+      <div class="edn-card"><span class="edn-card-label">Curso y sección</span>
+        <strong class="edn-card-value"><?= $e($info['course']??'Curso') ?></strong>
+        <span class="edn-card-help"><?= $e(trim(($info['grade']??'').' '.($info['section']??''))) ?> · <?= (int)($info['bimester']??0) ?>° bimestre</span></div>
     </div>
-    <div class="nd-section">
-        <span>Resumen de modificaciones</span>
-        <div><strong><?= $total ?></strong> <?= $total===1?'calificación modificada':'calificaciones modificadas' ?>
-        <?php if (($info['source']??'')==='autosave'): ?>
-            <small class="d-block text-muted">Los autoguardados se agrupan en un aviso durante 10 minutos.</small>
-        <?php endif; ?>
-        <?php if ($updated!==''): ?>
-            <small class="d-block text-muted">Última modificación: <?= $e($updated) ?> (Perú)</small>
-        <?php endif; ?>
-        </div>
+    <div class="edn-highlight">
+      <div class="edn-highlight-number"><?= $total ?></div>
+      <div class="edn-highlight-label">
+        <strong><?= $total===1?'Calificación modificada':'Calificaciones modificadas' ?></strong>
+        <?php if (($info['source']??'')==='autosave'): ?><div>Se agruparon los cambios del autoguardado durante 10 minutos.</div><?php endif; ?>
+        <?php if ($updated!==''): ?><div>Última modificación: <?= $e($updated) ?> (Perú)</div><?php endif; ?>
+      </div>
     </div>
-    <div class="table-responsive mt-3">
-        <table class="table table-sm table-hover table-bordered">
-            <thead class="thead-light"><tr><th>Estudiante</th><th>Evaluación</th><th>Antes</th><th>Después</th></tr></thead>
-            <tbody>
-            <?php foreach ($visible as $item):
-                $sid=(int)($item['student_id']??0);
-                $eid=(int)($item['evaluation_id']??0);
-                $old=(string)($item['old_grade']??'');
-                $new=(string)($item['new_grade']??'');
-            ?>
-                <tr>
-                    <td><?= $e($students[$sid]??'Estudiante no disponible') ?></td>
-                    <td><?= $e($evaluations[$eid]??'Evaluación no disponible') ?></td>
-                    <td><span class="badge badge-secondary"><?= $e($old!==''?$old:'—') ?></span></td>
-                    <td><span class="badge <?= $new===''?'badge-light border':'badge-primary' ?>"><?= $e($new!==''?$new:'Sin nota') ?></span></td>
-                </tr>
-            <?php endforeach; ?>
-            </tbody>
+    <section class="edn-section">
+      <h6 class="edn-section-title"><i class="fas fa-history"></i>Historial de cambios</h6>
+      <div class="table-responsive edn-desktop-grades">
+        <table class="table table-sm table-hover">
+          <thead><tr><th>Estudiante</th><th>Evaluación</th><th>Nota anterior</th><th>Nota nueva</th></tr></thead>
+          <tbody>
+          <?php foreach ($visible as $item):
+            $sid=(int)($item['student_id']??0); $eid=(int)($item['evaluation_id']??0);
+            $old=(string)($item['old_grade']??''); $new=(string)($item['new_grade']??''); ?>
+            <tr><td><strong><?= $e($students[$sid]??'Estudiante no disponible') ?></strong></td>
+              <td><?= $e($evaluations[$eid]??'Evaluación no disponible') ?></td>
+              <td><span class="badge edn-grade--old"><?= $e($old!==''?$old:'—') ?></span></td>
+              <td><span class="badge <?= $new===''?'edn-grade--removed':'edn-grade--new' ?>"><?= $e($new!==''?$new:'Sin nota') ?></span></td>
+            </tr>
+          <?php endforeach; ?>
+          </tbody>
         </table>
-    </div>
-    <?php if ($total>count($visible)): ?>
-        <div class="small text-muted">Se muestran los primeros <?= count($visible) ?> cambios.
-            Los demás se conservan en el historial académico del sistema.</div>
-    <?php endif; ?>
+      </div>
+      <div class="edn-responsive-grades">
+        <?php foreach ($visible as $item):
+          $sid=(int)($item['student_id']??0); $eid=(int)($item['evaluation_id']??0);
+          $old=(string)($item['old_grade']??''); $new=(string)($item['new_grade']??''); ?>
+          <div class="edn-grade-row">
+            <div class="edn-grade-row-head"><?= $e($students[$sid]??'Estudiante no disponible') ?></div>
+            <div class="edn-grade-row-context"><?= $e($evaluations[$eid]??'Evaluación no disponible') ?></div>
+            <div class="edn-grade-row-values">
+              <span class="badge edn-grade--old"><?= $e($old!==''?$old:'—') ?></span>
+              <i class="fas fa-arrow-right edn-arrow"></i>
+              <span class="badge <?= $new===''?'edn-grade--removed':'edn-grade--new' ?>"><?= $e($new!==''?$new:'Sin nota') ?></span>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+      <?php if ($total>count($visible)): ?>
+        <p class="small text-muted mb-0">Mostrando <?= count($visible) ?> de <?= $total ?> cambios. El resto permanece en el historial de notas.</p>
+      <?php endif; ?>
+    </section>
     <?php
     return [
         'title'=>(string)$row['title'],'category'=>'Académica',
