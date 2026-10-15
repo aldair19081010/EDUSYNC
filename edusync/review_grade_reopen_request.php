@@ -26,12 +26,26 @@ edn_header($status==='Aprobada'?'success':($status==='Rechazada'?'rejected':'reo
 ?>
 <div id="grr-message"></div>
 
-<div class="edn-card edn-card--accent mb-3"><div class="grr-label">Curso y aula</div><div class="grr-value"><?php echo htmlspecialchars($request['course_name'].' · '.$request['level'].' · '.$request['grado'].' '.$request['seccion'],ENT_QUOTES,'UTF-8'); ?></div><div class="small text-muted mt-1">Año académico <?php echo htmlspecialchars($request['year']); ?></div></div>
-<div class="row mb-3"><div class="col-md-6 mb-2 mb-md-0"><div class="edn-card h-100"><div class="grr-label">Docente</div><div class="grr-value"><?php echo htmlspecialchars($request['teacher_name']?:$request['requested_by_name']?:'Docente'); ?></div></div></div><div class="col-md-6"><div class="edn-card h-100"><div class="grr-label">Motivo de reapertura</div><div><?php echo nl2br(htmlspecialchars($request['reason'],ENT_QUOTES,'UTF-8')); ?></div></div></div></div>
+<div class="row mb-3">
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Curso y aula</div>
+    <div class="font-weight-bold text-gray-800"><?= edn_escape($request['course_name']) ?></div>
+    <small class="text-muted"><?= edn_escape($request['level'].' · '.$request['grado'].' '.$request['seccion']) ?> · <?= edn_escape($request['year']) ?></small>
+  </div></div></div>
+  <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+    <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Docente solicitante</div>
+    <div class="font-weight-bold text-gray-800"><?= edn_escape($request['teacher_name']?:$request['requested_by_name']?:'Docente') ?></div>
+    <small class="text-muted">Reapertura del <?= (int)$request['bimester'] ?>° bimestre</small>
+  </div></div></div>
+</div>
+<div class="card shadow-sm mb-3"><div class="card-body py-3">
+  <h6 class="font-weight-bold text-gray-800 mb-2"><i class="fas fa-comment-alt text-primary mr-2"></i>Motivo de la solicitud</h6>
+  <div><?= nl2br(edn_escape($request['reason'])) ?></div>
+</div></div>
 <?php if($status==='Pendiente'): ?>
-<section class="edn-section"><h6 class="edn-section-title"><i class="fas fa-gavel"></i>Resolver solicitud</h6>
+<div class="card shadow-sm mb-3"><div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-gavel mr-2"></i>Resolver solicitud</h6></div><div class="card-body">
 <div class="form-group"><label class="small font-weight-bold">Observación de Administración</label><textarea id="grr-notes" class="form-control" maxlength="500" rows="3" placeholder="Opcional al aprobar; obligatoria al rechazar"></textarea></div>
-<div class="d-flex justify-content-end"><button type="button" class="btn btn-outline-danger mr-2 grr-review" data-decision="Rechazada"><i class="fas fa-times mr-1"></i>Rechazar</button><button type="button" class="btn btn-success grr-review" data-decision="Aprobada"><i class="fas fa-unlock mr-1"></i>Autorizar reapertura</button></div></section>
+<div class="d-flex justify-content-end"><button type="button" class="btn btn-outline-danger mr-2 grr-review" data-decision="Rechazada"><i class="fas fa-times mr-1"></i>Rechazar</button><button type="button" class="btn btn-success grr-review" data-decision="Aprobada"><i class="fas fa-unlock mr-1"></i>Autorizar reapertura</button></div></div></div>
 <?php else: ?>
 <div class="alert alert-<?php echo $status==='Aprobada'?'success':'danger'; ?> mb-0"><strong>Solicitud <?php echo strtolower(htmlspecialchars($status)); ?>.</strong><br>Revisada por: <?php echo htmlspecialchars($request['reviewed_by_name']?:'Administración'); ?><br>Fecha: <?php echo grr_date($request['reviewed_at']); ?><?php if(trim((string)$request['review_notes'])!==''): ?><br>Observación: <?php echo nl2br(htmlspecialchars($request['review_notes'],ENT_QUOTES,'UTF-8')); ?><?php endif; ?></div>
 <?php endif; ?>
