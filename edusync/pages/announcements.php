@@ -327,12 +327,72 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
 <script>
 (function($){
     const api='announcements_api.php';
+    const teacherApi='teacher_announcements_api.php';
+    const teacherReady=<?php echo $teacherReady ? 'true' : 'false'; ?>;
     const csrf=<?php echo json_encode($csrf); ?>;
     const ready=<?php echo $ready ? 'true' : 'false'; ?>;
 
     let options={levels:[],grades:[],sections:[],students:[]};
     let history=[];
     let detailRows=[];
+    let mode='students',teacherOptions=[],teacherLoaded=false;
+    let teacherRequestKey='';
+    function newRequestKey(){
+        let parts=[];
+        if(window.crypto && window.crypto.getRandomValues){
+            const bytes=new Uint8Array(16);
+            window.crypto.getRandomValues(bytes);
+            parts=Array.from(bytes,x=>x.toString(16).padStart(2,'0'));
+            return parts.join('');
+        }
+        return Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join('');
+    }
+    function teacherSelectedRows(){
+        if($('input[name="an-teacher-scope"]:checked').val()==='all')return teacherOptions;
+        const ids=new Set(($('#an-teacher-select').val()||[]).map(String));
+        return teacherOptions.filter(t=>ids.has(String(t.id)));
+    }
+    function loadTeachers(){
+        if(!teacherReady)return;
+        if(teacherLoaded)return $.Deferred().resolve().promise();
+        return $.getJSON(teacherApi,{action:'options'}).done(r=>{
+            if(Number(r.status)!==1){toast(r.message||'No se encontraron docentes.','danger');return;}
+            teacherOptions=r.teachers||[];
+            teacherLoaded=true;
+            const $sel=$('#an-teacher-select');
+            $sel.empty();
+            teacherOptions.forEach(t=>$sel.append(new Option(t.name,String(t.id))));
+            if($.fn.select2){
+                if($sel.hasClass('select2-hidden-accessible'))$sel.select2('destroy');
+                $sel.select2({width:'100%',dropdownParent:$('#an-compose-modal'),
+                    placeholder:'Buscar docentes',closeOnSelect:false});
+            }
+            updateAudienceSummary();
+        }).fail(x=>toast((x.responseJSON||{}).message||'No se pudieron cargar los docentes.','danger'));
+    }
+    function setMode(next){
+        if(next!=='students'&&next!=='teachers')return;
+        mode=next;
+        const isTeacher=mode==='teachers';
+        $('.an-mode,.an-compose-kind').removeClass('btn-primary active').addClass('btn-outline-primary')
+            .filter('[data-kind="'+mode+'"]').removeClass('btn-outline-primary').addClass('btn-primary active');
+        $('#an-student-target').toggleClass('d-none',isTeacher);
+        $('#an-teacher-target').toggleClass('d-none',!isTeacher);
+        $('#an-teacher-migration').toggleClass('d-none',!isTeacher||teacherReady);
+        $('#an-current-mode-help').text('Historial de comunicados a '+(isTeacher?'docentes':'estudiantes'));
+        $('#an-recipients-description').text((isTeacher?'Docentes':'Estudiantes')+' destinatarios este mes');
+        $('#an-new').prop('disabled',isTeacher?!teacherReady:!ready);
+        if(isTeacher)loadTeachers();
+        updateAudienceSummary();updatePreview();
+        loadSummary();loadHistory();
+    }
+    function refreshTeacherTarget(){
+        const selected=$('input[name="an-teacher-scope"]:checked').val()==='selected';
+        $('#an-teacher-select-wrap').toggleClass('d-none',!selected);
+        $('#an-teacher-recipient-label').text(selected?'Docentes seleccionados':'Todos los docentes');
+        $('#an-teacher-recipient-count').text(teacherSelectedRows().length);
+        updateAudienceSummary();
+    }
 
     function esc(v){return $('<div>').text(v==null?'':v).html();}
     function toast(message,type){
@@ -390,6 +450,7 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function recipientRows(){
+        if(mode==='teachers')return teacherSelectedRows();
         const type=$('#an-audience').val()||'all',level=$('#an-level').val(),grade=$('#an-grade').val(),section=$('#an-section').val(),studentId=Number($('#an-student').val()||0);
         const rows=options.students||[];
         if(type==='all')return rows;
@@ -401,6 +462,7 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function audienceLabel(){
+        if(mode==='teachers')return $('input[name="an-teacher-scope"]:checked').val()==='selected'?'Docentes seleccionados':'Todos los docentes';
         const type=$('#an-audience').val()||'all',level=$('#an-level').val(),grade=$('#an-grade').val(),section=$('#an-section').val();
         if(type==='all')return 'Todo el colegio';
         if(type==='level')return level||'Nivel sin seleccionar';
@@ -420,6 +482,10 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function updateAudienceSummary(){
+        if(mode==='teachers'){
+            $('#an-teacher-recipient-count').text(teacherSelectedRows().length);
+            return;
+        }
         const type=$('#an-audience').val()||'all';
         $('#an-recipient-label').text(audienceLabel());
         $('#an-recipient-count').text(recipientRows().length);
@@ -442,9 +508,12 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function validate(){
+        if(mode==='teachers'&&!teacherReady)return 'Ejecuta sql/teacher_announcements_v1.sql antes de enviar.';
+        if(mode==='teachers'&&recipientRows().length<1)return 'Selecciona por lo menos un docente activo.';
         const title=$.trim($('#an-title').val()),content=$.trim($('#an-content').val()),type=$('#an-audience').val()||'all';
         if(title.length<3)return 'Escribe un título de al menos 3 caracteres.';
         if(content.length<3)return 'Escribe el contenido del comunicado.';
+        if(mode==='teachers')return '';
         if(type==='level'&&!$('#an-level').val())return 'Selecciona el nivel.';
         if(type==='grade'&&(!$('#an-level').val()||!$('#an-grade').val()))return 'Selecciona nivel y grado.';
         if(type==='section'&&(!$('#an-level').val()||!$('#an-grade').val()||!$('#an-section').val()))return 'Selecciona nivel, grado y sección.';
@@ -455,6 +524,10 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
 
     function resetCompose(){
         clearInline();
+        teacherRequestKey=newRequestKey();
+        $('input[name="an-teacher-scope"][value="all"]').prop('checked',true);
+        $('#an-teacher-select').val(null).trigger('change');
+        refreshTeacherTarget();
         $('#an-title,#an-content').val('');
         $('#an-audience').val('all');
         $('#an-level,#an-grade,#an-section').val('');
@@ -463,8 +536,10 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function loadSummary(){
-        if(!ready)return;
-        $.getJSON(api,{action:'summary'}).done(r=>{
+        if(mode==='students'&&!ready || mode==='teachers'&&!teacherReady)return;
+        const current=mode,source=current==='teachers'?teacherApi:api;
+        $.getJSON(source,{action:'summary'}).done(r=>{
+            if(current!==mode)return;
             const s=(r&&r.summary)||{};
             $('#an-stat-month').text(Number(s.month_total||0));
             $('#an-stat-recipients').text(Number(s.month_recipients||0));
@@ -474,9 +549,10 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function loadHistory(){
-        if(!ready)return;
+        if(mode==='students'&&!ready || mode==='teachers'&&!teacherReady)return;
+        const current=mode,source=current==='teachers'?teacherApi:api;
         $('#an-history').html('<tr class="ed-empty-row"><td colspan="5"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando...</td></tr>');
-        $.getJSON(api,{action:'list'}).done(r=>{history=(r&&r.items)||[];renderHistory();})
+        $.getJSON(source,{action:'list'}).done(r=>{if(current!==mode)return;history=(r&&r.items)||[];renderHistory();})
             .fail(()=>$('#an-history').html('<tr class="ed-empty-row"><td colspan="5" class="text-danger">No se pudo cargar el historial.</td></tr>'));
     }
 
@@ -489,11 +565,12 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
         }
         let html='';
         rows.forEach(x=>{
+            const isTeacher=mode==='teachers';
             const noDevice=Math.max(0,Number(x.recipient_count||0)-Math.min(Number(x.recipient_count||0),Number(x.push_sent_count||0)));
             html+='<tr>'+
                 '<td><strong>'+esc(dateText(x.created_at))+'</strong><div class="small text-muted">'+esc(x.created_by_name)+'</div></td>'+
                 '<td><strong>'+esc(x.title)+'</strong><div class="small text-muted text-truncate" style="max-width:440px">'+esc(x.content)+'</div></td>'+
-                '<td><span class="badge badge-light border ed-badge">'+esc(x.audience)+'</span><div class="small text-muted mt-1">'+Number(x.recipient_count||0)+' estudiante(s)</div></td>'+
+                '<td><span class="badge badge-light border ed-badge">'+esc(x.audience)+'</span><div class="small text-muted mt-1">'+Number(x.recipient_count||0)+' '+(isTeacher?'docente(s)':'estudiante(s)')+'</div></td>'+
                 '<td><span class="badge badge-success ed-badge">'+Number(x.push_sent_count||0)+' enviados</span>'+
                     (Number(x.push_failed_count||0)?'<div class="small text-danger mt-1">'+Number(x.push_failed_count)+' fallidos</div>':'')+'</td>'+
                 '<td class="text-right an-history-actions"><button class="btn btn-outline-primary btn-sm an-detail" data-id="'+Number(x.id)+'"><i class="fas fa-eye mr-1"></i>Detalle</button></td>'+
@@ -510,27 +587,32 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     function renderDetail(){
+        const isTeacher=mode==='teachers';
         const q=$.trim($('#an-detail-search').val()).toLowerCase();
-        const rows=detailRows.filter(r=>!q||[r.student_name,r.dni,r.level,r.grade,r.section].join(' ').toLowerCase().includes(q));
+        const rows=detailRows.filter(r=>!q||[r.student_name,r.teacher_name,r.dni,r.level,r.grade,r.section].join(' ').toLowerCase().includes(q));
         if(!rows.length){
-            $('#an-detail-body').html('<tr class="ed-empty-row"><td colspan="4">No hay estudiantes para mostrar.</td></tr>');
+            $('#an-detail-body').html('<tr class="ed-empty-row"><td colspan="4">No hay destinatarios para mostrar.</td></tr>');
             return;
         }
         let html='';
         rows.forEach(r=>{
-            html+='<tr><td><strong>'+esc(r.student_name)+'</strong><div class="small text-muted">'+esc(r.dni||'')+'</div></td>'+
-                '<td>'+esc(r.level+' · '+r.grade+' '+r.section)+'</td><td>'+stateBadge(r.state)+'</td>'+
+            html+='<tr><td><strong>'+esc(isTeacher?r.teacher_name:r.student_name)+'</strong><div class="small text-muted">'+esc(isTeacher?'Docente':r.dni||'')+'</div></td>'+
+                '<td>'+esc(isTeacher?'—':r.level+' · '+r.grade+' '+r.section)+'</td><td>'+stateBadge(r.state)+'</td>'+
                 '<td>'+(r.is_read?'<span class="text-success small"><i class="fas fa-check-double mr-1"></i>Leído</span>':'<span class="text-muted small">No leído</span>')+'</td></tr>';
         });
         $('#an-detail-body').html(html);
     }
 
     function openDetail(id){
+        const current=mode,source=current==='teachers'?teacherApi:api;
+        $('#an-detail-name-heading').text(current==='teachers'?'Docente':'Estudiante');
+        $('#an-detail-context-heading').text(current==='teachers'?'Perfil':'Aula');
         $('#an-detail-content').addClass('d-none');
         $('#an-detail-loading').removeClass('d-none').html('<i class="fas fa-spinner fa-spin mr-1"></i>Cargando...');
         $('#an-detail-search').val('');
         $('#an-detail-modal').modal('show');
-        $.getJSON(api,{action:'detail',id:id}).done(r=>{
+        $.getJSON(source,{action:'detail',id:id}).done(r=>{
+            if(current!==mode)return;
             if(!r||Number(r.status)!==1){
                 $('#an-detail-loading').html('<span class="text-danger">'+esc((r&&r.message)||'No se pudo cargar el detalle.')+'</span>');return;
             }
@@ -551,13 +633,14 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     async function send(){
+        const current=mode;
         const error=validate();
         if(error){inline(error,'warning');return;}
 
         const count=recipientRows().length;
         const message='<div class="text-left"><p class="mb-2">El comunicado se enviará inmediatamente y quedará disponible en la app EduSync.</p>'+
             '<div class="border rounded p-2 bg-light"><div><strong>'+esc($.trim($('#an-title').val()))+'</strong></div>'+
-            '<div class="small text-muted mt-1">'+esc(audienceLabel())+' · '+count+' estudiante(s)</div></div></div>';
+            '<div class="small text-muted mt-1">'+esc(audienceLabel())+' · '+count+' '+(current==='teachers'?'docente(s)':'estudiante(s)')+'</div></div></div>';
 
         let accepted=true;
         if(window.EduSyncFeedback&&EduSyncFeedback.confirm){
@@ -576,14 +659,23 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
             level:$('#an-level').val()||'',grade:$('#an-grade').val()||'',section:$('#an-section').val()||'',
             student_id:$('#an-student').val()||''
         };
-        $.post(api,data,null,'json').done(r=>{
+        const source=current==='teachers'?teacherApi:api;
+        if(current==='teachers'){
+            data.request_key=teacherRequestKey;
+            data.audience_type=$('input[name="an-teacher-scope"]:checked').val()||'all';
+            data['teacher_ids[]']=($('#an-teacher-select').val()||[]);
+        }
+        $.post(source,data,null,'json').done(r=>{
             if(!r||Number(r.status)!==1){inline((r&&r.message)||'No se pudo enviar el comunicado.','danger');return;}
             $('#an-compose-modal').modal('hide');
-            const missing=Math.max(0,Number(r.recipients||0)-Number(r.students_with_devices||0));
-            let msg='Comunicado enviado a '+Number(r.recipients||0)+' estudiante(s). '+Number(r.push_sent||0)+' push enviados.';
+            const missing=current==='teachers'?0:Math.max(0,Number(r.recipients||0)-Number(r.students_with_devices||0));
+            let msg=current==='teachers'
+              ? 'Comunicado registrado para '+Number(r.recipients||0)+' docente(s). Avisos en bandeja; Firebase procesará las entregas.'
+              : 'Comunicado enviado a '+Number(r.recipients||0)+' estudiante(s). '+Number(r.push_sent||0)+' push enviados.';
             if(missing)msg+=' '+missing+' sin dispositivo registrado.';
             if(Number(r.push_failed||0))msg+=' '+Number(r.push_failed)+' push fallidos.';
             toast(msg,(missing||Number(r.push_failed||0))?'warning':'success');
+            teacherRequestKey=newRequestKey();
             loadSummary();loadHistory();
         }).fail(x=>inline((x.responseJSON||{}).message||'No se pudo enviar el comunicado.','danger'))
           .always(()=>{
@@ -592,6 +684,9 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
           });
     }
 
+    $('.an-mode,.an-compose-kind').on('click',function(){setMode(String($(this).data('kind')));});
+    $('input[name="an-teacher-scope"]').on('change',refreshTeacherTarget);
+    $('#an-teacher-select').on('change',refreshTeacherTarget);
     $('.an-audience-option').on('click',function(){$('#an-audience').val($(this).data('type'));updateAudienceUI();});
     $('#an-level').on('change',function(){refreshGrades();refreshSections();updateAudienceSummary();});
     $('#an-grade').on('change',function(){refreshSections();updateAudienceSummary();});
