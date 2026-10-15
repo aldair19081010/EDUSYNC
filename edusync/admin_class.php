@@ -1927,6 +1927,13 @@ function save_payment(){
 	}
 
 	if (empty($id)) {
+		// DATETIME guarda una fecha sin zona: crear evaluaciones nuevas en UTC.
+		// Para TIMESTAMP conservar el DEFAULT CURRENT_TIMESTAMP de MySQL.
+		require_once __DIR__ . '/includes/notification_date_timezone.php';
+		if (edun_evaluation_created_at_is_datetime($this->db)) {
+			$columns[] = '`created_at`';
+			$values[] = 'UTC_TIMESTAMP()';
+		}
 		$sql = "INSERT INTO evaluations (" . implode(", ", $columns) . ") VALUES (" . implode(", ", $values) . ")";
 	} else {
 		$id = intval($id);
