@@ -66,6 +66,9 @@ function edwp_send_message(
             'webpush'=>[
                 'headers'=>['Urgency'=>'high','TTL'=>'86400'],
             ],
+            // Android necesita prioridad alta para mensajes de solo datos,
+            // que la aplicación nativa muestra con su canal local.
+            'android'=>['priority'=>'high','ttl'=>'86400s'],
         ],
     ];
     $endpoint='https://fcm.googleapis.com/v1/projects/'.rawurlencode($project).'/messages:send';
