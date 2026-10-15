@@ -946,6 +946,8 @@ if ($action == 'get_students_by_grado_seccion') {
                 $params[] = (int)($_SESSION['login_teacher_id'] ?? 0);
                 $paramTypes .= 'i';
             }
+            require_once __DIR__.'/includes/grades_report_historical_level.php';
+            $historicalSql .= grhl_sql($conn, 's', 'tc', 'ac');
             $historicalSql .= ' ORDER BY s.name';
             $q = $conn->prepare($historicalSql);
             if ($q) {
