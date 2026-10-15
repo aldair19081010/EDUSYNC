@@ -622,6 +622,10 @@ require_once __DIR__ . '/includes/push_notifications.php';
 $studentsWithDevices = 0;
 $pushSent = 0;
 $pushFailed = 0;
+$webPushSent = 0;
+$webPushFailed = 0;
+$webPushSubscriptions = 0;
+$webPushSkipped = 0;
 
 $recipientStmt = $conn->prepare(
     'INSERT INTO student_collection_recipients
@@ -661,6 +665,11 @@ foreach ($resolved['students'] as $student) {
         $deviceCount = (int)($push['devices'] ?? 0);
         $sent = (int)($push['sent'] ?? 0);
         $failed = (int)($push['failed'] ?? 0);
+        $web = $push['web_push'] ?? [];
+        $webPushSent += (int)($web['sent'] ?? 0);
+        $webPushFailed += (int)($web['failed'] ?? 0);
+        $webPushSubscriptions += (int)($web['subscriptions'] ?? 0);
+        if (!empty($web['skipped'])) $webPushSkipped++;
     } catch (Throwable $pushError) {
         $failed = 1;
         error_log('[collection push] ' . $pushError->getMessage());
@@ -712,4 +721,10 @@ cnOut([
     'students_without_devices' => max(0, $recipientCount - $studentsWithDevices),
     'push_sent' => $pushSent,
     'push_failed' => $pushFailed,
+    // Web Push sólo se envía a navegadores registrados por cada estudiante.
+    // Las cifras Android se mantienen independientes.
+    'web_push_sent' => $webPushSent,
+    'web_push_failed' => $webPushFailed,
+    'web_push_subscriptions' => $webPushSubscriptions,
+    'web_push_skipped' => $webPushSkipped,
 ]);
