@@ -182,11 +182,18 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
     // Nómina histórica: los IDs de estudiante salen de sus calificaciones
     // asociadas a cursos/asignaciones del año, independientemente de su grado
     // actual o del estado (trasladado, retirado, egresado, etc.).
-    $historyStmt = $conn->prepare("SELECT DISTINCT s.id,s.name,s.id_no
+    $historySql = "SELECT DISTINCT s.id,s.name,s.id_no
         FROM evaluation_grades eg
         INNER JOIN evaluations e ON e.id=eg.evaluation_id
         INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
-        WHERE e.teacher_course_id IN ($tcList)");
+        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=s.school_id
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=s.school_id
+        WHERE e.teacher_course_id IN ($tcList)";
+    if (!$isCurrentAcademicYear) {
+        require_once __DIR__.'/grades_report_historical_level.php';
+        $historySql .= grhl_sql($conn, 's', 'tc', 'ac');
+    }
+    $historyStmt = $conn->prepare($historySql);
     if ($historyStmt) {
         $historyStmt->bind_param('i', $schoolId);
         $historyStmt->execute();
