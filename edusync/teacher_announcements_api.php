@@ -151,47 +151,47 @@ try {
         $id=(int)($_GET['id']??0);
         $announcement=ta_announcement($conn,$id,$school);
         if(!$announcement)ta_reply(['status'=>0,'message'=>'No se encontró el comunicado docente.'],404);
-        $s=$conn->prepare("SELECT ar.recipient_user_id,ar.notification_event_id,
-            COALESCE(u.name,t.name,'Docente') teacher_name,
-            COALESCE(ns.is_read,0) is_read,
-            COALESCE(p.sent,0) sent,COALESCE(p.failed,0) failed,
-            COALESCE(p.retrying,0) retrying,COALESCE(p.device_count,0) device_count
-            FROM teacher_announcement_recipients ar
-            INNER JOIN users u ON u.id=ar.recipient_user_id AND u.school_id=ar.school_id
-            LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=ar.school_id
-            LEFT JOIN notification_user_state ns ON ns.school_id=ar.school_id
-               AND ns.user_id=ar.recipient_user_id
-               AND ns.notification_key=CONCAT('event:',ar.notification_event_id)
-            LEFT JOIN (
+        $hasPush=ta_exists($conn,'web_push_delivery');
+        $hasSubscriptions=ta_exists($conn,'web_push_subscriptions');
+        $devicesSql=$hasSubscriptions
+            ? "(SELECT COUNT(*) FROM web_push_subscriptions ws
+                  WHERE ws.school_id=ar.school_id
+                    AND ws.account_kind='staff'
+                    AND ws.account_id=ar.recipient_user_id AND ws.is_active=1)"
+            : "0";
+        $pushJoin=$hasPush ? "LEFT JOIN (
               SELECT d.event_id,
                SUM(d.status='delivered') sent,
                SUM(d.status='failed') failed,
-               SUM(d.status='retry') retrying,
-               COUNT(*) device_count
+               SUM(d.status='retry') retrying
               FROM web_push_delivery d
               INNER JOIN teacher_announcement_recipients match_ar
                 ON match_ar.notification_event_id=d.event_id
                 AND match_ar.school_id=d.school_id AND match_ar.announcement_id=?
               WHERE d.event_kind='staff' AND d.school_id=?
               GROUP BY d.event_id
-            ) p ON p.event_id=ar.notification_event_id
-            WHERE ar.school_id=? AND ar.announcement_id=? ORDER BY teacher_name");
-        // Si push se instala después, los eventos aún permanecen en la bandeja.
-        if(!ta_exists($conn,'web_push_delivery')) {
-            $s=null;
-            $sql="SELECT ar.recipient_user_id,ar.notification_event_id,
-               COALESCE(u.name,'Docente') teacher_name,COALESCE(ns.is_read,0) is_read,
-               0 sent,0 failed,0 retrying,0 device_count
-               FROM teacher_announcement_recipients ar
-               JOIN users u ON u.id=ar.recipient_user_id AND u.school_id=ar.school_id
-               LEFT JOIN notification_user_state ns ON ns.school_id=ar.school_id
-                  AND ns.user_id=ar.recipient_user_id
-                  AND ns.notification_key=CONCAT('event:',ar.notification_event_id)
-               WHERE ar.school_id=? AND ar.announcement_id=? ORDER BY teacher_name";
-            $s=$conn->prepare($sql);
-            $s->bind_param('ii',$school,$id);
-        } else {
-            $s->bind_param('iiii',$id,$school,$school,$id);
+            ) p ON p.event_id=ar.notification_event_id" : "";
+        $sentCols=$hasPush
+            ? "COALESCE(p.sent,0) sent,COALESCE(p.failed,0) failed,
+               COALESCE(p.retrying,0) retrying"
+            : "0 sent,0 failed,0 retrying";
+        $sql="SELECT ar.recipient_user_id,ar.notification_event_id,
+            COALESCE(u.name,t.name,'Docente') teacher_name,
+            COALESCE(ns.is_read,0) is_read,
+            $sentCols,$devicesSql device_count
+            FROM teacher_announcement_recipients ar
+            INNER JOIN users u ON u.id=ar.recipient_user_id AND u.school_id=ar.school_id
+            LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=ar.school_id
+            LEFT JOIN notification_user_state ns ON ns.school_id=ar.school_id
+               AND ns.user_id=ar.recipient_user_id
+               AND ns.notification_key=CONCAT('event:',ar.notification_event_id)
+            $pushJoin
+            WHERE ar.school_id=? AND ar.announcement_id=?
+            ORDER BY teacher_name";
+        $s=$conn->prepare($sql);
+        if($s){
+            if($hasPush)$s->bind_param('iiii',$id,$school,$school,$id);
+            else $s->bind_param('ii',$school,$id);
         }
         if(!$s)throw new RuntimeException('No se pudo preparar el historial.');
         $s->execute();$rows=$s->get_result();$delivery=[];
