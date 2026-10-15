@@ -21,12 +21,10 @@ function tna_required_tables(mysqli $db): bool {
     return true;
 }
 
-/** Asegura como máximo un aviso por docente, periodo y clase de evento. */
-function tna_emit(
-    mysqli $db, int $school, int $user, string $source, int $sourceId,
-    string $title, string $body, string $priority, bool $dryRun
+/** La misma clave estable permite consultar o emitir sin duplicar. */
+function tna_notice_exists(
+    mysqli $db, int $school, int $user, string $source, int $sourceId
 ): bool {
-    if ($school <= 0 || $user <= 0 || $sourceId <= 0) return false;
     $check = $db->prepare(
         'SELECT id FROM notification_events
          WHERE school_id=? AND recipient_user_id=? AND source_type=? AND source_id=?
@@ -37,7 +35,16 @@ function tna_emit(
     $check->execute();
     $exists = (bool)$check->get_result()->fetch_assoc();
     $check->close();
-    if ($exists) return false;
+    return $exists;
+}
+
+/** Asegura como máximo un aviso por docente, periodo y clase de evento. */
+function tna_emit(
+    mysqli $db, int $school, int $user, string $source, int $sourceId,
+    string $title, string $body, string $priority, bool $dryRun
+): bool {
+    if ($school <= 0 || $user <= 0 || $sourceId <= 0) return false;
+    if (tna_notice_exists($db,$school,$user,$source,$sourceId)) return false;
     if ($dryRun) return true;
 
     $category='Académica';
@@ -175,6 +182,10 @@ function tna_reminders(mysqli $db, DateTimeImmutable $now, bool $dryRun): array 
                 'Cierre bimestral próximo',$msg,'Normal',$dryRun)) {
                 $summary['closure_soon']++;
             }
+            // Evitar releer miles de celdas de notas cada vez que el
+            // despachador se ejecuta, si ya se emitió este resumen.
+            if (tna_notice_exists($db,$school,$user,
+                'teacher_grades_incomplete',$periodId)) continue;
             $missingCourses=0;$missingCells=0;
             foreach (array_keys($group['courses']) as $tcid) {
                 $cells=tna_missing_cells($db,(int)$tcid,$bim);
