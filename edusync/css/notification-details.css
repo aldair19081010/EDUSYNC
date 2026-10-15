@@ -2,6 +2,7 @@
    Sólo ajustes de lectura y responsive. Card, badge, table, alert, row,
    col-* y botones provienen de SB Admin 2; no se replica su sistema visual. */
 .edn-view{min-width:0;color:#344054;font-size:.875rem}
+.edn-view .min-width-0{min-width:0}
 .edn-view .edn-title{font-size:1rem;line-height:1.35;overflow-wrap:anywhere}
 .edn-view .edn-wrap{overflow-wrap:anywhere}
 .edn-view .edn-icon{display:flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.35rem;font-size:1rem}
@@ -13,7 +14,7 @@
 .edn-view .table-responsive{max-width:100%;overflow-x:auto}
 .edn-view .table td,.edn-view .table th{vertical-align:middle}
 .edn-view .table td{overflow-wrap:anywhere}
-.edn-view .edn-evaluation-table{max-height:58vh;overflow:auto;overscroll-behavior:contain}
+.edn-view .edn-evaluation-table{overflow-x:auto;overscroll-behavior-x:contain}
 .edn-view .edn-evaluation-table th{min-width:100px;white-space:normal}
 .edn-view .edn-evaluation-table th:nth-child(2){min-width:195px}
 .edn-view .edn-evaluation-table .edn-score{font-size:.82rem;padding:.45em .65em;min-width:36px}
