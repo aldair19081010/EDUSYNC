@@ -132,8 +132,15 @@ try {
                 ON d.event_id=ar.notification_event_id
                 AND d.school_id=ar.school_id AND d.event_kind='staff'
                 AND d.status='delivered'
-              WHERE ar.school_id=a.school_id AND ar.announcement_id=a.id) push_sent_count"
-          : "0 push_sent_count";
+              WHERE ar.school_id=a.school_id AND ar.announcement_id=a.id) push_sent_count,
+             (SELECT COUNT(DISTINCT ar.recipient_user_id)
+              FROM teacher_announcement_recipients ar
+              INNER JOIN web_push_delivery d
+                ON d.event_id=ar.notification_event_id
+                AND d.school_id=ar.school_id AND d.event_kind='staff'
+                AND d.status='failed'
+              WHERE ar.school_id=a.school_id AND ar.announcement_id=a.id) push_failed_count"
+          : "0 push_sent_count,0 push_failed_count";
         $s=$conn->prepare("SELECT a.id,a.title,a.content,a.audience_type,a.recipient_count,a.created_at,
                 COALESCE(u.name,'Administración') created_by_name,$statsColumns
                 FROM teacher_announcements a
