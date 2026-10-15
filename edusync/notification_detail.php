@@ -55,18 +55,35 @@ if ($type === 'attendance_result') {
     if(!$row){echo '<div class="alert alert-warning">La alerta no existe o no corresponde a su colegio y rol.</div>';return;}
     $title='Alerta de notas bajas';$category='Alerta estudiantil';$priority='Alta';$createdAt=$row['created_at_peru'];$status='Requiere seguimiento';$courses=json_decode($row['failed_courses'],true)?:[];
     ob_start(); ?>
-    <div class="edn-grid">
-      <div class="edn-card"><span class="edn-card-label">Estudiante</span><strong class="edn-card-value"><?=nd_e($row['student_name'])?></strong><small class="edn-card-help"><?=nd_e($row['id_no'])?></small></div>
-      <div class="edn-card"><span class="edn-card-label">Aula y periodo</span><strong class="edn-card-value"><?=nd_e($row['nivel'].' · '.$row['grado'].' '.$row['seccion'])?></strong><small class="edn-card-help"><?=nd_e($row['bimestre'])?>° bimestre</small></div>
+    <div class="row mb-3">
+      <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Estudiante</div>
+        <div class="font-weight-bold text-gray-800"><?=nd_e($row['student_name'])?></div>
+        <small class="text-muted"><?=nd_e($row['id_no'])?></small>
+      </div></div></div>
+      <div class="col-md-6 mb-2"><div class="card shadow-sm h-100"><div class="card-body py-3">
+        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Aula y periodo</div>
+        <div class="font-weight-bold text-gray-800"><?=nd_e($row['nivel'].' · '.$row['grado'].' '.$row['seccion'])?></div>
+        <small class="text-muted"><?=nd_e($row['bimestre'])?>° bimestre</small>
+      </div></div></div>
     </div>
-    <div class="edn-highlight"><div class="edn-highlight-number"><?=(int)$row['count_low_grades']?></div><div class="edn-highlight-label"><strong>Calificaciones desaprobatorias detectadas</strong><div>Este caso requiere seguimiento académico.</div></div></div>
+    <div class="alert alert-danger mb-3">
+      <strong class="h5 font-weight-bold mr-1"><?=(int)$row['count_low_grades']?></strong>
+      calificaciones desaprobatorias detectadas. Este caso requiere seguimiento.
+    </div>
     <?php if($courses): ?>
-      <section class="edn-section"><h6 class="edn-section-title"><i class="fas fa-book"></i>Cursos involucrados</h6>
-      <?php foreach($courses as $course): ?>
-        <?php $courseName=is_array($course)?($course['name']??$course['course']??'Curso'):$course;
-              $failedCount=is_array($course)?(int)($course['count']??0):0; ?>
-        <div class="edn-course"><strong><?=nd_e($courseName)?></strong><?php if($failedCount>0):?><span class="badge badge-danger"><?=$failedCount?> bajas</span><?php endif;?></div>
-      <?php endforeach; ?></section>
+      <div class="card shadow-sm mb-3"><div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-danger"><i class="fas fa-book-open mr-2"></i>Cursos involucrados</h6>
+      </div><div class="list-group list-group-flush">
+        <?php foreach($courses as $course):
+          $courseName=is_array($course)?($course['name']??$course['course']??'Curso'):$course;
+          $failedCount=is_array($course)?(int)($course['count']??0):0; ?>
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <strong class="text-gray-800"><?=nd_e($courseName)?></strong>
+            <?php if($failedCount>0):?><span class="badge badge-danger ml-2"><?=$failedCount?> bajas</span><?php endif;?>
+          </div>
+        <?php endforeach; ?>
+      </div></div>
     <?php endif; ?>
     <?php $content=ob_get_clean();
 } elseif ($type === 'grade_changes') {
@@ -88,7 +105,7 @@ if ($type === 'attendance_result') {
     $stmt=$conn->prepare("SELECT * FROM notification_events WHERE id=? AND school_id=? AND (recipient_user_id=? OR (recipient_user_id IS NULL AND recipient_role=?)) LIMIT 1");$stmt->bind_param('iiis',$id,$school,$user,$roleName);$stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();
     if(!$row){echo '<div class="alert alert-warning">La notificación no existe o no está dirigida a su usuario y rol.</div>';return;}
     $title=$row['title'];$category=$row['notification_type'];$priority=$row['priority'];$message=$row['message'];$createdAt=$row['created_at'];
-    $content='<div class="nd-section"><span>Mensaje</span><div>'.nl2br(nd_e($message?:'Sin información adicional.')).'</div></div>';
+    $content='<div class="card shadow-sm mb-3"><div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary">Detalle del aviso</h6></div><div class="card-body">'.nl2br(nd_e($message?:'Sin información adicional.')).'</div></div>';
 } else { echo '<div class="alert alert-warning">Utilice la vista especializada de esta notificación.</div>'; return; }
 ?>
 <?php
