@@ -53,7 +53,7 @@ if ($length < 8 || $length > 64 || !preg_match('/\\p{L}/u', $newPassword) || !pr
     teacher_password_result(422, 'error', 'La nueva contraseña debe tener entre 8 y 64 caracteres, con letras y números.');
 }
 try {
-    $stmt = $conn->prepare('SELECT u.password, u.type, u.teacher_id, t.status AS teacher_status FROM users u LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id WHERE u.id=? AND u.school_id=? LIMIT 1');
+    $stmt = $conn->prepare('SELECT u.password, u.type, u.teacher_id, u.status AS user_status, t.status AS teacher_status FROM users u LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id WHERE u.id=? AND u.school_id=? LIMIT 1');
     if (!$stmt) {
         throw new RuntimeException('No se pudo consultar la cuenta.');
     }
@@ -61,7 +61,8 @@ try {
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    if (!$user || (int) $user['type'] !== 2 || (int) $user['teacher_id'] <= 0 || $user['teacher_status'] !== 'Activo') {
+    if (!$user || (int) $user['type'] !== 2 || (int) $user['teacher_id'] <= 0
+        || $user['teacher_status'] !== 'Activo' || $user['user_status'] !== 'Activo') {
         teacher_password_result(403, 'error', 'La cuenta docente no está activa.');
     }
     $storedHash = (string) $user['password'];
@@ -79,15 +80,20 @@ try {
     if (!$passwordHash) {
         throw new RuntimeException('Error al proteger la contraseña.');
     }
-    $update = $conn->prepare('UPDATE users SET password=? WHERE id=? AND school_id=? AND type=2');
+    $update = $conn->prepare('UPDATE users SET password=? WHERE id=? AND school_id=? AND type=2 AND password=?');
     if (!$update) {
         throw new RuntimeException('No se pudo actualizar la cuenta.');
     }
-    $update->bind_param('sii', $passwordHash, $userId, $schoolId);
+    $update->bind_param('siis', $passwordHash, $userId, $schoolId, $storedHash);
     $ok = $update->execute();
+    $changed = $update->affected_rows;
     $update->close();
     if (!$ok) {
         throw new RuntimeException('Falló la actualización.');
+    }
+    if ($changed !== 1) {
+        teacher_password_result(409, 'error',
+            'La contraseña fue modificada desde otra sesión. Inicia sesión nuevamente.');
     }
     teacher_password_result(200, 'ok', 'Contraseña actualizada correctamente.');
 } catch (Throwable $error) {
