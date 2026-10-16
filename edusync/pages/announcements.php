@@ -6,8 +6,18 @@ $csrf = $_SESSION['csrf_token'];
 $ready = false;
 $q = $conn->query("SHOW TABLES LIKE 'student_announcements'");
 $ready = $q && $q->num_rows > 0;
-$teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->num_rows??0)
-    && (bool)($conn->query("SHOW TABLES LIKE 'teacher_announcement_recipients'")?->num_rows??0);
+// No confundir tablas de Comunicados con dependencias del Centro de Notificaciones.
+$teacherRequiredTables=[
+    'teacher_announcements','teacher_announcement_recipients',
+    'notification_events','notification_user_state'
+];
+$teacherMissingTables=[];
+foreach($teacherRequiredTables as $teacherTable){
+    $safeTable=$conn->real_escape_string($teacherTable);
+    $exists=$conn->query("SHOW TABLES LIKE '$safeTable'");
+    if(!$exists || $exists->num_rows===0)$teacherMissingTables[]=$teacherTable;
+}
+$teacherReady=!$teacherMissingTables;
 ?>
 <style>
 /* Solo patrones propios de Comunicados que Bootstrap/ed-* no cubren. */
@@ -58,8 +68,15 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
         </div>
         <small class="text-muted" id="an-current-mode-help">Historial de comunicados a estudiantes</small>
     </div>
-    <div id="an-teacher-migration" class="alert alert-warning d-none">
-        Para comunicados docentes, ejecuta <strong>sql/teacher_announcements_v1.sql</strong> en la base local.
+    <div id="an-teacher-migration" class="alert alert-warning d-none" role="status" aria-live="polite">
+        <div class="d-flex flex-wrap align-items-center justify-content-between">
+            <span id="an-teacher-migration-message">
+                Revisando las tablas de Comunicados docentes...
+            </span>
+            <button type="button" id="an-teacher-recheck" class="btn btn-sm btn-outline-warning ml-2 mt-1">
+                <i class="fas fa-sync-alt mr-1"></i>Volver a comprobar
+            </button>
+        </div>
     </div>
     <div class="row mb-3">
         <div class="col-xl-3 col-md-6 mb-3 mb-xl-0">
@@ -329,7 +346,8 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
 (function($){
     const api='announcements_api.php';
     const teacherApi='teacher_announcements_api.php';
-    const teacherReady=<?php echo $teacherReady ? 'true' : 'false'; ?>;
+    let teacherReady=<?php echo $teacherReady ? 'true' : 'false'; ?>;
+    let teacherMissing=<?php echo json_encode($teacherMissingTables,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_QUOT|JSON_HEX_APOS); ?>;
     const csrf=<?php echo json_encode($csrf); ?>;
     const ready=<?php echo $ready ? 'true' : 'false'; ?>;
 
@@ -352,6 +370,35 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
         if($('input[name="an-teacher-scope"]:checked').val()==='all')return teacherOptions;
         const ids=new Set(($('#an-teacher-select').val()||[]).map(String));
         return teacherOptions.filter(t=>ids.has(String(t.id)));
+    }
+    function checkTeacherSchema(){
+        $('#an-teacher-recheck').prop('disabled',true);
+        return $.getJSON(teacherApi,{action:'health',ts:Date.now()})
+          .done(r=>{
+            if(!r||Number(r.status)!==1){
+                $('#an-teacher-migration-message').text('No se pudo comprobar la base de datos.');
+                return;
+            }
+            teacherReady=r.ready===true;
+            teacherMissing=r.missing_tables||[];
+            $('#an-teacher-migration-message').text(r.message||
+                (teacherReady?'Tablas de comunicados disponibles.':'Faltan tablas del módulo.'));
+            $('#an-teacher-migration').toggleClass('d-none',mode!=='teachers'||teacherReady);
+            $('#an-new').prop('disabled',mode==='teachers'?!teacherReady:!ready);
+            if(teacherReady&&mode==='teachers'){
+                loadTeachers();
+                loadSummary();
+                loadHistory();
+            }
+          }).fail(xhr=>{
+            teacherReady=false;
+            const result=xhr.responseJSON||{};
+            $('#an-teacher-migration-message').text(
+                result.message||'No se pudo verificar la base de datos. Revisa la sesión y el servidor.'
+            );
+            $('#an-teacher-migration').toggleClass('d-none',mode!=='teachers');
+            $('#an-new').prop('disabled',mode==='teachers'||!ready);
+          }).always(()=>$('#an-teacher-recheck').prop('disabled',false));
     }
     function loadTeachers(){
         if(!teacherReady)return;
@@ -383,7 +430,7 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
         $('#an-current-mode-help').text('Historial de comunicados a '+(isTeacher?'docentes':'estudiantes'));
         $('#an-recipients-description').text((isTeacher?'Docentes':'Estudiantes')+' destinatarios este mes');
         $('#an-new').prop('disabled',isTeacher?!teacherReady:!ready);
-        if(isTeacher)loadTeachers();
+        if(isTeacher)checkTeacherSchema();
         updateAudienceSummary();updatePreview();
         loadSummary();loadHistory();
     }
@@ -696,6 +743,7 @@ $teacherReady=(bool)($conn->query("SHOW TABLES LIKE 'teacher_announcements'")?->
     }
 
     $('.an-mode,.an-compose-kind').on('click',function(){setMode(String($(this).data('kind')));});
+    $('#an-teacher-recheck').on('click',checkTeacherSchema);
     $('input[name="an-teacher-scope"]').on('change',refreshTeacherTarget);
     $('#an-teacher-select').on('change',refreshTeacherTarget);
     $('.an-audience-option').on('click',function(){$('#an-audience').val($(this).data('type'));updateAudienceUI();});
