@@ -41,10 +41,11 @@ if ($login_type === 1) {
             ],
         ],
         [
-            'heading' => 'Cursos y Conceptos',
+            'heading' => 'Académico',
             'items' => [
                 ['page' => 'academic_management', 'label' => 'Gestión Académica', 'icon' => 'fa-graduation-cap'],
                 ['page' => 'academic_year', 'label' => 'Años Académicos', 'icon' => 'fa-calendar-alt'],
+                ['page' => 'teacher_followup', 'label' => 'Seguimiento Docente', 'icon' => 'fa-clipboard-check'],
             ],
         ],
         [

@@ -39,7 +39,8 @@ function edwp_send_message(
     string $title,
     string $body,
     string $url,
-    string $tag
+    string $tag,
+    bool $nativeApp = false
 ): array {
     $credentials = edwp_load_firebase_credentials();
     if (!$credentials) {
@@ -52,7 +53,8 @@ function edwp_send_message(
         error_log('[EduSync web push] No se pudo autenticar Firebase.');
         return ['ok'=>false,'code'=>0,'message'=>'FCM auth failed'];
     }
-    // No se usa notification: el Service Worker controla una sola notificación.
+    // Navegador: sólo data para no duplicar la notificación del Service Worker.
+    // App Flutter: se añade notification Android sólo al token nativo.
     // Todos los valores de data son cadenas según el contrato de FCM.
     $payload = [
         'message'=>[
@@ -66,8 +68,25 @@ function edwp_send_message(
             'webpush'=>[
                 'headers'=>['Urgency'=>'high','TTL'=>'86400'],
             ],
+            // Android necesita prioridad alta para mensajes de solo datos,
+            // que la aplicación nativa muestra con su canal local.
+            'android'=>['priority'=>'high','ttl'=>'86400s'],
         ],
     ];
+    if ($nativeApp) {
+        // Sólo para la suscripción nativa app-*: Android puede presentar la
+        // notificación al cerrar Flutter y reenviar data.tag al abrirla.
+        // Chrome conserva data-only y su Service Worker, sin doble aviso.
+        $payload['message']['notification']=[
+            'title'=>mb_substr($title,0,150,'UTF-8'),
+            'body'=>mb_substr($body,0,450,'UTF-8'),
+        ];
+        $payload['message']['android']['notification']=[
+            'channel_id'=>'staff_alerts',
+            'tag'=>mb_substr($tag,0,96,'UTF-8'),
+            'sound'=>'default',
+        ];
+    }
     $endpoint='https://fcm.googleapis.com/v1/projects/'.rawurlencode($project).'/messages:send';
     $response=push_http_post($endpoint,[
         'Authorization: Bearer '.$oauth,

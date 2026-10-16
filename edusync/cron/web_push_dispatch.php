@@ -10,6 +10,38 @@ date_default_timezone_set('America/Lima');
 require_once __DIR__.'/../db_connect.php';
 require_once __DIR__.'/../includes/notification_date_timezone.php';
 require_once __DIR__.'/../includes/web_push_fcm_sender.php';
+// Revisar eventos docentes en cada ejecución del cron. Los avisos se
+// deduplican por destinatario/periodo, por lo que no dependen de que el
+// horario del cron coincida exactamente con un minuto determinado.
+// evaluation_grade_history puede incluir TIMESTAMP: comparar en Lima.
+$conn->query("SET time_zone = '-05:00'");
+try {
+    // Saltar barridos repetidos: el despacho FCM continúa ejecutándose
+    // en cada tick y el control persiste también tras reinicios de PHP.
+    $due=true;
+    if (push_table_exists($conn,'teacher_alert_scan_state')) {
+        $conn->query("INSERT IGNORE INTO teacher_alert_scan_state(id,last_run_at) VALUES(1,'1970-01-01 00:00:00')");
+        if (!$conn->query("UPDATE teacher_alert_scan_state SET last_run_at=NOW()
+            WHERE id=1 AND last_run_at<=DATE_SUB(NOW(),INTERVAL 10 MINUTE)")) {
+            throw new RuntimeException($conn->error);
+        }
+        $due=$conn->affected_rows>0;
+    }
+    if ($due) {
+        require_once __DIR__.'/../includes/teacher_action_notifications.php';
+        $teacherScan=tna_run($conn);
+    } else {
+        $teacherScan=['skipped'=>true];
+    }
+    if (array_sum(array_filter($teacherScan,'is_int')) > 0) {
+        echo '[Teacher alerts] '.json_encode($teacherScan,JSON_UNESCAPED_UNICODE)."\n";
+    }
+} catch (Throwable $e) {
+    error_log('[EduSync teacher notification scan] '.$e->getMessage());
+} finally {
+    // El despachador FCM existente compara las suscripciones en UTC.
+    $conn->query("SET time_zone = '+00:00'");
+}
 // Comparar TIMESTAMP con subscribed_at/last_seen_at (DATETIME) en la misma zona.
 // Las suscripciones Web Push se registran en UTC.
 $conn->query("SET time_zone = '+00:00'");
@@ -45,7 +77,7 @@ try {
     $pending="(d.id IS NULL OR (d.status='retry' AND d.attempts<3 AND (d.next_retry_at IS NULL OR d.next_retry_at<=NOW())))";
     $active="s.is_active=1 AND s.last_seen_at>=DATE_SUB(NOW(),INTERVAL 45 DAY)";
     if ($hasStudent) {
-        $parts[]="SELECT 'student' kind,e.id event_id,e.school_id,s.id subscription_id,s.fcm_token,
+        $parts[]="SELECT 'student' kind,e.id event_id,e.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                   e.title,e.body,e.screen,e.created_at created,
                   COALESCE(d.attempts,0) attempts
                   FROM student_notification_events e
@@ -60,7 +92,7 @@ try {
     }
     if ($hasStaff) {
         $userStatus=push_column_exists($conn,'users','status') ? " AND u.status='Activo'" : '';
-        $parts[]="SELECT 'staff' kind,e.id event_id,e.school_id,s.id subscription_id,s.fcm_token,
+        $parts[]="SELECT 'staff' kind,e.id event_id,e.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                   e.title,COALESCE(e.message,'') body,COALESCE(e.source_type,'') screen,e.created_at created,
                   COALESCE(d.attempts,0) attempts
                   FROM notification_events e
@@ -88,7 +120,7 @@ try {
         $staffEligible="(s.role_type<>2 OR t.status='Activo')";
         if (push_table_exists($conn,'attendance_change_requests')) {
             // Solicitud al administrador.
-            $parts[]="SELECT 'att_request' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+            $parts[]="SELECT 'att_request' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                      CONCAT('Solicitud de asistencia: ',r.request_type) title,
                      COALESCE(NULLIF(r.reason,''),'Requiere autorización') body,
                      'attendance_request' screen,r.created_at created,COALESCE(d.attempts,0) attempts
@@ -101,7 +133,7 @@ try {
                        AND r.created_at>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
             // Resolución al usuario que solicitó el cambio, sea Docente o Auxiliar.
             $resolved="COALESCE(r.reviewed_at,r.updated_at,r.created_at)";
-            $parts[]="SELECT 'att_result' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+            $parts[]="SELECT 'att_result' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                      IF(r.status='Aprobada','Solicitud de asistencia aprobada','Solicitud de asistencia rechazada') title,
                      CONCAT(r.request_type,IF(COALESCE(r.review_notes,'')<>'',CONCAT(' · ',r.review_notes),'')) body,
                      'attendance_result' screen,$resolved created,COALESCE(d.attempts,0) attempts
@@ -114,7 +146,7 @@ try {
                        AND r.status IN ('Aprobada','Rechazada')
                        AND $resolved>=DATE_SUB(NOW(),INTERVAL 3 DAY)";
             // Otros administradores conocen el resultado sin duplicar el aviso del revisor.
-            $parts[]="SELECT 'att_admin' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+            $parts[]="SELECT 'att_admin' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                      IF(r.status='Aprobada','Asistencia aprobada','Asistencia rechazada') title,
                      CONCAT('Solicitud de ',r.request_type,' resuelta por administración') body,
                      'attendance_admin_result' screen,$resolved created,COALESCE(d.attempts,0) attempts
@@ -131,7 +163,7 @@ try {
         if (push_table_exists($conn,'grade_reopen_requests')
             && push_table_exists($conn,'teacher_courses')
             && push_table_exists($conn,'academic_courses')) {
-            $parts[]="SELECT 'reopen_req' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,
+            $parts[]="SELECT 'reopen_req' kind,r.id event_id,r.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                      'Solicitud de reapertura de notas' title,
                      CONCAT(ac.name,' · ',tc.grado,' ',COALESCE(tc.seccion,''),
                        ' · ',r.bimester,'° Bimestre') body,
@@ -151,7 +183,7 @@ try {
             && push_table_exists($conn,'academic_courses')) {
             // Evaluations DATETIME se guarda en UTC y TIMESTAMP ya sale UTC por la sesion.
             $evaluationTimeSql = 'e.created_at';
-            $parts[]="SELECT 'evaluation' kind,e.id event_id,tc.school_id,s.id subscription_id,s.fcm_token,
+            $parts[]="SELECT 'evaluation' kind,e.id event_id,tc.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                      CONCAT('Nueva evaluación: ',e.title) title,
                      CONCAT(COALESCE(ac.name,'Curso'),' · ',COALESCE(te.name,'Docente')) body,
                      'evaluation' screen,{$evaluationTimeSql} created,COALESCE(d.attempts,0) attempts
@@ -170,7 +202,7 @@ try {
                            AND ne.source_id=e.id)";
         }
         if (push_table_exists($conn,'low_grade_notifications')) {
-            $parts[]="SELECT 'low_grade' kind,lgn.id event_id,st.school_id,s.id subscription_id,s.fcm_token,
+            $parts[]="SELECT 'low_grade' kind,lgn.id event_id,st.school_id,s.id subscription_id,s.fcm_token,s.browser_id,
                      'EduSync · Seguimiento académico' title,
                      CONCAT('Nuevo caso para revisar · ',st.nivel,' · ',
                          TRIM(TRAILING '°' FROM TRIM(st.grado)),'° ',COALESCE(st.seccion,''),
@@ -196,7 +228,7 @@ try {
     // académicos y administrativos provenientes de tablas antiguas.
     $normalized=[];
     foreach ($parts as $part) {
-        $normalized[]="SELECT x.kind,x.event_id,x.school_id,x.subscription_id,x.fcm_token,
+        $normalized[]="SELECT x.kind,x.event_id,x.school_id,x.subscription_id,x.fcm_token,x.browser_id,
             CONVERT(x.title USING utf8mb4) COLLATE utf8mb4_general_ci title,
             CONVERT(x.body USING utf8mb4) COLLATE utf8mb4_general_ci body,
             CONVERT(x.screen USING utf8mb4) COLLATE utf8mb4_general_ci screen,
@@ -232,7 +264,8 @@ try {
         $answer=edwp_send_message(
             (string)$event['fcm_token'],
             (string)$event['title'],(string)$event['body'],$url,
-            'edusync-'.$kind.'-'.$school.'-'.$eventId
+            'edusync-'.$kind.'-'.$school.'-'.$eventId,
+            $kind!=='student' && strncmp((string)$event['browser_id'],'app-',4)===0
         );
         $ok=$answer['ok'];
         $message=mb_substr((string)$answer['message'],0,500,'UTF-8');
