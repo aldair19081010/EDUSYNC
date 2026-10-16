@@ -831,7 +831,7 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
         rows.forEach(x=>{
             const isTeacher=mode==='teachers';
             html+='<tr>'+
-                '<td><strong>'+esc(dateText(x.created_at))+'</strong><div class="small text-muted">'+esc(x.created_by_name)+'</div></td>'+
+                '<td data-order="'+esc(x.created_at||'')+'"><strong>'+esc(dateText(x.created_at))+'</strong><div class="small text-muted">'+esc(x.created_by_name)+'</div></td>'+
                 '<td><strong>'+esc(x.title)+'</strong><div class="small text-muted text-truncate" style="max-width:440px">'+esc(x.content)+'</div></td>'+
                 '<td><span class="badge badge-light border ed-badge">'+esc(x.audience)+'</span><div class="small text-muted mt-1">'+Number(x.recipient_count||0)+' '+(isTeacher?'docente(s)':'estudiante(s)')+'</div></td>'+
                 '<td><span class="badge badge-success ed-badge">'+Number(x.push_sent_count||0)+' enviados</span>'+
