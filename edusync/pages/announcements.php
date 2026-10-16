@@ -21,10 +21,29 @@ $teacherReady=!$teacherMissingTables;
 ?>
 <style>
 /* Un mismo patrón visual para estudiantes y docentes: EduSync standard-v2. */
-.an-mode-bar{gap:.65rem}
-.an-mode-switch{display:inline-flex;flex-wrap:nowrap;max-width:100%}
-.an-mode-switch .btn{min-height:34px;min-width:105px;font-size:.79rem;font-weight:600}
-.an-mode-switch .btn:focus-visible{outline:2px solid var(--edu-primary,#4e73df);outline-offset:2px}
+.an-audience-filter{margin-bottom:1rem}
+.an-mode-bar{gap:.5rem;min-height:36px}
+.an-mode-label{font-size:.77rem;font-weight:600;color:var(--edu-muted,#6e7891)}
+.an-mode-switch{display:inline-flex;align-items:stretch;flex-wrap:nowrap;gap:.2rem;max-width:100%}
+.an-mode-tab{
+    appearance:none!important;background:transparent!important;border:0!important;
+    border-bottom:2px solid transparent!important;border-radius:0!important;
+    color:var(--edu-muted,#6e7891)!important;
+    display:inline-flex;align-items:center;justify-content:center;gap:.35rem;
+    cursor:pointer;min-height:34px;padding:.38rem .85rem!important;
+    font-size:.81rem;font-weight:600;line-height:1.25;
+    box-shadow:none!important;transition:color .15s,border-color .15s
+}
+.an-mode-tab:hover{color:var(--edu-primary,#4e73df)!important}
+.an-mode-tab.is-active{
+    background:transparent!important;color:var(--edu-primary,#4e73df)!important;
+    border-bottom-color:var(--edu-primary,#4e73df)!important;font-weight:700
+}
+.an-mode-tab:focus-visible{
+    outline:2px solid var(--edu-primary,#4e73df)!important;
+    outline-offset:-2px;border-radius:.2rem!important
+}
+.an-mode-tab i{font-size:.82rem;opacity:.82}
 .an-audience-option{
     cursor:pointer;min-height:80px;width:100%;display:flex;flex-direction:column;
     align-items:center;justify-content:center;gap:.18rem;
@@ -71,8 +90,9 @@ $teacherReady=!$teacherMissingTables;
 @media(max-width:767.98px){
     .an-audience-option{min-height:70px}
     .an-history-actions{white-space:normal!important}
+    .an-mode-label{flex-basis:100%}
     .an-mode-switch{width:100%}
-    .an-mode-switch .btn{flex:1 1 0;min-width:0}
+    .an-mode-switch .an-mode-tab{flex:1 1 0;min-width:0}
     #an-compose-modal .modal-body{padding:1rem}
     #an-teacher-target .ed-filter-card{padding:.7rem!important}
 }
@@ -104,12 +124,15 @@ $teacherReady=!$teacherMissingTables;
         </div>
     <?php endif; ?>
 
-    <div class="an-mode-bar d-flex flex-wrap align-items-center justify-content-between mb-3">
-        <div class="btn-group btn-group-sm an-mode-switch" role="group" aria-label="Tipo de destinatario">
-            <button class="btn btn-primary active an-mode" data-kind="students" type="button"><i class="fas fa-user-graduate mr-1"></i>Estudiantes</button>
-            <button class="btn btn-outline-primary an-mode" data-kind="teachers" type="button"><i class="fas fa-chalkboard-teacher mr-1"></i>Docentes</button>
+    <div class="ed-filter-card an-audience-filter">
+        <div class="an-mode-bar d-flex flex-wrap align-items-center" aria-label="Filtro por destinatario">
+            <span class="an-mode-label mr-2">Ver comunicados de</span>
+            <div class="an-mode-switch" role="tablist" aria-label="Destinatarios de comunicados">
+                <button class="an-mode an-mode-tab is-active" data-kind="students" type="button" role="tab" aria-selected="true" aria-controls="an-history"><i class="fas fa-user-graduate" aria-hidden="true"></i>Estudiantes</button>
+                <button class="an-mode an-mode-tab" data-kind="teachers" type="button" role="tab" aria-selected="false" aria-controls="an-history"><i class="fas fa-chalkboard-teacher" aria-hidden="true"></i>Docentes</button>
+            </div>
+            <span class="sr-only" id="an-current-mode-help" aria-live="polite">Historial de comunicados a estudiantes</span>
         </div>
-        <small class="text-muted" id="an-current-mode-help">Historial de comunicados a estudiantes</small>
     </div>
     <div id="an-teacher-migration" class="alert alert-warning d-none" role="status" aria-live="polite">
         <div class="d-flex flex-wrap align-items-center justify-content-between">
@@ -480,10 +503,9 @@ $teacherReady=!$teacherMissingTables;
         if(next!=='students'&&next!=='teachers')return;
         mode=next;
         const isTeacher=mode==='teachers';
-        $('.an-mode').removeClass('btn-primary active').addClass('btn-outline-primary')
-            .attr('aria-pressed','false')
-            .filter('[data-kind="'+mode+'"]').removeClass('btn-outline-primary')
-            .addClass('btn-primary active').attr('aria-pressed','true');
+        $('.an-mode').removeClass('is-active').attr('aria-selected','false')
+            .filter('[data-kind="'+mode+'"]').addClass('is-active')
+            .attr('aria-selected','true');
         $('#an-compose-kind-label,#an-preview-audience').text(isTeacher?'Docentes':'Estudiantes');
         $('#an-compose-kind-icon').toggleClass('fa-chalkboard-teacher',isTeacher)
             .toggleClass('fa-user-graduate',!isTeacher);
