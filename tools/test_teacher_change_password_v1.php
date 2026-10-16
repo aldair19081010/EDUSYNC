@@ -7,7 +7,7 @@ $checks=[
   'Solo POST'=>strpos($source,"REQUEST_METHOD")!==false && strpos($source,"'POST'")!==false,
   'Sesión del docente'=>strpos($source,"login_type")!==false && strpos($source,"$". "role !== 2")!==false,
   'Usuario y colegio desde la sesión'=>strpos($source,"login_school_id")!==false && strpos($source,"login_id")!==false,
-  'No acepta teacher_id desde el móvil'=>strpos($source,"$_POST['teacher_id']")===false,
+  'No acepta teacher_id desde el móvil'=>strpos($source,"_POST['teacher_id']")===false,
   'Contraseña actual'=>strpos($source,"current_password")!==false && strpos($source,"password_verify(")!==false,
   'Compatibilidad con MD5 heredado'=>strpos($source,"md5($". "currentPassword)")!==false,
   'Hash nuevo seguro'=>strpos($source,"password_hash(")!==false,
