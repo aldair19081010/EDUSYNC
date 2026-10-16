@@ -53,7 +53,16 @@ if ($length < 8 || $length > 64 || !preg_match('/\\p{L}/u', $newPassword) || !pr
     teacher_password_result(422, 'error', 'La nueva contraseña debe tener entre 8 y 64 caracteres, con letras y números.');
 }
 try {
-    $stmt = $conn->prepare('SELECT u.password, u.type, u.teacher_id, u.status AS user_status, t.status AS teacher_status FROM users u LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id WHERE u.id=? AND u.school_id=? LIMIT 1');
+    // Compatibilidad con versiones antiguas del esquema: el login también
+    // comprueba la existencia de users.status antes de utilizarlo.
+    $statusQuery = $conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+    $statusSelect = ($statusQuery && $statusQuery->num_rows > 0)
+        ? 'u.status AS user_status' : "'Activo' AS user_status";
+    $stmt = $conn->prepare("SELECT u.password, u.type, u.teacher_id,
+        {$statusSelect}, t.status AS teacher_status
+        FROM users u
+        LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id
+        WHERE u.id=? AND u.school_id=? LIMIT 1");
     if (!$stmt) {
         throw new RuntimeException('No se pudo consultar la cuenta.');
     }
