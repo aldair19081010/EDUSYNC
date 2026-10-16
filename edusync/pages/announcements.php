@@ -87,6 +87,54 @@ $teacherReady=!$teacherMissingTables;
 #an-history .badge,#an-detail-body .badge{font-size:.72rem;font-weight:600}
 #an-history td:nth-child(2){max-width:430px;overflow-wrap:anywhere}
 #an-teacher-recipient-help{line-height:1.4}
+
+/* Historial: encabezado y acciones compactas, alineadas con EduSync standard-v2. */
+.an-history-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.85rem 1rem}
+.an-history-heading{flex:1 1 260px;min-width:0}
+.an-history-heading strong{display:block;font-size:.94rem;line-height:1.35}
+.an-history-heading .an-history-description{margin-top:.22rem!important;font-size:.78rem;line-height:1.4}
+body[data-edusync-ui="standard-v2"] #content .an-history-toolbar{
+    display:flex;align-items:center;justify-content:flex-end;
+    flex:0 0 auto;flex-wrap:nowrap!important;gap:.45rem;margin:0!important;max-width:100%
+}
+.an-history-search{width:270px;min-width:0;flex:0 1 270px;margin:0!important}
+.an-history-search .input-group-prepend{margin:0}
+.an-history-search .input-group-text{
+    height:34px;padding:0 .68rem;border-color:var(--edu-border,#d8deea);
+    border-right:0;border-radius:.4rem 0 0 .4rem;background:var(--edu-surface-soft,#f8f9fc);
+    color:var(--edu-muted,#6e7891);font-size:.82rem
+}
+.an-history-search .form-control{
+    height:34px;min-width:0;padding:.35rem .65rem;font-size:.8rem;
+    border-color:var(--edu-border,#d8deea);border-left:0;
+    border-radius:0 .4rem .4rem 0;box-shadow:none
+}
+.an-history-search .form-control:focus{border-color:var(--edu-primary,#4e73df);box-shadow:none}
+.an-history-search:focus-within .input-group-text{border-color:var(--edu-primary,#4e73df);color:var(--edu-primary,#4e73df)}
+body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-icon{
+    flex:0 0 34px!important;width:34px!important;min-width:34px!important;
+    height:34px!important;min-height:34px!important;padding:0!important;
+    display:inline-flex;align-items:center;justify-content:center;
+    border-radius:.4rem!important;background:var(--edu-surface,#fff);
+    border:1px solid var(--edu-border,#d8deea)!important;color:var(--edu-heading,#344767);
+    transition:background .15s,color .15s,border-color .15s
+}
+body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-icon:hover{
+    background:var(--edu-primary-soft,#eef4ff)!important;
+    border-color:var(--edu-primary,#4e73df)!important;color:var(--edu-primary,#4e73df)!important
+}
+.an-history-toolbar .an-history-icon:focus-visible{
+    outline:2px solid var(--edu-primary,#4e73df);outline-offset:2px
+}
+@media(max-width:767.98px){
+    .an-history-header{align-items:stretch!important}
+    .an-history-heading{flex:1 1 100%}
+    body[data-edusync-ui="standard-v2"] #content .an-history-toolbar{
+        width:100%;justify-content:flex-start;gap:.45rem
+    }
+    .an-history-search{width:auto;flex:1 1 auto;min-width:0}
+}
+
 @media(max-width:767.98px){
     .an-audience-option{min-height:70px}
     .an-history-actions{white-space:normal!important}
@@ -176,21 +224,21 @@ $teacherReady=!$teacherMissingTables;
     </div>
 
     <div class="ed-content-card">
-        <div class="ed-content-card-header d-flex flex-wrap align-items-center justify-content-between">
-            <div>
-                <strong><i class="fas fa-history text-primary mr-2"></i>Historial de comunicados</strong>
-                <div class="small text-muted mt-1">Consulta contenido, alcance, entrega y lectura.</div>
+        <div class="ed-content-card-header an-history-header">
+            <div class="an-history-heading">
+                <strong><i class="fas fa-history text-primary mr-2" aria-hidden="true"></i>Historial de comunicados</strong>
+                <div class="small text-muted an-history-description">Consulta contenido, alcance, entrega y lectura.</div>
             </div>
-            <div class="ed-toolbar mt-2 mt-md-0">
-                <div class="input-group input-group-sm" style="max-width:270px">
-                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
-                    <input id="an-search" class="form-control" placeholder="Buscar comunicado...">
+            <div class="ed-toolbar an-history-toolbar">
+                <div class="input-group input-group-sm an-history-search">
+                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span></div>
+                    <input id="an-search" type="search" class="form-control" placeholder="Buscar comunicado..." aria-label="Buscar comunicado" autocomplete="off">
                 </div>
-                <button id="an-refresh" class="btn btn-light border btn-sm ed-icon-btn" title="Actualizar">
-                    <i class="fas fa-sync-alt"></i>
+                <button type="button" id="an-refresh" class="btn btn-light border btn-sm ed-icon-btn an-history-icon" title="Actualizar historial" aria-label="Actualizar historial">
+                    <i class="fas fa-sync-alt" aria-hidden="true"></i>
                 </button>
-                <a href="index.php?page=notifications" class="btn btn-light border btn-sm ed-icon-btn" title="Centro de notificaciones">
-                    <i class="fas fa-bell"></i>
+                <a href="index.php?page=notifications" class="btn btn-light border btn-sm ed-icon-btn an-history-icon" title="Centro de notificaciones" aria-label="Ir al centro de notificaciones">
+                    <i class="fas fa-bell" aria-hidden="true"></i>
                 </a>
             </div>
         </div>
