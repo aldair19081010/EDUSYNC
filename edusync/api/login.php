@@ -146,6 +146,9 @@ $credential = $storedHash !== '' ? $storedHash : 'legacy-dni:'.(string)$student[
 $remember_saved = edrs_process_login(
     $conn,'student',$schoolId,(int)$student['id'],$credential,$keep
 );
+// Return the regenerated PHP session so mobile API calls remain authenticated
+// independently of the optional browser remembered-device cookie.
+$mobile_session_id = session_id();
 session_write_close();
 
 student_login_reply([
@@ -155,6 +158,7 @@ student_login_reply([
     'dni' => (string)$student['id_no'],
     'nombre' => (string)$student['name'],
     'password_customized' => $storedHash !== '',
+    'session_id' => $mobile_session_id,
     'remember_saved' => $remember_saved,
     'remember_notice' => ($keep && !$remember_saved)
         ? 'Inicio correcto. Este dispositivo aún no puede mantenerse conectado: revisa la migración y HTTPS.'
