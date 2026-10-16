@@ -1,6 +1,7 @@
 # EduSync · Comunicados para docentes
 
-Rama Web: teacher-institutional-announcements-v1
+Rama Web actual: fix-teacher-announcements-migration-check-v1
+(deriva de teacher-institutional-announcements-v1 y conserva todas sus funciones)
 Rama Flutter complementaria: teacher-announcement-inbox-v1
 
 ## Comportamiento
