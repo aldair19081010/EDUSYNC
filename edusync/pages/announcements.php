@@ -425,7 +425,7 @@ $teacherReady=!$teacherMissingTables;
         return Array.from({length:32},()=>Math.floor(Math.random()*16).toString(16)).join('');
     }
     function teacherSelectedRows(){
-        if($('input[name="an-teacher-scope"]:checked').val()==='all')return teacherOptions;
+        if($('#an-teacher-scope').val()==='all')return teacherOptions;
         const ids=new Set(($('#an-teacher-select').val()||[]).map(String));
         return teacherOptions.filter(t=>ids.has(String(t.id)));
     }
@@ -471,7 +471,7 @@ $teacherReady=!$teacherMissingTables;
             if($.fn.select2){
                 if($sel.hasClass('select2-hidden-accessible'))$sel.select2('destroy');
                 $sel.select2({width:'100%',dropdownParent:$('#an-compose-modal'),
-                    placeholder:'Buscar docentes',closeOnSelect:false});
+                    placeholder:'Buscar docentes por nombre',closeOnSelect:false});
             }
             updateAudienceSummary();
         }).fail(x=>toast((x.responseJSON||{}).message||'No se pudieron cargar los docentes.','danger'));
@@ -480,8 +480,15 @@ $teacherReady=!$teacherMissingTables;
         if(next!=='students'&&next!=='teachers')return;
         mode=next;
         const isTeacher=mode==='teachers';
-        $('.an-mode,.an-compose-kind').removeClass('btn-primary active').addClass('btn-outline-primary')
-            .filter('[data-kind="'+mode+'"]').removeClass('btn-outline-primary').addClass('btn-primary active');
+        $('.an-mode').removeClass('btn-primary active').addClass('btn-outline-primary')
+            .attr('aria-pressed','false')
+            .filter('[data-kind="'+mode+'"]').removeClass('btn-outline-primary')
+            .addClass('btn-primary active').attr('aria-pressed','true');
+        $('#an-compose-kind-label,#an-preview-audience').text(isTeacher?'Docentes':'Estudiantes');
+        $('#an-compose-kind-icon').toggleClass('fa-chalkboard-teacher',isTeacher)
+            .toggleClass('fa-user-graduate',!isTeacher);
+        $('#an-stat-sent-label').text(isTeacher?'Push aceptados':'Push enviados');
+        $('#an-stat-sent-meta').text(isTeacher?'Aceptaciones FCM este mes':'Entregas registradas este mes');
         $('#an-student-target').toggleClass('d-none',isTeacher);
         $('#an-teacher-target').toggleClass('d-none',!isTeacher);
         $('#an-teacher-migration').toggleClass('d-none',!isTeacher||teacherReady);
@@ -493,10 +500,17 @@ $teacherReady=!$teacherMissingTables;
         loadSummary();loadHistory();
     }
     function refreshTeacherTarget(){
-        const selected=$('input[name="an-teacher-scope"]:checked').val()==='selected';
+        const selected=$('#an-teacher-scope').val()==='selected';
         $('#an-teacher-select-wrap').toggleClass('d-none',!selected);
+        $('.an-teacher-option').removeClass('is-active').attr('aria-pressed','false')
+            .filter('[data-scope="'+(selected?'selected':'all')+'"]')
+            .addClass('is-active').attr('aria-pressed','true');
         $('#an-teacher-recipient-label').text(selected?'Docentes seleccionados':'Todos los docentes');
-        $('#an-teacher-recipient-count').text(teacherSelectedRows().length);
+        $('#an-teacher-recipient-help').text(
+            selected?'Solo los docentes elegidos recibirán este comunicado.':
+                'Disponible en la bandeja web y en la app docente.');
+        const count=teacherSelectedRows().length;
+        $('#an-teacher-recipient-count').text(count).attr('aria-label',count+' docentes destinatarios');
         updateAudienceSummary();
     }
 
@@ -568,7 +582,7 @@ $teacherReady=!$teacherMissingTables;
     }
 
     function audienceLabel(){
-        if(mode==='teachers')return $('input[name="an-teacher-scope"]:checked').val()==='selected'?'Docentes seleccionados':'Todos los docentes';
+        if(mode==='teachers')return $('#an-teacher-scope').val()==='selected'?'Docentes seleccionados':'Todos los docentes';
         const type=$('#an-audience').val()||'all',level=$('#an-level').val(),grade=$('#an-grade').val(),section=$('#an-section').val();
         if(type==='all')return 'Todo el colegio';
         if(type==='level')return level||'Nivel sin seleccionar';
@@ -579,7 +593,8 @@ $teacherReady=!$teacherMissingTables;
 
     function updateAudienceUI(){
         const type=$('#an-audience').val()||'all';
-        $('.an-audience-option').removeClass('is-active').filter('[data-type="'+type+'"]').addClass('is-active');
+        $('.an-audience-option[data-type]').removeClass('is-active').attr('aria-pressed','false')
+            .filter('[data-type="'+type+'"]').addClass('is-active').attr('aria-pressed','true');
         $('#an-level-wrap').toggleClass('d-none',!['level','grade','section'].includes(type));
         $('#an-grade-wrap').toggleClass('d-none',!['grade','section'].includes(type));
         $('#an-section-wrap').toggleClass('d-none',type!=='section');
@@ -633,7 +648,7 @@ $teacherReady=!$teacherMissingTables;
     function resetCompose(){
         clearInline();
         teacherRequestKey=newRequestKey();
-        $('input[name="an-teacher-scope"][value="all"]').prop('checked',true);
+        $('#an-teacher-scope').val('all');
         $('#an-teacher-select').val(null).trigger('change');
         refreshTeacherTarget();
         $('#an-title,#an-content').val('');
@@ -712,7 +727,7 @@ $teacherReady=!$teacherMissingTables;
         let html='';
         rows.forEach(r=>{
             html+='<tr><td><strong>'+esc(isTeacher?r.teacher_name:r.student_name)+'</strong><div class="small text-muted">'+esc(isTeacher?'Docente':r.dni||'')+'</div></td>'+
-                '<td>'+esc(isTeacher?'—':r.level+' · '+r.grade+' '+r.section)+'</td><td>'+stateBadge(r.state)+'</td>'+
+                '<td>'+(isTeacher?'<span class="text-primary small"><i class="fas fa-inbox mr-1"></i>Registrado</span>':esc(r.level+' · '+r.grade+' '+r.section))+'</td><td>'+stateBadge(r.state)+'</td>'+
                 '<td>'+(r.is_read?'<span class="text-success small"><i class="fas fa-check-double mr-1"></i>Leído</span>':'<span class="text-muted small">No leído</span>')+'</td></tr>';
         });
         $('#an-detail-body').html(html);
@@ -721,7 +736,8 @@ $teacherReady=!$teacherMissingTables;
     function openDetail(id){
         const current=mode,source=current==='teachers'?teacherApi:api;
         $('#an-detail-name-heading').text(current==='teachers'?'Docente':'Estudiante');
-        $('#an-detail-context-heading').text(current==='teachers'?'Perfil':'Aula');
+        $('#an-detail-context-heading').text(current==='teachers'?'Bandeja':'Aula');
+        $('#an-detail-sent-heading').text(current==='teachers'?'Aceptados FCM':'Entregados');
         $('#an-detail-content').addClass('d-none');
         $('#an-detail-loading').removeClass('d-none').html('<i class="fas fa-spinner fa-spin mr-1"></i>Cargando...');
         $('#an-detail-search').val('');
@@ -778,7 +794,7 @@ $teacherReady=!$teacherMissingTables;
         const source=current==='teachers'?teacherApi:api;
         if(current==='teachers'){
             data.request_key=teacherRequestKey;
-            data.audience_type=$('input[name="an-teacher-scope"]:checked').val()||'all';
+            data.audience_type=$('#an-teacher-scope').val()||'all';
             data['teacher_ids[]']=($('#an-teacher-select').val()||[]);
         }
         $.post(source,data,null,'json').done(r=>{
@@ -800,11 +816,18 @@ $teacherReady=!$teacherMissingTables;
           });
     }
 
-    $('.an-mode,.an-compose-kind').on('click',function(){setMode(String($(this).data('kind')));});
+    $('.an-mode').on('click',function(){setMode(String($(this).data('kind')));});
+    $('.an-teacher-option').on('click',function(){
+        $('#an-teacher-scope').val(String($(this).data('scope')));
+        refreshTeacherTarget();
+    });
     $('#an-teacher-recheck').on('click',checkTeacherSchema);
-    $('input[name="an-teacher-scope"]').on('change',refreshTeacherTarget);
     $('#an-teacher-select').on('change',refreshTeacherTarget);
-    $('.an-audience-option').on('click',function(){$('#an-audience').val($(this).data('type'));updateAudienceUI();});
+    $('.an-audience-option[data-type]').on('click',function(){
+        $('#an-audience').val($(this).data('type'));updateAudienceUI();
+    }).attr('role','button').attr('tabindex','0').on('keydown',function(e){
+        if(e.key==='Enter'||e.key===' '){e.preventDefault();$(this).trigger('click');}
+    });
     $('#an-level').on('change',function(){refreshGrades();refreshSections();updateAudienceSummary();});
     $('#an-grade').on('change',function(){refreshSections();updateAudienceSummary();});
     $('#an-section,#an-student').on('change',updateAudienceSummary);
