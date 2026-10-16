@@ -62,10 +62,48 @@ if(!$account)ta_reply(['status'=>0,'message'=>'El usuario no pertenece al colegi
 $role=(int)$account['type'];$isAdmin=$role===1;
 $action=(string)($_GET['action']??$_POST['action']??'list');
 
-if(!ta_exists($conn,'teacher_announcements')||!ta_exists($conn,'teacher_announcement_recipients')||
-    !ta_exists($conn,'notification_events')) {
-    ta_reply(['status'=>0,'migration_required'=>true,'message'=>
-        'Ejecuta sql/teacher_announcements_v1.sql y comprueba el módulo de notificaciones.'],409);
+// Identificar la tabla exacta ausente, no culpar a la migración docente
+// cuando lo que falta es una dependencia preexistente de Notificaciones.
+$requiredTables=[
+    'teacher_announcements',
+    'teacher_announcement_recipients',
+    'notification_events',
+    'notification_user_state'
+];
+$missingTables=[];
+foreach($requiredTables as $requiredTable){
+    if(!ta_exists($conn,$requiredTable))$missingTables[]=$requiredTable;
+}
+$dbResult=$conn->query('SELECT DATABASE() AS db_name');
+$currentDatabase=(string)(($dbResult?$dbResult->fetch_assoc():[])['db_name']??'desconocida');
+$teacherTablesMissing=(bool)array_intersect($missingTables,[
+    'teacher_announcements','teacher_announcement_recipients'
+]);
+$fixScript=$teacherTablesMissing
+    ? 'sql/teacher_announcements_v1.sql'
+    : 'sql/notifications_module_upgrade.sql';
+$missingMessage=$missingTables
+    ? 'En la base de datos conectada ('.$currentDatabase.') faltan: '.
+        implode(', ',$missingTables).'. Revisa '.$fixScript.' en ESA base.'
+    : 'La base de datos ('.$currentDatabase.') tiene las tablas necesarias para Comunicados docentes.';
+
+// Este chequeo de sólo lectura puede consultarse aun si falta alguna tabla.
+// Se exige Administrador: no exponer estructura de la BD a profesores.
+if($action==='health'){
+    if($_SERVER['REQUEST_METHOD']!=='GET')
+        ta_reply(['status'=>0,'message'=>'Método no permitido.'],405);
+    if(!$isAdmin)ta_reply(['status'=>0,'message'=>'Acceso restringido.'],403);
+    ta_reply(['status'=>1,'ready'=>!$missingTables,
+        'database'=>$currentDatabase,
+        'missing_tables'=>$missingTables,
+        'migration_required'=>(bool)$missingTables,
+        'migration_sql'=>$missingTables?$fixScript:null,
+        'message'=>$missingMessage]);
+}
+if($missingTables){
+    ta_reply(['status'=>0,'migration_required'=>true,'missing_tables'=>$missingTables,
+        'database'=>$isAdmin?$currentDatabase:null,
+        'message'=>$missingMessage],409);
 }
 try {
     // El docente sólo ve un comunicado si tiene un evento de notificación
