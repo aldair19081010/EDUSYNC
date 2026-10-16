@@ -43,4 +43,14 @@ expected(strpos($inbox,"'teacher_announcement'")!==false &&
 expected(strpos($students,'push_send_announcement_notification(')!==false &&
     strpos($ui,"const api='announcements_api.php'")!==false,
     'Se conserva la ruta original de estudiantes.');
+expected(strpos($api,"if(\$action==='health')")!==false &&
+    strpos($api,'missing_tables')!==false &&
+    strpos($api,'SELECT DATABASE() AS db_name')!==false &&
+    strpos($api,'sql/notifications_module_upgrade.sql')!==false,
+    'El diagnóstico identifica la BD real y las tablas exactas ausentes.');
+expected(strpos($ui,'id="an-teacher-recheck"')!==false &&
+    strpos($ui,"{action:'health',ts:Date.now()}")!==false &&
+    strpos($ui,'let teacherReady=')!==false,
+    'La pantalla permite volver a verificar sin recargar ni repetir migraciones.');
+
 echo "Contratos estáticos verificados. Faltan pruebas XAMPP y FCM real.".PHP_EOL;
