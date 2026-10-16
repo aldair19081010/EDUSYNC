@@ -41,6 +41,32 @@ nuevos. La confirmación «registrado en bandeja» NO equivale a entrega
 FCM. El historial permite revisar estado FCM y lectura por usuario.
 «Aceptado FCM» tampoco confirma recepción visual ni lectura.
 
+## Si sigue apareciendo el aviso de migración
+
+No vuelvas a importar el SQL sin verificar la base. EduSync Web y el endpoint
+docente deben usar la misma BD: en la rama del repositorio db_connect.php
+apunta a escuela3, pero una configuración local modificada puede ser distinta.
+El módulo ahora indica el nombre de la BD que PHP está usando y la lista
+exacta de tablas faltantes. Tras aplicar la migración en la BD correcta, pulsa
+«Volver a comprobar» en la pestaña Docentes.
+
+Desde phpMyAdmin, elige la misma base utilizada por PHP y ejecuta:
+    SELECT DATABASE() AS base_actual;
+    SHOW TABLES LIKE 'teacher_announcements';
+    SHOW TABLES LIKE 'teacher_announcement_recipients';
+    SHOW TABLES LIKE 'notification_events';
+    SHOW TABLES LIKE 'notification_user_state';
+
+Si faltan las dos primeras, aplica sql/teacher_announcements_v1.sql.
+Si faltan las dos últimas, revisa la migración preexistente
+sql/notifications_module_upgrade.sql y la estructura de Notificaciones.
+El mensaje ya no pide repetir la migración docente cuando lo que falta es
+una dependencia de Notificaciones.
+
+El endpoint GET teacher_announcements_api.php?action=health requiere sesión
+activa y permisos Administrador. Muestra ready, database y missing_tables sin
+exponer secretos, y funciona incluso con tablas aún no creadas.
+
 ## Prueba local (PowerShell)
 En el repositorio EduSync:
     cd C:\xampp\htdocs\interfaz
