@@ -115,10 +115,14 @@ $remember_saved = edrs_process_login(
     $conn,'staff',(int)$row['school_id'],(int)$row['id'],
     (string)$row['password'],$keep
 );
+// Flutter uses PHP's regenerated session ID; the remembered-device cookie
+// is an independent, optional browser-only 30-day authentication mechanism.
+$mobile_session_id = session_id();
 session_write_close();
 auth_reply(1, 'Inicio de sesión exitoso.', [
     'login_type' => intval($row['type']),
     'login_id' => intval($row['id']),
+    'session_id' => $mobile_session_id,
     'remember_saved' => $remember_saved,
     'remember_notice' => ($keep && !$remember_saved)
         ? 'Inicio correcto. Este dispositivo aún no puede mantenerse conectado: revisa la migración y HTTPS.'
