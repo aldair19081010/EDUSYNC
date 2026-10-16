@@ -20,19 +20,62 @@ foreach($teacherRequiredTables as $teacherTable){
 $teacherReady=!$teacherMissingTables;
 ?>
 <style>
-/* Solo patrones propios de Comunicados que Bootstrap/ed-* no cubren. */
-.an-audience-option{cursor:pointer;height:100%;min-height:78px;transition:border-color .15s,background .15s}
-.an-audience-option.is-active{border-color:#9cbcf9!important;background:#eef4ff!important}
-.an-audience-option.is-active i,.an-audience-option.is-active strong{color:#4285f4!important}
-.an-audience-option i{font-size:1.05rem;color:#7a8798}
-.an-audience-option strong{font-size:.73rem;color:#526274}
-.an-preview-phone{max-width:340px;margin:0 auto;background:#edf0f5;border-radius:22px;padding:10px}
-.an-preview-screen{min-height:290px;background:#f8f9fc;border-radius:15px;padding:16px}
+/* Un mismo patrón visual para estudiantes y docentes: EduSync standard-v2. */
+.an-mode-bar{gap:.65rem}
+.an-mode-switch{display:inline-flex;flex-wrap:nowrap;max-width:100%}
+.an-mode-switch .btn{min-height:34px;min-width:105px;font-size:.79rem;font-weight:600}
+.an-mode-switch .btn:focus-visible{outline:2px solid var(--edu-primary,#4e73df);outline-offset:2px}
+.an-audience-option{
+    cursor:pointer;min-height:80px;width:100%;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:.18rem;
+    background:#fff;color:#526274;transition:background .15s,border-color .15s;
+    border:1px solid #d8deea!important;border-radius:.45rem!important
+}
+.an-audience-option:hover{background:var(--edu-surface-soft,#f8f9fc)}
+.an-audience-option.is-active{
+    background:var(--edu-primary-soft,#eef4ff)!important;
+    border-color:var(--edu-primary,#4e73df)!important;
+    box-shadow:inset 0 0 0 1px var(--edu-primary,#4e73df)
+}
+.an-audience-option:focus-visible{outline:2px solid var(--edu-primary,#4e73df);outline-offset:2px}
+.an-audience-option i{font-size:1rem;color:#7a8798}
+.an-audience-option strong{font-size:.78rem;line-height:1.2;color:#526274}
+.an-audience-option .an-option-hint{font-size:.69rem;color:#858796;line-height:1.2}
+.an-audience-option.is-active i,.an-audience-option.is-active strong{color:var(--edu-primary,#4e73df)!important}
+.an-compose-recipient-kind{font-size:.75rem;font-weight:600;padding:.4rem .6rem}
+#an-teacher-target .ed-filter-card{margin-bottom:0!important}
+#an-teacher-select-wrap label{display:block}
+#an-compose-modal .select2-container{width:100%!important;max-width:100%}
+#an-compose-modal .select2-container--default .select2-selection--multiple{
+    min-height:38px;border-color:#d8deea!important;border-radius:.45rem!important;
+    box-shadow:none!important;padding:.1rem .25rem
+}
+#an-compose-modal .select2-container--default .select2-selection--multiple .select2-selection__choice{
+    background:var(--edu-primary-soft,#eef4ff);color:#36589b;
+    border-color:#b8cafa;border-radius:.3rem;font-size:.76rem;margin-top:4px
+}
+#an-compose-modal .select2-container--default.select2-container--focus .select2-selection--multiple{
+    border-color:var(--edu-primary,#4e73df)!important;
+    box-shadow:0 0 0 .14rem rgba(66,133,244,.13)!important
+}
+.an-preview-phone{max-width:340px;margin:0 auto;background:#edf0f5;border-radius:18px;padding:9px}
+.an-preview-screen{min-height:260px;background:#f8f9fc;border-radius:12px;padding:15px}
 .an-preview-push{background:#fff;border:1px solid #edf0f5;border-radius:.6rem;padding:.8rem;box-shadow:0 .125rem .5rem rgba(31,45,61,.06)}
-.an-preview-logo{width:26px;height:26px;border-radius:7px;background:#4285f4;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
-.an-preview-body{font-size:.78rem;color:#6e7891;line-height:1.4}
-.an-message-preview{white-space:pre-line}
-@media(max-width:767.98px){.an-audience-option{min-height:68px}.an-history-actions{white-space:normal!important}}
+.an-preview-logo{width:26px;height:26px;border-radius:7px;background:var(--edu-primary,#4e73df);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.an-preview-body{font-size:.78rem;color:#6e7891;line-height:1.4;overflow-wrap:anywhere}
+.an-message-preview{white-space:pre-line;overflow-wrap:anywhere}
+#an-history td,#an-detail-body td{vertical-align:middle}
+#an-history .badge,#an-detail-body .badge{font-size:.72rem;font-weight:600}
+#an-history td:nth-child(2){max-width:430px;overflow-wrap:anywhere}
+#an-teacher-recipient-help{line-height:1.4}
+@media(max-width:767.98px){
+    .an-audience-option{min-height:70px}
+    .an-history-actions{white-space:normal!important}
+    .an-mode-switch{width:100%}
+    .an-mode-switch .btn{flex:1 1 0;min-width:0}
+    #an-compose-modal .modal-body{padding:1rem}
+    #an-teacher-target .ed-filter-card{padding:.7rem!important}
+}
 </style>
 
 <div class="container-fluid py-3">
@@ -61,7 +104,7 @@ $teacherReady=!$teacherMissingTables;
         </div>
     <?php endif; ?>
 
-    <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <div class="an-mode-bar d-flex flex-wrap align-items-center justify-content-between mb-3">
         <div class="btn-group btn-group-sm an-mode-switch" role="group" aria-label="Tipo de destinatario">
             <button class="btn btn-primary active an-mode" data-kind="students" type="button"><i class="fas fa-user-graduate mr-1"></i>Estudiantes</button>
             <button class="btn btn-outline-primary an-mode" data-kind="teachers" type="button"><i class="fas fa-chalkboard-teacher mr-1"></i>Docentes</button>
@@ -95,9 +138,9 @@ $teacherReady=!$teacherMissingTables;
         </div>
         <div class="col-xl-3 col-md-6 mb-3 mb-md-0">
             <div class="ed-stat-card">
-                <div class="ed-stat-label">Push enviados</div>
+                <div class="ed-stat-label" id="an-stat-sent-label">Push enviados</div>
                 <strong class="ed-stat-value text-success" id="an-stat-sent">—</strong>
-                <div class="ed-stat-meta">Entregas registradas este mes</div>
+                <div class="ed-stat-meta" id="an-stat-sent-meta">Entregas registradas este mes</div>
             </div>
         </div>
         <div class="col-xl-3 col-md-6">
@@ -159,7 +202,7 @@ $teacherReady=!$teacherMissingTables;
                 </div>
                 <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body ed-modal-form">
                 <div id="an-compose-feedback"></div>
                 <div class="row">
                     <div class="col-lg-7">
@@ -167,7 +210,7 @@ $teacherReady=!$teacherMissingTables;
                             <div class="ed-modal-section-title mb-2">1. Contenido</div>
                             <div class="form-group">
                                 <label class="small font-weight-bold">Título</label>
-                                <input id="an-title" class="form-control" maxlength="180" placeholder="Ej.: Reunión de padres">
+                                <input id="an-title" class="form-control" maxlength="180" placeholder="Ej.: Reunión institucional">
                                 <div class="small text-muted text-right mt-1"><span id="an-title-count">0</span>/180</div>
                             </div>
                             <div class="form-group mb-0">
@@ -179,9 +222,11 @@ $teacherReady=!$teacherMissingTables;
 
                         <div class="ed-modal-section">
                             <div class="ed-modal-section-title mb-2">2. Destinatarios</div>
-                            <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Destino del comunicado">
-                                <button class="btn btn-primary an-compose-kind" type="button" data-kind="students">Estudiantes</button>
-                                <button class="btn btn-outline-primary an-compose-kind" type="button" data-kind="teachers">Docentes</button>
+                            <div class="mb-3">
+                                <span class="badge badge-light border an-compose-recipient-kind" aria-live="polite">
+                                    <i id="an-compose-kind-icon" class="fas fa-user-graduate mr-1 text-primary"></i>
+                                    <span id="an-compose-kind-label">Estudiantes</span>
+                                </span>
                             </div>
                             <div id="an-student-target">
                             <div class="row no-gutters mx-n1 mb-3">
@@ -222,29 +267,42 @@ $teacherReady=!$teacherMissingTables;
                             </div>
                             </div><!-- /an-student-target -->
                             <div id="an-teacher-target" class="d-none">
-                                <div class="form-group mb-2">
-                                    <label class="small font-weight-bold">Enviar a</label>
-                                    <div class="custom-control custom-radio mb-2">
-                                        <input type="radio" class="custom-control-input" name="an-teacher-scope" id="an-teacher-all" value="all" checked>
-                                        <label class="custom-control-label small" for="an-teacher-all">Todos los docentes activos</label>
+                                <div class="row no-gutters mx-n1 mb-2" role="group" aria-label="Elegir destinatarios docentes">
+                                    <div class="col-6 px-1 mb-2">
+                                        <button type="button" class="an-audience-option an-teacher-option is-active p-2 text-center" data-scope="all" aria-pressed="true">
+                                            <i class="fas fa-users"></i>
+                                            <strong>Todos los docentes</strong>
+                                            <span class="an-option-hint">Personal activo</span>
+                                        </button>
                                     </div>
-                                    <div class="custom-control custom-radio mb-2">
-                                        <input type="radio" class="custom-control-input" name="an-teacher-scope" id="an-teacher-selected" value="selected">
-                                        <label class="custom-control-label small" for="an-teacher-selected">Seleccionar docentes</label>
+                                    <div class="col-6 px-1 mb-2">
+                                        <button type="button" class="an-audience-option an-teacher-option p-2 text-center" data-scope="selected" aria-pressed="false">
+                                            <i class="fas fa-user-check"></i>
+                                            <strong>Seleccionar docentes</strong>
+                                            <span class="an-option-hint">Envío individual</span>
+                                        </button>
                                     </div>
                                 </div>
+                                <input type="hidden" id="an-teacher-scope" value="all">
                                 <div id="an-teacher-select-wrap" class="form-group d-none">
-                                    <label class="small font-weight-bold" for="an-teacher-select">Docentes destinatarios</label>
-                                    <select id="an-teacher-select" class="form-control" multiple="multiple" style="width:100%"></select>
-                                    <small class="text-muted">Solo docentes activos del colegio. Puedes buscar y elegir varios.</small>
+                                    <label class="small font-weight-bold" for="an-teacher-select">Buscar docentes destinatarios</label>
+                                    <select id="an-teacher-select" class="form-control" multiple="multiple" style="width:100%" aria-describedby="an-teacher-select-help"></select>
+                                    <small id="an-teacher-select-help" class="text-muted d-block mt-1">
+                                        Puedes elegir varios docentes. Solo aparecerán los activos de tu colegio.
+                                    </small>
                                 </div>
                                 <div class="ed-filter-card mb-0">
-                                    <div class="d-flex align-items-center justify-content-between">
-                                        <div>
-                                            <strong id="an-teacher-recipient-label">Todos los docentes</strong>
-                                            <div class="small text-muted">El comunicado llegará a la bandeja docente web y Flutter.</div>
+                                    <div class="d-flex align-items-center justify-content-between" style="gap:.6rem">
+                                        <div class="d-flex align-items-center" style="gap:.6rem;min-width:0">
+                                            <i class="fas fa-paper-plane text-primary" aria-hidden="true"></i>
+                                            <div>
+                                                <strong id="an-teacher-recipient-label">Todos los docentes</strong>
+                                                <div class="small text-muted" id="an-teacher-recipient-help">
+                                                    Disponible en la bandeja web y en la app docente.
+                                                </div>
+                                            </div>
                                         </div>
-                                        <strong id="an-teacher-recipient-count">0</strong>
+                                        <span class="badge badge-primary ed-badge px-2 py-1" id="an-teacher-recipient-count" aria-label="Cantidad de docentes">0</span>
                                     </div>
                                 </div>
                             </div>
@@ -253,7 +311,7 @@ $teacherReady=!$teacherMissingTables;
 
                     <div class="col-lg-5 mt-3 mt-lg-0">
                         <div class="ed-modal-section">
-                            <div class="ed-modal-section-title mb-2">Vista previa</div>
+                            <div class="ed-modal-section-title mb-2">Vista previa <small class="text-muted font-weight-normal ml-2" id="an-preview-audience">Estudiantes</small></div>
                             <div class="an-preview-phone">
                                 <div class="an-preview-screen">
                                     <div class="small text-muted d-flex justify-content-between mb-4">
@@ -268,7 +326,7 @@ $teacherReady=!$teacherMissingTables;
                                         <div class="an-preview-body mt-1" id="an-preview-body">El mensaje del comunicado aparecerá aquí.</div>
                                     </div>
                                     <div class="small text-muted text-center mt-3">
-                                        Al tocarla, el destinatario podrá abrir el comunicado completo.
+                                        <i class="fas fa-info-circle mr-1"></i>El destinatario puede abrir el comunicado completo.
                                     </div>
                                 </div>
                             </div>
@@ -318,7 +376,7 @@ $teacherReady=!$teacherMissingTables;
 
                     <div class="row mb-3">
                         <div class="col-6 col-md-3 mb-2"><div class="ed-stat-card shadow-none"><div class="ed-stat-label">Destinatarios</div><strong class="ed-stat-value" id="an-detail-total">0</strong></div></div>
-                        <div class="col-6 col-md-3 mb-2"><div class="ed-stat-card shadow-none"><div class="ed-stat-label">Entregados</div><strong class="ed-stat-value text-success" id="an-detail-sent">0</strong></div></div>
+                        <div class="col-6 col-md-3 mb-2"><div class="ed-stat-card shadow-none"><div class="ed-stat-label" id="an-detail-sent-heading">Entregados</div><strong class="ed-stat-value text-success" id="an-detail-sent">0</strong></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="ed-stat-card shadow-none"><div class="ed-stat-label">Sin dispositivo</div><strong class="ed-stat-value text-muted" id="an-detail-no-device">0</strong></div></div>
                         <div class="col-6 col-md-3 mb-2"><div class="ed-stat-card shadow-none"><div class="ed-stat-label">Leídos</div><strong class="ed-stat-value text-info" id="an-detail-read">0</strong></div></div>
                     </div>
