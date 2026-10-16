@@ -126,6 +126,24 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
 .an-history-toolbar .an-history-icon:focus-visible{
     outline:2px solid var(--edu-primary,#4e73df);outline-offset:2px
 }
+/* DataTables del sistema: paginación, contador y cantidad por página. */
+.an-history-table-footer{
+    padding:.72rem 1rem;border-top:1px solid var(--edu-border-soft,#eaecf4);
+    background:var(--edu-surface,#fff);gap:.65rem 1rem
+}
+.an-history-table-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem}
+.an-history-table-meta .dataTables_length,
+.an-history-table-meta .dataTables_info{float:none!important;margin:0!important;padding:0!important}
+.an-history-table-pages .dataTables_paginate{float:none!important;margin:0!important;padding:0!important}
+.an-history-table-pages .pagination{margin:0!important;flex-wrap:wrap;gap:.15rem}
+#an-history-table th:last-child,#an-history-table td:last-child{white-space:nowrap}
+#an-history-table .an-history-actions .btn{white-space:nowrap}
+@media(max-width:767.98px){
+    .an-history-table-footer{flex-direction:column;align-items:stretch!important}
+    .an-history-table-meta{justify-content:space-between}
+    .an-history-table-pages .dataTables_paginate{text-align:left!important}
+    .an-history-table-pages .pagination{justify-content:flex-start!important}
+}
 @media(max-width:767.98px){
     .an-history-header{align-items:stretch!important}
     .an-history-heading{flex:1 1 100%}
@@ -243,8 +261,11 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
             </div>
         </div>
         <div class="ed-content-card-body p-0">
+            <div id="an-history-status" class="small px-3 py-2 text-muted" role="status" aria-live="polite">
+                <i class="fas fa-spinner fa-spin mr-1"></i>Cargando comunicados...
+            </div>
             <div class="table-responsive ed-table-responsive">
-                <table class="table table-hover table-sm ed-table mb-0">
+                <table id="an-history-table" class="table table-hover table-sm ed-table mb-0" style="width:100%">
                     <thead>
                         <tr>
                             <th>Fecha</th>
@@ -254,9 +275,7 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
                             <th class="text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="an-history">
-                        <tr class="ed-empty-row"><td colspan="5"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando...</td></tr>
-                    </tbody>
+                    <tbody id="an-history"></tbody>
                 </table>
             </div>
         </div>
@@ -482,6 +501,7 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
 
     let options={levels:[],grades:[],sections:[],students:[]};
     let history=[];
+    let historyTable=null;
     let detailRows=[];
     let mode='students',teacherOptions=[],teacherLoaded=false;
     let teacherRequestKey='';
@@ -744,39 +764,90 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
         });
     }
 
+    // La tabla del historial utiliza DataTables, igual que las otras
+    // tablas del sistema. El buscador del encabezado controla su filtro:
+    // no se genera un segundo buscador dentro de la tabla.
+    function ensureHistoryTable(){
+        if(!$.fn.DataTable || !$('#an-history-table').length)return null;
+        if(!historyTable){
+            historyTable=$('#an-history-table').DataTable({
+                dom:'t<"an-history-table-footer d-flex align-items-center justify-content-between flex-wrap"<"an-history-table-meta"li><"an-history-table-pages"p>>',
+                autoWidth:false,
+                pageLength:10,
+                lengthMenu:[[10,25,50,100],[10,25,50,100]],
+                order:[],
+                columnDefs:[{targets:4,orderable:false,searchable:false}],
+                language:{
+                    lengthMenu:'Mostrar _MENU_',
+                    info:'Mostrando _START_ a _END_ de _TOTAL_ comunicados',
+                    infoEmpty:'Sin comunicados',
+                    infoFiltered:'(de _MAX_ en total)',
+                    emptyTable:'Aún no hay comunicados.',
+                    zeroRecords:'No se encontraron coincidencias.',
+                    paginate:{previous:'Anterior',next:'Siguiente'}
+                }
+            });
+            $('#an-history-table').closest('.dataTables_wrapper').addClass('ed-datatable');
+        }
+        return historyTable;
+    }
+
+    function historyStatus(message,isError){
+        $('#an-history-status').toggleClass('d-none',!message)
+            .toggleClass('text-danger',!!isError)
+            .toggleClass('text-muted',!isError)
+            .text(message||'');
+    }
+
     function loadHistory(){
+        history=[];
+        renderHistory();
         if(mode==='students'&&!ready || mode==='teachers'&&!teacherReady){
-            history=[];
-            $('#an-history').html('<tr class="ed-empty-row"><td colspan="5">Activa la base de comunicados de este perfil para ver el historial.</td></tr>');
+            historyStatus('Activa la base de comunicados de este perfil para ver el historial.',false);
             return;
         }
         const current=mode,source=current==='teachers'?teacherApi:api;
-        $('#an-history').html('<tr class="ed-empty-row"><td colspan="5"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando...</td></tr>');
-        $.getJSON(source,{action:'list'}).done(r=>{if(current!==mode)return;history=(r&&r.items)||[];renderHistory();})
-            .fail(()=>$('#an-history').html('<tr class="ed-empty-row"><td colspan="5" class="text-danger">No se pudo cargar el historial.</td></tr>'));
+        historyStatus('Cargando comunicados...',false);
+        $.getJSON(source,{action:'list'}).done(r=>{
+            if(current!==mode)return;
+            history=(r&&r.items)||[];
+            historyStatus('',false);
+            renderHistory();
+        }).fail(()=>{
+            if(current!==mode)return;
+            history=[];
+            renderHistory();
+            historyStatus('No se pudo cargar el historial de comunicados.',true);
+        });
     }
 
     function renderHistory(){
+        const table=ensureHistoryTable();
         const q=$.trim($('#an-search').val()).toLowerCase();
-        const rows=history.filter(x=>!q||[x.title,x.content,x.audience,x.created_by_name].join(' ').toLowerCase().includes(q));
-        if(!rows.length){
-            $('#an-history').html('<tr class="ed-empty-row"><td colspan="5">'+(q?'No hay coincidencias.':'Aún no hay comunicados.')+'</td></tr>');
-            return;
-        }
+        // Sin DataTables, mantener el buscador básico como respaldo.
+        const rows=table?history:history.filter(x=>
+            !q||[x.title,x.content,x.audience,x.created_by_name].join(' ').toLowerCase().includes(q));
         let html='';
         rows.forEach(x=>{
             const isTeacher=mode==='teachers';
-            const noDevice=Math.max(0,Number(x.recipient_count||0)-Math.min(Number(x.recipient_count||0),Number(x.push_sent_count||0)));
             html+='<tr>'+
                 '<td><strong>'+esc(dateText(x.created_at))+'</strong><div class="small text-muted">'+esc(x.created_by_name)+'</div></td>'+
                 '<td><strong>'+esc(x.title)+'</strong><div class="small text-muted text-truncate" style="max-width:440px">'+esc(x.content)+'</div></td>'+
                 '<td><span class="badge badge-light border ed-badge">'+esc(x.audience)+'</span><div class="small text-muted mt-1">'+Number(x.recipient_count||0)+' '+(isTeacher?'docente(s)':'estudiante(s)')+'</div></td>'+
                 '<td><span class="badge badge-success ed-badge">'+Number(x.push_sent_count||0)+' enviados</span>'+
                     (Number(x.push_failed_count||0)?'<div class="small text-danger mt-1">'+Number(x.push_failed_count)+' fallidos</div>':'')+'</td>'+
-                '<td class="text-right an-history-actions"><button class="btn btn-outline-primary btn-sm an-detail" data-id="'+Number(x.id)+'"><i class="fas fa-eye mr-1"></i>Detalle</button></td>'+
+                '<td class="text-right an-history-actions"><button type="button" class="btn btn-outline-primary btn-sm an-detail" data-id="'+Number(x.id)+'"><i class="fas fa-eye mr-1"></i>Detalle</button></td>'+
             '</tr>';
         });
-        $('#an-history').html(html);
+        if(table){
+            table.clear();
+            if(html)table.rows.add($(html));
+            table.search(q).draw();
+        }else{
+            $('#an-history').html(html||
+                '<tr class="ed-empty-row"><td colspan="5">'+
+                (q?'No hay coincidencias.':'Aún no hay comunicados.')+'</td></tr>');
+        }
     }
 
     function stateBadge(state){
@@ -902,7 +973,11 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
     $('#an-grade').on('change',function(){refreshSections();updateAudienceSummary();});
     $('#an-section,#an-student').on('change',updateAudienceSummary);
     $('#an-title,#an-content').on('input',updatePreview);
-    $('#an-search').on('input',renderHistory);
+    $('#an-search').on('input',function(){
+        const table=ensureHistoryTable();
+        if(table)table.search($.trim(this.value)).draw();
+        else renderHistory();
+    });
     $('#an-detail-search').on('input',renderDetail);
     $('#an-new').on('click',function(){resetCompose();$('#an-compose-modal').modal('show');});
     $('#an-send').on('click',send);
