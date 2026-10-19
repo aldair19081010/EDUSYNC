@@ -1,0 +1,184 @@
+/*
+ * EduSync · consistencia visual de operación académica y accesos
+ * Asistencia, reglas de asistencia, evaluación docente y usuarios.
+ * CSS de presentación limitado a los módulos identificados; no altera lógica,
+ * cálculo de calificaciones, operaciones de asistencia o controles DataTables.
+ */
+:is(.at-page,.ar-rules-page,.gr-page,.users-page){
+  --op-border:#e3e6f0;
+  --op-soft:#edf0f5;
+  --op-primary:#4285f4;
+  --op-text:#233b52;
+  --op-muted:#6e7891;
+  --op-radius:.55rem;
+  padding-top:4px!important
+}
+/* Encabezados en una misma jerarquía; no se sobreescribe el encabezado global. */
+:is(.at-page .at-head,.ar-rules-page .ar-head,.gr-page .gr-header,.users-page .user-hero){
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:.55rem .8rem;padding:.72rem .95rem;margin-bottom:.8rem!important;
+  background:#fff;border:1px solid var(--op-border);
+  border-left:4px solid var(--op-primary);border-radius:var(--op-radius);
+  box-shadow:none
+}
+:is(.at-page .at-head,.ar-rules-page .ar-head,.gr-page .gr-header,.users-page .user-hero) h1{
+  margin:0;font-size:1.16rem;line-height:1.3;font-weight:700;color:var(--op-text)
+}
+:is(.at-page .at-sub,.ar-rules-page .ar-sub,.gr-page .gr-header p,.users-page .user-hero p){
+  display:block;font-size:.77rem;line-height:1.35;margin:.13rem 0 0;color:var(--op-muted)
+}
+:is(.at-page .at-head,.ar-rules-page .ar-head,.gr-page .gr-header,.users-page .user-hero) .btn{
+  min-height:34px;padding:.35rem .7rem;font-size:.79rem;
+  border-radius:.4rem;box-shadow:none
+}
+/* Asistencia: filtros arriba, indicadores legibles y escáner distinguible. */
+.at-page .at-toolbar{
+  padding:.7rem .8rem;background:#fff;
+  border:1px solid var(--op-border);border-radius:var(--op-radius);
+  box-shadow:none
+}
+.at-page .at-toolbar .form-row{row-gap:.35rem}
+.at-page .at-toolbar .form-group{min-width:0}
+.at-page .at-toolbar label,.at-page .at-scanner label{
+  display:block;font-size:.74rem;line-height:1.3;font-weight:700;
+  margin-bottom:.22rem;color:#526274
+}
+.at-page .at-toolbar :is(.form-control,.btn),
+.at-page .at-scanner :is(.form-control,.btn){
+  height:34px;min-height:34px;padding:.32rem .55rem;
+  border-radius:.4rem;font-size:.79rem;box-shadow:none
+}
+.at-page .at-kpi{
+  min-height:70px;padding:.65rem .78rem;border:1px solid var(--op-border);
+  border-radius:var(--op-radius);box-shadow:none
+}
+.at-page .at-kpi small{font-size:.74rem;line-height:1.3;color:var(--op-muted);font-weight:600}
+.at-page .at-kpi strong{
+  display:block;font-size:1.14rem;line-height:1.25;
+  color:var(--op-text);font-weight:700;margin:.12rem 0 0
+}
+.at-page .at-scanner{
+  padding:.7rem .8rem;border:1px solid #cddffb;
+  border-left:4px solid #4285f4;border-radius:var(--op-radius);
+  background:#f6f9ff
+}
+.at-page > .card,.ar-rules-page .card{
+  border:1px solid var(--op-border);
+  border-radius:var(--op-radius);box-shadow:none!important;overflow:hidden
+}
+.at-page > .card > .card-header,
+.ar-rules-page .card > .card-header{
+  min-height:40px;padding:.55rem .8rem;
+  background:#fff;border-bottom:1px solid var(--op-soft)
+}
+.at-page > .card > .card-header .btn,
+.ar-rules-page .card > .card-header .btn{
+  font-size:.78rem;min-height:31px;padding:.3rem .6rem;
+  border-radius:.4rem;box-shadow:none
+}
+.at-page :is(.table td,.table th),.ar-rules-page :is(.table td,.table th){vertical-align:middle}
+.at-page .table-responsive,.ar-rules-page .table-responsive{max-width:100%}
+/* Calendario y reglas: el formulario sigue independiente de la tabla horaria. */
+.ar-rules-page .ar-help{padding:.65rem .8rem;border-color:var(--op-primary);font-size:.79rem}
+.ar-rules-page .card-body{padding:.8rem}
+.ar-rules-page .card-body .form-group label{
+  display:block;font-size:.76rem;font-weight:700;margin-bottom:.22rem;color:#526274
+}
+.ar-rules-page .card-body .form-control{
+  min-height:34px;border:1px solid #d8deea;
+  border-radius:.4rem;box-shadow:none
+}
+/* Evaluaciones: no intervenir en la geometría del libro de notas. */
+.gr-page .gr-header{padding:.72rem .95rem!important}
+.gr-page .gr-view-switch{
+  gap:.2rem;padding:.22rem;border:1px solid var(--op-border);
+  border-radius:.5rem;background:#f5f7fb
+}
+.gr-page .gr-view-switch .btn{font-size:.8rem;border-radius:.37rem;padding:.35rem .65rem}
+.gr-page .gr-filter{
+  border:1px solid var(--op-border);border-radius:var(--op-radius);
+  padding:.75rem .8rem!important;background:#fff;box-shadow:none
+}
+.gr-page .gr-filter .gr-label{
+  font-size:.74rem;line-height:1.3;letter-spacing:0;
+  text-transform:none;font-weight:700;color:#526274;margin-bottom:.22rem
+}
+.gr-page .gr-filter .form-control{
+  height:34px;min-height:34px;padding:.3rem .55rem;
+  border:1px solid #d8deea;border-radius:.4rem;
+  box-shadow:none;font-size:.79rem;max-width:100%
+}
+.gr-page .gr-filter :is(.gr-tabs .btn,.gr-filter-actions .btn,.gb-filter-actions .btn){
+  min-height:31px;border-radius:.4rem;font-size:.78rem;
+  padding:.3rem .58rem;box-shadow:none
+}
+.gr-page #gr-list-view > .card,
+.gr-page #gr-book-view > .card{
+  border:1px solid var(--op-border);
+  border-radius:var(--op-radius);box-shadow:none!important
+}
+.gr-page #gr-list-view > .card > .card-header,
+.gr-page #gr-book-view > .card > .card-header{
+  min-height:40px;padding:.55rem .8rem;background:#fff;
+  border-bottom:1px solid var(--op-soft)
+}
+.gr-page .gr-pager{padding:.55rem .8rem}
+.gr-page .gb-summary{border-radius:.45rem}
+/* Usuarios: conserva las pestañas, políticas y buscadores nativos de DataTables. */
+.users-page .user-hero{padding:.72rem .95rem}
+.users-page .access-tabs{
+  gap:.3rem;margin-bottom:.8rem;padding:.3rem;
+  border:1px solid var(--op-border);border-radius:var(--op-radius);
+  background:#f6f8fb
+}
+.users-page .access-tab{
+  border-radius:.4rem;padding:.5rem .75rem;font-size:.8rem;
+  box-shadow:none
+}
+.users-page .access-tab.active{box-shadow:0 1px 4px rgba(35,59,82,.08)}
+.users-page .user-stat{
+  border:1px solid var(--op-border);
+  border-radius:var(--op-radius);box-shadow:none
+}
+.users-page .user-stat .card-body{padding:.65rem .78rem}
+.users-page .user-stat .label{font-size:.74rem;letter-spacing:0;text-transform:none}
+.users-page .user-stat .number{font-size:1.14rem;line-height:1.3;color:var(--op-text)}
+.users-page .user-stat .meta{font-size:.72rem}
+.users-page .users-table-card,
+.users-page .policy-card{
+  border:1px solid var(--op-border);
+  border-radius:var(--op-radius);box-shadow:none
+}
+.users-page .users-table-card > .card-header{padding:.65rem .8rem!important}
+.users-page .users-toolbar label{
+  font-size:.74rem!important;font-weight:700;margin-bottom:.22rem!important;
+  color:#526274
+}
+.users-page .users-toolbar .form-control{
+  height:34px;min-height:34px;
+  padding:.32rem .55rem;border:1px solid #d8deea;
+  border-radius:.4rem;font-size:.79rem;box-shadow:none
+}
+.users-page .users-toolbar-note{font-size:.74rem}
+.users-page .users-table-card > .card-body{padding:.65rem .8rem}
+.users-page :is(#usersTable_wrapper,#studentAccessTable_wrapper) :is(.dataTables_filter,.dataTables_length,.dataTables_info,.dataTables_paginate){
+  font-size:.78rem;color:var(--op-muted)
+}
+.users-page :is(#usersTable_wrapper,#studentAccessTable_wrapper) :is(.dataTables_filter input,.dataTables_length select){
+  border:1px solid #d8deea;border-radius:.4rem;min-height:32px
+}
+@media(max-width:767.98px){
+  :is(.at-page .at-head,.ar-rules-page .ar-head,.gr-page .gr-header,.users-page .user-hero){align-items:flex-start}
+  .at-page .at-toolbar .form-group{margin-bottom:.45rem}
+  .gr-page .gr-filter .row{margin-left:-.35rem;margin-right:-.35rem}
+  .gr-page .gr-filter .row > [class*="col-"]{padding-left:.35rem;padding-right:.35rem}
+}
+@media(max-width:575.98px){
+  :is(.at-page .at-head,.ar-rules-page .ar-head,.gr-page .gr-header,.users-page .user-hero){flex-direction:column}
+  .at-page .at-head .btn,.ar-rules-page .ar-head .btn{width:100%}
+  .at-page > .card > .card-header{align-items:flex-start}
+  .at-page > .card > .card-header > :last-child{width:100%;display:flex;flex-wrap:wrap;gap:.35rem}
+  .at-page > .card > .card-header > :last-child .btn{flex:1 1 auto;margin:0}
+  .gr-page .gr-view-switch{width:100%;display:flex}
+  .gr-page .gr-view-switch .btn{flex:1 1 50%}
+}
