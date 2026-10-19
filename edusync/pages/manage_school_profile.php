@@ -279,12 +279,12 @@ $(document).ready(function() {
 </script>
 
 <style>
-    .form-control:focus {
+    #manage-school-form .form-control:focus {
         border-color: #4e73df;
         box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
     }
     
-    .custom-file-input:focus ~ .custom-file-label {
+    #manage-school-form .custom-file-input:focus ~ .custom-file-label {
         border-color: #4e73df;
         box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
     }
