@@ -53,9 +53,9 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
 ?>
 <link rel="stylesheet" href="css/teacher_notifications_admin.css?v=<?php echo (int)$tfCssVersion; ?>">
 <div id="teacher-followup-root" class="container-fluid px-0">
-  <div class="d-sm-flex justify-content-between align-items-center mb-3">
+  <div class="d-sm-flex justify-content-between align-items-center mb-3 tf-page-header">
     <div>
-      <h1 class="h3 mb-1 text-gray-800"><i class="fas fa-clipboard-check text-primary mr-2"></i>Seguimiento docente</h1>
+      <h1 class="h4 mb-1 text-gray-800"><i class="fas fa-clipboard-check text-primary mr-2"></i>Seguimiento docente</h1>
       <p class="text-muted small mb-0">Control de cierres de notas y avisos a docentes por bimestre.</p>
     </div>
     <div class="d-flex flex-wrap mt-2 mt-sm-0 tf-top-actions">
@@ -71,7 +71,7 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
     </div>
   </div>
 
-  <div class="card shadow-sm border-0 mb-3">
+  <div class="card shadow-sm border-0 mb-3 tf-filter-card">
     <div class="card-body py-3">
       <div class="form-row align-items-end">
         <div class="form-group col-md-5 col-lg-4 mb-2">
@@ -113,20 +113,19 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
   </div>
   <div id="taca-data" class="d-none">
     <div class="row mb-2" id="taca-stats"></div>
-    <div class="card shadow-sm border-0 mb-3">
-      <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap py-3">
+    <div class="card shadow-sm border-0 mb-3 tf-table-card">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap py-3 tf-table-header">
         <div>
           <strong class="text-gray-800">Estado de docentes</strong>
-          <div class="small text-muted">Seguimiento por asignación; recordatorios individuales.</div>
         </div>
         <div class="d-flex align-items-center flex-wrap">
           <small class="text-muted mr-2" id="taca-grades-status" aria-live="polite"></small>
           <span id="taca-teacher-count" class="badge badge-light border mt-2 mt-sm-0"></span>
         </div>
       </div>
-      <div class="card-body pt-3 pb-2 px-3">
-        <div class="table-responsive" id="taca-table-wrap">
-          <table class="table table-bordered table-hover table-sm w-100" id="taca-teachers-table">
+      <div class="card-body p-0">
+        <div class="table-responsive ed-table-responsive" id="taca-table-wrap">
+          <table class="table table-hover table-sm ed-table w-100 mb-0" id="taca-teachers-table">
             <thead class="thead-light">
               <tr><th>Docente</th><th>Cierres</th><th>Pendientes</th><th>Notas faltantes</th><th>Estado</th><th class="text-center">Acción</th></tr>
             </thead><tbody></tbody>
