@@ -27,53 +27,75 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
 .cn-detail-message{white-space:pre-line}
 .cn-money{font-variant-numeric:tabular-nums}
 
-/* Historial compacto: sin acciones duplicadas y controles DataTables estándar. */
-.cn-history-header{display:flex;align-items:center;gap:.6rem;min-height:0;padding:.7rem .9rem}
+/* Historial compacto: altura y controles como una tabla de gestión, sin espacio superfluo. */
+#content .cn-history-card .cn-history-header{
+    display:flex!important;align-items:center!important;
+    min-height:40px!important;padding:.5rem .8rem!important;gap:.4rem!important
+}
 .cn-history-heading{min-width:0}
-.cn-history-heading strong{display:block;font-size:.94rem;line-height:1.3}
-.cn-history-description{margin-top:.2rem!important;font-size:.78rem;line-height:1.35}
+.cn-history-heading strong{display:block;font-size:.9rem;line-height:1.25}
 #content .cn-history-card > .ed-content-card-body{padding:0!important}
-#cn-history-table_wrapper > .row:first-child,
-#cn-history-table_wrapper > .row:last-child{
-    margin:0;align-items:center;padding:.55rem .85rem
+#cn-history-table_wrapper{margin:0!important;padding:0!important}
+#cn-history-table_wrapper > .row:first-child{
+    display:flex!important;align-items:center!important;
+    margin:0!important;padding:.4rem .75rem!important;min-height:42px!important;
+    background:#f8f9fc;border-bottom:1px solid #edf0f5
 }
 #cn-history-table_wrapper > .row:last-child{
-    border-top:1px solid var(--edu-border-soft,#edf0f5)
+    display:flex!important;align-items:center!important;
+    margin:0!important;padding:.4rem .75rem!important;
+    border-top:1px solid #edf0f5
 }
 #cn-history-table_wrapper > .row:first-child > [class*="col-"],
 #cn-history-table_wrapper > .row:last-child > [class*="col-"]{
-    padding-left:0;padding-right:0
+    padding:0!important
 }
 #cn-history-table_wrapper .dataTables_length,
-#cn-history-table_wrapper .dataTables_filter{
-    margin:0;color:var(--edu-muted,#6e7891);font-size:.8rem
+#cn-history-table_wrapper .dataTables_filter,
+#cn-history-table_wrapper .dataTables_info,
+#cn-history-table_wrapper .dataTables_paginate{
+    margin:0!important;padding:0!important;font-size:.78rem!important;
+    color:#6e7891!important;line-height:1.2!important
+}
+#cn-history-table_wrapper .dataTables_length label,
+#cn-history-table_wrapper .dataTables_filter label{
+    display:inline-flex!important;align-items:center!important;
+    gap:.4rem!important;margin:0!important;padding:0!important;
+    font-size:.78rem!important;white-space:nowrap
 }
 #cn-history-table_wrapper .dataTables_length select,
 #cn-history-table_wrapper .dataTables_filter input{
-    height:32px;min-height:32px;margin-left:.35rem;
-    border:1px solid var(--edu-border,#d8deea);border-radius:.4rem;
-    background:#fff;color:#49566a;font-size:.8rem
+    height:30px!important;min-height:30px!important;box-sizing:border-box!important;
+    margin:0!important;border:1px solid #d8deea!important;
+    border-radius:.35rem!important;background:#fff!important;
+    color:#49566a!important;font-size:.78rem!important;
+    box-shadow:none!important
 }
 #cn-history-table_wrapper .dataTables_length select{
-    min-width:65px;width:auto;padding:.2rem 1.55rem .2rem .55rem
+    width:65px!important;min-width:65px!important;
+    padding:.15rem 1.35rem .15rem .45rem!important
 }
 #cn-history-table_wrapper .dataTables_filter input{
-    width:176px;max-width:calc(100% - 4rem);padding:.3rem .6rem
+    width:165px!important;max-width:100%!important;padding:.2rem .5rem!important
 }
-#cn-history-table_wrapper .dataTables_info{
-    padding-top:0!important;font-size:.78rem;color:var(--edu-muted,#6e7891)
+#cn-history-table_wrapper .dataTables_filter input:focus,
+#cn-history-table_wrapper .dataTables_length select:focus{
+    border-color:#4285f4!important;box-shadow:0 0 0 .12rem rgba(66,133,244,.12)!important
 }
-#cn-history-table_wrapper .dataTables_paginate{padding-top:0!important}
 #cn-history-table_wrapper .pagination{margin:0!important}
 #cn-history-table th:last-child,#cn-history-table td:last-child{white-space:nowrap}
 @media(max-width:767.98px){
     #cn-history-table_wrapper > .row:first-child,
-    #cn-history-table_wrapper > .row:last-child{padding:.55rem .7rem;row-gap:.45rem}
-    #cn-history-table_wrapper .dataTables_length,
+    #cn-history-table_wrapper > .row:last-child{gap:.4rem!important}
+    #cn-history-table_wrapper > .row:first-child > [class*="col-"],
+    #cn-history-table_wrapper > .row:last-child > [class*="col-"]{
+        flex:0 0 100%;max-width:100%;text-align:left!important
+    }
     #cn-history-table_wrapper .dataTables_filter,
+    #cn-history-table_wrapper .dataTables_length,
     #cn-history-table_wrapper .dataTables_info,
     #cn-history-table_wrapper .dataTables_paginate{text-align:left!important}
-    #cn-history-table_wrapper .dataTables_filter input{width:170px}
+    #cn-history-table_wrapper .dataTables_filter input{width:170px!important}
 }
 @media(max-width:767.98px){
     .cn-audience-option{min-height:68px}
@@ -142,7 +164,7 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         <div class="ed-content-card-header cn-history-header">
             <div class="cn-history-heading">
                 <strong><i class="fas fa-history text-primary mr-2" aria-hidden="true"></i>Historial de cobranza</strong>
-                <div class="small text-muted cn-history-description">Consulta a quién se notificó, el saldo comunicado y el estado de entrega.</div>
+                
             </div>
         </div>
         <div class="ed-content-card-body p-0">
