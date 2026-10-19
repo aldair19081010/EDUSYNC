@@ -26,6 +26,50 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
 .cn-preview-body{font-size:.78rem;color:#6e7891;line-height:1.4}
 .cn-detail-message{white-space:pre-line}
 .cn-money{font-variant-numeric:tabular-nums}
+
+/* Encabezado del historial: misma disposición que Comunicados. */
+.cn-history-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.85rem 1rem}
+.cn-history-heading{flex:1 1 260px;min-width:0}
+.cn-history-heading strong{display:block;font-size:.94rem;line-height:1.35}
+.cn-history-heading .cn-history-description{margin-top:.22rem!important;font-size:.78rem;line-height:1.4}
+#content .cn-history-toolbar{
+    display:flex;align-items:center;justify-content:flex-end;
+    flex:0 0 auto;flex-wrap:nowrap!important;gap:.45rem;margin:0!important;max-width:100%
+}
+.cn-history-search{width:270px;min-width:0;flex:0 1 270px;margin:0!important}
+.cn-history-search .input-group-prepend{margin:0}
+.cn-history-search .input-group-text{
+    height:34px;padding:0 .68rem;border-color:var(--edu-border,#d8deea);
+    border-right:0;border-radius:.4rem 0 0 .4rem;background:var(--edu-surface-soft,#f8f9fc);
+    color:var(--edu-muted,#6e7891);font-size:.82rem
+}
+.cn-history-search .form-control{
+    height:34px;min-width:0;padding:.35rem .65rem;font-size:.8rem;
+    border-color:var(--edu-border,#d8deea);border-left:0;
+    border-radius:0 .4rem .4rem 0;box-shadow:none
+}
+.cn-history-search .form-control:focus{border-color:var(--edu-primary,#4285f4);box-shadow:none}
+.cn-history-search:focus-within .input-group-text{border-color:var(--edu-primary,#4285f4);color:var(--edu-primary,#4285f4)}
+#content .cn-history-toolbar .cn-history-icon{
+    flex:0 0 34px!important;width:34px!important;min-width:34px!important;
+    height:34px!important;min-height:34px!important;padding:0!important;
+    display:inline-flex;align-items:center;justify-content:center;
+    border-radius:.4rem!important;background:var(--edu-surface,#fff);
+    border:1px solid var(--edu-border,#d8deea)!important;color:var(--edu-heading,#344767);
+    transition:background .15s,color .15s,border-color .15s
+}
+#content .cn-history-toolbar .cn-history-icon:hover{
+    background:var(--edu-primary-soft,#eef4ff)!important;
+    border-color:var(--edu-primary,#4285f4)!important;color:var(--edu-primary,#4285f4)!important
+}
+#content .cn-history-toolbar .cn-history-icon:focus-visible{outline:2px solid var(--edu-primary,#4285f4);outline-offset:2px}
+@media(max-width:767.98px){
+    .cn-history-header{align-items:stretch!important}
+    .cn-history-heading{flex:1 1 100%}
+    #content .cn-history-toolbar{width:100%;justify-content:flex-start;gap:.45rem}
+    .cn-history-search{width:auto;flex:1 1 auto;min-width:0}
+}
+
 @media(max-width:767.98px){
     .cn-audience-option{min-height:68px}
     .cn-history-actions{white-space:normal!important}
@@ -90,18 +134,18 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
     </div>
 
     <div class="ed-content-card">
-        <div class="ed-content-card-header d-flex flex-wrap align-items-center justify-content-between">
-            <div>
-                <strong><i class="fas fa-history text-primary mr-2"></i>Historial de cobranza</strong>
-                <div class="small text-muted mt-1">Consulta a quién se notificó, el saldo comunicado y el estado de entrega.</div>
+        <div class="ed-content-card-header cn-history-header">
+            <div class="cn-history-heading">
+                <strong><i class="fas fa-history text-primary mr-2" aria-hidden="true"></i>Historial de cobranza</strong>
+                <div class="small text-muted cn-history-description">Consulta a quién se notificó, el saldo comunicado y el estado de entrega.</div>
             </div>
-            <div class="ed-toolbar mt-2 mt-md-0">
-                <div class="input-group input-group-sm" style="max-width:270px">
-                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
-                    <input id="cn-search" class="form-control" placeholder="Buscar envío...">
+            <div class="ed-toolbar cn-history-toolbar">
+                <div class="input-group input-group-sm cn-history-search">
+                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span></div>
+                    <input id="cn-search" type="search" class="form-control" placeholder="Buscar envío..." aria-label="Buscar envío de cobranza" autocomplete="off">
                 </div>
-                <button id="cn-refresh" class="btn btn-light border btn-sm ed-icon-btn" title="Actualizar">
-                    <i class="fas fa-sync-alt"></i>
+                <button type="button" id="cn-refresh" class="btn btn-light border btn-sm ed-icon-btn cn-history-icon" title="Actualizar historial" aria-label="Actualizar historial">
+                    <i class="fas fa-sync-alt" aria-hidden="true"></i>
                 </button>
             </div>
         </div>
