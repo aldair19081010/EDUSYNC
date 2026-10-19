@@ -88,43 +88,76 @@ $teacherReady=!$teacherMissingTables;
 #an-history td:nth-child(2){max-width:430px;overflow-wrap:anywhere}
 #an-teacher-recipient-help{line-height:1.4}
 
-/* Historial: controles nativos de DataTables y acciones en cabecera. */
-.an-history-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.85rem 1rem}
-.an-history-heading{flex:1 1 260px;min-width:0}
-.an-history-heading strong{display:block;font-size:.94rem;line-height:1.35}
-.an-history-heading .an-history-description{margin-top:.22rem!important;font-size:.78rem;line-height:1.4}
-#content .an-history-toolbar{
-    display:flex;align-items:center;justify-content:flex-end;
-    flex:0 0 auto;flex-wrap:nowrap!important;gap:.45rem;margin:0!important;max-width:100%
+/* Historial compacto de comunicados: DataTables nativo sin acciones redundantes. */
+#content .an-history-card .an-history-header{
+    display:flex!important;align-items:center!important;
+    min-height:40px!important;padding:.5rem .8rem!important;gap:.4rem!important
 }
-#content .an-history-toolbar .an-history-icon{
-    flex:0 0 34px!important;width:34px!important;min-width:34px!important;
-    height:34px!important;min-height:34px!important;padding:0!important;
-    display:inline-flex;align-items:center;justify-content:center;
-    border-radius:.4rem!important;background:var(--edu-surface,#fff);
-    border:1px solid var(--edu-border,#d8deea)!important;color:var(--edu-heading,#344767);
-    transition:background .15s,color .15s,border-color .15s
+.an-history-heading{min-width:0}
+.an-history-heading strong{display:block;font-size:.9rem;line-height:1.25}
+#content .an-history-card > .ed-content-card-body{padding:0!important}
+#an-history-table_wrapper{margin:0!important;padding:0!important}
+#an-history-table_wrapper > .row:first-child{
+    display:flex!important;align-items:center!important;
+    margin:0!important;padding:.4rem .75rem!important;min-height:42px!important;
+    background:#f8f9fc;border-bottom:1px solid #edf0f5
 }
-#content .an-history-toolbar .an-history-icon:hover{
-    background:var(--edu-primary-soft,#eef4ff)!important;
-    border-color:var(--edu-primary,#4e73df)!important;color:var(--edu-primary,#4e73df)!important
+#an-history-table_wrapper > .row:last-child{
+    display:flex!important;align-items:center!important;
+    margin:0!important;padding:.4rem .75rem!important;
+    border-top:1px solid #edf0f5
 }
-.an-history-toolbar .an-history-icon:focus-visible{
-    outline:2px solid var(--edu-primary,#4e73df);outline-offset:2px
+#an-history-table_wrapper > .row:first-child > [class*="col-"],
+#an-history-table_wrapper > .row:last-child > [class*="col-"]{
+    padding:0!important
 }
-/* DataTables administra búsqueda, cantidad de filas y paginación. */
-#an-history-table_wrapper > .row:first-child,
-#an-history-table_wrapper > .row:last-child{margin:0;padding:.7rem 1rem;align-items:center}
-#an-history-table_wrapper > .row:last-child{border-top:1px solid var(--edu-border-soft,#edf0f5)}
+#an-history-table_wrapper .dataTables_length,
+#an-history-table_wrapper .dataTables_filter,
+#an-history-table_wrapper .dataTables_info,
+#an-history-table_wrapper .dataTables_paginate{
+    margin:0!important;padding:0!important;font-size:.78rem!important;
+    color:#6e7891!important;line-height:1.2!important
+}
+#an-history-table_wrapper .dataTables_length label,
+#an-history-table_wrapper .dataTables_filter label{
+    display:inline-flex!important;align-items:center!important;
+    gap:.4rem!important;margin:0!important;padding:0!important;
+    font-size:.78rem!important;white-space:nowrap
+}
+#an-history-table_wrapper .dataTables_length select,
+#an-history-table_wrapper .dataTables_filter input{
+    height:30px!important;min-height:30px!important;box-sizing:border-box!important;
+    margin:0!important;border:1px solid #d8deea!important;
+    border-radius:.35rem!important;background:#fff!important;
+    color:#49566a!important;font-size:.78rem!important;
+    box-shadow:none!important
+}
+#an-history-table_wrapper .dataTables_length select{
+    width:65px!important;min-width:65px!important;
+    padding:.15rem 1.35rem .15rem .45rem!important
+}
+#an-history-table_wrapper .dataTables_filter input{
+    width:165px!important;max-width:100%!important;padding:.2rem .5rem!important
+}
+#an-history-table_wrapper .dataTables_filter input:focus,
+#an-history-table_wrapper .dataTables_length select:focus{
+    border-color:#4285f4!important;box-shadow:0 0 0 .12rem rgba(66,133,244,.12)!important
+}
+#an-history-table_wrapper .pagination{margin:0!important}
 #an-history-table th:last-child,#an-history-table td:last-child{white-space:nowrap}
 @media(max-width:767.98px){
-    .an-history-header{align-items:stretch!important}
-    .an-history-heading{flex:1 1 100%}
-    #content .an-history-toolbar{
-        width:100%;justify-content:flex-start;gap:.45rem
+    #an-history-table_wrapper > .row:first-child,
+    #an-history-table_wrapper > .row:last-child{gap:.4rem!important}
+    #an-history-table_wrapper > .row:first-child > [class*="col-"],
+    #an-history-table_wrapper > .row:last-child > [class*="col-"]{
+        flex:0 0 100%;max-width:100%;text-align:left!important
     }
+    #an-history-table_wrapper .dataTables_filter,
+    #an-history-table_wrapper .dataTables_length,
+    #an-history-table_wrapper .dataTables_info,
+    #an-history-table_wrapper .dataTables_paginate{text-align:left!important}
+    #an-history-table_wrapper .dataTables_filter input{width:170px!important}
 }
-
 @media(max-width:767.98px){
     .an-audience-option{min-height:70px}
     .an-history-actions{white-space:normal!important}
@@ -213,19 +246,10 @@ $teacherReady=!$teacherMissingTables;
         </div>
     </div>
 
-    <div class="ed-content-card">
+    <div class="ed-content-card an-history-card">
         <div class="ed-content-card-header an-history-header">
             <div class="an-history-heading">
                 <strong><i class="fas fa-history text-primary mr-2" aria-hidden="true"></i>Historial de comunicados</strong>
-                <div class="small text-muted an-history-description">Consulta contenido, alcance, entrega y lectura.</div>
-            </div>
-            <div class="ed-toolbar an-history-toolbar">
-                <button type="button" id="an-refresh" class="btn btn-light border btn-sm ed-icon-btn an-history-icon" title="Actualizar historial" aria-label="Actualizar historial">
-                    <i class="fas fa-sync-alt" aria-hidden="true"></i>
-                </button>
-                <a href="index.php?page=notifications" class="btn btn-light border btn-sm ed-icon-btn an-history-icon" title="Centro de notificaciones" aria-label="Ir al centro de notificaciones">
-                    <i class="fas fa-bell" aria-hidden="true"></i>
-                </a>
             </div>
         </div>
         <div class="ed-content-card-body p-0">
@@ -938,7 +962,6 @@ $teacherReady=!$teacherMissingTables;
     $('#an-detail-search').on('input',renderDetail);
     $('#an-new').on('click',function(){resetCompose();$('#an-compose-modal').modal('show');});
     $('#an-send').on('click',send);
-    $('#an-refresh').on('click',function(){loadSummary();loadHistory();});
     $(document).on('click','.an-detail',function(){openDetail(Number($(this).data('id')||0));});
 
     if(ready){
