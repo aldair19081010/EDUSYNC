@@ -31,12 +31,12 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
 .nt-panel{background:#fff;border:1px solid #e3e6f0;border-radius:0 0 .55rem .55rem;padding:0;overflow:hidden}
 .nt-title{font-weight:700;color:#263754}
 .nt-message{font-size:.82rem;color:#6e7891;line-height:1.35;margin-top:.15rem}
-.nt-unread .nt-title:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#4e73df;margin-right:7px}
+.nt-unread .nt-title:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#4285f4;margin-right:7px}
 .nt-actions{white-space:nowrap}
 .nt-priority{font-size:.7rem}
 .nt-date{white-space:nowrap;font-size:.82rem;color:#5e6679}
 .nt-resolved{background:#fbfcfe}
-.nt-type-icon{width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#edf3ff;color:#4e73df;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem}
+.nt-type-icon{width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#edf3ff;color:#4285f4;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem}
 .nt-type-icon.attendance{background:#fff6e5;color:#b7791f}
 .nt-type-icon.alert{background:#fff0f0;color:#be3d3d}
 .nt-type-icon.finance{background:#eefaf1;color:#288452}
