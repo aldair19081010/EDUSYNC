@@ -7,7 +7,8 @@ $ready=false;$q=$conn->query("SHOW COLUMNS FROM attendance_rules LIKE 'entry_tim
 <style>
 .ar-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.ar-head h1{font-size:1.35rem;font-weight:700;color:#344054;margin:0}.ar-sub{font-size:.84rem;color:#667085}.ar-table th{font-size:.76rem;text-transform:uppercase;color:#475467;background:#f8fafc}.ar-table td{vertical-align:middle}.ar-help{background:#f5f8ff;border-left:4px solid #2f6fed;padding:11px 13px}.ar-calendar-row td{font-size:.9rem}@media(max-width:768px){.ar-head{display:block}.ar-head .btn{margin-top:10px}}
 </style>
-<div class="container-fluid py-4">
+<link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/css/operational_consistency.css') ?: 1); ?>">
+<div class="container-fluid py-4 ar-rules-page">
  <div class="ar-head"><div><h1><i class="fas fa-clock text-primary mr-2"></i>Reglas de asistencia</h1><div class="ar-sub">Defina horarios semanales y excepciones del calendario escolar.</div></div><a href="index.php?page=asistencia" class="btn btn-outline-primary btn-sm"><i class="fas fa-arrow-left mr-1"></i>Volver a asistencia</a></div>
  <?php if(!$ready):?><div class="alert alert-warning">Ejecute manualmente <code>sql/attendance_module_upgrade.sql</code> para habilitar esta configuración.</div><?php else:?>
  <div id="ar-message"></div><div class="ar-help mb-3"><strong>Cómo se calcula:</strong> hasta la hora oficial se considera puntual; después se usa la tolerancia y, superado ese límite, se registra tardanza.</div>
