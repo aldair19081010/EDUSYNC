@@ -27,39 +27,54 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
 .cn-detail-message{white-space:pre-line}
 .cn-money{font-variant-numeric:tabular-nums}
 
-/* Encabezado del historial: misma disposición que Comunicados. */
-.cn-history-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.85rem 1rem}
-.cn-history-heading{flex:1 1 260px;min-width:0}
-.cn-history-heading strong{display:block;font-size:.94rem;line-height:1.35}
-.cn-history-heading .cn-history-description{margin-top:.22rem!important;font-size:.78rem;line-height:1.4}
-#content .cn-history-toolbar{
-    display:flex;align-items:center;justify-content:flex-end;
-    flex:0 0 auto;flex-wrap:nowrap!important;gap:.45rem;margin:0!important;max-width:100%
-}
-#content .cn-history-toolbar .cn-history-icon{
-    flex:0 0 34px!important;width:34px!important;min-width:34px!important;
-    height:34px!important;min-height:34px!important;padding:0!important;
-    display:inline-flex;align-items:center;justify-content:center;
-    border-radius:.4rem!important;background:var(--edu-surface,#fff);
-    border:1px solid var(--edu-border,#d8deea)!important;color:var(--edu-heading,#344767);
-    transition:background .15s,color .15s,border-color .15s
-}
-#content .cn-history-toolbar .cn-history-icon:hover{
-    background:var(--edu-primary-soft,#eef4ff)!important;
-    border-color:var(--edu-primary,#4285f4)!important;color:var(--edu-primary,#4285f4)!important
-}
-#content .cn-history-toolbar .cn-history-icon:focus-visible{outline:2px solid var(--edu-primary,#4285f4);outline-offset:2px}
-@media(max-width:767.98px){
-    .cn-history-header{align-items:stretch!important}
-    .cn-history-heading{flex:1 1 100%}
-    #content .cn-history-toolbar{width:100%;justify-content:flex-start;gap:.45rem}
-}
-
-/* Los controles de búsqueda, tamaño y paginación los genera DataTables. */
+/* Historial compacto: sin acciones duplicadas y controles DataTables estándar. */
+.cn-history-header{display:flex;align-items:center;gap:.6rem;min-height:0;padding:.7rem .9rem}
+.cn-history-heading{min-width:0}
+.cn-history-heading strong{display:block;font-size:.94rem;line-height:1.3}
+.cn-history-description{margin-top:.2rem!important;font-size:.78rem;line-height:1.35}
+#content .cn-history-card > .ed-content-card-body{padding:0!important}
 #cn-history-table_wrapper > .row:first-child,
-#cn-history-table_wrapper > .row:last-child{margin:0;padding:.7rem 1rem;align-items:center}
-#cn-history-table_wrapper > .row:last-child{border-top:1px solid var(--edu-border-soft,#edf0f5)}
+#cn-history-table_wrapper > .row:last-child{
+    margin:0;align-items:center;padding:.55rem .85rem
+}
+#cn-history-table_wrapper > .row:last-child{
+    border-top:1px solid var(--edu-border-soft,#edf0f5)
+}
+#cn-history-table_wrapper > .row:first-child > [class*="col-"],
+#cn-history-table_wrapper > .row:last-child > [class*="col-"]{
+    padding-left:0;padding-right:0
+}
+#cn-history-table_wrapper .dataTables_length,
+#cn-history-table_wrapper .dataTables_filter{
+    margin:0;color:var(--edu-muted,#6e7891);font-size:.8rem
+}
+#cn-history-table_wrapper .dataTables_length select,
+#cn-history-table_wrapper .dataTables_filter input{
+    height:32px;min-height:32px;margin-left:.35rem;
+    border:1px solid var(--edu-border,#d8deea);border-radius:.4rem;
+    background:#fff;color:#49566a;font-size:.8rem
+}
+#cn-history-table_wrapper .dataTables_length select{
+    min-width:65px;width:auto;padding:.2rem 1.55rem .2rem .55rem
+}
+#cn-history-table_wrapper .dataTables_filter input{
+    width:176px;max-width:calc(100% - 4rem);padding:.3rem .6rem
+}
+#cn-history-table_wrapper .dataTables_info{
+    padding-top:0!important;font-size:.78rem;color:var(--edu-muted,#6e7891)
+}
+#cn-history-table_wrapper .dataTables_paginate{padding-top:0!important}
+#cn-history-table_wrapper .pagination{margin:0!important}
 #cn-history-table th:last-child,#cn-history-table td:last-child{white-space:nowrap}
+@media(max-width:767.98px){
+    #cn-history-table_wrapper > .row:first-child,
+    #cn-history-table_wrapper > .row:last-child{padding:.55rem .7rem;row-gap:.45rem}
+    #cn-history-table_wrapper .dataTables_length,
+    #cn-history-table_wrapper .dataTables_filter,
+    #cn-history-table_wrapper .dataTables_info,
+    #cn-history-table_wrapper .dataTables_paginate{text-align:left!important}
+    #cn-history-table_wrapper .dataTables_filter input{width:170px}
+}
 @media(max-width:767.98px){
     .cn-audience-option{min-height:68px}
     .cn-history-actions{white-space:normal!important}
@@ -123,16 +138,11 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         </div>
     </div>
 
-    <div class="ed-content-card">
+    <div class="ed-content-card cn-history-card">
         <div class="ed-content-card-header cn-history-header">
             <div class="cn-history-heading">
                 <strong><i class="fas fa-history text-primary mr-2" aria-hidden="true"></i>Historial de cobranza</strong>
                 <div class="small text-muted cn-history-description">Consulta a quién se notificó, el saldo comunicado y el estado de entrega.</div>
-            </div>
-            <div class="ed-toolbar cn-history-toolbar">
-                <button type="button" id="cn-refresh" class="btn btn-light border btn-sm ed-icon-btn cn-history-icon" title="Actualizar historial" aria-label="Actualizar historial">
-                    <i class="fas fa-sync-alt" aria-hidden="true"></i>
-                </button>
             </div>
         </div>
         <div class="ed-content-card-body p-0">
@@ -819,7 +829,6 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         $('#cn-compose-modal').modal('show');
     });
     $('#cn-send').on('click',confirmSend);
-    $('#cn-refresh').on('click',function(){loadSummary();loadHistory();});
     $(document).on('click','.cn-detail',function(){openDetail(Number($(this).data('id')||0));});
 
     if(ready){
