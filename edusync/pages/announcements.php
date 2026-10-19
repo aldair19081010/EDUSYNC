@@ -88,30 +88,16 @@ $teacherReady=!$teacherMissingTables;
 #an-history td:nth-child(2){max-width:430px;overflow-wrap:anywhere}
 #an-teacher-recipient-help{line-height:1.4}
 
-/* Historial: encabezado y acciones compactas, alineadas con EduSync standard-v2. */
+/* Historial: controles nativos de DataTables y acciones en cabecera. */
 .an-history-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.85rem 1rem}
 .an-history-heading{flex:1 1 260px;min-width:0}
 .an-history-heading strong{display:block;font-size:.94rem;line-height:1.35}
 .an-history-heading .an-history-description{margin-top:.22rem!important;font-size:.78rem;line-height:1.4}
-body[data-edusync-ui="standard-v2"] #content .an-history-toolbar{
+#content .an-history-toolbar{
     display:flex;align-items:center;justify-content:flex-end;
     flex:0 0 auto;flex-wrap:nowrap!important;gap:.45rem;margin:0!important;max-width:100%
 }
-.an-history-search{width:270px;min-width:0;flex:0 1 270px;margin:0!important}
-.an-history-search .input-group-prepend{margin:0}
-.an-history-search .input-group-text{
-    height:34px;padding:0 .68rem;border-color:var(--edu-border,#d8deea);
-    border-right:0;border-radius:.4rem 0 0 .4rem;background:var(--edu-surface-soft,#f8f9fc);
-    color:var(--edu-muted,#6e7891);font-size:.82rem
-}
-.an-history-search .form-control{
-    height:34px;min-width:0;padding:.35rem .65rem;font-size:.8rem;
-    border-color:var(--edu-border,#d8deea);border-left:0;
-    border-radius:0 .4rem .4rem 0;box-shadow:none
-}
-.an-history-search .form-control:focus{border-color:var(--edu-primary,#4e73df);box-shadow:none}
-.an-history-search:focus-within .input-group-text{border-color:var(--edu-primary,#4e73df);color:var(--edu-primary,#4e73df)}
-body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-icon{
+#content .an-history-toolbar .an-history-icon{
     flex:0 0 34px!important;width:34px!important;min-width:34px!important;
     height:34px!important;min-height:34px!important;padding:0!important;
     display:inline-flex;align-items:center;justify-content:center;
@@ -119,38 +105,24 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
     border:1px solid var(--edu-border,#d8deea)!important;color:var(--edu-heading,#344767);
     transition:background .15s,color .15s,border-color .15s
 }
-body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-icon:hover{
+#content .an-history-toolbar .an-history-icon:hover{
     background:var(--edu-primary-soft,#eef4ff)!important;
     border-color:var(--edu-primary,#4e73df)!important;color:var(--edu-primary,#4e73df)!important
 }
 .an-history-toolbar .an-history-icon:focus-visible{
     outline:2px solid var(--edu-primary,#4e73df);outline-offset:2px
 }
-/* DataTables del sistema: paginación, contador y cantidad por página. */
-.an-history-table-footer{
-    padding:.72rem 1rem;border-top:1px solid var(--edu-border-soft,#eaecf4);
-    background:var(--edu-surface,#fff);gap:.65rem 1rem
-}
-.an-history-table-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem}
-.an-history-table-meta .dataTables_length,
-.an-history-table-meta .dataTables_info{float:none!important;margin:0!important;padding:0!important}
-.an-history-table-pages .dataTables_paginate{float:none!important;margin:0!important;padding:0!important}
-.an-history-table-pages .pagination{margin:0!important;flex-wrap:wrap;gap:.15rem}
+/* DataTables administra búsqueda, cantidad de filas y paginación. */
+#an-history-table_wrapper > .row:first-child,
+#an-history-table_wrapper > .row:last-child{margin:0;padding:.7rem 1rem;align-items:center}
+#an-history-table_wrapper > .row:last-child{border-top:1px solid var(--edu-border-soft,#edf0f5)}
 #an-history-table th:last-child,#an-history-table td:last-child{white-space:nowrap}
-#an-history-table .an-history-actions .btn{white-space:nowrap}
-@media(max-width:767.98px){
-    .an-history-table-footer{flex-direction:column;align-items:stretch!important}
-    .an-history-table-meta{justify-content:space-between}
-    .an-history-table-pages .dataTables_paginate{text-align:left!important}
-    .an-history-table-pages .pagination{justify-content:flex-start!important}
-}
 @media(max-width:767.98px){
     .an-history-header{align-items:stretch!important}
     .an-history-heading{flex:1 1 100%}
-    body[data-edusync-ui="standard-v2"] #content .an-history-toolbar{
+    #content .an-history-toolbar{
         width:100%;justify-content:flex-start;gap:.45rem
     }
-    .an-history-search{width:auto;flex:1 1 auto;min-width:0}
 }
 
 @media(max-width:767.98px){
@@ -248,10 +220,6 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
                 <div class="small text-muted an-history-description">Consulta contenido, alcance, entrega y lectura.</div>
             </div>
             <div class="ed-toolbar an-history-toolbar">
-                <div class="input-group input-group-sm an-history-search">
-                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span></div>
-                    <input id="an-search" type="search" class="form-control" placeholder="Buscar comunicado..." aria-label="Buscar comunicado" autocomplete="off">
-                </div>
                 <button type="button" id="an-refresh" class="btn btn-light border btn-sm ed-icon-btn an-history-icon" title="Actualizar historial" aria-label="Actualizar historial">
                     <i class="fas fa-sync-alt" aria-hidden="true"></i>
                 </button>
@@ -764,20 +732,18 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
         });
     }
 
-    // La tabla del historial utiliza DataTables, igual que las otras
-    // tablas del sistema. El buscador del encabezado controla su filtro:
-    // no se genera un segundo buscador dentro de la tabla.
+    // DataTables genera sus controles nativos, como en los demás módulos.
     function ensureHistoryTable(){
         if(!$.fn.DataTable || !$('#an-history-table').length)return null;
         if(!historyTable){
             historyTable=$('#an-history-table').DataTable({
-                dom:'t<"an-history-table-footer d-flex align-items-center justify-content-between flex-wrap"<"an-history-table-meta"li><"an-history-table-pages"p>>',
                 autoWidth:false,
                 pageLength:10,
                 lengthMenu:[[10,25,50,100],[10,25,50,100]],
                 order:[],
                 columnDefs:[{targets:4,orderable:false,searchable:false}],
                 language:{
+                    search:'Buscar:',
                     lengthMenu:'Mostrar _MENU_',
                     info:'Mostrando _START_ a _END_ de _TOTAL_ comunicados',
                     infoEmpty:'Sin comunicados',
@@ -823,10 +789,7 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
 
     function renderHistory(){
         const table=ensureHistoryTable();
-        const q=$.trim($('#an-search').val()).toLowerCase();
-        // Sin DataTables, mantener el buscador básico como respaldo.
-        const rows=table?history:history.filter(x=>
-            !q||[x.title,x.content,x.audience,x.created_by_name].join(' ').toLowerCase().includes(q));
+        const rows=history;
         let html='';
         rows.forEach(x=>{
             const isTeacher=mode==='teachers';
@@ -842,11 +805,10 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
         if(table){
             table.clear();
             if(html)table.rows.add($(html));
-            table.search(q).draw();
+            table.draw();
         }else{
             $('#an-history').html(html||
-                '<tr class="ed-empty-row"><td colspan="5">'+
-                (q?'No hay coincidencias.':'Aún no hay comunicados.')+'</td></tr>');
+                '<tr class="ed-empty-row"><td colspan="5">Aún no hay comunicados.</td></tr>');
         }
     }
 
@@ -973,11 +935,6 @@ body[data-edusync-ui="standard-v2"] #content .an-history-toolbar .an-history-ico
     $('#an-grade').on('change',function(){refreshSections();updateAudienceSummary();});
     $('#an-section,#an-student').on('change',updateAudienceSummary);
     $('#an-title,#an-content').on('input',updatePreview);
-    $('#an-search').on('input',function(){
-        const table=ensureHistoryTable();
-        if(table)table.search($.trim(this.value)).draw();
-        else renderHistory();
-    });
     $('#an-detail-search').on('input',renderDetail);
     $('#an-new').on('click',function(){resetCompose();$('#an-compose-modal').modal('show');});
     $('#an-send').on('click',send);
