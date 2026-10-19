@@ -36,20 +36,6 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
     display:flex;align-items:center;justify-content:flex-end;
     flex:0 0 auto;flex-wrap:nowrap!important;gap:.45rem;margin:0!important;max-width:100%
 }
-.cn-history-search{width:270px;min-width:0;flex:0 1 270px;margin:0!important}
-.cn-history-search .input-group-prepend{margin:0}
-.cn-history-search .input-group-text{
-    height:34px;padding:0 .68rem;border-color:var(--edu-border,#d8deea);
-    border-right:0;border-radius:.4rem 0 0 .4rem;background:var(--edu-surface-soft,#f8f9fc);
-    color:var(--edu-muted,#6e7891);font-size:.82rem
-}
-.cn-history-search .form-control{
-    height:34px;min-width:0;padding:.35rem .65rem;font-size:.8rem;
-    border-color:var(--edu-border,#d8deea);border-left:0;
-    border-radius:0 .4rem .4rem 0;box-shadow:none
-}
-.cn-history-search .form-control:focus{border-color:var(--edu-primary,#4285f4);box-shadow:none}
-.cn-history-search:focus-within .input-group-text{border-color:var(--edu-primary,#4285f4);color:var(--edu-primary,#4285f4)}
 #content .cn-history-toolbar .cn-history-icon{
     flex:0 0 34px!important;width:34px!important;min-width:34px!important;
     height:34px!important;min-height:34px!important;padding:0!important;
@@ -67,27 +53,13 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
     .cn-history-header{align-items:stretch!important}
     .cn-history-heading{flex:1 1 100%}
     #content .cn-history-toolbar{width:100%;justify-content:flex-start;gap:.45rem}
-    .cn-history-search{width:auto;flex:1 1 auto;min-width:0}
 }
 
-/* Pie de DataTables: controles iguales a los de Historial de comunicados. */
-.cn-history-table-footer{
-    padding:.72rem 1rem;border-top:1px solid var(--edu-border-soft,#eaecf4);
-    background:var(--edu-surface,#fff);gap:.65rem 1rem
-}
-.cn-history-table-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem}
-.cn-history-table-meta .dataTables_length,
-.cn-history-table-meta .dataTables_info{float:none!important;margin:0!important;padding:0!important}
-.cn-history-table-pages .dataTables_paginate{float:none!important;margin:0!important;padding:0!important}
-.cn-history-table-pages .pagination{margin:0!important;flex-wrap:wrap;gap:.15rem}
+/* Los controles de búsqueda, tamaño y paginación los genera DataTables. */
+#cn-history-table_wrapper > .row:first-child,
+#cn-history-table_wrapper > .row:last-child{margin:0;padding:.7rem 1rem;align-items:center}
+#cn-history-table_wrapper > .row:last-child{border-top:1px solid var(--edu-border-soft,#edf0f5)}
 #cn-history-table th:last-child,#cn-history-table td:last-child{white-space:nowrap}
-#cn-history-table .cn-history-actions .btn{white-space:nowrap}
-@media(max-width:767.98px){
-    .cn-history-table-footer{flex-direction:column;align-items:stretch!important}
-    .cn-history-table-meta{justify-content:space-between}
-    .cn-history-table-pages .dataTables_paginate{text-align:left!important}
-    .cn-history-table-pages .pagination{justify-content:flex-start!important}
-}
 @media(max-width:767.98px){
     .cn-audience-option{min-height:68px}
     .cn-history-actions{white-space:normal!important}
@@ -158,10 +130,6 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
                 <div class="small text-muted cn-history-description">Consulta a quién se notificó, el saldo comunicado y el estado de entrega.</div>
             </div>
             <div class="ed-toolbar cn-history-toolbar">
-                <div class="input-group input-group-sm cn-history-search">
-                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span></div>
-                    <input id="cn-search" type="search" class="form-control" placeholder="Buscar envío..." aria-label="Buscar envío de cobranza" autocomplete="off">
-                </div>
                 <button type="button" id="cn-refresh" class="btn btn-light border btn-sm ed-icon-btn cn-history-icon" title="Actualizar historial" aria-label="Actualizar historial">
                     <i class="fas fa-sync-alt" aria-hidden="true"></i>
                 </button>
@@ -626,19 +594,18 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         });
     }
 
-    // DataTables comparte el patrón del módulo de Comunicados.
-    // El campo de búsqueda de la cabecera es el único buscador visible.
+    // DataTables genera su buscador, selector de filas, contador y paginación.
     function ensureHistoryTable(){
         if(!$.fn.DataTable || !$('#cn-history-table').length)return null;
         if(!historyTable){
             historyTable=$('#cn-history-table').DataTable({
-                dom:'t<"cn-history-table-footer d-flex align-items-center justify-content-between flex-wrap"<"cn-history-table-meta"li><"cn-history-table-pages"p>>',
                 autoWidth:false,
                 pageLength:10,
                 lengthMenu:[[10,25,50,100],[10,25,50,100]],
                 order:[],
                 columnDefs:[{targets:5,orderable:false,searchable:false}],
                 language:{
+                    search:'Buscar:',
                     lengthMenu:'Mostrar _MENU_',
                     info:'Mostrando _START_ a _END_ de _TOTAL_ envíos',
                     infoEmpty:'Sin envíos',
@@ -681,9 +648,7 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
 
     function renderHistory(){
         const table=ensureHistoryTable();
-        const q=$.trim($('#cn-search').val()).toLowerCase();
-        const rows=table?history:history.filter(x=>!q||
-            [x.audience,(x.states||[]).join(' '),x.created_by_name].join(' ').toLowerCase().includes(q));
+        const rows=history;
         let html='';
         rows.forEach(x=>{
             const noDevice=Math.max(0,Number(x.recipient_count||0)-Number(x.students_with_devices||0));
@@ -701,11 +666,10 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         if(table){
             table.clear();
             if(html)table.rows.add($(html));
-            table.search(q).draw();
+            table.draw();
         }else{
             $('#cn-history').html(html||
-                '<tr class="ed-empty-row"><td colspan="6">'+
-                (q?'No hay coincidencias.':'Aún no hay envíos de cobranza.')+'</td></tr>');
+                '<tr class="ed-empty-row"><td colspan="6">Aún no hay envíos de cobranza.</td></tr>');
         }
     }
 
@@ -848,11 +812,6 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
     $('#cn-level').on('change',function(){refreshGrades();refreshSections();schedulePreview();});
     $('#cn-grade').on('change',function(){refreshSections();schedulePreview();});
     $('#cn-section,#cn-student').on('change',schedulePreview);
-    $('#cn-search').on('input',function(){
-        const table=ensureHistoryTable();
-        if(table)table.search($.trim(this.value)).draw();
-        else renderHistory();
-    });
     $('#cn-detail-search').on('input',renderDetailRows);
 
     $('#cn-new').on('click',function(){
