@@ -4,7 +4,7 @@
  * CSS de presentación limitado a los módulos identificados; no altera lógica,
  * cálculo de calificaciones, operaciones de asistencia o controles DataTables.
  */
-:is(.at-page,.ar-rules-page,.gr-page,.users-page){
+:is(.at-page,.ar-rules-page,.gr-page,.users-page,.mc-page){
   --op-border:#e3e6f0;
   --op-soft:#edf0f5;
   --op-primary:#4285f4;
@@ -181,4 +181,97 @@
   .at-page > .card > .card-header > :last-child .btn{flex:1 1 auto;margin:0}
   .gr-page .gr-view-switch{width:100%;display:flex}
   .gr-page .gr-view-switch .btn{flex:1 1 50%}
+}
+
+
+/* Mis cursos (docente): misma densidad operativa, sin perder
+   estado editable/solo lectura, colores de área ni progreso. */
+.mc-page .mc-header{
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:.55rem .8rem;
+  padding:.72rem .95rem;margin-bottom:.8rem!important;
+  border:1px solid var(--op-border);border-left:4px solid var(--op-primary);
+  border-radius:var(--op-radius);background:#fff;box-shadow:none
+}
+.mc-page .mc-header h1{
+  margin:0;font-size:1.16rem;font-weight:700;
+  line-height:1.3;color:var(--op-text)
+}
+.mc-page .mc-header p{
+  color:var(--op-muted)!important;font-size:.77rem;
+  line-height:1.35;margin-top:.15rem!important
+}
+.mc-page .mc-header .btn{
+  min-height:34px;padding:.35rem .7rem;
+  border-radius:.4rem;font-size:.79rem;box-shadow:none
+}
+.mc-page .mc-summary{
+  min-height:70px;padding:.65rem .78rem;
+  border:1px solid var(--op-border);border-radius:var(--op-radius);
+  background:#fff;box-shadow:none
+}
+.mc-page .mc-summary i{
+  display:flex;align-items:center;justify-content:center;
+  width:34px;height:34px;flex:0 0 34px;margin-right:.6rem!important;
+  border-radius:.45rem;background:#eef4ff;color:var(--op-primary)
+}
+.mc-page .mc-summary small{
+  display:block;color:var(--op-muted);
+  font-size:.74rem;line-height:1.3
+}
+.mc-page .mc-summary .h5{
+  font-size:1.14rem;line-height:1.25;color:var(--op-text)
+}
+.mc-page .mc-filter{
+  padding:.7rem .8rem!important;margin-bottom:.8rem!important;
+  border:1px solid var(--op-border);border-radius:var(--op-radius);
+  background:#fff;box-shadow:none
+}
+.mc-page .mc-filter .mc-label{
+  display:block;margin:0 0 .22rem;color:#526274;
+  font-size:.74rem;line-height:1.3;font-weight:700;
+  letter-spacing:0;text-transform:none
+}
+.mc-page .mc-filter .form-control{
+  min-height:34px;height:34px;padding:.3rem .55rem;
+  border:1px solid #d8deea;border-radius:.4rem;
+  box-shadow:none;font-size:.79rem
+}
+.mc-page .mc-filter .btn{
+  min-height:34px;padding:.35rem .62rem;
+  border-radius:.4rem;font-size:.79rem;box-shadow:none
+}
+.mc-page .mc-card{
+  border:1px solid var(--op-border);border-radius:var(--op-radius);
+  box-shadow:none;transition:border-color .15s,box-shadow .15s
+}
+.mc-page .mc-card:hover{
+  transform:none;border-color:#bdd1f2;
+  box-shadow:0 .15rem .55rem rgba(35,59,82,.07)
+}
+.mc-page .mc-card-head{padding:.7rem .8rem}
+.mc-page .mc-card-head h5{
+  font-size:.96rem;line-height:1.32;font-weight:700
+}
+.mc-page .mc-card > .p-3{padding:.7rem .8rem!important}
+.mc-page .mc-stat{padding:.45rem .35rem;border-radius:.4rem}
+.mc-page .mc-stat strong{font-size:.95rem;line-height:1.25}
+.mc-page .mc-stat small{font-size:.7rem}
+.mc-page .mc-actions{
+  display:flex;flex-wrap:wrap;align-items:center;
+  gap:.3rem;padding:.55rem .65rem
+}
+.mc-page .mc-action{
+  margin:0;min-height:31px;padding:.3rem .55rem;
+  font-size:.77rem;border-radius:.4rem;box-shadow:none
+}
+.mc-page .mc-empty{border-radius:var(--op-radius);padding:2rem 1rem!important}
+@media(max-width:767.98px){
+  .mc-page .mc-header{align-items:flex-start}
+  .mc-page .mc-filter .row > [class*="col-"]{min-width:0}
+}
+@media(max-width:575.98px){
+  .mc-page .mc-header{flex-direction:column}
+  .mc-page .mc-header .btn{width:100%;margin-top:.1rem!important}
+  .mc-page .mc-actions .btn{flex:1 1 auto}
 }
