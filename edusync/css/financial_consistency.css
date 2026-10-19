@@ -28,7 +28,7 @@
   border-radius:.55rem;display:flex;align-items:center;justify-content:center;
   background:#eaf2ff;color:var(--fin-primary);font-size:1.05rem;margin:0!important
 }
-:is(.py-title,.df-title,.cp-heading,.dc-finance .dc-heading) :is(h4,h5){
+:is(.py-title,.df-title,.cp-heading,.dc-finance .dc-heading) :is(h1,h4,h5){
   margin:0;font-size:1.16rem;font-weight:700;line-height:1.28;color:var(--fin-text)
 }
 :is(.py-title,.df-title,.cp-heading,.dc-finance .dc-heading) small{
@@ -140,3 +140,17 @@
   .dc-finance .dc-head > :last-child{width:100%}
   .dc-finance .dc-head > :last-child .btn{flex:1 1 auto}
 }
+/* Dialogs declarados fuera del contenedor principal de cada módulo. */
+:is(#cashModal,#payAudit,#cashReportModal,#debtAudit,#conceptAudit) .modal-header{
+  min-height:46px;padding:.7rem 1rem;border-bottom:1px solid #edf0f5
+}
+:is(#cashModal,#payAudit,#cashReportModal,#debtAudit,#conceptAudit) .modal-header h5{
+  font-size:1rem;font-weight:700;color:#233b52;margin:0
+}
+:is(#cashModal,#payAudit,#cashReportModal,#debtAudit,#conceptAudit) .modal-footer{
+  padding:.65rem 1rem;border-top:1px solid #edf0f5
+}
+:is(#cashModal,#payAudit,#cashReportModal,#debtAudit,#conceptAudit) :is(.modal-header .btn,.modal-footer .btn){
+  border-radius:.4rem;box-shadow:none
+}
+
