@@ -217,6 +217,7 @@ if ($selected_level && $selected_grado && $selected_seccion && $selected_academi
 .gr-report-shell .gr-tabs .report-view.active i{color:inherit!important}
 .gr-report-shell .gr-tabs .report-view:focus-visible{outline:2px solid #344767;outline-offset:2px}
 </style>
+<link rel="stylesheet" href="css/dashboard_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/dashboard_consistency.css') ?: 1); ?>">
 <div class="container-fluid gr-report-shell">
     <div class="gr-report-hero d-sm-flex align-items-center justify-content-between">
         <div><h1><i class="fa fa-chart-bar mr-2 text-primary"></i>Reporte de notas</h1><p>Consulta el detalle, avance del aula, seguimiento individual y evolución por bimestre.</p></div>
