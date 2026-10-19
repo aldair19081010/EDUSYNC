@@ -103,7 +103,8 @@
 @media(max-width:850px){.ir-hero{align-items:stretch;flex-direction:column}.ir-tools{min-width:0;flex-direction:column;align-items:stretch}}
 </style>
 
-<div class="container-fluid">
+<link rel="stylesheet" href="css/dashboard_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/dashboard_consistency.css') ?: 1); ?>">
+<div class="container-fluid ir-page">
     <!-- Page Heading -->
     <div class="ir-hero">
         <div><h1><i class="fas fa-id-card text-primary mr-2"></i>Fichas y reportes institucionales</h1><p>El padrón general no depende del año; cada reporte académico o financiero solicita su propio periodo.</p></div>
