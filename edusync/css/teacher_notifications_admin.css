@@ -4,7 +4,7 @@
 #teacher-followup-root .tf-stat{
   display:flex;align-items:center;gap:.8rem;min-height:65px;
   padding:.7rem 1rem;background:#fff;border:1px solid #e3e6f0;
-  border-left:4px solid #4e73df;border-radius:.45rem
+  border-left:4px solid #4285f4;border-radius:.45rem
 }
 #teacher-followup-root .tf-stat-success{border-left-color:#1cc88a}
 #teacher-followup-root .tf-stat-warning{border-left-color:#f6c23e}
