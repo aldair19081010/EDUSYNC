@@ -110,7 +110,8 @@ function getGradeStyle($grade) {
 }
 ?>
 
-<div class="container-fluid py-4">
+<link rel="stylesheet" href="css/dashboard_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/dashboard_consistency.css') ?: 1); ?>">
+<div class="container-fluid py-4 low-grades-page">
     <?php if ($from_notification): ?>
     <div class="alert alert-info mb-3 d-flex align-items-center">
         <i class="fas fa-lock fa-lg mr-3"></i>
@@ -483,15 +484,15 @@ function getGradeStyle($grade) {
 </div>
 
 <style>
-.student-info {
+.low-grades-page .student-info {
     border-left: 5px solid #4e73df;
 }
 
-.table-danger {
+.low-grades-page .table-danger {
     background-color: #ffebee;
 }
 
-.progress-bar {
+.low-grades-page .progress-bar {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -499,23 +500,23 @@ function getGradeStyle($grade) {
     transition: width 0.6s ease;
 }
 
-.badge-danger.p-2 {
+.low-grades-page .badge-danger.p-2 {
     background-color: rgba(220, 53, 69, 0.9);
     color: white;
 }
 
-.badge-success.p-2 {
+.low-grades-page .badge-success.p-2 {
     background-color: rgba(40, 167, 69, 0.9);
     color: white;
 }
 
-.competencia-block {
+.low-grades-page .competencia-block {
     padding: 15px;
     background-color: #f8f9fa;
     border-radius: 4px;
 }
 
-.text-sm {
+.low-grades-page .text-sm {
     font-size: 0.875rem;
 }
 </style>
