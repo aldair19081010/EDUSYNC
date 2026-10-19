@@ -8,6 +8,7 @@ $student_name = $_SESSION['student_name'] ?? 'Estudiante';
 $student_dni = $_SESSION['student_dni'] ?? '';
 ?>
 
+<link rel="stylesheet" href="css/student_portal_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/student_portal_consistency.css') ?: 1); ?>">
 <div id="student-debts-app" data-endpoint="api/my_debts.php">
     <div class="mb-3 d-flex align-items-center student-profile-bar">
         <div class="avatar-circle mr-3">
