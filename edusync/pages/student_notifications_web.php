@@ -2,6 +2,7 @@
 // Portal de estudiantes: utiliza los mismos eventos que la app, no la bandeja administrativa.
 $isStudentWeb = !empty($_SESSION['student_logged_in']) && !empty($_SESSION['student_id']) && !empty($_SESSION['student_school_id']);
 ?>
+<link rel="stylesheet" href="css/student_portal_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/student_portal_consistency.css') ?: 1); ?>">
 <div class="swn" id="student-web-notifications" data-open-id="<?php echo max(0,(int)($_GET['notification_id']??0)); ?>">
   <div class="swn-head">
     <div>
