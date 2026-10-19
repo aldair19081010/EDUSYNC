@@ -44,8 +44,9 @@ if (!$level) {
     
     // Mostrar lista de niveles
     ?>
-    <div class="container-fluid">
-        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <link rel="stylesheet" href="css/competency_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/competency_consistency.css') ?: 1); ?>">
+<div class="container-fluid co-page">
+        <div class="co-head d-sm-flex align-items-center justify-content-between mb-4">
             <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-tasks"></i> Competencias por Curso</h1>
         </div>
         
@@ -132,8 +133,9 @@ if ($level && !$course_id) {
     
     // Mostrar lista de cursos del nivel
     ?>
-    <div class="container-fluid">
-        <div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <link rel="stylesheet" href="css/competency_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/competency_consistency.css') ?: 1); ?>">
+<div class="container-fluid co-page">
+        <div class="co-head d-sm-flex align-items-center justify-content-between mb-4">
             <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-tasks"></i> Cursos de <?php echo htmlspecialchars(ucfirst($level)); ?></h1>
             <a href="index.php?page=competencias" class="btn btn-sm btn-secondary">
                 <i class="fa fa-arrow-left"></i> Volver a Niveles
@@ -282,8 +284,9 @@ $competencias = $competencias_query->get_result()->fetch_all(MYSQLI_ASSOC);
 // Calcular total de porcentajes
 $total_percentage = array_sum(array_column($competencias, 'percentage'));
 ?>
-<div class="container-fluid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+<link rel="stylesheet" href="css/competency_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/competency_consistency.css') ?: 1); ?>">
+<div class="container-fluid co-page">
+    <div class="co-head d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-globe"></i> Competencias del Curso</h1>
         <a href="index.php?page=competencias&level=<?php echo urlencode($level); ?>" class="btn btn-sm btn-secondary">
             <i class="fa fa-arrow-left"></i> Volver a Cursos
