@@ -119,7 +119,8 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 #gr-book-view .gb-sheet .gb-group-label .gb-group-percent{flex:0 0 auto;margin:0}
 #gr-book-view .gb-sheet .gb-group-inner .gb-add-eval{grid-column:3;justify-self:end;margin:0!important}
 </style>
-<div class="container-fluid py-4">
+<link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/operational_consistency.css') ?: 1); ?>">
+<div class="container-fluid py-4 gr-page">
  <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i>Evaluaciones y notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="mt-3 mt-md-0"><button class="btn btn-primary btn-sm" id="gr-new"><i class="fas fa-plus mr-1"></i>Nueva evaluación</button></div></div>
  <?php if(!$migrationReady): ?><div class="alert alert-warning gr-migration"><i class="fas fa-database mr-2"></i>Para habilitar anulación y auditoría histórica, ejecuta manualmente <strong>sql/grades_module_upgrade.sql</strong>. El listado y registro de notas continúan disponibles.</div><?php endif; ?>
  <div class="d-flex justify-content-center mb-3"><div class="gr-view-switch"><button class="btn btn-primary btn-sm" id="gr-show-list"><i class="fas fa-list mr-1"></i>Lista de evaluaciones</button><button class="btn btn-light btn-sm" id="gr-show-book"><i class="fas fa-table mr-1"></i>Libro de notas</button></div></div>
