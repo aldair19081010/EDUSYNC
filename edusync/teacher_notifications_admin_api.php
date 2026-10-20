@@ -248,6 +248,16 @@ $missingAlertTables=[];
 foreach(['teacher_alert_settings','teacher_alert_manual_log','notification_events'] as $table) {
     if(!tna_table($conn,$table))$missingAlertTables[]=$table;
 }
+// Una tabla existente con columnas antiguas también debe permitir consultar los cierres.
+if(tna_table($conn,'teacher_alert_settings')) {
+    foreach(['school_id','academic_year_id','bimester','deadline_date',
+        'notice_days_before','closure_enabled','incomplete_enabled',
+        'admin_edits_enabled'] as $column) {
+        $safe=$conn->real_escape_string($column);
+        $columns=$conn->query("SHOW COLUMNS FROM teacher_alert_settings LIKE '$safe'");
+        if(!$columns||$columns->num_rows===0)$missingAlertTables[]='teacher_alert_settings.'.$column;
+    }
+}
 $alertsReady=empty($missingAlertTables);
 $defaultAlertSettings=['deadline_date'=>null,'notice_days_before'=>3,
     'closure_enabled'=>1,'incomplete_enabled'=>1,'admin_edits_enabled'=>1];
