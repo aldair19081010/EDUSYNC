@@ -26,6 +26,8 @@ $checks = [
         "dma_stage",
         "SHOW COLUMNS FROM users LIKE 'status'",
         "SHOW COLUMNS FROM users LIKE 'is_director'",
+        '$yearsResult=$yearsStmt->get_result();',
+        'while ($row=$yearsResult->fetch_assoc())',
     ],
     'edusync/api/teacher_courses_mobile.php' => [
         'sessionTeacherId',
@@ -46,6 +48,11 @@ foreach ($checks as $name => $needles) {
             $errors[] = "Contrato ausente: $name / $needle";
         }
     }
+}
+// Reabrir get_result() dentro del bucle produce lecturas repetidas/fallo MySQLi.
+$directorSource = (string)file_get_contents($root . '/edusync/api/director_academic_mobile.php');
+if (strpos($directorSource, 'while ($row=$yearsStmt->get_result()->fetch_assoc())') !== false) {
+    $errors[] = 'La consulta de años reabre get_result() dentro del while.';
 }
 if ($errors) {
     foreach ($errors as $error) fwrite(STDERR, "[ERROR] $error\n");
