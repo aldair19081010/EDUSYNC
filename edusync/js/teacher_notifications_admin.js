@@ -19,6 +19,8 @@ function explainApiFailure(xhr,fallback){
   var message=r.message||fallback+' (HTTP '+code+').';
   if(r.error_ref)message+=' [Etapa: '+String(r.stage||'desconocida')+
     '; referencia: '+String(r.error_ref)+']';
+  if(Number(r.db_errno)>0)message+=' [MySQL: '+Number(r.db_errno)+']';
+  if(r.db_hint)message+=' '+String(r.db_hint);
   if(r.missing_tables&&r.missing_tables.length)message+=' Tablas: '+r.missing_tables.join(', ')+'.';
   return message;
 }
