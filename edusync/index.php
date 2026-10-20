@@ -145,7 +145,6 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <link href="css/notification-details.css?v=<?php echo @filemtime(__DIR__.'/css/notification-details.css') ?: time(); ?>" rel="stylesheet">
     <!-- Sólo interfaz: no modifica Firebase ni la campana existente. -->
     <link href="css/web_push_invitation.css?v=<?php echo @filemtime(__DIR__.'/css/web_push_invitation.css') ?: time(); ?>" rel="stylesheet">
-    <?php if ($page === 'users'): ?>
     <?php
         $users_ui_css_version = @filemtime(__DIR__ . '/css/ui_consistency.css') ?: time();
         $users_ui_refinements_version = @filemtime(__DIR__ . '/css/ui_refinements.css') ?: time();
@@ -156,7 +155,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
         $users_ui_responsive_version = @filemtime(__DIR__ . '/css/ui_responsive.css') ?: time();
         $users_ui_table_actions_version = @filemtime(__DIR__ . '/css/ui_table_actions.css') ?: time();
     ?>
-    <!-- Usuarios y Accesos carga la capa visual global desde HEAD para evitar FOUC/reacomodos. -->
+    <!-- Capa visual compartida: cargada antes del HTML para todos los perfiles, sin FOUC. -->
     <link data-edusync-ui-consistency="1" href="css/ui_consistency.css?v=<?php echo rawurlencode((string)$users_ui_css_version); ?>" rel="stylesheet">
     <link data-edusync-ui-refinements="1" href="css/ui_refinements.css?v=<?php echo rawurlencode((string)$users_ui_refinements_version); ?>" rel="stylesheet">
     <link data-edusync-ui-report-tables="1" href="css/ui_report_tables.css?v=<?php echo rawurlencode((string)$users_ui_report_tables_version); ?>" rel="stylesheet">
@@ -165,8 +164,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <link data-edusync-ui-feedback="1" href="css/ui_feedback.css?v=<?php echo rawurlencode((string)$users_ui_feedback_version); ?>" rel="stylesheet">
     <link data-edusync-ui-responsive="1" href="css/ui_responsive.css?v=<?php echo rawurlencode((string)$users_ui_responsive_version); ?>" rel="stylesheet">
     <link data-edusync-ui-table-actions="1" href="css/ui_table_actions.css?v=<?php echo rawurlencode((string)$users_ui_table_actions_version); ?>" rel="stylesheet">
-    <?php endif; ?>
-    <!-- DataTables CSS -->
+<!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <!-- Select2 global -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
@@ -203,7 +201,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     </div>
 </head>
 
-<body id="page-top"<?php if ($page === 'users'): ?> data-edusync-ui="standard-v2" data-edusync-page="users"<?php endif; ?>>
+<body id="page-top" data-edusync-ui="standard-v2" data-edusync-page="<?php echo htmlspecialchars($page, ENT_QUOTES, 'UTF-8'); ?>">
 
     <!-- Page Wrapper -->
     <div id="wrapper">
@@ -214,7 +212,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
         <div id="content-wrapper" class="d-flex flex-column">
 
             <!-- Main Content -->
-            <div id="content"<?php if ($page === 'users'): ?> class="ed-app-content"<?php endif; ?>>
+            <div id="content" class="ed-app-content">
 
                 <?php include 'includes/topbar.php'; ?>
 
