@@ -11,10 +11,46 @@ header('Cache-Control: no-store, private');
 header('X-Content-Type-Options: nosniff');
 
 function dma_reply(array $data, int $code = 200): void {
+    $GLOBALS['dma_replied'] = true;
+    while (ob_get_level() > 0) ob_end_clean();
     http_response_code($code);
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
+// Registrar información técnica solo en error_log; el cliente recibe una
+// fase segura y referencia para diagnosticar un error SQL sin revelar datos.
+$GLOBALS['dma_replied'] = false;
+$GLOBALS['dma_stage'] = 'inicio';
+$GLOBALS['dma_request_id'] = bin2hex(random_bytes(5));
+header('X-EduSync-Request-ID: ' . $GLOBALS['dma_request_id']);
+set_exception_handler(static function (Throwable $error): void {
+    $id = $GLOBALS['dma_request_id'] ?? 'unknown';
+    $stage = $GLOBALS['dma_stage'] ?? 'unknown';
+    error_log('[director_mobile][' . $id . '][' . $stage . '] ' . $error->getMessage());
+    dma_reply([
+        'status' => 'error',
+        'message' => 'No se pudo completar la consulta de Dirección. Referencia: ' . $id,
+        'stage' => $stage,
+        'reference' => $id,
+    ], 500);
+});
+register_shutdown_function(static function (): void {
+    if (!empty($GLOBALS['dma_replied'])) return;
+    $last = error_get_last();
+    if (!is_array($last) || !in_array($last['type'] ?? 0,
+        [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) return;
+    $id = $GLOBALS['dma_request_id'] ?? 'unknown';
+    $stage = $GLOBALS['dma_stage'] ?? 'unknown';
+    error_log('[director_mobile][' . $id . '][' . $stage . '] ' .
+        ($last['message'] ?? 'Error fatal de PHP'));
+    dma_reply([
+        'status' => 'error',
+        'message' => 'Se produjo un error PHP en la consulta de Dirección. Referencia: ' . $id,
+        'stage' => $stage,
+        'reference' => $id,
+    ], 500);
+});
+
 function dma_class_key(string $level, string $grade, string $section): string {
     $level = function_exists('mb_strtolower') ? mb_strtolower(trim($level), 'UTF-8') : strtolower(trim($level));
     $grade = trim(str_replace(['°', 'º'], '', $grade));
@@ -28,6 +64,7 @@ $sid = trim((string)($_POST['sid'] ?? ''));
 if (!preg_match('/^[a-zA-Z0-9,-]{16,128}$/', $sid)) {
     dma_reply(['status'=>'error','message'=>'Inicia sesión nuevamente.'], 401);
 }
+$GLOBALS['dma_stage'] = 'sesion_y_conexion';
 ob_start();
 require_once __DIR__ . '/../session_config.php';
 require_once __DIR__ . '/../db_connect.php';
@@ -40,12 +77,25 @@ if ($userId <= 0 || $schoolId <= 0) {
 }
 // Nunca confiar en el indicador director enviado por Flutter ni en la sesión
 // sin verificar que siga activo en la tabla users del colegio correspondiente.
+$GLOBALS['dma_stage'] = 'validar_director';
+$flagColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'is_director'");
+if (!$flagColumn || $flagColumn->num_rows === 0) {
+    dma_reply([
+        'status'=>'error',
+        'message'=>'El servidor no tiene habilitado el perfil Director. '
+            . 'Comprueba la migración del módulo Usuarios.',
+        'stage'=>'validar_director',
+    ],409);
+}
+$statusColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+$activeUserCondition = ($statusColumn && $statusColumn->num_rows > 0)
+    ? " AND u.status='Activo'" : '';
 $director = $conn->prepare(
     "SELECT u.id,u.name,u.type,u.is_director,u.teacher_id
      FROM users u
      LEFT JOIN teacher t ON t.id=u.teacher_id AND t.school_id=u.school_id
      WHERE u.id=? AND u.school_id=? AND u.is_director=1
-       AND u.type IN (1,2) AND u.status='Activo'
+       AND u.type IN (1,2) {$activeUserCondition}
        AND (u.type<>2 OR (u.teacher_id>0 AND t.status='Activo'))
      LIMIT 1"
 );
@@ -60,6 +110,7 @@ if (!in_array($action, ['overview','students','student_detail'], true)) {
     dma_reply(['status'=>'error','message'=>'Acción no permitida.'], 400);
 }
 if ($action === 'students') {
+    $GLOBALS['dma_stage'] = 'nomina_de_aula';
     $level = trim((string)($_POST['level'] ?? ''));
     $grade = trim(str_replace(['°','º'], '', (string)($_POST['grade'] ?? '')));
     $section = strtoupper(trim((string)($_POST['section'] ?? '')));
@@ -88,6 +139,7 @@ if ($action === 'students') {
     dma_reply(['status'=>'ok','students'=>$students,'read_only'=>true]);
 }
 if ($action === 'student_detail') {
+    $GLOBALS['dma_stage'] = 'ficha_estudiante';
     $studentId = (int)($_POST['student_id'] ?? 0);
     $yearId = (int)($_POST['academic_year_id'] ?? 0);
     if ($studentId<=0) dma_reply(['status'=>'error','message'=>'Estudiante inválido.'],422);
@@ -148,11 +200,13 @@ if ($action === 'student_detail') {
 }
 // Vista institucional. Todas las asignaciones pertenecen al colegio de la
 // sesión; no se aceptan teacher_id ni school_id desde el dispositivo.
+$GLOBALS['dma_stage'] = 'consultar_colegio';
 $schoolStmt=$conn->prepare('SELECT name,logo_path FROM schools WHERE id=? LIMIT 1');
 $schoolStmt->bind_param('i',$schoolId);
 $schoolStmt->execute();
 $school=$schoolStmt->get_result()->fetch_assoc() ?: [];
 $schoolStmt->close();
+$GLOBALS['dma_stage'] = 'consultar_anos';
 $yearsStmt=$conn->prepare('SELECT id,year,description,is_active FROM academic_year WHERE school_id=? ORDER BY is_active DESC,year DESC,id DESC');
 $yearsStmt->bind_param('i',$schoolId);
 $yearsStmt->execute();
@@ -193,6 +247,7 @@ if ($bimester===0) {
         }
     }
 }
+$GLOBALS['dma_stage'] = 'resumen_institucional';
 $totals=['students'=>0,'teachers'=>0,'classrooms'=>0,'courses'=>0,'pending_courses'=>0,'completed_courses'=>0];
 $cnt=$conn->prepare("SELECT COUNT(*) total FROM student WHERE school_id=? AND status='Activo'");
 $cnt->bind_param('i',$schoolId);$cnt->execute();
@@ -204,6 +259,7 @@ $totals['teachers']=(int)($cnt->get_result()->fetch_assoc()['total']??0);$cnt->c
 // asignado todavía en teacher_courses.
 $classrooms=[];
 $byKey=[];
+$GLOBALS['dma_stage'] = 'obtener_aulas';
 $roomsStmt=$conn->prepare(
     "SELECT nivel level,grado grade,COALESCE(NULLIF(TRIM(seccion),''),'U') section,
             COUNT(*) student_count FROM student
@@ -226,6 +282,7 @@ foreach ($roomsStmt->get_result() as $row) {
 $roomsStmt->close();
 $courses=[];
 if ($yearId>0) {
+    $GLOBALS['dma_stage'] = 'cursos_asignados';
     $courseStmt=$conn->prepare(
         "SELECT tc.id teacher_course_id,tc.grado,COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,
                 ac.level,ac.name course_name,
@@ -268,6 +325,7 @@ $totals['courses']=count($courses);
 // competencia. Una competencia sin evaluaciones cuenta como 0%.
 // Se devuelve null cuando el curso todavía no tiene competencias configuradas.
 if ($courses && !empty($selectedYear['is_active'])) {
+    $GLOBALS['dma_stage'] = 'calcular_avance';
     $evStatusCol=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
     $activeEvalFilter=($evStatusCol && $evStatusCol->num_rows>0)
         ? " AND COALESCE(e.status,'Activa')<>'Anulada'" : '';
@@ -334,6 +392,7 @@ foreach ($classrooms as &$room) {
     }, $room['courses']));
 }
 unset($room);
+$GLOBALS['dma_stage'] = 'respuesta';
 dma_reply([
     'status'=>'ok','director_name'=>(string)$account['name'],
     'school_name'=>(string)($school['name']??''),
