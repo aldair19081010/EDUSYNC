@@ -4,6 +4,25 @@
  * Sólo Administración de la institución; año/bimestre/aula se validan en servidor.
  */
 ob_start();
+// Referencia interna segura para correlacionar el error con los registros PHP.
+$GLOBALS['taca_request_ref']=bin2hex(random_bytes(5));
+$GLOBALS['taca_stage']='bootstrap';
+register_shutdown_function(static function():void {
+    $error=error_get_last();
+    if(!$error||!in_array($error['type']??0,[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR],true))return;
+    $ref=(string)($GLOBALS['taca_request_ref']??'unknown');
+    $stage=(string)($GLOBALS['taca_stage']??'bootstrap');
+    error_log('[EduSync seguimiento docente '.$ref.' / '.$stage.'] '.$error['message'].' en '.$error['file'].':'.$error['line']);
+    while(ob_get_level()>0)ob_end_clean();
+    if(!headers_sent()){
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode(['status'=>0,'error_code'=>'TACA_FATAL',
+        'error_ref'=>$ref,'stage'=>$stage,
+        'message'=>'Error interno al consultar Seguimiento Docente. Busca la referencia en el registro de errores del servidor.'],
+        JSON_UNESCAPED_UNICODE);
+});
 date_default_timezone_set('America/Lima');
 include_once __DIR__.'/session_config.php';
 include_once __DIR__.'/includes/session_check.php';
@@ -204,14 +223,18 @@ function taca_history(mysqli $db,int $school,int $year,int $bim,int $periodId):a
     return array_values($items);
 }
 
+$GLOBALS['taca_stage']='authorize';
+try {
 $school=(int)($_SESSION['login_school_id']??0);
 $user=(int)($_SESSION['login_id']??0);
 if($school<=0||$user<=0)taca_response(['status'=>0,'message'=>'Acceso no autorizado.'],403);
 $check=$conn->prepare('SELECT type FROM users WHERE id=? AND school_id=? LIMIT 1');
+if(!$check)throw new RuntimeException('No se pudo preparar la consulta de permisos: '.$conn->error);
 $check->bind_param('ii',$user,$school);$check->execute();
 $account=$check->get_result()->fetch_assoc();$check->close();
 if(!$account||(int)$account['type']!==1)
     taca_response(['status'=>0,'message'=>'Esta configuración es exclusiva de Administración.'],403);
+$GLOBALS['taca_stage']='schema';
 // Mostrar los cierres aunque todavía falte configurar los avisos en producción.
 // La consulta académica no depende de las tablas auxiliares de recordatorios.
 foreach(['academic_periods','grade_period_closures','teacher_courses'] as $table) {
@@ -233,16 +256,20 @@ if($_SERVER['REQUEST_METHOD']==='POST')taca_csrf();
 $yearId=(int)($_POST['academic_year_id']??$_GET['academic_year_id']??0);
 $bim=(int)($_POST['bimester']??$_GET['bimester']??0);
 if($yearId<=0||$bim<1||$bim>4)taca_response(['status'=>0,'message'=>'Año y bimestre inválidos.'],422);
+$GLOBALS['taca_stage']='period';
 $year=taca_year($conn,$school,$yearId);
 $period=taca_period($conn,$school,$yearId,$bim);
 if(!$year||!$period)taca_response(['status'=>0,'message'=>'El periodo no pertenece a tu institución.'],404);
 // Evita que la consulta agrupada de notas bloquee, por la sesión PHP,
 // la bandeja y otras peticiones del mismo administrador.
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
-try {
     if($action==='status') {
+        $GLOBALS['taca_stage']='status.settings';
         $settings=$alertsReady?taca_settings($conn,$school,$yearId,$bim):$defaultAlertSettings;
-        $globalLock=$conn->prepare('SELECT is_locked FROM bimester_locks WHERE school_id=? AND academic_year_id=? AND bimester=? LIMIT 1');
+        $GLOBALS['taca_stage']='status.lock';
+        $globalLock=tna_table($conn,'bimester_locks')
+            ?$conn->prepare('SELECT is_locked FROM bimester_locks WHERE school_id=? AND academic_year_id=? AND bimester=? LIMIT 1')
+            :null;
         if($globalLock) {
             $globalLock->bind_param('iii',$school,$yearId,$bim);
             $globalLock->execute();
@@ -250,6 +277,7 @@ try {
             $globalLock->close();
             $period['global_locked']=(int)($globalRow['is_locked']??0);
         }
+        $GLOBALS['taca_stage']='status.teachers';
         $teachers=taca_teachers($conn,$school,$yearId,$bim);
         $totals=['teachers'=>count($teachers),'assignments'=>0,'closed'=>0,
                  'pending'=>0,'incomplete'=>0];
@@ -265,6 +293,7 @@ try {
             'totals'=>$totals,'teachers'=>$teachers]);
     }
     if($action==='history') {
+        $GLOBALS['taca_stage']='history';
         if(!$alertsReady)taca_response(['status'=>0,'migration_required'=>true,
             'message'=>'Historial no disponible: instala sql/teacher_alert_admin_control_v1.sql y las tablas de notificaciones.',
             'missing_tables'=>$missingAlertTables],409);
@@ -272,6 +301,7 @@ try {
             taca_history($conn,$school,$yearId,$bim,(int)$period['id'])]);
     }
     if($action==='missing_counts') {
+        $GLOBALS['taca_stage']='missing_counts';
         // Los registros de otros años no usan el padrón activo como base.
         if(($year['status']??'')!=='Activo'||(int)$year['is_active']!==1) {
             taca_response(['status'=>1,'missing_by_course'=>[],'historical'=>true]);
@@ -289,6 +319,7 @@ try {
         taca_response(['status'=>0,'message'=>'Solo puede modificar avisos del año activo.'],409);
 
     if($action==='save_settings') {
+        $GLOBALS['taca_stage']='save_settings';
         $deadline=trim((string)($_POST['deadline_date']??''));
         if($deadline!=='') {
             $d=DateTimeImmutable::createFromFormat('!Y-m-d',$deadline);
@@ -331,6 +362,7 @@ try {
         taca_response(['status'=>1,'message'=>'Configuración de avisos docentes guardada.']);
     }
     if($action==='send_reminder') {
+        $GLOBALS['taca_stage']='send_reminder';
         if((int)$period['is_locked']===1)
             taca_response(['status'=>0,'message'=>'El bimestre está bloqueado; no se permiten recordatorios de cierre.'],409);
         $lockCheck=$conn->prepare('SELECT is_locked FROM bimester_locks WHERE school_id=? AND academic_year_id=? AND bimester=? LIMIT 1');
@@ -397,6 +429,9 @@ try {
     }
     taca_response(['status'=>0,'message'=>'Acción no válida.'],404);
 } catch(Throwable $e) {
-    error_log('[EduSync teacher alerts admin] '.$e->getMessage());
-    taca_response(['status'=>0,'message'=>'No se pudo procesar la solicitud de notificaciones.'],500);
+    $ref=(string)($GLOBALS['taca_request_ref']??'unknown');
+    $stage=(string)($GLOBALS['taca_stage']??'unknown');
+    error_log('[EduSync seguimiento docente '.$ref.' / '.$stage.'] '.$e->getMessage());
+    taca_response(['status'=>0,'error_code'=>'TACA_QUERY','error_ref'=>$ref,'stage'=>$stage,
+        'message'=>'No se pudo consultar Seguimiento Docente. Revisa la referencia en el registro de errores del servidor.'],500);
 }
