@@ -24,12 +24,29 @@ register_shutdown_function(static function():void {
         JSON_UNESCAPED_UNICODE);
 });
 date_default_timezone_set('America/Lima');
-include_once __DIR__.'/session_config.php';
-include_once __DIR__.'/includes/session_check.php';
-require_login_modal();
-include __DIR__.'/db_connect.php';
-require_once __DIR__.'/includes/teacher_action_notifications.php';
-$conn->query("SET time_zone='-05:00'");
+try {
+    $GLOBALS['taca_stage']='bootstrap.session_config';
+    require_once __DIR__.'/session_config.php';
+    $GLOBALS['taca_stage']='bootstrap.session_check';
+    require_once __DIR__.'/includes/session_check.php';
+    $GLOBALS['taca_stage']='bootstrap.login';
+    require_login_modal();
+    $GLOBALS['taca_stage']='bootstrap.database';
+    if (!isset($conn) || !($conn instanceof mysqli)) {
+        require_once __DIR__.'/db_connect.php';
+    }
+    if (!isset($conn) || !($conn instanceof mysqli) || $conn->connect_errno) {
+        throw new RuntimeException('No existe una conexión MySQL utilizable.');
+    }
+    $GLOBALS['taca_stage']='bootstrap.time_zone';
+    $conn->query("SET time_zone='-05:00'");
+} catch (Throwable $e) {
+    $ref=(string)($GLOBALS['taca_request_ref']??'unknown');
+    $stage=(string)($GLOBALS['taca_stage']??'bootstrap');
+    error_log('[EduSync seguimiento docente '.$ref.' / '.$stage.'] '.$e->getMessage());
+    taca_response(['status'=>0,'error_code'=>'TACA_INIT','error_ref'=>$ref,
+        'stage'=>$stage,'message'=>'Error al inicializar Seguimiento Docente. Busca la referencia en el registro PHP del servidor.'],500);
+}
 header('Content-Type: application/json; charset=utf-8');
 
 function taca_response(array $data,int $code=200):void {
@@ -37,6 +54,14 @@ function taca_response(array $data,int $code=200):void {
     http_response_code($code);
     echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
     exit;
+}
+function taca_table(mysqli $db,string $name):bool {
+    // El seguimiento académico no requiere cargar la lógica de envío de avisos.
+    // Las tablas se comprueban sin depender de scripts opcionales en producción.
+    if(!preg_match('/^[a-z][a-z0-9_]*$/D',$name))return false;
+    $safe=$db->real_escape_string($name);
+    $q=$db->query("SHOW TABLES LIKE '$safe'");
+    return (bool)($q&&$q->num_rows>0);
 }
 function taca_csrf():void {
     $incoming=(string)($_POST['csrf_token']??'');
@@ -199,7 +224,7 @@ function taca_history(mysqli $db,int $school,int $year,int $bim,int $periodId):a
         $ids[]=(int)$row['id'];$items[(int)$row['id']]=$row;
     }
     $s->close();
-    if($ids && tna_table($db,'web_push_delivery')){
+    if($ids && taca_table($db,'web_push_delivery')){
         $in=implode(',',array_map('intval',$ids));
         $sql="SELECT event_id,
                   SUM(status='delivered') sent,
@@ -238,7 +263,7 @@ $GLOBALS['taca_stage']='schema';
 // Mostrar los cierres aunque todavía falte configurar los avisos en producción.
 // La consulta académica no depende de las tablas auxiliares de recordatorios.
 foreach(['academic_periods','grade_period_closures','teacher_courses'] as $table) {
-    if(!tna_table($conn,$table)) {
+    if(!taca_table($conn,$table)) {
         taca_response(['status'=>0,'migration_required'=>true,
             'message'=>'Falta la tabla académica '.$table.'. Revisa las migraciones de años académicos y cierre bimestral.',
             'missing_table'=>$table],409);
@@ -246,10 +271,10 @@ foreach(['academic_periods','grade_period_closures','teacher_courses'] as $table
 }
 $missingAlertTables=[];
 foreach(['teacher_alert_settings','teacher_alert_manual_log','notification_events'] as $table) {
-    if(!tna_table($conn,$table))$missingAlertTables[]=$table;
+    if(!taca_table($conn,$table))$missingAlertTables[]=$table;
 }
 // Una tabla existente con columnas antiguas también debe permitir consultar los cierres.
-if(tna_table($conn,'teacher_alert_settings')) {
+if(taca_table($conn,'teacher_alert_settings')) {
     foreach(['school_id','academic_year_id','bimester','deadline_date',
         'notice_days_before','closure_enabled','incomplete_enabled',
         'admin_edits_enabled'] as $column) {
@@ -277,7 +302,7 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
         $GLOBALS['taca_stage']='status.settings';
         $settings=$alertsReady?taca_settings($conn,$school,$yearId,$bim):$defaultAlertSettings;
         $GLOBALS['taca_stage']='status.lock';
-        $globalLock=tna_table($conn,'bimester_locks')
+        $globalLock=taca_table($conn,'bimester_locks')
             ?$conn->prepare('SELECT is_locked FROM bimester_locks WHERE school_id=? AND academic_year_id=? AND bimester=? LIMIT 1')
             :null;
         if($globalLock) {
@@ -358,7 +383,7 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
         $stmt->bind_param('iiisiiiii',$school,$yearId,$bim,$deadline,$days,$closure,$incomplete,$admin,$user);
         if(!$stmt->execute())throw new RuntimeException($stmt->error);
         $stmt->close();
-        if(tna_table($conn,'academic_year_audit')) {
+        if(taca_table($conn,'academic_year_audit')) {
             $actionName='teacher_alert_settings_updated';
             $details=json_encode(['bimester'=>$bim,'deadline'=>$deadline?:null,'days_before'=>$days,
                 'closure'=>$closure,'incomplete'=>$incomplete,'admin_edits'=>$admin],JSON_UNESCAPED_UNICODE);
