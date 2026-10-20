@@ -507,7 +507,7 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
     // o de fecha en producción, manteniendo el detalle en error_log.
     $dbCode=$e instanceof mysqli_sql_exception?(int)$e->getCode():0;
     if(!$dbCode&&isset($conn)&&$conn instanceof mysqli)$dbCode=(int)$conn->errno;
-    if(!$dbCode&&isset($stmt)&&$stmt instanceof mysqli_stmt)$dbCode=(int)$stmt->errno;
+
     $sqlState=($e instanceof mysqli_sql_exception&&method_exists($e,'getSqlState'))
         ?(string)$e->getSqlState():'';
     $hints=[
