@@ -264,6 +264,9 @@ $totals['courses']=count($courses);
 // competencia. Una competencia sin evaluaciones cuenta como 0%.
 // Se devuelve null cuando el curso todavía no tiene competencias configuradas.
 if ($courses && !empty($selectedYear['is_active'])) {
+    $evStatusCol=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+    $activeEvalFilter=($evStatusCol && $evStatusCol->num_rows>0)
+        ? " AND COALESCE(e.status,'Activa')<>'Anulada'" : '';
     $stmt=$conn->prepare(
         "SELECT tc.id teacher_course_id,gcc.id competency_id,
                 COUNT(DISTINCT e.id) evaluation_count,
@@ -277,7 +280,7 @@ if ($courses && !empty($selectedYear['is_active'])) {
          LEFT JOIN evaluation_competencias ec ON ec.competencia_id=gcc.id
          LEFT JOIN evaluations e ON e.id=ec.evaluation_id AND e.teacher_course_id=tc.id
            AND e.teacher_id=tc.teacher_id AND e.academic_year_id=tc.academic_year_id
-           AND e.bimestre=?
+           AND e.bimestre=? {$activeEvalFilter}
          LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.competencia_id=gcc.id
          LEFT JOIN student st ON st.id=eg.student_id AND st.school_id=tc.school_id
            AND st.status='Activo' AND st.nivel=ac.level
