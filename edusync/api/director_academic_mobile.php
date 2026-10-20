@@ -117,6 +117,9 @@ if ($action === 'student_detail') {
     }
     $marks=[];
     if ($yearId>0) {
+        $evStatusCol=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+        $visibleEvaluations=($evStatusCol && $evStatusCol->num_rows>0)
+            ? " AND COALESCE(ev.status,'Activa')<>'Anulada'" : '';
         $stmt=$conn->prepare(
             "SELECT ac.name course_name,t.name teacher_name,
                     ev.bimestre, ev.title evaluation_name,
@@ -130,6 +133,7 @@ if ($action === 'student_detail') {
              LEFT JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id
              LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id
              WHERE eg.student_id=? AND tc.school_id=? AND tc.academic_year_id=?
+               {$visibleEvaluations}
              ORDER BY ac.name,CAST(ev.bimestre AS UNSIGNED),ev.id,eg.id LIMIT 300"
         );
         if (!$stmt) dma_reply(['status'=>'error','message'=>'No se pudieron consultar las notas.'],500);
