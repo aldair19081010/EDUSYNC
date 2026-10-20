@@ -243,4 +243,4 @@ window.EduSyncTeacherAlerts={
   csrf:<?php echo json_encode($_SESSION['csrf_token'],JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_QUOT|JSON_HEX_APOS); ?>
 };
 </script>
-<script src="js/teacher_notifications_admin.js?v=<?php echo (int)$tfJsVersion; ?>"></script>
+<script src="js/teacher_notifications_admin.js?v=<?php echo (int)$tfJsVersion; ?>" onerror="document.getElementById('taca-error').textContent='No se pudo cargar el archivo js/teacher_notifications_admin.js. Comprueba que esté subido a producción y recarga la página.'"></script>
