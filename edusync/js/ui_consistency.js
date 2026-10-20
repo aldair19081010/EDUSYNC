@@ -82,7 +82,7 @@
     function markStats() {
         var statSelectors = [
             '.user-stat', '.teacher-summary-card', '.py-stat', '.am-stat', '.cp-stat', '.df-stat',
-            '.dc-stat', '.gr-stat', '.ar-kpi', '.pr-stat', '.dr-stat', '.mc-summary', '.ay-stat',
+            '.dc-stat', '.gr-stat', '.ar-kpi', '.pr-stat', '.dr-stat', '.ay-stat',
             '.stat-card'
         ];
         $(statSelectors.join(',')).not('.modal *').addClass('ed-stat-card');
@@ -167,7 +167,7 @@
     function markContentCards() {
         var explicitPanels = [
             '.students-card', '.content-card', '.users-table-card', '.py-panel', '.am-panel', '.cp-panel',
-            '.df-panel', '.pr-panel', '.dr-panel', '.gr-results-card', '.mc-card', '.catalog-card', '.ficha-option'
+            '.df-panel', '.pr-panel', '.dr-panel', '.gr-results-card'
         ];
         $(explicitPanels.join(',')).not('.modal *').addClass('ed-content-card');
 
