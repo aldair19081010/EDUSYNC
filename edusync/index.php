@@ -181,13 +181,18 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <script src="js/vendor/html2canvas.min.js"></script>
     <?php endif; ?>
 
-    <!-- Logout Modal (se conserva por compatibilidad con el topbar actual) -->
+
+</head>
+
+<body id="page-top" data-edusync-ui="standard-v2" data-edusync-page="<?php echo htmlspecialchars($page, ENT_QUOTES, 'UTF-8'); ?>">
+
+<!-- Logout Modal (se conserva por compatibilidad con el topbar actual) -->
     <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="exampleModalLabel">¿Listo para salir?</h5>
-                    <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Cerrar">
                         <span aria-hidden="true">×</span>
                     </button>
                 </div>
@@ -199,9 +204,7 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
             </div>
         </div>
     </div>
-</head>
 
-<body id="page-top" data-edusync-ui="standard-v2" data-edusync-page="<?php echo htmlspecialchars($page, ENT_QUOTES, 'UTF-8'); ?>">
 
     <!-- Page Wrapper -->
     <div id="wrapper">
