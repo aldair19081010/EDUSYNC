@@ -63,6 +63,13 @@ function taca_table(mysqli $db,string $name):bool {
     $q=$db->query("SHOW TABLES LIKE '$safe'");
     return (bool)($q&&$q->num_rows>0);
 }
+function taca_column(mysqli $db,string $table,string $column):bool {
+    if(!preg_match('/^[a-z][a-z0-9_]*$/D',$table)
+        ||!preg_match('/^[a-z][a-z0-9_]*$/D',$column))return false;
+    $safe=$db->real_escape_string($column);
+    $q=$db->query("SHOW COLUMNS FROM `$table` LIKE '$safe'");
+    return (bool)($q&&$q->num_rows>0);
+}
 function taca_csrf():void {
     $incoming=(string)($_POST['csrf_token']??'');
     $session=(string)($_SESSION['csrf_token']??'');
@@ -354,7 +361,7 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
         taca_response(['status'=>0,'message'=>'Solo puede modificar avisos del año activo.'],409);
 
     if($action==='save_settings') {
-        $GLOBALS['taca_stage']='save_settings';
+        $GLOBALS['taca_stage']='save_settings.validate';
         $deadline=trim((string)($_POST['deadline_date']??''));
         if($deadline!=='') {
             $d=DateTimeImmutable::createFromFormat('!Y-m-d',$deadline);
@@ -371,30 +378,55 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
         $closure=($_POST['closure_enabled']??'0')==='1'?1:0;
         $incomplete=($_POST['incomplete_enabled']??'0')==='1'?1:0;
         $admin=($_POST['admin_edits_enabled']??'0')==='1'?1:0;
-        $sql="INSERT INTO teacher_alert_settings
-            (school_id,academic_year_id,bimester,deadline_date,notice_days_before,
-             closure_enabled,incomplete_enabled,admin_edits_enabled,updated_by)
-            VALUES(?,?,?,NULLIF(?,''),?,?,?,?,?)
-            ON DUPLICATE KEY UPDATE deadline_date=VALUES(deadline_date),
-              notice_days_before=VALUES(notice_days_before),
-              closure_enabled=VALUES(closure_enabled),incomplete_enabled=VALUES(incomplete_enabled),
-              admin_edits_enabled=VALUES(admin_edits_enabled),updated_by=VALUES(updated_by)";
+
+        $GLOBALS['taca_stage']='save_settings.schema';
+        // Los entornos antiguos pueden carecer de la columna opcional updated_by.
+        // Guardar la configuración no debe depender de esa columna.
+        $hasUpdatedBy=taca_column($conn,'teacher_alert_settings','updated_by');
+        $columns='school_id,academic_year_id,bimester,deadline_date,notice_days_before,closure_enabled,incomplete_enabled,admin_edits_enabled';
+        $values="?,?,?,NULLIF(?,''),?,?,?,?";
+        $updates='deadline_date=VALUES(deadline_date),notice_days_before=VALUES(notice_days_before),'
+            .'closure_enabled=VALUES(closure_enabled),incomplete_enabled=VALUES(incomplete_enabled),'
+            .'admin_edits_enabled=VALUES(admin_edits_enabled)';
+        if($hasUpdatedBy) {
+            $columns.=',updated_by';
+            $values.=',?';
+            $updates.=',updated_by=VALUES(updated_by)';
+        }
+        $sql="INSERT INTO teacher_alert_settings ($columns) VALUES($values) ON DUPLICATE KEY UPDATE $updates";
+        $GLOBALS['taca_stage']='save_settings.persist';
         $stmt=$conn->prepare($sql);
-        $stmt->bind_param('iiisiiiii',$school,$yearId,$bim,$deadline,$days,$closure,$incomplete,$admin,$user);
+        if(!$stmt)throw new RuntimeException('No se pudo preparar la configuración: '.$conn->error);
+        if($hasUpdatedBy) {
+            $stmt->bind_param('iiisiiiii',$school,$yearId,$bim,$deadline,$days,$closure,$incomplete,$admin,$user);
+        } else {
+            $stmt->bind_param('iiisiiii',$school,$yearId,$bim,$deadline,$days,$closure,$incomplete,$admin);
+        }
         if(!$stmt->execute())throw new RuntimeException($stmt->error);
         $stmt->close();
-        if(taca_table($conn,'academic_year_audit')) {
-            $actionName='teacher_alert_settings_updated';
-            $details=json_encode(['bimester'=>$bim,'deadline'=>$deadline?:null,'days_before'=>$days,
-                'closure'=>$closure,'incomplete'=>$incomplete,'admin_edits'=>$admin],JSON_UNESCAPED_UNICODE);
-            $ip=(string)($_SERVER['REMOTE_ADDR']??'');
-            $audit=$conn->prepare('INSERT INTO academic_year_audit(school_id,academic_year_id,user_id,action,details,ip_address) VALUES(?,?,?,?,?,?)');
-            if($audit) {
+
+        // La auditoría es secundaria: nunca devolver HTTP 500 después de haber guardado.
+        $GLOBALS['taca_stage']='save_settings.audit';
+        $auditWarning=false;
+        try {
+            if(taca_table($conn,'academic_year_audit')) {
+                $actionName='teacher_alert_settings_updated';
+                $details=json_encode(['bimester'=>$bim,'deadline'=>$deadline?:null,'days_before'=>$days,
+                    'closure'=>$closure,'incomplete'=>$incomplete,'admin_edits'=>$admin],JSON_UNESCAPED_UNICODE);
+                $ip=(string)($_SERVER['REMOTE_ADDR']??'');
+                $audit=$conn->prepare('INSERT INTO academic_year_audit(school_id,academic_year_id,user_id,action,details,ip_address) VALUES(?,?,?,?,?,?)');
+                if(!$audit)throw new RuntimeException('No se pudo preparar auditoría: '.$conn->error);
                 $audit->bind_param('iiisss',$school,$yearId,$user,$actionName,$details,$ip);
-                $audit->execute();$audit->close();
+                if(!$audit->execute())throw new RuntimeException($audit->error);
+                $audit->close();
             }
+        } catch(Throwable $auditError) {
+            $auditWarning=true;
+            error_log('[EduSync seguimiento docente '.($GLOBALS['taca_request_ref']??'unknown')
+                .' / save_settings.audit] Registro auxiliar no disponible: '.$auditError->getMessage());
         }
-        taca_response(['status'=>1,'message'=>'Configuración de avisos docentes guardada.']);
+        taca_response(['status'=>1,'message'=>'Configuración de avisos docentes guardada.',
+            'audit_warning'=>$auditWarning]);
     }
     if($action==='send_reminder') {
         $GLOBALS['taca_stage']='send_reminder';
