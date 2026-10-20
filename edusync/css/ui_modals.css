@@ -385,36 +385,3 @@ body[data-edusync-ui="standard-v2"] .modal .ed-modal-info-box {
         min-width: 0;
     }
 }
-
-
-/* Modal universal: los formularios extensos se desplazan dentro del diálogo,
-   sin desbordar la pantalla ni recortar acciones en móviles. */
-body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-standard > .modal-dialog > .modal-content {
-    display: flex;
-    flex-direction: column;
-    max-height: calc(100vh - 2rem);
-}
-body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-standard > .modal-dialog > .modal-content > .modal-body {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-}
-body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-standard > .modal-dialog > .modal-content > .modal-header {
-    flex: 0 0 auto;
-}
-@media (max-width: 767.98px) {
-    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-standard > .modal-dialog > .modal-content {
-        max-height: calc(100vh - 1.3rem);
-    }
-}
-@supports (height: 100dvh) {
-    body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-standard > .modal-dialog > .modal-content {
-        max-height: calc(100dvh - 2rem);
-    }
-    @media (max-width: 767.98px) {
-        body[data-edusync-ui="standard-v2"] #uni_modal.ed-modal-standard > .modal-dialog > .modal-content {
-            max-height: calc(100dvh - 1.3rem);
-        }
-    }
-}
