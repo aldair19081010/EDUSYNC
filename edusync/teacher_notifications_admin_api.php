@@ -46,24 +46,27 @@ function taca_settings(mysqli $db,int $school,int $year,int $bim):array {
     $row=$s->get_result()->fetch_assoc();$s->close();
     return $row?array_merge($default,$row):$default;
 }
-function taca_user_status_condition(mysqli $db):string {
+function taca_user_status_condition(mysqli $db,string $alias='u'):string {
     $q=$db->query("SHOW COLUMNS FROM users LIKE 'status'");
-    return ($q&&$q->num_rows>0)?" AND u.status='Activo'":"";
+    return ($q&&$q->num_rows>0)?" AND ".$alias.".status='Activo'":"";
 }
 /**
  * Primer render: sólo asignaciones y cierres, sin consultar cada nota.
  * Se retiene el argumento opcional por compatibilidad interna.
  */
 function taca_teachers(mysqli $db,int $school,int $year,int $bim,bool $scanMissing=false):array {
-    $extra=taca_user_status_condition($db);
-    $sql="SELECT u.id recipient_user_id,t.id teacher_id,t.name teacher_name,
+    $extra=taca_user_status_condition($db,'ux');
+    $sql="SELECT COALESCE(u.id,0) recipient_user_id,t.id teacher_id,t.name teacher_name,
                  tc.id teacher_course_id,tc.grado,tc.seccion,ac.level,ac.name course_name,
                  (gpc.id IS NOT NULL) closed
           FROM teacher_courses tc
           INNER JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id
                AND t.status='Activo'
-          INNER JOIN users u ON u.teacher_id=t.id AND u.school_id=tc.school_id
-               AND u.type=2 $extra
+          LEFT JOIN users u ON u.id=(
+               SELECT MIN(ux.id) FROM users ux
+               WHERE ux.teacher_id=t.id AND ux.school_id=tc.school_id
+                   AND ux.type=2 $extra
+          )
           INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
           LEFT JOIN grade_period_closures gpc ON gpc.teacher_course_id=tc.id
                AND gpc.school_id=tc.school_id AND gpc.bimester=?
@@ -75,20 +78,21 @@ function taca_teachers(mysqli $db,int $school,int $year,int $bim,bool $scanMissi
     $result=$s->get_result();$teachers=[];
     while($row=$result->fetch_assoc()){
         $uid=(int)$row['recipient_user_id'];
-        if(!isset($teachers[$uid])){
-            $teachers[$uid]=['recipient_user_id'=>$uid,'teacher_id'=>(int)$row['teacher_id'],
+        $teacherId=(int)$row['teacher_id'];
+        if(!isset($teachers[$teacherId])){
+            $teachers[$teacherId]=['recipient_user_id'=>$uid,'teacher_id'=>$teacherId,
                 'teacher_name'=>$row['teacher_name'],'total'=>0,'closed'=>0,'pending'=>0,
                 'incomplete_courses'=>0,'missing_cells'=>0,'pending_courses'=>[],
                 'pending_course_ids'=>[]];
         }
-        $teachers[$uid]['total']++;
+        $teachers[$teacherId]['total']++;
         if((int)$row['closed']===1){
-            $teachers[$uid]['closed']++;
+            $teachers[$teacherId]['closed']++;
         }else{
-            $teachers[$uid]['pending']++;
-            $teachers[$uid]['pending_courses'][]=
+            $teachers[$teacherId]['pending']++;
+            $teachers[$teacherId]['pending_courses'][]=
                 $row['course_name'].' · '.$row['level'].' · '.$row['grado'].'° '.$row['seccion'];
-            $teachers[$uid]['pending_course_ids'][]=(int)$row['teacher_course_id'];
+            $teachers[$teacherId]['pending_course_ids'][]=(int)$row['teacher_course_id'];
         }
     }
     $s->close();
