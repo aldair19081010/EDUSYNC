@@ -83,8 +83,9 @@ $roleName = $approver ? 'Administrador' : ($type === 3 ? 'Auxiliar' : ($type ===
 // Solo una cuenta verificada como Director puede pedir los avisos
 // institucionales; nunca se aceptan permisos enviados por la app.
 // El director-docente mantiene sus avisos de clase por separado.
-$directorScope = $director === 1 ? (string)($_GET['director_scope'] ?? 'all') : 'teacher';
-if (!in_array($directorScope, ['all','director','teacher'], true)) $directorScope='all';
+$directorNotificationMode = $director === 1 && isset($_GET['director_scope']);
+$directorScope = $directorNotificationMode ? (string)$_GET['director_scope'] : 'legacy';
+if (!in_array($directorScope, ['all','director','teacher','legacy'], true)) $directorScope='all';
 $teacherEvents = "(ne.recipient_user_id=$user OR (ne.recipient_user_id IS NULL AND ne.recipient_role='" .
     $conn->real_escape_string($roleName) . "'))";
 // Solo lectura institucional académica: NO incluir cobranzas, avisos
@@ -94,7 +95,7 @@ $directorEvents = "(ne.recipient_user_id IS NULL AND (
     (ne.recipient_role='Administrador' AND ne.source_type IN
       ('grade_period_closed','teacher_admin_grade_change'))
 ))";
-$visibleEvents = $director === 1
+$visibleEvents = $directorNotificationMode
     ? ($directorScope === 'director' ? $directorEvents
        : ($directorScope === 'teacher' ? $teacherEvents
           : "($teacherEvents OR $directorEvents)"))
