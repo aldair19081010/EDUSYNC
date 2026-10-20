@@ -120,6 +120,12 @@ if ($login_type === 1) {
                 ['page' => 'users', 'label' => 'Usuarios y Accesos', 'icon' => 'fa-users-cog'],
             ],
         ],
+        [
+            'heading' => 'IA y Alertas',
+            'items' => [
+                ['page' => 'risk_dashboard', 'label' => 'Alerta Temprana IA', 'icon' => 'fa-brain'],
+            ],
+        ],
     ];
 } elseif ($login_type === 2) {
     $sections = [
