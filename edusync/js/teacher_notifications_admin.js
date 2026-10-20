@@ -16,6 +16,7 @@ function toast(msg,type){
 }
 function currentYear(){return years.find(function(y){return Number(y.id)===yearId;})||null;}
 function canEdit(){var y=currentYear();return !!y&&y.status==='Activo'&&Number(y.active)===1;}
+function alertsReady(){return !!state && state.alerts_ready!==false;}
 function bimester(){return Number($('#taca-bim').val()||1);}
 function periodLabel(){return bimester()+'° bimestre';}
 function api(data,post){
@@ -59,7 +60,7 @@ function rowCells(t){
       Number(t.missing_cells)>0?'<span class="font-weight-bold text-danger">'+num(t.missing_cells)+'</span>':
       '<span class="text-success">0</span>',
     badge(t),
-    canEdit()&&state&&state.period&&
+    canEdit()&&alertsReady()&&state&&state.period&&
       Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0?
       '<button type="button" class="btn btn-sm btn-outline-primary taca-send" data-user="'+Number(t.recipient_user_id)+'"><i class="fas fa-paper-plane mr-1"></i>Avisar</button>':
       '<button type="button" class="btn btn-sm btn-light border" disabled>—</button>'
@@ -140,7 +141,7 @@ function redrawRows(){
 }
 function fillSettings(){
   if(!state)return;
-  var s=state.settings||{},p=state.period||{},editable=canEdit();
+  var s=state.settings||{},p=state.period||{},editable=canEdit()&&alertsReady();
   $('#taca-date').val(s.deadline_date||'');
   $('#taca-days').val(s.notice_days_before||3);
   $('#taca-enabled-closure').prop('checked',Number(s.closure_enabled)===1);
@@ -215,16 +216,28 @@ function load(){
       return;
     }
     state=response;
+    if(!alertsReady()){
+      $('#taca-error').html('<div class="alert alert-warning" role="alert">'+
+        '<strong>Seguimiento en modo consulta.</strong> Puedes revisar los cierres, pero los avisos y su configuración están desactivados porque faltan tablas de notificaciones. '+
+        'Ejecuta la migración <code>sql/teacher_alert_admin_control_v1.sql</code> y verifica las tablas indicadas en el servidor.</div>');
+    }
+    $('#taca-settings-open, #taca-history-open').prop('disabled',!alertsReady());
     $('#taca-data').removeClass('d-none');
     $('#taca-grades-status').text(canEdit()?'Revisando notas…':'Año histórico · cierres únicamente');
     stats();drawTable();fillSettings();
     loadMissing(token,yearKey,periodKey);
   }).fail(function(xhr){
     if(token!==requestNumber)return;
-    var r=xhr.responseJSON||{};
-    $('#taca-error').html('<div class="alert alert-warning">'+
-      esc((r.message||'No se pudo cargar el seguimiento.')+
-        (r.migration_required?' Ejecuta la migración SQL de seguimiento docente.':''))+'</div>');
+    var r=xhr.responseJSON||{},http=xhr.status||0;
+    var msg=r.message||('No se pudo consultar Seguimiento Docente (HTTP '+http+').');
+    if(r.migration_required){
+      msg+=' Tabla pendiente: '+(r.missing_table||((r.missing_tables||[]).join(', '))||'consultar migraciones')+'.';
+    }else if(http===404){
+      msg+=' Verifica que teacher_notifications_admin_api.php esté publicado en producción.';
+    }else if(http===401||http===403){
+      msg+=' Comprueba tu sesión de administrador y vuelve a iniciar sesión si es necesario.';
+    }
+    $('#taca-error').html('<div class="alert alert-warning" role="alert">'+esc(msg)+'</div>');
   }).always(function(){if(token===requestNumber)$('#taca-loading').addClass('d-none');});
 }
 function selectYearAndLoad(){
