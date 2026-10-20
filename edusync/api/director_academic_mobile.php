@@ -303,7 +303,7 @@ if ($courses && !empty($selectedYear['is_active'])) {
                 $filled=(int)$row['filled_count'];
                 $rates[$id][]=$expected>0 ? min(1,$filled/$expected) : 0.0;
                 $courses[$id]['competency_count']++;
-                $evalCount[$id]+=$evaluations;
+                $evalCount[$id]=($evalCount[$id]??0)+$evaluations;
             }
             foreach ($courses as $id=>&$course) {
                 if (isset($rates[$id])) {
