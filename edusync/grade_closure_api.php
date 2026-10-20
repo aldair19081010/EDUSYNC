@@ -5,6 +5,7 @@ include_once __DIR__ . '/session_config.php';
 include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/grade_closure_progress.php';
 $conn->query("SET time_zone = '-05:00'");
 header('Content-Type: application/json; charset=utf-8');
 
@@ -183,6 +184,8 @@ function gc_validate(mysqli $db, int $schoolId, array $assignment, int $bimester
     $expectedCells = 0;
     $completedCells = 0;
     $missingByEvaluation = [];
+    $expectedByCompetency = array_fill_keys(array_keys($competencies), 0);
+    $completedByCompetency = array_fill_keys(array_keys($competencies), 0);
     if ($evaluations && $students) {
         $evalIds = implode(',', array_map('intval', array_keys($evaluations)));
         $studentIds = implode(',', array_map('intval', array_keys($students)));
@@ -197,8 +200,10 @@ function gc_validate(mysqli $db, int $schoolId, array $assignment, int $bimester
                 $missing = [];
                 foreach ($students as $studentId => $student) {
                     $expectedCells++;
+                    $expectedByCompetency[$link['id']]++;
                     if (isset($gradeMap[$evaluation['id']][$link['id']][$studentId])) {
                         $completedCells++;
+                        $completedByCompetency[$link['id']]++;
                     } else {
                         $missing[] = $student['name'];
                     }
@@ -218,7 +223,15 @@ function gc_validate(mysqli $db, int $schoolId, array $assignment, int $bimester
         }
     }
 
-    $progress = $expectedCells > 0 ? round(($completedCells / $expectedCells) * 100, 1) : 0;
+    $completion = gc_calculate_competency_progress(
+        $competencies,
+        $compEvaluationCount,
+        $expectedByCompetency,
+        $completedByCompetency,
+        $expectedCells,
+        $completedCells
+    );
+    $progress = $completion['progress'];
     $snapshot = [
         'generated_at'=>date('Y-m-d H:i:s'),
         'assignment'=>[
@@ -231,12 +244,17 @@ function gc_validate(mysqli $db, int $schoolId, array $assignment, int $bimester
         'students'=>array_values($students),
         'summary'=>[
             'percentage_total'=>round($percentageTotal,2),'competencies'=>count($competencies),'evaluations'=>count($evaluations),
-            'students'=>count($students),'expected_grade_cells'=>$expectedCells,'completed_grade_cells'=>$completedCells,'progress'=>$progress
+            'students'=>count($students),'expected_grade_cells'=>$expectedCells,'completed_grade_cells'=>$completedCells,
+            'progress'=>$progress,
+            'grade_progress'=>$completion['grade_progress'],
+            'competency_coverage_progress'=>$completion['competency_coverage_progress'],
+            'competencies_with_evaluations'=>$completion['competencies_with_evaluations'],
+            'competencies_without_evaluations'=>$completion['competencies_without_evaluations']
         ]
     ];
 
     return [
-        'ready'=>count($issues)===0,
+        'ready'=>count($issues)===0 && $completion['grade_cells_complete'] && $progress >= 100.0,
         'issues'=>$issues,
         'warnings'=>$warnings,
         'missing'=>$missingByEvaluation,
