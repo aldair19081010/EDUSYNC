@@ -29,6 +29,15 @@ $checks = [
         '$yearsResult=$yearsStmt->get_result();',
         'while ($row=$yearsResult->fetch_assoc())',
     ],
+    'edusync/notifications_api.php' => [
+        "director_scope",
+        "directorNotificationMode",
+        "ne.recipient_role='Director'",
+        "ne.recipient_role='Administrador'",
+        "grade_period_closed",
+        "teacher_admin_grade_change",
+        "directorScope === 'legacy'",
+    ],
     'edusync/api/teacher_courses_mobile.php' => [
         'sessionTeacherId',
         'sessionSchoolId',
