@@ -20,6 +20,12 @@ $checks = [
         "teacher_course_id",
         "read_only",
         "dma_class_key",
+        "set_exception_handler(",
+        "register_shutdown_function(",
+        "X-EduSync-Request-ID",
+        "dma_stage",
+        "SHOW COLUMNS FROM users LIKE 'status'",
+        "SHOW COLUMNS FROM users LIKE 'is_director'",
     ],
     'edusync/api/teacher_courses_mobile.php' => [
         'sessionTeacherId',
