@@ -80,6 +80,25 @@ if (in_array($action, ['mark', 'mark_all', 'archive', 'restore'], true)
 }
 
 $roleName = $approver ? 'Administrador' : ($type === 3 ? 'Auxiliar' : ($type === 2 ? 'Docente' : 'Usuario'));
+// Solo una cuenta verificada como Director puede pedir los avisos
+// institucionales; nunca se aceptan permisos enviados por la app.
+// El director-docente mantiene sus avisos de clase por separado.
+$directorScope = $director === 1 ? (string)($_GET['director_scope'] ?? 'all') : 'teacher';
+if (!in_array($directorScope, ['all','director','teacher'], true)) $directorScope='all';
+$teacherEvents = "(ne.recipient_user_id=$user OR (ne.recipient_user_id IS NULL AND ne.recipient_role='" .
+    $conn->real_escape_string($roleName) . "'))";
+// Solo lectura institucional académica: NO incluir cobranzas, avisos
+// financieros ni aprobaciones administrativas desde la sesión docente.
+$directorEvents = "(ne.recipient_user_id IS NULL AND (
+    ne.recipient_role='Director' OR
+    (ne.recipient_role='Administrador' AND ne.source_type IN
+      ('grade_period_closed','teacher_admin_grade_change'))
+))";
+$visibleEvents = $director === 1
+    ? ($directorScope === 'director' ? $directorEvents
+       : ($directorScope === 'teacher' ? $teacherEvents
+          : "($teacherEvents OR $directorEvents)"))
+    : $teacherEvents;
 $parts = [];
 
 $parts[] = "SELECT CONCAT('event:',ne.id) COLLATE utf8mb4_general_ci nkey,
@@ -98,9 +117,9 @@ $parts[] = "SELECT CONCAT('event:',ne.id) COLLATE utf8mb4_general_ci nkey,
     FROM notification_events ne
     WHERE ne.school_id=$school
       AND COALESCE(ne.source_type,'')<>'attendance_request_result'
-      AND (ne.recipient_user_id=$user OR (ne.recipient_user_id IS NULL AND ne.recipient_role='" . $conn->real_escape_string($roleName) . "'))";
+      AND $visibleEvents";
 
-if ($approver && nt($conn, 'attendance_change_requests')) {
+if ($approver && $directorScope !== 'director' && nt($conn, 'attendance_change_requests')) {
     $parts[] = "SELECT CONCAT('attendance_request:',r.id) COLLATE utf8mb4_general_ci nkey,
         'Asistencia' COLLATE utf8mb4_general_ci category,
         IF(r.status='Pendiente','Alta','Normal') COLLATE utf8mb4_general_ci priority,
@@ -148,7 +167,7 @@ if ($approver && nt($conn, 'attendance_change_requests')) {
           AND r.reviewed_by<>$user";
 }
 
-if (nt($conn, 'attendance_change_requests')) {
+if ($directorScope !== 'director' && nt($conn, 'attendance_change_requests')) {
     $parts[] = "SELECT CONCAT('attendance_result:',r.id) nkey,
         'Asistencia' category,
         IF(r.status='Rechazada','Alta','Normal') priority,
@@ -167,7 +186,7 @@ if (nt($conn, 'attendance_change_requests')) {
         WHERE r.school_id=$school AND r.requested_by=$user AND r.status IN ('Aprobada','Rechazada')";
 }
 
-if ($approver && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_courses') && nt($conn, 'academic_courses')) {
+if ($approver && $directorScope !== 'director' && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_courses') && nt($conn, 'academic_courses')) {
     $parts[] = "SELECT CONCAT('grade_reopen_request:',grr.id) COLLATE utf8mb4_general_ci nkey,
         'Académica' COLLATE utf8mb4_general_ci category,
         IF(grr.status='Pendiente','Alta','Normal') COLLATE utf8mb4_general_ci priority,
@@ -191,7 +210,7 @@ if ($approver && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_course
         WHERE grr.school_id=$school";
 }
 
-if ($approver && nt($conn, 'evaluations')) {
+if ($approver && $directorScope !== 'director' && nt($conn, 'evaluations')) {
     $evaluationTimeSql = edun_evaluation_created_at_lima_sql($conn);
     $parts[] = "SELECT CONCAT('evaluation:',e.id) COLLATE utf8mb4_general_ci nkey,
         'Académica' COLLATE utf8mb4_general_ci category,
@@ -212,7 +231,7 @@ if ($approver && nt($conn, 'evaluations')) {
 // low_grade_notifications.created_at es DATETIME almacenado en UTC,
 // a diferencia de notification_events.created_at (TIMESTAMP).
 // Convertir sólo esta fuente para evitar restar cinco horas dos veces.
-if (nt($conn, 'low_grade_notifications')) {
+if ($directorScope !== 'director' && nt($conn, 'low_grade_notifications')) {
     $teacherFilter = $type === 2 && $teacher > 0 ? "lgn.teacher_id=$teacher" : ($approver ? 'lgn.teacher_id IS NULL' : '1=0');
     $parts[] = "SELECT CONCAT('low_grade:',lgn.id) COLLATE utf8mb4_general_ci nkey,
         'Alerta estudiantil' COLLATE utf8mb4_general_ci category,
