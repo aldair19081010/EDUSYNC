@@ -232,6 +232,9 @@ function load(){
     if(token!==requestNumber)return;
     var r=xhr.responseJSON||{},http=xhr.status||0;
     var msg=r.message||('No se pudo consultar Seguimiento Docente (HTTP '+http+').');
+    if(r.error_ref){
+      msg+=' [Etapa: '+String(r.stage||'no identificada')+'; referencia: '+String(r.error_ref)+']';
+    }
     if(r.migration_required){
       msg+=' Tabla pendiente: '+(r.missing_table||((r.missing_tables||[]).join(', '))||'consultar migraciones')+'.';
     }else if(http===404){
