@@ -14,6 +14,14 @@ function toast(msg,type){
   if(typeof window.alert_toast==='function') window.alert_toast(msg,type||'success');
   else window.alert(msg);
 }
+function explainApiFailure(xhr,fallback){
+  var r=xhr.responseJSON||{},code=Number(xhr.status||0);
+  var message=r.message||fallback+' (HTTP '+code+').';
+  if(r.error_ref)message+=' [Etapa: '+String(r.stage||'desconocida')+
+    '; referencia: '+String(r.error_ref)+']';
+  if(r.missing_tables&&r.missing_tables.length)message+=' Tablas: '+r.missing_tables.join(', ')+'.';
+  return message;
+}
 function currentYear(){return years.find(function(y){return Number(y.id)===yearId;})||null;}
 function canEdit(){var y=currentYear();return !!y&&y.status==='Activo'&&Number(y.active)===1;}
 function alertsReady(){return !!state && state.alerts_ready!==false;}
@@ -290,6 +298,7 @@ $('#taca-filter').on('change',function(){
 $('#taca-reload').on('click',load);
 $('#taca-settings-open').on('click',function(){
   if(!state){toast('Selecciona un periodo con información.','warning');return;}
+  $('#taca-settings-error').remove();
   fillSettings();$('#taca-settings-modal').modal('show');
 });
 $('#taca-history-open').on('click',function(){
@@ -314,7 +323,8 @@ $('#taca-history-open').on('click',function(){
 });
 $('#taca-settings-form').on('submit',function(e){
   e.preventDefault();
-  if(!canEdit())return;
+  $('#taca-settings-error').remove();
+  if(!canEdit()||!alertsReady())return;
   var btn=$('#taca-save').prop('disabled',true);
   api({action:'save_settings',deadline_date:$('#taca-date').val(),
     notice_days_before:$('#taca-days').val(),
@@ -323,10 +333,16 @@ $('#taca-settings-form').on('submit',function(e){
     admin_edits_enabled:$('#taca-enabled-admin').is(':checked')?'1':'0'},true)
   .done(function(result){
     if(Number(result.status)===1){
-      $('#taca-settings-modal').modal('hide');toast(result.message||'Configuración guardada.');load();
+      $('#taca-settings-modal').modal('hide');
+      toast((result.message||'Configuración guardada.')+
+        (result.audit_warning?' No se pudo registrar la auditoría auxiliar.':''),result.audit_warning?'warning':'success');
+      load();
     }else toast(result.message||'No se pudo guardar.','danger');
   }).fail(function(xhr){
-    toast((xhr.responseJSON||{}).message||'No se pudo guardar.','danger');
+    var message=explainApiFailure(xhr,'No se pudo guardar la configuración');
+    $('<div>',{id:'taca-settings-error',class:'alert alert-danger',role:'alert'})
+      .text(message).insertBefore('#taca-settings-context');
+    toast('No se pudo guardar. Revisa el detalle en la ventana.','danger');
   }).always(function(){btn.prop('disabled',false);});
 });
 $('#taca-teachers-table').on('click','.taca-send',function(){
@@ -350,7 +366,7 @@ $('#taca-reminder-form').on('submit',function(e){
       $('#taca-reminder-modal').modal('hide');toast(r.message||'Recordatorio registrado.');load();
     }else toast(r.message||'No se pudo enviar el recordatorio.','warning');
   }).fail(function(xhr){
-    toast((xhr.responseJSON||{}).message||'No se pudo registrar el aviso.','danger');
+    toast(explainApiFailure(xhr,'No se pudo registrar el aviso'),'danger');
   }).always(function(){btn.prop('disabled',false);});
 });
 if(yearId)load();
