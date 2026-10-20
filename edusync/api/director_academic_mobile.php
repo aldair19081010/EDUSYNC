@@ -221,11 +221,16 @@ $yearsStmt=$conn->prepare('SELECT id,year,description,is_active FROM academic_ye
 $yearsStmt->bind_param('i',$schoolId);
 $yearsStmt->execute();
 $years=[];
-while ($row=$yearsStmt->get_result()->fetch_assoc()) {
+$yearsResult=$yearsStmt->get_result();
+if (!$yearsResult) {
+    throw new RuntimeException('No se pudo obtener el listado de años académicos.');
+}
+while ($row=$yearsResult->fetch_assoc()) {
     $row['id']=(int)$row['id'];
     $row['is_active']=(int)$row['is_active']===1;
     $years[]=$row;
 }
+$yearsResult->free();
 $yearsStmt->close();
 $requestedYear=(int)($_POST['academic_year_id'] ?? 0);
 $selectedYear=null;
