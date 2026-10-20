@@ -61,8 +61,10 @@ function rowCells(t){
       '<span class="text-success">0</span>',
     badge(t),
     canEdit()&&alertsReady()&&state&&state.period&&
-      Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0?
+      Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0&&Number(t.recipient_user_id)>0?
       '<button type="button" class="btn btn-sm btn-outline-primary taca-send" data-user="'+Number(t.recipient_user_id)+'"><i class="fas fa-paper-plane mr-1"></i>Avisar</button>':
+      Number(t.recipient_user_id)===0?
+      '<span class="badge badge-light border text-muted" title="El docente aún no tiene una cuenta de usuario docente activa">Sin cuenta</span>':
       '<button type="button" class="btn btn-sm btn-light border" disabled>—</button>'
   ];
 }
