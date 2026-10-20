@@ -1,0 +1,141 @@
+/*
+ * EduSync · consistencia visual de administración académica
+ * Gestión académica y años académicos. Solo presentación.
+ * Las vistas, filtros, acciones y estados existentes no se alteran.
+ */
+.am,.ay-shell{
+  --ac-border:#e3e6f0;
+  --ac-soft:#edf0f5;
+  --ac-text:#233b52;
+  --ac-muted:#6e7891;
+  --ac-primary:#4285f4;
+  --ac-radius:.55rem;
+  padding-top:4px;
+}
+.am .am-head,.ay-shell .ay-hero,.ay-shell .ay-manage-head{
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:.55rem .8rem;padding:.72rem .95rem;margin-bottom:.8rem;
+  background:#fff;border:1px solid var(--ac-border);border-left:4px solid var(--ac-primary);
+  border-radius:var(--ac-radius);box-shadow:none;
+}
+.am .am-heading,.ay-shell .ay-heading{display:flex;align-items:center;gap:.7rem;min-width:0}
+.am .am-icon,.ay-shell .ay-hero-icon{
+  width:38px;height:38px;min-width:38px;flex:0 0 38px;
+  display:flex;align-items:center;justify-content:center;
+  border-radius:.55rem;background:#eaf2ff;color:var(--ac-primary);
+  font-size:1.05rem;margin:0
+}
+.am .am-heading h5,.ay-shell .ay-heading h5{
+  font-size:1.16rem;line-height:1.3;margin:0;color:var(--ac-text);font-weight:700
+}
+.am .am-heading small,.ay-shell .ay-heading small{
+  display:block;font-size:.77rem;line-height:1.35;margin-top:.13rem;color:var(--ac-muted)
+}
+.am .am-head .btn,.ay-shell .ay-hero .btn{
+  min-height:34px;padding:.34rem .7rem;border-radius:.4rem;
+  font-size:.79rem;box-shadow:none;white-space:nowrap
+}
+/* Una sola zona de filtros: el restablecimiento permanece junto a los controles. */
+.am .am-toolbar{
+  display:grid;
+  grid-template-columns:minmax(135px,1.2fr) repeat(3,minmax(90px,1fr)) minmax(135px,1.4fr) minmax(92px,auto) minmax(105px,auto);
+  gap:.55rem .65rem;padding:.7rem .8rem;margin-bottom:.8rem;
+  background:#fff;border:1px solid var(--ac-border);
+  border-radius:var(--ac-radius);box-shadow:none;align-items:end
+}
+.am .am-field{min-width:0}
+.am .am-field label{
+  display:block;font-size:.74rem;line-height:1.3;font-weight:700;
+  color:#526274;margin:0 0 .22rem
+}
+.am .am-field .form-control{
+  height:34px;min-height:34px;max-width:100%;
+  border:1px solid #d8deea;border-radius:.4rem;padding:.3rem .5rem;
+  background:#fff;font-size:.79rem;box-shadow:none
+}
+.am .am-field .btn-group{display:flex;height:34px}
+.am .am-field .btn-group .btn{flex:1 1 auto;padding:.3rem .5rem;box-shadow:none}
+.am .am-reset-field .btn{min-height:34px;padding:.32rem .65rem;font-size:.79rem;white-space:nowrap;border-radius:.4rem;box-shadow:none}
+.am .am-stats{gap:.65rem;margin-bottom:.8rem}
+.am .am-stat,.ay-shell .ay-stat{
+  min-height:72px;padding:.65rem .78rem;border:1px solid var(--ac-border);
+  border-radius:var(--ac-radius);background:#fff;box-shadow:none;gap:.6rem
+}
+.am .am-stat i{
+  display:flex;align-items:center;justify-content:center;
+  width:34px;height:34px;min-width:34px;flex:0 0 34px;
+  border-radius:.5rem;background:#eef4ff;color:var(--ac-primary)
+}
+.am .am-stat strong,.ay-shell .ay-stat strong{
+  display:block;font-size:1.14rem;line-height:1.25;color:var(--ac-text);overflow-wrap:anywhere
+}
+.am .am-stat span{display:block;font-size:.74rem;line-height:1.3;color:var(--ac-muted)}
+.am .am-panel,.ay-shell > .card{
+  border:1px solid var(--ac-border);border-radius:var(--ac-radius);
+  background:#fff;overflow:hidden;box-shadow:none!important
+}
+.am .am-panel-head,.ay-shell > .card > .card-header{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;
+  gap:.4rem .7rem;min-height:40px;padding:.55rem .8rem;
+  background:#fff;border-bottom:1px solid var(--ac-soft)
+}
+.am .am-panel-head strong,.ay-shell > .card > .card-header strong{
+  color:var(--ac-text);font-size:.91rem
+}
+.am .am-body,.ay-shell > .card > .card-body{padding:.7rem .8rem}
+.am .am-bulk{padding:.5rem .65rem;gap:.45rem;margin-bottom:.65rem;border-radius:.45rem}
+.am .am-group{border-radius:.5rem;margin-bottom:.7rem}
+.am .am-group-title{padding:.55rem .8rem}
+.am .am-area{padding:.7rem .8rem}
+.am .am-course{padding:.55rem .7rem}
+.am .am-view.active{background:var(--ac-primary);border-color:var(--ac-primary);color:#fff}
+/* La configuración anual conserva pestañas y controles de cierre. */
+.ay-shell .ay-manage-head h3{font-size:1.35rem;line-height:1.35}
+.ay-shell .ay-manage-tabs{
+  gap:.25rem;padding:.32rem;border:1px solid var(--ac-border);
+  border-radius:var(--ac-radius);box-shadow:none
+}
+.ay-shell .ay-manage-tabs .nav-link{
+  padding:.48rem .72rem;border-radius:.38rem;font-size:.84rem
+}
+.ay-shell .ay-manage-tabs .nav-link.active{background:var(--ac-primary);color:#fff}
+.ay-shell .ay-section{
+  border-color:var(--ac-border);border-radius:var(--ac-radius);padding:.85rem 1rem
+}
+.ay-shell .ay-close-card{border-color:var(--ac-border);border-radius:var(--ac-radius)}
+.ay-shell .ay-admin-toolbar{border-radius:var(--ac-radius)}
+.ay-shell #years-table_wrapper .dataTables_filter,
+.ay-shell #years-table_wrapper .dataTables_length,
+.ay-shell #years-table_wrapper .dataTables_info,
+.ay-shell #years-table_wrapper .dataTables_paginate{font-size:.78rem;color:var(--ac-muted)}
+.ay-shell #years-table_wrapper :is(.dataTables_filter input,.dataTables_length select){
+  min-height:32px;border:1px solid #d8deea;border-radius:.4rem
+}
+.ay-shell :is(.table td,.table th),.am :is(.table td,.table th){vertical-align:middle}
+:is(#copyModal,#auditModal,#year-modal,#copy-modal,#info-modal,#institutional-lock-modal,#admin-close-modal) .modal-header{
+  padding:.7rem 1rem;min-height:46px;border-bottom:1px solid #edf0f5
+}
+:is(#copyModal,#auditModal,#year-modal,#copy-modal,#info-modal,#institutional-lock-modal,#admin-close-modal) .modal-header h5{
+  font-size:1rem;font-weight:700;margin:0;color:#233b52
+}
+@media(max-width:1199.98px){
+  .am .am-toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:991.98px){
+  .am .am-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:767.98px){
+  .am .am-head,.ay-shell .ay-hero,.ay-shell .ay-manage-head{align-items:flex-start}
+  .am .am-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .am .am-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ay-shell .ay-manage-tabs .nav-link{font-size:.78rem;padding:.45rem .6rem}
+}
+@media(max-width:575.98px){
+  .am .am-head,.ay-shell .ay-hero{flex-direction:column}
+  .am .am-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .am .am-reset-field{grid-column:1/-1}
+  .am .am-reset-field .btn{width:100%}
+  .am .am-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ay-shell .ay-hero > :last-child{display:flex;gap:.4rem;flex-wrap:wrap;width:100%}
+  .ay-shell .ay-hero > :last-child .btn{flex:1 1 auto;margin:0}
+}

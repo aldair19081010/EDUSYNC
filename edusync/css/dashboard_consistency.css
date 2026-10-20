@@ -1,0 +1,210 @@
+/*
+ * EduSync · panel principal, riesgo y reportes — consistencia visual
+ * Solo presentación. No cambia métricas, clasificaciones, flujos o exportaciones.
+ * Los colores funcionales de riesgo, estado y alerta permanecen intactos.
+ */
+:is(.hd,.cr-wrap,.ir-page,.gr-report-shell){
+  --db-border:#e3e6f0;
+  --db-soft:#edf0f5;
+  --db-primary:#4285f4;
+  --db-text:#233b52;
+  --db-muted:#6e7891;
+  --db-radius:.55rem
+}
+/* Encabezados compactos, con altura coherente y jerarquía compartida. */
+:is(.hd .hd-hero,.cr-wrap .cr-hero,.ir-page .ir-hero,.gr-report-shell .gr-report-hero){
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:.55rem .85rem;
+  padding:.75rem .95rem;margin-bottom:.8rem!important;
+  background:#fff;border:1px solid var(--db-border);
+  border-left:4px solid var(--db-primary);
+  border-radius:var(--db-radius);box-shadow:none
+}
+:is(.hd .hd-title,.cr-wrap .cr-title,.ir-page .ir-hero h1,.gr-report-shell .gr-report-hero h1){
+  font-size:1.17rem;font-weight:700;line-height:1.3;color:var(--db-text);margin:0
+}
+:is(.hd .hd-muted,.cr-wrap .cr-sub,.ir-page .ir-hero p,.gr-report-shell .gr-report-hero p){
+  font-size:.78rem;line-height:1.42;color:var(--db-muted);margin:.15rem 0 0
+}
+:is(.cr-wrap .cr-hero,.ir-page .ir-hero,.gr-report-shell .gr-report-hero) :is(.btn,.form-control){
+  font-size:.79rem;min-height:34px;border-radius:.4rem;box-shadow:none
+}
+.hd .hd-logo{width:44px;height:44px;padding:3px;margin-right:.7rem;border-radius:.45rem}
+.hd .hd-year{padding:.35rem .65rem;border-radius:.4rem;flex:0 0 auto}
+.hd .hd-card{
+  min-height:100px;padding:.72rem .8rem;
+  border:1px solid var(--db-border);border-radius:var(--db-radius);box-shadow:none
+}
+.hd .hd-label{font-size:.74rem;line-height:1.3}
+.hd .hd-value{font-size:1.14rem;line-height:1.25;margin-top:.45rem}
+.hd .hd-icon{width:34px;height:34px;flex:0 0 34px;border-radius:.45rem}
+.hd .hd-box{border-radius:var(--db-radius);box-shadow:none}
+.hd .hd-head{
+  min-height:40px;padding:.55rem .8rem;
+  border-bottom:1px solid var(--db-soft);gap:.45rem;flex-wrap:wrap
+}
+.hd .hd-head h5{font-size:.91rem;line-height:1.3;color:var(--db-text)}
+.hd .hd-list{padding:.25rem .8rem}
+.hd .hd-item{padding:.58rem 0}
+.hd .hd-analysis{padding:.75rem .85rem}
+.hd .hd-mini{padding:.6rem .75rem}
+.hd .hd-mini strong{font-size:1.12rem}
+.hd .hd-chart{padding:.7rem}
+.hd .hd-action{padding:.48rem .65rem;min-height:34px;font-size:.79rem}
+.hd .hd-profile-tools .hd-action{min-height:62px;padding:.72rem}
+.hd .hd-tool-icon{width:36px;height:36px;flex:0 0 36px}
+.hd .hd-table-wrap{max-width:100%}
+.hd .hd-tabs{gap:.25rem;flex-wrap:wrap}
+.hd .hd-tabs .nav-link{font-size:.78rem;padding:.48rem .65rem}
+/* Riesgo: tarjetas y filtros más densos. No modificar estilos .cr-Alto,
+   .cr-Medio, .cr-Bajo, .cr-status-*, .cr-warning ni .cr-danger. */
+.cr-wrap{padding-top:4px}
+.cr-wrap .cr-sub{max-width:900px}
+.cr-wrap .cr-box,.cr-wrap .cr-card{border-radius:var(--db-radius);box-shadow:none}
+.cr-wrap .cr-card{padding:.7rem .8rem}
+.cr-wrap .cr-card strong{font-size:1.16rem;line-height:1.25;margin-top:.17rem}
+.cr-wrap .cr-card small{font-size:.74rem;line-height:1.3}
+.cr-wrap .cr-icon{width:36px;height:36px}
+.cr-wrap .cr-head{min-height:40px;padding:.55rem .8rem;gap:.4rem .7rem}
+.cr-wrap .cr-head h5{font-size:.91rem;line-height:1.3;color:var(--db-text)}
+.cr-wrap .cr-body{padding:.7rem .8rem}
+.cr-wrap .cr-filter label{
+  display:block;font-size:.74rem;font-weight:700;line-height:1.3;
+  margin-bottom:.22rem;letter-spacing:0;text-transform:none;color:#526274
+}
+.cr-wrap .cr-filter .form-control{
+  min-height:34px;height:34px;padding:.3rem .55rem;
+  border:1px solid #d8deea;border-radius:.4rem;font-size:.79rem;box-shadow:none
+}
+.cr-wrap .cr-filter .btn{
+  min-height:34px;padding:.3rem .6rem;border-radius:.4rem;font-size:.79rem;box-shadow:none
+}
+.cr-wrap .cr-help{padding:.65rem .8rem;font-size:.78rem;border-radius:var(--db-radius)}
+.cr-wrap .cr-pagination{padding:.5rem .8rem}
+.cr-wrap .cr-table th,.cr-wrap .cr-table td{vertical-align:middle}
+.cr-wrap .cr-table{margin-bottom:0}
+/* Catálogo institucional: menos repetición de tarjetas, buscador accesible. */
+.ir-page{padding-top:4px}
+.ir-page .ir-tools{min-width:220px;gap:.4rem}
+.ir-page .ir-tools label{font-size:.74rem;margin-bottom:.2rem}
+.ir-page .ir-tools .input-group{max-width:340px}
+.ir-page .ir-tools .form-control{height:34px}
+.ir-page .report-catalog{margin-bottom:.9rem}
+.ir-page .catalog-title{font-size:.94rem;color:var(--db-text)}
+.ir-page .catalog-card{
+  border:1px solid var(--db-border);
+  border-radius:var(--db-radius);
+  box-shadow:none;padding:.8rem .9rem;transition:border-color .15s,box-shadow .15s
+}
+.ir-page .catalog-card:hover{transform:none;box-shadow:0 .15rem .55rem rgba(35,59,82,.07)}
+.ir-page .catalog-card h6{font-size:.92rem;line-height:1.35;margin:.6rem 0 .35rem}
+.ir-page .catalog-card p{font-size:.78rem;line-height:1.4}
+.ir-page .catalog-card .btn{font-size:.78rem;padding:.35rem .65rem;box-shadow:none}
+.ir-page .catalog-number{width:27px;height:27px}
+.ir-page .ficha-option{padding:.85rem;margin-bottom:.8rem;border-radius:var(--db-radius);box-shadow:none}
+.ir-page .ficha-option:hover{transform:none;box-shadow:0 .15rem .55rem rgba(35,59,82,.07)}
+.ir-page .report-icon{width:36px;height:36px;flex:0 0 36px}
+.ir-page .card.shadow{box-shadow:none!important;border:1px solid var(--db-border);border-radius:var(--db-radius)}
+.ir-page .card.shadow > .card-header{padding:.55rem .8rem!important;background:#fff}
+.ir-page .card.shadow > .card-body{padding:.8rem}
+.ir-page :is(.form-control,.select2-container--default .select2-selection--single){
+  border-radius:.4rem;border-color:#d8deea
+}
+/* Reporte de notas: botones/controles propios, preservando filtros y DataTables. */
+.gr-report-shell{padding-top:4px}
+.gr-report-shell .gr-filter-card,.gr-report-shell .gr-results-card{
+  border:1px solid var(--db-border);border-radius:var(--db-radius);box-shadow:none
+}
+.gr-report-shell .gr-filter-card > .card-header,
+.gr-report-shell .gr-results-card > .card-header{
+  min-height:40px;padding:.55rem .8rem;background:#fff;
+  border-bottom:1px solid var(--db-soft)
+}
+.gr-report-shell .gr-filter-card .card-body{padding:.7rem .8rem .35rem}
+.gr-report-shell .gr-results-card .card-body{padding:.7rem .8rem}
+.gr-report-shell .gr-filter-card label{
+  display:block;margin-bottom:.22rem;font-size:.74rem;font-weight:700;color:#526274
+}
+.gr-report-shell .gr-filter-card .form-control{
+  min-height:34px;height:34px;padding:.3rem .55rem;border:1px solid #d8deea;
+  border-radius:.4rem;font-size:.79rem;box-shadow:none
+}
+.gr-report-shell .gr-filter-card .btn,.gr-report-shell .gr-tabs .btn{
+  min-height:31px;font-size:.78rem;padding:.3rem .6rem;border-radius:.4rem;box-shadow:none
+}
+.gr-report-shell .select2-container{max-width:100%!important}
+.gr-report-shell .select2-container .select2-selection--single{height:34px!important}
+.gr-report-shell .select2-container .select2-selection__rendered{line-height:32px!important}
+.gr-report-shell .select2-container .select2-selection__arrow{height:32px!important}
+.gr-report-shell .dataTables_wrapper :is(.dataTables_filter,.dataTables_length,.dataTables_info,.dataTables_paginate){
+  font-size:.78rem;color:var(--db-muted)
+}
+.gr-report-shell .dataTables_wrapper :is(.dataTables_filter input,.dataTables_length select){
+  min-height:32px;border:1px solid #d8deea;border-radius:.4rem
+}
+@media(max-width:767.98px){
+  :is(.hd .hd-hero,.cr-wrap .cr-hero,.ir-page .ir-hero,.gr-report-shell .gr-report-hero){align-items:flex-start}
+  .hd .hd-hero{gap:.5rem}
+  .ir-page .ir-tools{width:100%;min-width:0}
+  .ir-page .ir-tools .input-group{max-width:none}
+  .cr-wrap .cr-head{align-items:flex-start}
+}
+@media(max-width:575.98px){
+  :is(.hd .hd-hero,.cr-wrap .cr-hero,.ir-page .ir-hero,.gr-report-shell .gr-report-hero){flex-direction:column}
+  .hd .hd-year{width:100%;text-align:left;margin:0}
+  .hd .hd-profile-tools .hd-actions{grid-template-columns:1fr}
+  .cr-wrap .cr-hero .btn,.gr-report-shell .gr-report-hero .btn{width:100%;margin:0!important}
+  .cr-wrap .cr-card strong{font-size:1.12rem}
+  .hd .hd-bar{grid-template-columns:68px minmax(0,1fr) 50px}
+}
+
+
+/* Detalle de notas bajas abierto desde notificaciones.
+   Conserva badges, colores y promedios; evita estilos globales heredados. */
+.low-grades-page{padding-top:4px!important;--lg-border:#e3e6f0;--lg-soft:#edf0f5;--lg-text:#233b52}
+.low-grades-page > .card.shadow{
+  border:1px solid var(--lg-border);border-radius:.55rem;
+  box-shadow:none!important;overflow:hidden
+}
+.low-grades-page > .card.shadow > .card-header{
+  min-height:44px;padding:.68rem .88rem;
+  border-bottom:1px solid var(--lg-soft)
+}
+.low-grades-page > .card.shadow > .card-header h5{
+  font-size:1.08rem;line-height:1.32;font-weight:700
+}
+.low-grades-page > .card.shadow > .card-body{padding:.8rem .9rem}
+.low-grades-page .student-info{
+  padding:.7rem .8rem!important;border-left-width:4px;
+  border-radius:.45rem!important;margin-bottom:.9rem!important
+}
+.low-grades-page .student-info h5{font-size:1rem;line-height:1.3}
+.low-grades-page .student-info .row.small > [class*="col-"]{
+  margin-top:.3rem;min-width:0
+}
+.low-grades-page .student-info small{font-size:.73rem}
+.low-grades-page .student-info p{font-size:.83rem;overflow-wrap:anywhere}
+.low-grades-page .card.mb-3{
+  border:1px solid var(--lg-border);
+  border-radius:.5rem;overflow:hidden;box-shadow:none
+}
+.low-grades-page .card.mb-3 > .card-header{
+  padding:.55rem .8rem;background:#f8f9fc;
+  border-bottom:1px solid var(--lg-soft)
+}
+.low-grades-page .card.mb-3 > .card-body{padding:.7rem .8rem}
+.low-grades-page .table-responsive{max-width:100%}
+.low-grades-page .table thead th{
+  font-size:.77rem;line-height:1.3;color:#526274;
+  padding:.6rem .7rem;vertical-align:middle
+}
+.low-grades-page .table tbody td{
+  padding:.57rem .7rem;font-size:.84rem;vertical-align:middle
+}
+.low-grades-page .competencia-block{padding:.65rem .75rem;border-radius:.45rem}
+.low-grades-page .badge{font-size:.72rem}
+.low-grades-page .alert{border-radius:.5rem}
+@media(max-width:767.98px){
+  .low-grades-page > .card.shadow > .card-body{padding:.65rem}
+  .low-grades-page .student-info{padding:.6rem .7rem!important}
+}

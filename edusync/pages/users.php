@@ -191,7 +191,8 @@ function user_role_badge($row) {
 @media(max-width:1199.98px){.users-toolbar--students{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:991.98px){.users-toolbar--personal{grid-template-columns:repeat(2,minmax(0,1fr))}.users-toolbar-note{grid-column:1/-1;justify-self:start;padding-bottom:0}}@media(max-width:767.98px){.users-toolbar--students{grid-template-columns:repeat(2,minmax(0,1fr))}.user-hero{padding:1rem}.user-stat{margin-bottom:.5rem}.access-tabs{display:grid;grid-template-columns:1fr}.access-tab{width:100%}}@media(max-width:575.98px){.users-toolbar--personal,.users-toolbar--students{grid-template-columns:1fr}}
 </style>
 
-<div class="container-fluid px-0">
+<link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/operational_consistency.css') ?: 1); ?>">
+<div class="container-fluid px-0 users-page">
     <div class="user-hero d-sm-flex align-items-center justify-content-between ed-page-header">
         <div class="ed-page-heading" style="display:block!important">
             <h1 class="ed-page-title"><i class="fas fa-users-cog mr-2 text-primary"></i>Usuarios y Accesos</h1>

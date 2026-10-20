@@ -22,28 +22,80 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
 }
 ?>
 <style>
-.nt-head{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.55rem;padding:1.05rem 1.25rem}
-.nt-stat{background:#fff;border:1px solid #e3e6f0;border-radius:.55rem;padding:.9rem 1rem;height:100%}
+.nt-head{background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4285f4;border-radius:.55rem;padding:.8rem 1rem;gap:.65rem}
+.nt-stat{background:#fff;border:1px solid #e3e6f0;border-radius:.55rem;padding:.65rem .85rem;height:100%}
 .nt-stat small{display:block;color:#6e7891;font-size:.72rem;font-weight:700;text-transform:uppercase}
-.nt-stat strong{font-size:1.35rem;color:#263754}
-.nt-filter{background:#fff;border:1px solid #e3e6f0;border-radius:.55rem;padding:.8rem 1rem}
-.nt-tabs{background:#fff;border:1px solid #e3e6f0;border-bottom:0;border-radius:.55rem .55rem 0 0;padding:.65rem 1rem}
-.nt-panel{background:#fff;border:1px solid #e3e6f0;border-radius:0 0 .55rem .55rem;padding:1rem}
+.nt-stat strong{font-size:1.2rem;color:#263754;line-height:1.25;display:block;margin-top:.14rem}
+.nt-filter{background:#fff;border:1px solid #e3e6f0;border-radius:.55rem;padding:.65rem .85rem}
+.nt-tabs{background:#fff;border:1px solid #e3e6f0;border-bottom:0;border-radius:.55rem .55rem 0 0;padding:.5rem .7rem;gap:.45rem}
+.nt-panel{background:#fff;border:1px solid #e3e6f0;border-radius:0 0 .55rem .55rem;padding:0;overflow:hidden}
 .nt-title{font-weight:700;color:#263754}
 .nt-message{font-size:.82rem;color:#6e7891;line-height:1.35;margin-top:.15rem}
-.nt-unread .nt-title:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#4e73df;margin-right:7px}
+.nt-unread .nt-title:before{content:'';display:inline-block;width:7px;height:7px;border-radius:50%;background:#4285f4;margin-right:7px}
 .nt-actions{white-space:nowrap}
 .nt-priority{font-size:.7rem}
 .nt-date{white-space:nowrap;font-size:.82rem;color:#5e6679}
 .nt-resolved{background:#fbfcfe}
-.nt-type-icon{width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#edf3ff;color:#4e73df;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem}
+.nt-type-icon{width:32px;height:32px;flex:0 0 32px;border-radius:9px;background:#edf3ff;color:#4285f4;display:inline-flex;align-items:center;justify-content:center;font-size:.85rem}
 .nt-type-icon.attendance{background:#fff6e5;color:#b7791f}
 .nt-type-icon.alert{background:#fff0f0;color:#be3d3d}
 .nt-type-icon.finance{background:#eefaf1;color:#288452}
 .nt-event-copy{min-width:0;overflow-wrap:anywhere}
 .nt-actions .btn{padding:.32rem .48rem}
-@media(max-width:575px){.nt-stat{padding:.68rem .76rem}.nt-stat strong{font-size:1.12rem}.nt-panel{padding:.7rem}.nt-tabs{padding:.65rem}.nt-filter{padding:.7rem}}
+@media(max-width:575px){.nt-stat{padding:.55rem .65rem}.nt-stat strong{font-size:1.12rem}.nt-tabs{padding:.45rem .55rem}.nt-filter{padding:.55rem .65rem}}
 @media(max-width:767px){.nt-tabs .btn-group{display:flex;flex-wrap:wrap}.nt-tabs .btn{flex:1 0 42%}}
+
+/* Misma densidad de las tablas estándar de EduSync: controles nativos, sin duplicados. */
+.nt-head h1{font-size:1.15rem;font-weight:700;line-height:1.3}
+.nt-head .small{font-size:.78rem;line-height:1.35}
+.nt-filter .form-row{margin-bottom:0}
+.nt-filter .form-row > [class*="col-"]{margin-bottom:0!important}
+.nt-filter label{display:block;font-size:.75rem;margin-bottom:.22rem!important}
+.nt-filter .form-control-sm{min-height:32px;height:32px}
+.nt-filter #nt-clear{height:32px;min-height:32px}
+.nt-tabs .btn-group{flex-wrap:wrap;gap:.25rem}
+.nt-tabs .btn{font-size:.76rem;padding:.28rem .6rem;border-radius:.36rem!important;margin:0!important}
+#nt-table_wrapper{margin:0!important}
+#nt-table_wrapper > .row:first-child,
+#nt-table_wrapper > .row:last-child{margin:0!important;padding:.4rem .75rem!important;align-items:center}
+#nt-table_wrapper > .row:first-child{background:#f8f9fc;border-bottom:1px solid #edf0f5}
+#nt-table_wrapper > .row:last-child{border-top:1px solid #edf0f5}
+#nt-table_wrapper > .row > [class*="col-"]{padding:0!important}
+#nt-table_wrapper .dataTables_filter,
+#nt-table_wrapper .dataTables_length,
+#nt-table_wrapper .dataTables_info,
+#nt-table_wrapper .dataTables_paginate{
+    margin:0!important;padding:0!important;color:#6e7891;font-size:.78rem;line-height:1.2
+}
+#nt-table_wrapper .dataTables_filter label,
+#nt-table_wrapper .dataTables_length label{
+    display:inline-flex;align-items:center;gap:.4rem;
+    white-space:nowrap;margin:0!important;font-size:.78rem
+}
+#nt-table_wrapper .dataTables_filter input,
+#nt-table_wrapper .dataTables_length select{
+    box-sizing:border-box;height:30px;min-height:30px;margin:0!important;
+    background:#fff;border:1px solid #d8deea;border-radius:.35rem;
+    font-size:.78rem;color:#49566a
+}
+#nt-table_wrapper .dataTables_filter input{width:165px;padding:.2rem .5rem}
+#nt-table_wrapper .dataTables_length select{width:65px;padding:.15rem 1.35rem .15rem .45rem}
+#nt-table_wrapper .pagination{margin:0!important}
+#nt-table{margin:0!important;width:100%!important}
+#nt-table thead th{background:#f8f9fc;color:#526274;font-size:.76rem;border-top:0}
+#nt-table tbody td{vertical-align:middle;font-size:.82rem}
+@media(max-width:767.98px){
+    .nt-filter .form-row>[class*="col-"]{margin-bottom:.5rem!important}
+    #nt-table_wrapper > .row:first-child,
+    #nt-table_wrapper > .row:last-child{row-gap:.4rem}
+    #nt-table_wrapper > .row > [class*="col-"]{
+       flex:0 0 100%;max-width:100%;text-align:left!important
+    }
+    #nt-table_wrapper .dataTables_filter,
+    #nt-table_wrapper .dataTables_length,
+    #nt-table_wrapper .dataTables_paginate,
+    #nt-table_wrapper .dataTables_info{text-align:left!important}
+}
 </style>
 
 <div class="container-fluid py-3">
@@ -74,7 +126,7 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
             <div class="col-lg-3 col-md-4 mb-2"><label class="small font-weight-bold">Tipo</label><select id="nt-category" class="form-control form-control-sm"><option value="">Todos</option><option>Asistencia</option><option>Académica</option><option>Alerta estudiantil</option><option>Sistema</option></select></div>
             <div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Prioridad</label><select id="nt-priority" class="form-control form-control-sm"><option value="">Todas</option><option>Alta</option><option>Normal</option><option>Baja</option></select></div>
             <div class="col-lg-2 col-md-4 mb-2"><label class="small font-weight-bold">Lectura</label><select id="nt-state" class="form-control form-control-sm"><option value="">Todas</option><option value="unread">Sin leer</option><option value="read">Leídas</option></select></div>
-            <div class="col-lg-1 col-md-4 mb-2 d-flex align-items-end"><button id="nt-clear" class="btn btn-light border btn-sm btn-block"><i class="fas fa-eraser"></i></button></div>
+            <div class="col-lg-1 col-md-4 mb-2 d-flex align-items-end"><button id="nt-clear" type="button" class="btn btn-light border btn-sm btn-block" title="Limpiar filtros" aria-label="Limpiar filtros"><i class="fas fa-eraser" aria-hidden="true"></i></button></div>
         </div>
     </div>
 
@@ -93,8 +145,8 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
     </div>
 
     <div class="nt-panel">
-        <div class="table-responsive">
-            <table id="nt-table" class="table table-hover table-sm" width="100%">
+        <div class="table-responsive ed-table-responsive">
+            <table id="nt-table" class="table table-hover table-sm ed-table" width="100%">
                 <thead><tr><th>Fecha</th><th>Notificación</th><th>Tipo</th><th>Prioridad</th><th>Estado</th><th>Acciones</th></tr></thead>
                 <tbody></tbody>
             </table>

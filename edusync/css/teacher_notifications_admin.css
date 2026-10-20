@@ -4,7 +4,7 @@
 #teacher-followup-root .tf-stat{
   display:flex;align-items:center;gap:.8rem;min-height:65px;
   padding:.7rem 1rem;background:#fff;border:1px solid #e3e6f0;
-  border-left:4px solid #4e73df;border-radius:.45rem
+  border-left:4px solid #4285f4;border-radius:.45rem
 }
 #teacher-followup-root .tf-stat-success{border-left-color:#1cc88a}
 #teacher-followup-root .tf-stat-warning{border-left-color:#f6c23e}
@@ -42,6 +42,83 @@
   font-size:.78rem;color:#858796;padding-top:.65rem
 }
 #teacher-followup-root #taca-teachers-table_wrapper .pagination{margin-top:.45rem}
+
+/* Seguimiento docente: misma densidad de controles que Cobranza y Comunicados. */
+#teacher-followup-root .tf-page-header{
+  padding:.7rem .9rem;background:#fff;border:1px solid #e3e6f0;
+  border-left:4px solid #4285f4;border-radius:.55rem;gap:.65rem
+}
+#teacher-followup-root .tf-page-header h1{font-size:1.15rem;font-weight:700;line-height:1.3}
+#teacher-followup-root .tf-page-header p{font-size:.78rem;line-height:1.35}
+#teacher-followup-root .tf-top-actions{display:flex;align-items:center;gap:.35rem}
+#teacher-followup-root .tf-top-actions .btn{margin:0!important;height:32px;font-size:.78rem}
+#teacher-followup-root .tf-filter-card,
+#teacher-followup-root .tf-table-card{border:1px solid #e3e6f0!important;border-radius:.55rem;box-shadow:none!important;overflow:hidden}
+#teacher-followup-root .tf-filter-card .card-body{padding:.7rem .85rem!important}
+#teacher-followup-root .tf-filter-card .form-row{margin-bottom:0}
+#teacher-followup-root .tf-filter-card .form-group{margin-bottom:0!important}
+#teacher-followup-root .tf-filter-card label{font-size:.75rem;margin-bottom:.22rem!important}
+#teacher-followup-root .tf-filter-card .form-control-sm{height:32px;min-height:32px}
+#teacher-followup-root .tf-table-header{
+    min-height:40px;padding:.55rem .85rem!important;border-bottom:1px solid #edf0f5;
+    gap:.4rem
+}
+#teacher-followup-root .tf-table-header strong{font-size:.91rem;color:#233b52}
+#teacher-followup-root .tf-table-header #taca-teacher-count{margin-top:0!important;font-size:.7rem}
+#teacher-followup-root #taca-teachers-table{margin:0!important;width:100%!important}
+#teacher-followup-root #taca-teachers-table_wrapper{margin:0!important}
+#teacher-followup-root #taca-teachers-table_wrapper > .row:first-child,
+#teacher-followup-root #taca-teachers-table_wrapper > .row:last-child{
+    display:flex;align-items:center;margin:0!important;padding:.4rem .75rem!important
+}
+#teacher-followup-root #taca-teachers-table_wrapper > .row:first-child{
+    background:#f8f9fc;border-bottom:1px solid #edf0f5
+}
+#teacher-followup-root #taca-teachers-table_wrapper > .row:last-child{
+    border-top:1px solid #edf0f5
+}
+#teacher-followup-root #taca-teachers-table_wrapper > .row > [class*="col-"]{
+    padding:0!important
+}
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_length,
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_filter,
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_info,
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_paginate{
+    margin:0!important;padding:0!important;font-size:.78rem!important;line-height:1.2
+}
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_filter label,
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_length label{
+    display:inline-flex;align-items:center;gap:.4rem;
+    margin:0!important;font-size:.78rem;white-space:nowrap
+}
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_length select,
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_filter input{
+    height:30px!important;min-height:30px!important;
+    border:1px solid #d8deea!important;border-radius:.35rem!important;
+    background:#fff!important;box-sizing:border-box;
+    margin:0!important;font-size:.78rem;color:#49566a;padding:.2rem .5rem
+}
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_length select{
+    min-width:65px;width:65px;padding:.15rem 1.35rem .15rem .45rem!important
+}
+#teacher-followup-root #taca-teachers-table_wrapper .dataTables_filter input{
+    min-width:0;width:165px;max-width:100%
+}
+#teacher-followup-root #taca-teachers-table_wrapper .pagination{margin:0!important}
+@media(max-width:767.98px){
+    #teacher-followup-root .tf-page-header{align-items:flex-start}
+    #teacher-followup-root .tf-filter-card .form-group{margin-bottom:.5rem!important}
+    #teacher-followup-root #taca-teachers-table_wrapper > .row:first-child,
+    #teacher-followup-root #taca-teachers-table_wrapper > .row:last-child{row-gap:.4rem}
+    #teacher-followup-root #taca-teachers-table_wrapper > .row > [class*="col-"]{
+        flex:0 0 100%;max-width:100%;text-align:left!important
+    }
+    #teacher-followup-root #taca-teachers-table_wrapper .dataTables_filter,
+    #teacher-followup-root #taca-teachers-table_wrapper .dataTables_length,
+    #teacher-followup-root #taca-teachers-table_wrapper .dataTables_info,
+    #teacher-followup-root #taca-teachers-table_wrapper .dataTables_paginate{text-align:left!important}
+}
+
 #taca-settings-modal .modal-content,#taca-history-modal .modal-content,
 #taca-reminder-modal .modal-content{border-radius:.6rem}
 #taca-history-modal .table td{vertical-align:middle}

@@ -408,19 +408,64 @@ if ($years_query) {
 .student-add-menu .menu-icon { width:38px; height:38px; flex:0 0 38px; display:flex; align-items:center; justify-content:center; border-radius:8px; margin-right:10px; }
 .student-add-menu .menu-copy { min-width:0; }.student-add-menu .menu-title { display:block; color:#2c4964; font-size:.88rem; font-weight:700; line-height:1.2; }.student-add-menu .menu-description { display:block; color:#858796; font-size:.72rem; line-height:1.25; margin-top:3px; }
 .student-menu-new { background:#e8f0fe; color:#2e59d9; }.student-menu-upload { background:#e8f9f0; color:#1e7e34; }.student-menu-template { background:#fff3cd; color:#856404; }.student-menu-export { background:#e2e3e5; color:#5a5c69; }
+
+/* Gestión de Estudiantes: encabezado, filtros, tarjetas y formularios compactos. */
+.ed-students-page{padding:.25rem 0!important}
+.ed-students-page .ed-students-header{margin-bottom:.85rem!important;gap:.65rem;padding:.75rem 1rem!important}
+.ed-students-page .ed-page-heading{min-width:0}
+.ed-students-page .ed-page-title{font-size:1.17rem!important;line-height:1.3;margin:0}
+.ed-students-page .ed-page-heading .small{font-size:.77rem;line-height:1.3}
+.ed-students-page .ed-page-icon{width:38px;height:38px;flex:0 0 38px}
+.ed-students-page .ed-page-actions .btn{height:34px;font-size:.8rem;padding:.35rem .7rem}
+.ed-students-page .students-card{
+    border:1px solid #e3e6f0!important;border-radius:.55rem!important;
+    box-shadow:none!important;overflow:visible;transition:none!important
+}
+.ed-students-page .students-card:hover{transform:none!important;box-shadow:none!important}
+.ed-students-page .students-card > .card-header{
+    min-height:40px;padding:.55rem .85rem!important;border-bottom:1px solid #edf0f5;
+    font-size:.92rem!important;background:#fff
+}
+.ed-students-page .students-card > .card-header .card-title{font-size:.92rem;font-weight:700}
+.ed-students-page .students-card > .card-body{padding:.7rem .85rem!important}
+.ed-students-page .filter-bar-students{
+    gap:.55rem .75rem;align-items:end;background:#f8f9fc;border:1px solid #edf0f5;
+    border-radius:.45rem;padding:.65rem .75rem;margin-bottom:.75rem
+}
+.ed-students-page .filter-bar-students .filter-group{gap:.2rem;min-width:0}
+.ed-students-page .filter-bar-students .filter-group label{font-size:.74rem;line-height:1.3}
+.ed-students-page .filter-bar-students .form-control-sm{height:32px;min-height:32px;font-size:.79rem}
+.ed-students-page .ed-students-filter-actions{justify-content:flex-end;gap:.4rem;flex-wrap:wrap}
+.ed-students-page .ed-students-filter-actions .btn{height:32px;white-space:nowrap;font-size:.78rem}
+.ed-students-page .student-table th,.ed-students-page .student-table td{
+    padding:.55rem .7rem!important;font-size:.81rem
+}
+.ed-students-page .student-table tbody tr:hover{
+    transform:none!important;box-shadow:none!important;background:#f7faff!important
+}
+.ed-students-page .student-table-container{min-height:0}
+#uploadExcelModal .ed-import-modal-header{background:#fff;border-bottom:1px solid #edf0f5}
+#uploadExcelModal .modal-content,#bulkStudentsModal .modal-content{border-radius:.6rem}
+@media(max-width:767.98px){
+    .ed-students-page .ed-students-header{padding:.65rem .75rem!important}
+    .ed-students-page .filter-bar-students{padding:.55rem .6rem}
+    .ed-students-page .filter-bar-students .filter-group{width:100%}
+    .ed-students-page .ed-students-filter-actions{justify-content:flex-start;width:100%;margin-left:0!important}
+    .ed-students-page .students-card > .card-body{padding:.5rem!important}
+}
 </style>
 
-<div class="main-content-area">
-	<div class="d-sm-flex align-items-center justify-content-between mb-4">
-		<div class="d-flex align-items-center">
-			<div class="title-icon mr-3"><i class="fa fa-graduation-cap fa-lg"></i></div>
+<div class="main-content-area ed-students-page">
+	<div class="ed-page-header ed-students-header">
+		<div class="ed-page-heading">
+			<div class="ed-page-icon"><i class="fa fa-graduation-cap" aria-hidden="true"></i></div>
 			<div>
-				<h1 class="h3 mb-0 text-gray-800">Gestión de Estudiantes</h1>
+				<h1 class="ed-page-title">Gestión de Estudiantes</h1>
 				<div class="small text-muted">Lista, filtros y acciones principales · Año activo predeterminado: <strong><?php echo htmlspecialchars($active_year['year'] ?? 'No configurado', ENT_QUOTES, 'UTF-8'); ?><?php echo !empty($active_year['description']) ? ' - ' . htmlspecialchars($active_year['description'], ENT_QUOTES, 'UTF-8') : ''; ?></strong></div>
 			</div>
 		</div>
-		<div class="d-flex align-items-center">
-			<?php if ($can_manage_students): ?><div class="btn-group mr-2">
+		<div class="ed-page-actions">
+			<?php if ($can_manage_students): ?><div class="btn-group">
 				<button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-plus mr-1"></i>Agregar / importar</button>
 				<div class="dropdown-menu dropdown-menu-right student-add-menu">
 					<h6 class="dropdown-header">Registro</h6>
@@ -435,16 +480,12 @@ if ($years_query) {
 		</div>
 	</div>
 	
-	<div class="row mb-4">
-		<div class="col-md-12"></div>
-	</div>
-	
 	<div class="row">
 		<!-- Table Panel -->
 		<div class="col-md-12">
-			<div class="card shadow mb-4 students-card">
-				<div class="card-header py-3 d-flex align-items-center justify-content-between">
-					<h5 class="card-title mb-0"><i class="fa fa-list mr-2"></i>Lista de Estudiantes</h5>
+			<div class="card mb-3 students-card">
+				<div class="card-header d-flex align-items-center justify-content-between">
+					<h5 class="card-title mb-0"><i class="fa fa-list mr-2 text-primary"></i>Lista de estudiantes</h5>
 				</div>
 				<div class="card-body">
 					<!-- Barra de Filtros -->
@@ -479,7 +520,7 @@ if ($years_query) {
                                 <option value="Retirado">Retirado</option>
                             </select>
                         </div>
-                        <div class="filter-group ml-auto d-flex flex-row align-items-end" style="justify-content: flex-end; gap: 8px;">
+                        <div class="filter-group ml-auto d-flex flex-row align-items-end ed-students-filter-actions">
 							<button id="export_csv" class="btn btn-outline-success btn-sm" title="Exportar CSV"><i class="fa fa-file-csv mr-1"></i> Exportar</button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="clear_students_filters" title="Limpiar filtros">
                                 <i class="fa fa-times mr-1"></i> Limpiar
@@ -585,7 +626,7 @@ if ($years_query) {
 <div class="modal fade" id="uploadExcelModal" tabindex="-1" role="dialog" aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
 	<div class="modal-dialog" role="document">
 		<div class="modal-content">
-			<div class="modal-header" style="background: linear-gradient(to right, #f8f9fc, #fff);">
+			<div class="modal-header ed-import-modal-header">
 				<h5 class="modal-title" id="uploadExcelModalLabel">
 					<i class="fa fa-file-excel text-success mr-2"></i>Subir Archivo Excel
 				</h5>

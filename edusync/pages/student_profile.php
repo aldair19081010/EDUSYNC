@@ -57,7 +57,8 @@ if ($passwordChangedAt !== '') {
 }
 ?>
 
-<div class="container-fluid">
+<link rel="stylesheet" href="css/student_portal_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/student_portal_consistency.css') ?: 1); ?>">
+<div class="container-fluid student-profile-page">
     <div class="row">
         <div class="col-md-8">
             <div class="form-group">
@@ -200,21 +201,21 @@ if ($passwordChangedAt !== '') {
 </div>
 
 <style>
-    .form-group {
+    .student-profile-page .form-group {
         margin-bottom: 1rem;
     }
     
-    .form-control {
+    .student-profile-page .form-control {
         border-radius: 0.5rem;
         border: 1px solid #e3e6f0;
     }
     
-    .card {
+    .student-profile-page .card {
         border-radius: 10px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
-    .card-header {
+    .student-profile-page .card-header {
         background-color: #4285f4 !important;
         border-radius: 10px 10px 0 0;
     }

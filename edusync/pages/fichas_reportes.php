@@ -1,32 +1,32 @@
 <?php include 'db_connect.php'; ?>
 
 <style>
-.select2-container--default .select2-selection--single {
+.ir-page .select2-container--default .select2-selection--single {
     height: calc(1.5em + 0.75rem + 2px) !important;
     padding: 0.375rem 0.75rem;
     border: 1px solid #d1d3e2;
     border-radius: 0.35rem;
 }
 
-.select2-container--default .select2-selection--single .select2-selection__rendered {
+.ir-page .select2-container--default .select2-selection--single .select2-selection__rendered {
     line-height: calc(1.5em + 0.75rem) !important;
     color: #6e707e;
 }
 
-.select2-container--default .select2-selection--single .select2-selection__arrow {
+.ir-page .select2-container--default .select2-selection--single .select2-selection__arrow {
     height: calc(1.5em + 0.75rem + 2px) !important;
 }
 
-.select2-container--default.select2-container--focus .select2-selection--single {
+.ir-page .select2-container--default.select2-container--focus .select2-selection--single {
     border-color: #bac8f3;
 }
 
-.select2-dropdown {
+.ir-page .select2-dropdown {
     border: 1px solid #d1d3e2;
     border-radius: 0.35rem;
 }
 
-.select2-container--default .select2-results__option--highlighted[aria-selected] {
+.ir-page .select2-container--default .select2-results__option--highlighted[aria-selected] {
     background-color: #4e73df;
 }
 
@@ -88,13 +88,13 @@
     font-size: 0.875rem;
 }
 
-.btn-icon {
+.ir-page .btn-icon {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
 }
 
-.gap-2 {
+.ir-page .gap-2 {
     gap: 0.5rem !important;
 }
 .ir-hero{display:flex;justify-content:space-between;align-items:center;gap:18px;padding:18px 20px;margin-bottom:18px;background:#fff;border:1px solid #e4e9f2;border-left:4px solid #4e73df;border-radius:10px;box-shadow:0 2px 8px rgba(31,45,61,.05)}
@@ -103,7 +103,8 @@
 @media(max-width:850px){.ir-hero{align-items:stretch;flex-direction:column}.ir-tools{min-width:0;flex-direction:column;align-items:stretch}}
 </style>
 
-<div class="container-fluid">
+<link rel="stylesheet" href="css/dashboard_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/dashboard_consistency.css') ?: 1); ?>">
+<div class="container-fluid ir-page">
     <!-- Page Heading -->
     <div class="ir-hero">
         <div><h1><i class="fas fa-id-card text-primary mr-2"></i>Fichas y reportes institucionales</h1><p>El padrón general no depende del año; cada reporte académico o financiero solicita su propio periodo.</p></div>

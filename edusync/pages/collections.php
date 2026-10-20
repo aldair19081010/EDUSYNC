@@ -26,6 +26,77 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
 .cn-preview-body{font-size:.78rem;color:#6e7891;line-height:1.4}
 .cn-detail-message{white-space:pre-line}
 .cn-money{font-variant-numeric:tabular-nums}
+
+/* Historial compacto: altura y controles como una tabla de gestión, sin espacio superfluo. */
+#content .cn-history-card .cn-history-header{
+    display:flex!important;align-items:center!important;
+    min-height:40px!important;padding:.5rem .8rem!important;gap:.4rem!important
+}
+.cn-history-heading{min-width:0}
+.cn-history-heading strong{display:block;font-size:.9rem;line-height:1.25}
+#content .cn-history-card > .ed-content-card-body{padding:0!important}
+#cn-history-table_wrapper{margin:0!important;padding:0!important}
+#cn-history-table_wrapper > .row:first-child{
+    display:flex!important;align-items:center!important;
+    margin:0!important;padding:.4rem .75rem!important;min-height:42px!important;
+    background:#f8f9fc;border-bottom:1px solid #edf0f5
+}
+#cn-history-table_wrapper > .row:last-child{
+    display:flex!important;align-items:center!important;
+    margin:0!important;padding:.4rem .75rem!important;
+    border-top:1px solid #edf0f5
+}
+#cn-history-table_wrapper > .row:first-child > [class*="col-"],
+#cn-history-table_wrapper > .row:last-child > [class*="col-"]{
+    padding:0!important
+}
+#cn-history-table_wrapper .dataTables_length,
+#cn-history-table_wrapper .dataTables_filter,
+#cn-history-table_wrapper .dataTables_info,
+#cn-history-table_wrapper .dataTables_paginate{
+    margin:0!important;padding:0!important;font-size:.78rem!important;
+    color:#6e7891!important;line-height:1.2!important
+}
+#cn-history-table_wrapper .dataTables_length label,
+#cn-history-table_wrapper .dataTables_filter label{
+    display:inline-flex!important;align-items:center!important;
+    gap:.4rem!important;margin:0!important;padding:0!important;
+    font-size:.78rem!important;white-space:nowrap
+}
+#cn-history-table_wrapper .dataTables_length select,
+#cn-history-table_wrapper .dataTables_filter input{
+    height:30px!important;min-height:30px!important;box-sizing:border-box!important;
+    margin:0!important;border:1px solid #d8deea!important;
+    border-radius:.35rem!important;background:#fff!important;
+    color:#49566a!important;font-size:.78rem!important;
+    box-shadow:none!important
+}
+#cn-history-table_wrapper .dataTables_length select{
+    width:65px!important;min-width:65px!important;
+    padding:.15rem 1.35rem .15rem .45rem!important
+}
+#cn-history-table_wrapper .dataTables_filter input{
+    width:165px!important;max-width:100%!important;padding:.2rem .5rem!important
+}
+#cn-history-table_wrapper .dataTables_filter input:focus,
+#cn-history-table_wrapper .dataTables_length select:focus{
+    border-color:#4285f4!important;box-shadow:0 0 0 .12rem rgba(66,133,244,.12)!important
+}
+#cn-history-table_wrapper .pagination{margin:0!important}
+#cn-history-table th:last-child,#cn-history-table td:last-child{white-space:nowrap}
+@media(max-width:767.98px){
+    #cn-history-table_wrapper > .row:first-child,
+    #cn-history-table_wrapper > .row:last-child{gap:.4rem!important}
+    #cn-history-table_wrapper > .row:first-child > [class*="col-"],
+    #cn-history-table_wrapper > .row:last-child > [class*="col-"]{
+        flex:0 0 100%;max-width:100%;text-align:left!important
+    }
+    #cn-history-table_wrapper .dataTables_filter,
+    #cn-history-table_wrapper .dataTables_length,
+    #cn-history-table_wrapper .dataTables_info,
+    #cn-history-table_wrapper .dataTables_paginate{text-align:left!important}
+    #cn-history-table_wrapper .dataTables_filter input{width:170px!important}
+}
 @media(max-width:767.98px){
     .cn-audience-option{min-height:68px}
     .cn-history-actions{white-space:normal!important}
@@ -89,25 +160,19 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         </div>
     </div>
 
-    <div class="ed-content-card">
-        <div class="ed-content-card-header d-flex flex-wrap align-items-center justify-content-between">
-            <div>
-                <strong><i class="fas fa-history text-primary mr-2"></i>Historial de cobranza</strong>
-                <div class="small text-muted mt-1">Consulta a quién se notificó, el saldo comunicado y el estado de entrega.</div>
-            </div>
-            <div class="ed-toolbar mt-2 mt-md-0">
-                <div class="input-group input-group-sm" style="max-width:270px">
-                    <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
-                    <input id="cn-search" class="form-control" placeholder="Buscar envío...">
-                </div>
-                <button id="cn-refresh" class="btn btn-light border btn-sm ed-icon-btn" title="Actualizar">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
+    <div class="ed-content-card cn-history-card">
+        <div class="ed-content-card-header cn-history-header">
+            <div class="cn-history-heading">
+                <strong><i class="fas fa-history text-primary mr-2" aria-hidden="true"></i>Historial de cobranza</strong>
+                
             </div>
         </div>
         <div class="ed-content-card-body p-0">
+            <div id="cn-history-status" class="small px-3 py-2 text-muted" role="status" aria-live="polite">
+                <?php echo $ready ? 'Cargando envíos...' : 'Las tablas del módulo no están disponibles en esta base de datos.'; ?>
+            </div>
             <div class="table-responsive ed-table-responsive">
-                <table class="table table-hover table-sm ed-table mb-0">
+                <table id="cn-history-table" class="table table-hover table-sm ed-table mb-0" style="width:100%">
                     <thead>
                         <tr>
                             <th>Fecha</th>
@@ -118,9 +183,7 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
                             <th class="text-right">Acciones</th>
                         </tr>
                     </thead>
-                    <tbody id="cn-history">
-                        <tr class="ed-empty-row"><td colspan="6"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando...</td></tr>
-                    </tbody>
+                    <tbody id="cn-history"></tbody>
                 </table>
             </div>
         </div>
@@ -378,6 +441,7 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
     let options={levels:[],grades:[],sections:[],students:[]};
     let preview=null;
     let history=[];
+    let historyTable=null;
     let detailRows=[];
     let previewTimer=null;
 
@@ -562,37 +626,83 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         });
     }
 
+    // DataTables genera su buscador, selector de filas, contador y paginación.
+    function ensureHistoryTable(){
+        if(!$.fn.DataTable || !$('#cn-history-table').length)return null;
+        if(!historyTable){
+            historyTable=$('#cn-history-table').DataTable({
+                autoWidth:false,
+                pageLength:10,
+                lengthMenu:[[10,25,50,100],[10,25,50,100]],
+                order:[],
+                columnDefs:[{targets:5,orderable:false,searchable:false}],
+                language:{
+                    search:'Buscar:',
+                    lengthMenu:'Mostrar _MENU_',
+                    info:'Mostrando _START_ a _END_ de _TOTAL_ envíos',
+                    infoEmpty:'Sin envíos',
+                    infoFiltered:'(de _MAX_ en total)',
+                    emptyTable:'Aún no hay envíos de cobranza.',
+                    zeroRecords:'No se encontraron coincidencias.',
+                    paginate:{previous:'Anterior',next:'Siguiente'}
+                }
+            });
+            $('#cn-history-table').closest('.dataTables_wrapper').addClass('ed-datatable');
+        }
+        return historyTable;
+    }
+
+    function historyStatus(message,isError){
+        $('#cn-history-status').toggleClass('d-none',!message)
+            .toggleClass('text-danger',!!isError)
+            .toggleClass('text-muted',!isError)
+            .text(message||'');
+    }
+
     function loadHistory(){
-        if(!ready)return;
-        $('#cn-history').html('<tr class="ed-empty-row"><td colspan="6"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando...</td></tr>');
+        history=[];
+        renderHistory();
+        if(!ready){
+            historyStatus('Las tablas del módulo no están disponibles en esta base de datos.',false);
+            return;
+        }
+        historyStatus('Cargando envíos...',false);
         $.getJSON(api,{action:'history'}).done(r=>{
             history=(r&&r.items)||[];
+            historyStatus('',false);
             renderHistory();
-        }).fail(()=>$('#cn-history').html('<tr class="ed-empty-row"><td colspan="6" class="text-danger">No se pudo cargar el historial.</td></tr>'));
+        }).fail(()=>{
+            history=[];
+            renderHistory();
+            historyStatus('No se pudo cargar el historial de cobranza.',true);
+        });
     }
 
     function renderHistory(){
-        const q=$.trim($('#cn-search').val()).toLowerCase();
-        const rows=history.filter(x=>!q||[x.audience,(x.states||[]).join(' '),x.created_by_name].join(' ').toLowerCase().includes(q));
-        if(!rows.length){
-            $('#cn-history').html('<tr class="ed-empty-row"><td colspan="6">'+(q?'No hay coincidencias.':'Aún no hay envíos de cobranza.')+'</td></tr>');
-            return;
-        }
+        const table=ensureHistoryTable();
+        const rows=history;
         let html='';
         rows.forEach(x=>{
             const noDevice=Math.max(0,Number(x.recipient_count||0)-Number(x.students_with_devices||0));
             html+='<tr>'+
-                '<td><strong>'+esc(dateText(x.created_at))+'</strong><div class="small text-muted">'+esc(x.created_by_name)+'</div></td>'+
-                '<td><strong>'+esc(x.audience)+'</strong><div class="small text-muted">'+Number(x.recipient_count||0)+' estudiante(s)</div></td>'+
-                '<td>'+((x.states||[]).map(s=>'<span class="badge badge-light border mr-1 ed-badge">'+esc(s)+'</span>').join(''))+'<div class="small text-muted mt-1">'+Number(x.debt_count||0)+' obligación(es)</div></td>'+
-                '<td class="text-right font-weight-bold text-danger cn-money">'+money(x.total_balance)+'</td>'+
+                '<td data-order="'+esc(x.created_at||'')+'"><strong>'+esc(dateText(x.created_at))+'</strong><div class="small text-muted">'+esc(x.created_by_name)+'</div></td>'+
+                '<td data-order="'+Number(x.recipient_count||0)+'"><strong>'+esc(x.audience)+'</strong><div class="small text-muted">'+Number(x.recipient_count||0)+' estudiante(s)</div></td>'+
+                '<td>'+((x.states||[]).map(state=>'<span class="badge badge-light border mr-1 ed-badge">'+esc(state)+'</span>').join(''))+'<div class="small text-muted mt-1">'+Number(x.debt_count||0)+' obligación(es)</div></td>'+
+                '<td data-order="'+Number(x.total_balance||0)+'" class="text-right font-weight-bold text-danger cn-money">'+money(x.total_balance)+'</td>'+
                 '<td><span class="badge badge-success ed-badge">'+Number(x.push_sent_count||0)+' enviados</span>'+
                     (noDevice?'<div class="small text-muted mt-1">'+noDevice+' sin dispositivo</div>':'')+
                     (Number(x.push_failed_count||0)?'<div class="small text-danger">'+Number(x.push_failed_count)+' fallidos</div>':'')+'</td>'+
-                '<td class="text-right cn-history-actions"><button class="btn btn-outline-primary btn-sm cn-detail" data-id="'+Number(x.id)+'"><i class="fas fa-eye mr-1"></i>Detalle</button></td>'+
+                '<td class="text-right cn-history-actions"><button type="button" class="btn btn-outline-primary btn-sm cn-detail" data-id="'+Number(x.id)+'"><i class="fas fa-eye mr-1"></i>Detalle</button></td>'+
             '</tr>';
         });
-        $('#cn-history').html(html);
+        if(table){
+            table.clear();
+            if(html)table.rows.add($(html));
+            table.draw();
+        }else{
+            $('#cn-history').html(html||
+                '<tr class="ed-empty-row"><td colspan="6">Aún no hay envíos de cobranza.</td></tr>');
+        }
     }
 
     function stateBadge(state){
@@ -734,7 +844,6 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
     $('#cn-level').on('change',function(){refreshGrades();refreshSections();schedulePreview();});
     $('#cn-grade').on('change',function(){refreshSections();schedulePreview();});
     $('#cn-section,#cn-student').on('change',schedulePreview);
-    $('#cn-search').on('input',renderHistory);
     $('#cn-detail-search').on('input',renderDetailRows);
 
     $('#cn-new').on('click',function(){
@@ -742,7 +851,6 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
         $('#cn-compose-modal').modal('show');
     });
     $('#cn-send').on('click',confirmSend);
-    $('#cn-refresh').on('click',function(){loadSummary();loadHistory();});
     $(document).on('click','.cn-detail',function(){openDetail(Number($(this).data('id')||0));});
 
     if(ready){

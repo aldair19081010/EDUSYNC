@@ -14,6 +14,7 @@ $student_name = (string)($_SESSION['student_name'] ?? 'Estudiante');
 $student_dni = (string)($_SESSION['student_dni'] ?? '');
 ?>
 
+<link rel="stylesheet" href="css/student_portal_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/student_portal_consistency.css') ?: 1); ?>">
 <div id="student-attendance-app" class="student-attendance-page" data-endpoint="api/my_attendance.php">
     <div class="student-profile-bar mb-3">
         <div class="avatar-circle mr-3">

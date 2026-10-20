@@ -298,3 +298,39 @@
         transform: none !important;
     }
 }
+
+
+/* Bandeja de notificaciones: mantener cabecera, acciones y lista accesibles
+   incluso con una ventana baja o con el teclado abierto. */
+@media (max-width: 767.98px) {
+    .edusync-topbar .edusync-notification-menu {
+        max-height: calc(100vh - 5rem);
+        overflow: hidden;
+    }
+    .edusync-topbar .edusync-notification-menu.show {
+        display: flex;
+        flex-direction: column;
+    }
+    .edusync-topbar .edusync-notification-menu .dropdown-header {
+        flex: 0 0 auto;
+        flex-wrap: wrap;
+        gap: .35rem;
+    }
+    .edusync-topbar .edusync-notification-menu .edusync-notification-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: none;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .edusync-topbar .edusync-profile-menu {
+        max-width: calc(100vw - 1rem);
+    }
+}
+@supports (height: 100dvh) {
+    @media (max-width: 767.98px) {
+        .edusync-topbar .edusync-notification-menu {
+            max-height: calc(100dvh - 5rem);
+        }
+    }
+}

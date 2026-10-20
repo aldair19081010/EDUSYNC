@@ -312,41 +312,69 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 td { vertical-align: middle !important; }
 td p { margin: unset }
 img { max-width: 100px; max-height: 150px; }
+
+/* Docentes: cabecera y menú de acciones coordinados con Gestión de Estudiantes. */
+.ed-teachers-page{padding:.25rem 0!important}
+.ed-teachers-page .ed-teachers-header{margin-bottom:.85rem!important;gap:.65rem;padding:.75rem 1rem!important}
+.ed-teachers-page .ed-page-heading{min-width:0}
+.ed-teachers-page .ed-page-title{font-size:1.17rem!important;line-height:1.3;margin:0}
+.ed-teachers-page .ed-page-subtitle{font-size:.77rem;line-height:1.3}
+.ed-teachers-page .ed-page-icon{width:38px;height:38px;flex:0 0 38px}
+.ed-teachers-page .ed-page-actions .btn{height:34px;padding:.35rem .7rem;font-size:.8rem}
+.ed-teachers-page .teacher-summary-grid{gap:.7rem;margin-bottom:.85rem}
+.ed-teachers-page .teacher-summary-card{
+    min-height:70px;padding:.7rem .85rem;box-shadow:none;border-radius:.55rem;
+    border:1px solid #e3e6f0;gap:.65rem
+}
+.ed-teachers-page .teacher-summary-icon{width:36px;height:36px;flex:0 0 36px;margin:0;border-radius:.5rem}
+.ed-teachers-page .teacher-summary-value{font-size:1.2rem;font-weight:700}
+.ed-teachers-page .teacher-summary-label{font-size:.76rem;margin-top:.2rem;line-height:1.3}
+.ed-teachers-page .content-card{
+    border:1px solid #e3e6f0;box-shadow:none!important;
+    border-radius:.55rem;margin-bottom:1rem;transition:none
+}
+.ed-teachers-page .content-card:hover{box-shadow:none!important;transform:none!important}
+.ed-teachers-page .content-card > .card-header{
+    min-height:40px;padding:.55rem .85rem!important;
+    font-size:.92rem!important;background:#fff
+}
+.ed-teachers-page .content-card > .card-body{padding:.7rem .85rem}
+.ed-teachers-page .ed-teachers-filterbar{
+    gap:.4rem;background:#f8f9fc;border:1px solid #edf0f5;
+    padding:.6rem .75rem;border-radius:.45rem;margin-bottom:.75rem!important
+}
+.ed-teachers-page .ed-teachers-filterbar label{font-size:.75rem;margin:0!important}
+.ed-teachers-page .ed-teachers-filterbar select{height:32px;font-size:.79rem}
+.ed-teachers-page .table-custom th,.ed-teachers-page .table-custom td{
+    padding:.55rem .7rem!important;font-size:.81rem
+}
+.ed-teachers-page .table-custom tbody tr:hover{background:#f7faff!important;box-shadow:none!important;transform:none!important}
+.ed-teachers-page .content-card .table-responsive{margin:0}
+#uploadTeacherExcelModal .ed-import-modal-header{background:#fff;border-bottom:1px solid #edf0f5}
+#uploadTeacherExcelModal .modal-content,#bulkTeachersModal .modal-content,
+#teacherEmploymentActionModal .modal-content{border-radius:.6rem}
+@media(max-width:767.98px){
+    .ed-teachers-page .ed-teachers-header{padding:.65rem .75rem!important}
+    .ed-teachers-page .teacher-summary-grid{gap:.6rem}
+    .ed-teachers-page .content-card > .card-body{padding:.5rem}
+    .ed-teachers-page .ed-teachers-filterbar{padding:.55rem .6rem}
+}
 </style>
 
 <!-- Contenido principal -->
 <div class="container-fluid">
-    <div class="main-content-area">
-        <!-- Título de la página -->
-        <div class="page-title-wrapper mb-4">
-            <div class="page-title">
-                <div class="title-left">
-                    <div class="title-icon"><i class="fa fa-chalkboard-teacher"></i></div>
-                    <div>
-                        <div class="page-title-text">Gestión de Docentes</div>
-                        <div class="page-title-sub">Lista y administración de docentes</div>
-                    </div>
-                </div>
-                <div class="title-actions">
-                    <!-- Acciones futuras: espacio reservado para botones -->
+    <div class="main-content-area ed-teachers-page">
+        <!-- Encabezado compacto de gestión: mismas acciones y menú existente -->
+        <div class="ed-page-header ed-teachers-header">
+            <div class="ed-page-heading">
+                <div class="ed-page-icon"><i class="fa fa-chalkboard-teacher" aria-hidden="true"></i></div>
+                <div>
+                    <h1 class="ed-page-title">Gestión de docentes</h1>
+                    <p class="ed-page-subtitle">Lista y administración de docentes</p>
                 </div>
             </div>
-        </div>
-
-        <div class="teacher-summary-grid" id="teacher-summary-grid">
-            <div class="teacher-summary-card summary-active"><div class="teacher-summary-icon"><i class="fa fa-user-check"></i></div><div><div class="teacher-summary-value" id="summary-active"><?php echo (int)$teacher_summary['active_count']; ?></div><div class="teacher-summary-label">Docentes activos</div></div></div>
-            <div class="teacher-summary-card summary-inactive"><div class="teacher-summary-icon"><i class="fa fa-user-slash"></i></div><div><div class="teacher-summary-value" id="summary-inactive"><?php echo (int)$teacher_summary['inactive_count']; ?></div><div class="teacher-summary-label">Docentes inactivos</div></div></div>
-            <div class="teacher-summary-card summary-user"><div class="teacher-summary-icon"><i class="fa fa-user-lock"></i></div><div><div class="teacher-summary-value" id="summary-without-user"><?php echo (int)$teacher_summary['without_user']; ?></div><div class="teacher-summary-label">Activos sin usuario</div></div></div>
-            <div class="teacher-summary-card summary-course"><div class="teacher-summary-icon"><i class="fa fa-book-open"></i></div><div><div class="teacher-summary-value" id="summary-without-courses"><?php echo (int)$teacher_summary['without_courses']; ?></div><div class="teacher-summary-label">Activos sin cursos · <?php echo htmlspecialchars($active_year_name, ENT_QUOTES, 'UTF-8'); ?></div></div></div>
-        </div>
-
-        <!-- Panel de la tabla -->
-        <div class="row">
-            <div class="col-md-12">
-                <div class="card content-card">
-                    <div class="card-header">
-                        <span><b>Lista de Docentes</b></span>
-                        <div class="btn-group teacher-add-dropdown">
+            <div class="ed-page-actions">
+                <div class="btn-group teacher-add-dropdown">
                             <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 <i class="fa fa-plus"></i> Agregar / importar
                             </button>
@@ -368,13 +396,29 @@ img { max-width: 100px; max-height: 150px; }
                                 </a>
                             </div>
                         </div>
+            </div>
+        </div>
+
+        <div class="teacher-summary-grid" id="teacher-summary-grid">
+            <div class="teacher-summary-card summary-active"><div class="teacher-summary-icon"><i class="fa fa-user-check"></i></div><div><div class="teacher-summary-value" id="summary-active"><?php echo (int)$teacher_summary['active_count']; ?></div><div class="teacher-summary-label">Docentes activos</div></div></div>
+            <div class="teacher-summary-card summary-inactive"><div class="teacher-summary-icon"><i class="fa fa-user-slash"></i></div><div><div class="teacher-summary-value" id="summary-inactive"><?php echo (int)$teacher_summary['inactive_count']; ?></div><div class="teacher-summary-label">Docentes inactivos</div></div></div>
+            <div class="teacher-summary-card summary-user"><div class="teacher-summary-icon"><i class="fa fa-user-lock"></i></div><div><div class="teacher-summary-value" id="summary-without-user"><?php echo (int)$teacher_summary['without_user']; ?></div><div class="teacher-summary-label">Activos sin usuario</div></div></div>
+            <div class="teacher-summary-card summary-course"><div class="teacher-summary-icon"><i class="fa fa-book-open"></i></div><div><div class="teacher-summary-value" id="summary-without-courses"><?php echo (int)$teacher_summary['without_courses']; ?></div><div class="teacher-summary-label">Activos sin cursos · <?php echo htmlspecialchars($active_year_name, ENT_QUOTES, 'UTF-8'); ?></div></div></div>
+        </div>
+
+        <!-- Panel de la tabla -->
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card content-card">
+                    <div class="card-header">
+                        <span><b>Lista de docentes</b></span>
                     </div>
                     <div class="card-body">
 						<div id="teacher-bulk-toolbar" class="alert alert-light border d-none align-items-center justify-content-between mb-3">
 							<span><strong id="teacher-selected-count">0</strong> docentes seleccionados</span>
 							<div><button type="button" id="export-selected-teachers" class="btn btn-outline-success btn-sm mr-2"><i class="fas fa-file-csv mr-1"></i>Exportar seleccionados</button><button type="button" id="open-bulk-teachers" class="btn btn-primary btn-sm"><i class="fas fa-tasks mr-1"></i>Acciones masivas</button></div>
 						</div>
-						<div class="form-inline mb-3">
+						<div class="form-inline mb-3 ed-teachers-filterbar">
 							<label for="teacher-status-filter" class="mr-2 font-weight-bold">Estado:</label>
 							<select id="teacher-status-filter" class="form-control form-control-sm">
 								<option value="all" <?php echo $selected_status === 'all' ? 'selected' : ''; ?>>Todos</option>
@@ -423,7 +467,7 @@ img { max-width: 100px; max-height: 150px; }
 <div class="modal fade" id="uploadTeacherExcelModal" tabindex="-1" role="dialog" aria-labelledby="uploadTeacherExcelModalLabel" aria-hidden="true">
 	<div class="modal-dialog" role="document">
 		<div class="modal-content">
-			<div class="modal-header" style="background: linear-gradient(to right, #f8f9fc, #fff);">
+			<div class="modal-header ed-import-modal-header">
 				<h5 class="modal-title" id="uploadTeacherExcelModalLabel"><i class="fa fa-file-excel text-success mr-2"></i> Subir Archivo Excel</h5>
 				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
 					<span aria-hidden="true">&times;</span>

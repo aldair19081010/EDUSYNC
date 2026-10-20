@@ -280,18 +280,97 @@ if (($_GET['partial'] ?? '') === 'course_data') {
 		}
 	}
 
+
+/* Asignación de cursos: densidad uniforme en toda la pantalla, no solo tabla. */
+.ed-assignments-page{padding-top:.25rem}
+.ed-assignments-page .ed-assignments-header{
+    margin-bottom:.85rem!important;padding:.75rem 1rem!important;gap:.65rem
+}
+.ed-assignments-page .ed-page-icon{width:38px;height:38px;flex:0 0 38px}
+.ed-assignments-page .ed-page-title{font-size:1.17rem!important;line-height:1.3}
+.ed-assignments-page .ed-page-subtitle{font-size:.77rem;line-height:1.3}
+.ed-assignments-page .filter-controls,
+.ed-assignments-page .filter-controls.show-advanced{
+    gap:.65rem .8rem;padding:.7rem .85rem;margin-bottom:.85rem;
+    border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:none;
+    background:#fff;align-items:end
+}
+.ed-assignments-page .filter-group{min-width:0}
+.ed-assignments-page .filter-group label{
+    font-size:.75rem;line-height:1.3;color:#526274;margin-bottom:.22rem
+}
+.ed-assignments-page .filter-controls .form-control{
+    height:34px!important;min-height:34px!important;
+    padding:.32rem .55rem;font-size:.8rem!important;
+    border-radius:.35rem;border:1px solid #d8deea;box-shadow:none
+}
+.ed-assignments-page .filter-controls .select2-container{max-width:100%!important}
+.ed-assignments-page .filter-controls .select2-container--default .select2-selection--single{
+    height:34px!important;min-height:34px!important;border-radius:.35rem!important;
+    border:1px solid #d8deea!important;box-shadow:none!important
+}
+.ed-assignments-page .filter-controls .select2-container--default .select2-selection__rendered{
+    line-height:32px!important;font-size:.8rem!important;padding-left:.55rem
+}
+.ed-assignments-page .filter-controls .select2-container--default .select2-selection__arrow{
+    height:32px!important
+}
+.ed-assignments-page .btn-group-actions{
+    padding:.55rem 0 0;margin-top:.15rem;gap:.45rem;
+    border-top:1px solid #edf0f5
+}
+.ed-assignments-page .primary-assignment-actions,
+.ed-assignments-page .secondary-assignment-actions{gap:.4rem}
+.ed-assignments-page .btn-group-actions .btn{
+    padding:.4rem .7rem;min-height:34px;font-size:.79rem;
+    border-radius:.35rem;box-shadow:none
+}
+.ed-assignments-page .assignment-summary-grid{gap:.7rem;margin-bottom:.85rem}
+.ed-assignments-page .assignment-summary-card{
+    min-height:70px;padding:.7rem .85rem;gap:.65rem;
+    border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:none
+}
+.ed-assignments-page .assignment-summary-icon{width:36px;height:36px;flex:0 0 36px;margin:0}
+.ed-assignments-page .assignment-summary-value{font-size:1.2rem;font-weight:700}
+.ed-assignments-page .assignment-summary-label{font-size:.76rem;margin-top:.2rem;line-height:1.3}
+.ed-assignments-page .ed-assignments-list-card{
+    border:1px solid #e3e6f0;box-shadow:none;border-radius:.55rem;
+    overflow:hidden;height:auto!important
+}
+.ed-assignments-page .ed-assignments-list-header{
+    min-height:40px;padding:.55rem .85rem!important;font-size:.92rem;color:#233b52;
+    border-bottom:1px solid #edf0f5
+}
+.ed-assignments-page .ed-assignments-list-card > .card-body{padding:.7rem .85rem}
+.ed-assignments-page .ed-assignments-list-card .table-responsive{max-width:100%}
+.ed-assignments-page #teacher_courses_table th,
+.ed-assignments-page #teacher_courses_table td{
+    padding:.55rem .7rem;font-size:.81rem;vertical-align:middle
+}
+.ed-assignments-page .assignment-toolbar{margin-bottom:.65rem;gap:.5rem}
+#bulkAssignmentActionsModal .modal-content,
+#replaceTeacherCoursesModal .modal-content,
+#unassignedCoursesModal .modal-content,
+#copyTeacherCoursesModal .modal-content{border-radius:.6rem}
+@media(max-width:767.98px){
+    .ed-assignments-page .ed-assignments-header{padding:.65rem .75rem!important}
+    .ed-assignments-page .filter-controls,
+    .ed-assignments-page .filter-controls.show-advanced{padding:.6rem .7rem}
+    .ed-assignments-page .assignment-summary-grid{gap:.6rem}
+    .ed-assignments-page .btn-group-actions{align-items:stretch}
+    .ed-assignments-page .btn-group-actions .btn{width:100%}
+    .ed-assignments-page .ed-assignments-list-card > .card-body{padding:.5rem}
+}
 </style>
 
-<div class="container-fluid">
-	<!-- Título de la página -->
-	<div class="page-title-wrapper mb-4">
-		<div class="page-title">
-			<div class="title-left">
-				<div class="title-icon"><i class="fa fa-user-graduate"></i></div>
-				<div>
-					<div class="page-title-text">Asignaciones de Docentes</div>
-					<div class="page-title-sub">Gestión de docentes por curso y año académico</div>
-				</div>
+<div class="container-fluid ed-assignments-page">
+	<!-- Encabezado consistente con gestión de docentes y estudiantes -->
+	<div class="ed-page-header ed-assignments-header">
+		<div class="ed-page-heading">
+			<div class="ed-page-icon"><i class="fa fa-user-graduate" aria-hidden="true"></i></div>
+			<div>
+				<h1 class="ed-page-title">Asignaciones de docentes</h1>
+				<p class="ed-page-subtitle">Gestión de docentes por curso y año académico</p>
 			</div>
 		</div>
 	</div>
@@ -459,10 +538,10 @@ if (($_GET['partial'] ?? '') === 'course_data') {
 					<button class="btn btn-info" id="copy_from_previous_year" title="Copiar asignaciones desde un año específico">
 						<i class="fa fa-copy"></i> Copiar asignaciones
 					</button>
-					<button class="btn btn-warning" id="clean_teacher_courses" title="Limpiar todas las asignaciones">
-						<i class="fa fa-broom"></i> Limpiar
+					<button class="btn btn-warning" id="clean_teacher_courses" title="Limpiar todas las asignaciones del año seleccionado">
+						<i class="fa fa-broom"></i> Limpiar asignaciones
 					</button>
-					<button class="btn btn-light border" id="reset_assignment_filters" title="Restablecer filtros"><i class="fa fa-undo"></i> Restablecer</button>
+					<button class="btn btn-light border" id="reset_assignment_filters" title="Restablecer filtros"><i class="fa fa-undo mr-1"></i> Restablecer filtros</button>
 				</div>
 			</div>
 		</div>
@@ -488,9 +567,9 @@ if (($_GET['partial'] ?? '') === 'course_data') {
 	<!-- Panel de la tabla -->
 	<div class="row">
 		<div class="col-md-12">
-			<div class="card border-left-primary shadow h-100 py-2">
-				<div class="card-header bg-white py-3">
-					<span class="m-0 font-weight-bold text-primary">Lista de Asignaciones</span>
+			<div class="card ed-assignments-list-card mb-3">
+				<div class="card-header bg-white ed-assignments-list-header">
+					<span class="m-0 font-weight-bold"><i class="fa fa-list mr-2 text-primary"></i>Lista de asignaciones</span>
 				</div>
 				<div class="card-body">
 					<div id="msg"></div>
