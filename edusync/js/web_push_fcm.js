@@ -89,6 +89,19 @@
             if (!token) throw new Error('Firebase no devolvió un token.');
             return token;
         }
+        async function markCurrentSessionForPush() {
+            // El logout marca el Service Worker como desconectado para ignorar
+            // notificaciones FCM antiguas pendientes de entrega.
+            // Sólo una nueva suscripción explícita elimina ese bloqueo.
+            try {
+                if(!('caches' in window))return;
+                var cache=await caches.open('edusync-push-session-v1');
+                await cache.put(
+                    new URL('web-push-session-state',new URL('./',window.location.href)).href,
+                    new Response('active',{headers:{'Content-Type':'text/plain'}})
+                );
+            } catch (_) {}
+        }
         function request(action,data) {
             return new Promise(function(resolve,reject){
                 $.ajax({
@@ -118,6 +131,7 @@
                 }
                 var token=await fcmToken();
                 await request('register',{fcm_token:token});
+                await markCurrentSessionForPush();
                 saveEnabled(true);
                 message('Avisos activados en este dispositivo.',false);
             } catch(err) {
