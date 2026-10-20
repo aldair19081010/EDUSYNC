@@ -106,8 +106,18 @@ $account = $director->get_result()->fetch_assoc();
 $director->close();
 if (!$account) dma_reply(['status'=>'error','message'=>'No tienes acceso al perfil de Dirección.'], 403);
 $action = trim((string)($_POST['action'] ?? 'overview'));
-if (!in_array($action, ['overview','students','student_detail'], true)) {
+if (!in_array($action, ['overview','students','student_detail','identity'], true)) {
     dma_reply(['status'=>'error','message'=>'Acción no permitida.'], 400);
+}
+if ($action === 'identity') {
+    // Comprobación ligera para restaurar el perfil híbrido Dirección + Docente.
+    // Solo llega aquí una cuenta cuyo is_director fue validado en MySQL.
+    dma_reply([
+        'status'=>'ok',
+        'is_director'=>true,
+        'is_teacher'=> (int)$account['type'] === 2,
+        'name'=>(string)$account['name'],
+    ]);
 }
 if ($action === 'students') {
     $GLOBALS['dma_stage'] = 'nomina_de_aula';
