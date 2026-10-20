@@ -383,8 +383,12 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
         // Los entornos antiguos pueden carecer de la columna opcional updated_by.
         // Guardar la configuración no debe depender de esa columna.
         $hasUpdatedBy=taca_column($conn,'teacher_alert_settings','updated_by');
+        // En MySQL/MariaDB en modo estricto, NULLIF(?, '') dentro de una
+        // columna DATE puede fallar al inferir el tipo del parámetro.
+        // Enviamos NULL nativo cuando el administrador no fija una fecha.
+        $deadlineValue=$deadline===''?null:$deadline;
         $columns='school_id,academic_year_id,bimester,deadline_date,notice_days_before,closure_enabled,incomplete_enabled,admin_edits_enabled';
-        $values="?,?,?,NULLIF(?,''),?,?,?,?";
+        $values='?,?,?,?,?,?,?,?';
         $updates='deadline_date=VALUES(deadline_date),notice_days_before=VALUES(notice_days_before),'
             .'closure_enabled=VALUES(closure_enabled),incomplete_enabled=VALUES(incomplete_enabled),'
             .'admin_edits_enabled=VALUES(admin_edits_enabled)';
@@ -398,9 +402,9 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
         $stmt=$conn->prepare($sql);
         if(!$stmt)throw new RuntimeException('No se pudo preparar la configuración: '.$conn->error);
         if($hasUpdatedBy) {
-            $stmt->bind_param('iiisiiiii',$school,$yearId,$bim,$deadline,$days,$closure,$incomplete,$admin,$user);
+            $stmt->bind_param('iiisiiiii',$school,$yearId,$bim,$deadlineValue,$days,$closure,$incomplete,$admin,$user);
         } else {
-            $stmt->bind_param('iiisiiii',$school,$yearId,$bim,$deadline,$days,$closure,$incomplete,$admin);
+            $stmt->bind_param('iiisiiii',$school,$yearId,$bim,$deadlineValue,$days,$closure,$incomplete,$admin);
         }
         if(!$stmt->execute())throw new RuntimeException($stmt->error);
         $stmt->close();
@@ -498,7 +502,33 @@ if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
 } catch(Throwable $e) {
     $ref=(string)($GLOBALS['taca_request_ref']??'unknown');
     $stage=(string)($GLOBALS['taca_stage']??'unknown');
-    error_log('[EduSync seguimiento docente '.$ref.' / '.$stage.'] '.$e->getMessage());
-    taca_response(['status'=>0,'error_code'=>'TACA_QUERY','error_ref'=>$ref,'stage'=>$stage,
-        'message'=>'No se pudo consultar Seguimiento Docente. Revisa la referencia en el registro de errores del servidor.'],500);
+    // Sin exponer el texto SQL ni el error interno al navegador.
+    // El número MySQL y SQLSTATE permiten localizar problemas de esquema
+    // o de fecha en producción, manteniendo el detalle en error_log.
+    $dbCode=$e instanceof mysqli_sql_exception?(int)$e->getCode():0;
+    if(!$dbCode&&isset($conn)&&$conn instanceof mysqli)$dbCode=(int)$conn->errno;
+    if(!$dbCode&&isset($stmt)&&$stmt instanceof mysqli_stmt)$dbCode=(int)$stmt->errno;
+    $sqlState=($e instanceof mysqli_sql_exception&&method_exists($e,'getSqlState'))
+        ?(string)$e->getSqlState():'';
+    $hints=[
+        1054=>'La tabla de avisos tiene una columna faltante o desactualizada.',
+        1146=>'Falta una tabla requerida en producción.',
+        1364=>'Falta un valor obligatorio según el esquema de producción.',
+        1048=>'Una columna de producción no permite un valor vacío.',
+        1292=>'La base de datos rechazó el formato de una fecha u otro valor.',
+        1525=>'La base de datos rechazó una fecha vacía.',
+        1142=>'El usuario MySQL no tiene permiso para escribir en esta tabla.',
+        1062=>'Hay un conflicto con una clave única en la tabla.',
+        1064=>'La versión de MySQL/MariaDB rechazó la sintaxis de la consulta.',
+        1136=>'La cantidad de valores no coincide con las columnas de la tabla.'
+    ];
+    error_log('[EduSync seguimiento docente '.$ref.' / '.$stage.'] SQL errno '.$dbCode.' state '.$sqlState.': '.$e->getMessage());
+    $response=['status'=>0,'error_code'=>'TACA_QUERY','error_ref'=>$ref,'stage'=>$stage,
+        'message'=>'No se pudo procesar Seguimiento Docente. Revisa la referencia en el registro de errores del servidor.'];
+    if($dbCode>0) {
+        $response['db_errno']=$dbCode;
+        if(isset($hints[$dbCode]))$response['db_hint']=$hints[$dbCode];
+    }
+    if(preg_match('/^[A-Z0-9]{5}$/iD',$sqlState))$response['db_sqlstate']=$sqlState;
+    taca_response($response,500);
 }
