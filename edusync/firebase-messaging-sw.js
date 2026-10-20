@@ -26,7 +26,23 @@ self.addEventListener('push', function(event) {
         renotify: true,
         data: {url: String(data.url || 'index.php?page=notifications')},
     };
-    event.waitUntil(self.registration.showNotification(title, options));
+    event.waitUntil((async function(){
+        // El usuario puede haber cerrado sesión mientras Firebase mantenía
+        // un aviso en tránsito (TTL). No mostrar contenido escolar en ese caso.
+        try {
+            if('caches' in self) {
+                const cache=await caches.open('edusync-push-session-v1');
+                const state=await cache.match(
+                    new URL('web-push-session-state',self.registration.scope).href
+                );
+                if(state && (await state.text())==='logged_out')return;
+            }
+        } catch (_) {
+            // Si el navegador no ofrece CacheStorage, el servidor sigue
+            // controlando la baja de futuras notificaciones.
+        }
+        return self.registration.showNotification(title,options);
+    })());
 });
 
 self.addEventListener('notificationclick', function(event) {
