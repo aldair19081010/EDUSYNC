@@ -88,6 +88,11 @@ $directorScope = $directorNotificationMode ? (string)$_GET['director_scope'] : '
 if (!in_array($directorScope, ['all','director','teacher','legacy'], true)) $directorScope='all';
 $teacherEvents = "(ne.recipient_user_id=$user OR (ne.recipient_user_id IS NULL AND ne.recipient_role='" .
     $conn->real_escape_string($roleName) . "'))";
+if ($directorNotificationMode && $type !== 2) {
+    // Un Director con rol base Administrador no tiene aulas docentes propias:
+    // la app móvil no debe mostrar su bandeja administrativa como "Mis clases".
+    $teacherEvents = '(1=0)';
+}
 // Solo lectura institucional académica: NO incluir cobranzas, avisos
 // financieros ni aprobaciones administrativas desde la sesión docente.
 $directorEvents = "(ne.recipient_user_id IS NULL AND (
@@ -120,7 +125,7 @@ $parts[] = "SELECT CONCAT('event:',ne.id) COLLATE utf8mb4_general_ci nkey,
       AND COALESCE(ne.source_type,'')<>'attendance_request_result'
       AND $visibleEvents";
 
-if ($approver && $directorScope !== 'director' && nt($conn, 'attendance_change_requests')) {
+if ($approver && $directorScope === 'legacy' && nt($conn, 'attendance_change_requests')) {
     $parts[] = "SELECT CONCAT('attendance_request:',r.id) COLLATE utf8mb4_general_ci nkey,
         'Asistencia' COLLATE utf8mb4_general_ci category,
         IF(r.status='Pendiente','Alta','Normal') COLLATE utf8mb4_general_ci priority,
@@ -168,7 +173,8 @@ if ($approver && $directorScope !== 'director' && nt($conn, 'attendance_change_r
           AND r.reviewed_by<>$user";
 }
 
-if ($directorScope !== 'director' && nt($conn, 'attendance_change_requests')) {
+if (($directorScope === 'legacy' || ($directorScope === 'teacher' && $type === 2) ||
+     ($directorScope === 'all' && $type === 2)) && nt($conn, 'attendance_change_requests')) {
     $parts[] = "SELECT CONCAT('attendance_result:',r.id) nkey,
         'Asistencia' category,
         IF(r.status='Rechazada','Alta','Normal') priority,
@@ -187,7 +193,7 @@ if ($directorScope !== 'director' && nt($conn, 'attendance_change_requests')) {
         WHERE r.school_id=$school AND r.requested_by=$user AND r.status IN ('Aprobada','Rechazada')";
 }
 
-if ($approver && $directorScope !== 'director' && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_courses') && nt($conn, 'academic_courses')) {
+if ($approver && $directorScope === 'legacy' && nt($conn, 'grade_reopen_requests') && nt($conn, 'teacher_courses') && nt($conn, 'academic_courses')) {
     $parts[] = "SELECT CONCAT('grade_reopen_request:',grr.id) COLLATE utf8mb4_general_ci nkey,
         'Académica' COLLATE utf8mb4_general_ci category,
         IF(grr.status='Pendiente','Alta','Normal') COLLATE utf8mb4_general_ci priority,
@@ -211,7 +217,7 @@ if ($approver && $directorScope !== 'director' && nt($conn, 'grade_reopen_reques
         WHERE grr.school_id=$school";
 }
 
-if ($approver && $directorScope !== 'director' && nt($conn, 'evaluations')) {
+if ($approver && $directorScope === 'legacy' && nt($conn, 'evaluations')) {
     $evaluationTimeSql = edun_evaluation_created_at_lima_sql($conn);
     $parts[] = "SELECT CONCAT('evaluation:',e.id) COLLATE utf8mb4_general_ci nkey,
         'Académica' COLLATE utf8mb4_general_ci category,
@@ -232,7 +238,8 @@ if ($approver && $directorScope !== 'director' && nt($conn, 'evaluations')) {
 // low_grade_notifications.created_at es DATETIME almacenado en UTC,
 // a diferencia de notification_events.created_at (TIMESTAMP).
 // Convertir sólo esta fuente para evitar restar cinco horas dos veces.
-if ($directorScope !== 'director' && nt($conn, 'low_grade_notifications')) {
+if (($directorScope === 'legacy' || $type === 2 && $directorScope !== 'director') &&
+    nt($conn, 'low_grade_notifications')) {
     $teacherFilter = $type === 2 && $teacher > 0 ? "lgn.teacher_id=$teacher" : ($approver ? 'lgn.teacher_id IS NULL' : '1=0');
     $parts[] = "SELECT CONCAT('low_grade:',lgn.id) COLLATE utf8mb4_general_ci nkey,
         'Alerta estudiantil' COLLATE utf8mb4_general_ci category,
