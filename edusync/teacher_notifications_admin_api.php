@@ -208,14 +208,22 @@ $check->bind_param('ii',$user,$school);$check->execute();
 $account=$check->get_result()->fetch_assoc();$check->close();
 if(!$account||(int)$account['type']!==1)
     taca_response(['status'=>0,'message'=>'Esta configuración es exclusiva de Administración.'],403);
-foreach(['teacher_alert_settings','teacher_alert_manual_log','notification_events',
-    'academic_periods','grade_period_closures','teacher_courses'] as $table) {
+// Mostrar los cierres aunque todavía falte configurar los avisos en producción.
+// La consulta académica no depende de las tablas auxiliares de recordatorios.
+foreach(['academic_periods','grade_period_closures','teacher_courses'] as $table) {
     if(!tna_table($conn,$table)) {
         taca_response(['status'=>0,'migration_required'=>true,
-            'message'=>'Ejecuta la migración sql/teacher_alert_admin_control_v1.sql y comprueba las migraciones previas.',
+            'message'=>'Falta la tabla académica '.$table.'. Revisa las migraciones de años académicos y cierre bimestral.',
             'missing_table'=>$table],409);
     }
 }
+$missingAlertTables=[];
+foreach(['teacher_alert_settings','teacher_alert_manual_log','notification_events'] as $table) {
+    if(!tna_table($conn,$table))$missingAlertTables[]=$table;
+}
+$alertsReady=empty($missingAlertTables);
+$defaultAlertSettings=['deadline_date'=>null,'notice_days_before'=>3,
+    'closure_enabled'=>1,'incomplete_enabled'=>1,'admin_edits_enabled'=>1];
 $action=(string)($_POST['action']??$_GET['action']??'status');
 if($_SERVER['REQUEST_METHOD']==='POST')taca_csrf();
 $yearId=(int)($_POST['academic_year_id']??$_GET['academic_year_id']??0);
@@ -229,7 +237,7 @@ if(!$year||!$period)taca_response(['status'=>0,'message'=>'El periodo no pertene
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
 try {
     if($action==='status') {
-        $settings=taca_settings($conn,$school,$yearId,$bim);
+        $settings=$alertsReady?taca_settings($conn,$school,$yearId,$bim):$defaultAlertSettings;
         $globalLock=$conn->prepare('SELECT is_locked FROM bimester_locks WHERE school_id=? AND academic_year_id=? AND bimester=? LIMIT 1');
         if($globalLock) {
             $globalLock->bind_param('iii',$school,$yearId,$bim);
@@ -248,10 +256,14 @@ try {
             $totals['incomplete']+=(int)$t['incomplete_courses'];
         }
         taca_response(['status'=>1,'year'=>$year,'period'=>$period,'settings'=>$settings,
+            'alerts_ready'=>$alertsReady,'alerts_missing_tables'=>$missingAlertTables,
             'effective_deadline'=>$settings['deadline_date']?:$period['end_date'],
             'totals'=>$totals,'teachers'=>$teachers]);
     }
     if($action==='history') {
+        if(!$alertsReady)taca_response(['status'=>0,'migration_required'=>true,
+            'message'=>'Historial no disponible: instala sql/teacher_alert_admin_control_v1.sql y las tablas de notificaciones.',
+            'missing_tables'=>$missingAlertTables],409);
         taca_response(['status'=>1,'history'=>
             taca_history($conn,$school,$yearId,$bim,(int)$period['id'])]);
     }
@@ -263,6 +275,11 @@ try {
         taca_response(['status'=>1,'missing_by_course'=>
             taca_missing_by_course($conn,$school,$yearId,$bim)]);
     }
+
+    // Las operaciones con efectos requieren siempre las tablas auxiliares.
+    if(!$alertsReady)taca_response(['status'=>0,'migration_required'=>true,
+        'message'=>'Para configurar o enviar avisos debes instalar sql/teacher_alert_admin_control_v1.sql y las migraciones de notificaciones.',
+        'missing_tables'=>$missingAlertTables],409);
 
     if(($year['status']??'')!=='Activo'||(int)$year['is_active']!==1)
         taca_response(['status'=>0,'message'=>'Solo puede modificar avisos del año activo.'],409);
