@@ -122,6 +122,9 @@ $mobile_session_id = session_id();
 session_write_close();
 auth_reply(1, 'Inicio de sesión exitoso.', [
     'login_type' => intval($row['type']),
+    // Director es una capacidad adicional al rol base, no un tipo numérico nuevo.
+    'is_director' => (int)($row['is_director'] ?? 0) === 1,
+    'name' => (string)($row['name'] ?? ''),
     'login_id' => intval($row['id']),
     'session_id' => $mobile_session_id,
     'remember_saved' => $remember_saved,
