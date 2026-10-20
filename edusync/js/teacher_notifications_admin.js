@@ -14,8 +14,19 @@ function toast(msg,type){
   if(typeof window.alert_toast==='function') window.alert_toast(msg,type||'success');
   else window.alert(msg);
 }
+function explainApiFailure(xhr,fallback){
+  var r=xhr.responseJSON||{},code=Number(xhr.status||0);
+  var message=r.message||fallback+' (HTTP '+code+').';
+  if(r.error_ref)message+=' [Etapa: '+String(r.stage||'desconocida')+
+    '; referencia: '+String(r.error_ref)+']';
+  if(Number(r.db_errno)>0)message+=' [MySQL: '+Number(r.db_errno)+']';
+  if(r.db_hint)message+=' '+String(r.db_hint);
+  if(r.missing_tables&&r.missing_tables.length)message+=' Tablas: '+r.missing_tables.join(', ')+'.';
+  return message;
+}
 function currentYear(){return years.find(function(y){return Number(y.id)===yearId;})||null;}
 function canEdit(){var y=currentYear();return !!y&&y.status==='Activo'&&Number(y.active)===1;}
+function alertsReady(){return !!state && state.alerts_ready!==false;}
 function bimester(){return Number($('#taca-bim').val()||1);}
 function periodLabel(){return bimester()+'° bimestre';}
 function api(data,post){
@@ -59,9 +70,11 @@ function rowCells(t){
       Number(t.missing_cells)>0?'<span class="font-weight-bold text-danger">'+num(t.missing_cells)+'</span>':
       '<span class="text-success">0</span>',
     badge(t),
-    canEdit()&&state&&state.period&&
-      Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0?
+    canEdit()&&alertsReady()&&state&&state.period&&
+      Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0&&Number(t.recipient_user_id)>0?
       '<button type="button" class="btn btn-sm btn-outline-primary taca-send" data-user="'+Number(t.recipient_user_id)+'"><i class="fas fa-paper-plane mr-1"></i>Avisar</button>':
+      Number(t.recipient_user_id)===0?
+      '<span class="badge badge-light border text-muted" title="El docente aún no tiene una cuenta de usuario docente activa">Sin cuenta</span>':
       '<button type="button" class="btn btn-sm btn-light border" disabled>—</button>'
   ];
 }
@@ -140,7 +153,7 @@ function redrawRows(){
 }
 function fillSettings(){
   if(!state)return;
-  var s=state.settings||{},p=state.period||{},editable=canEdit();
+  var s=state.settings||{},p=state.period||{},editable=canEdit()&&alertsReady();
   $('#taca-date').val(s.deadline_date||'');
   $('#taca-days').val(s.notice_days_before||3);
   $('#taca-enabled-closure').prop('checked',Number(s.closure_enabled)===1);
@@ -215,16 +228,31 @@ function load(){
       return;
     }
     state=response;
+    if(!alertsReady()){
+      $('#taca-error').html('<div class="alert alert-warning" role="alert">'+
+        '<strong>Seguimiento en modo consulta.</strong> Puedes revisar los cierres, pero los avisos y su configuración están desactivados porque faltan tablas de notificaciones. '+
+        'Ejecuta la migración <code>sql/teacher_alert_admin_control_v1.sql</code> y verifica las tablas indicadas en el servidor.</div>');
+    }
+    $('#taca-settings-open, #taca-history-open').prop('disabled',!alertsReady());
     $('#taca-data').removeClass('d-none');
     $('#taca-grades-status').text(canEdit()?'Revisando notas…':'Año histórico · cierres únicamente');
     stats();drawTable();fillSettings();
     loadMissing(token,yearKey,periodKey);
   }).fail(function(xhr){
     if(token!==requestNumber)return;
-    var r=xhr.responseJSON||{};
-    $('#taca-error').html('<div class="alert alert-warning">'+
-      esc((r.message||'No se pudo cargar el seguimiento.')+
-        (r.migration_required?' Ejecuta la migración SQL de seguimiento docente.':''))+'</div>');
+    var r=xhr.responseJSON||{},http=xhr.status||0;
+    var msg=r.message||('No se pudo consultar Seguimiento Docente (HTTP '+http+').');
+    if(r.error_ref){
+      msg+=' [Etapa: '+String(r.stage||'no identificada')+'; referencia: '+String(r.error_ref)+']';
+    }
+    if(r.migration_required){
+      msg+=' Tabla pendiente: '+(r.missing_table||((r.missing_tables||[]).join(', '))||'consultar migraciones')+'.';
+    }else if(http===404){
+      msg+=' Verifica que teacher_notifications_admin_api.php esté publicado en producción.';
+    }else if(http===401||http===403){
+      msg+=' Comprueba tu sesión de administrador y vuelve a iniciar sesión si es necesario.';
+    }
+    $('#taca-error').html('<div class="alert alert-warning" role="alert">'+esc(msg)+'</div>');
   }).always(function(){if(token===requestNumber)$('#taca-loading').addClass('d-none');});
 }
 function selectYearAndLoad(){
@@ -272,6 +300,7 @@ $('#taca-filter').on('change',function(){
 $('#taca-reload').on('click',load);
 $('#taca-settings-open').on('click',function(){
   if(!state){toast('Selecciona un periodo con información.','warning');return;}
+  $('#taca-settings-error').remove();
   fillSettings();$('#taca-settings-modal').modal('show');
 });
 $('#taca-history-open').on('click',function(){
@@ -296,7 +325,8 @@ $('#taca-history-open').on('click',function(){
 });
 $('#taca-settings-form').on('submit',function(e){
   e.preventDefault();
-  if(!canEdit())return;
+  $('#taca-settings-error').remove();
+  if(!canEdit()||!alertsReady())return;
   var btn=$('#taca-save').prop('disabled',true);
   api({action:'save_settings',deadline_date:$('#taca-date').val(),
     notice_days_before:$('#taca-days').val(),
@@ -305,10 +335,16 @@ $('#taca-settings-form').on('submit',function(e){
     admin_edits_enabled:$('#taca-enabled-admin').is(':checked')?'1':'0'},true)
   .done(function(result){
     if(Number(result.status)===1){
-      $('#taca-settings-modal').modal('hide');toast(result.message||'Configuración guardada.');load();
+      $('#taca-settings-modal').modal('hide');
+      toast((result.message||'Configuración guardada.')+
+        (result.audit_warning?' No se pudo registrar la auditoría auxiliar.':''),result.audit_warning?'warning':'success');
+      load();
     }else toast(result.message||'No se pudo guardar.','danger');
   }).fail(function(xhr){
-    toast((xhr.responseJSON||{}).message||'No se pudo guardar.','danger');
+    var message=explainApiFailure(xhr,'No se pudo guardar la configuración');
+    $('<div>',{id:'taca-settings-error',class:'alert alert-danger',role:'alert'})
+      .text(message).insertBefore('#taca-settings-context');
+    toast('No se pudo guardar. Revisa el detalle en la ventana.','danger');
   }).always(function(){btn.prop('disabled',false);});
 });
 $('#taca-teachers-table').on('click','.taca-send',function(){
@@ -332,7 +368,7 @@ $('#taca-reminder-form').on('submit',function(e){
       $('#taca-reminder-modal').modal('hide');toast(r.message||'Recordatorio registrado.');load();
     }else toast(r.message||'No se pudo enviar el recordatorio.','warning');
   }).fail(function(xhr){
-    toast((xhr.responseJSON||{}).message||'No se pudo registrar el aviso.','danger');
+    toast(explainApiFailure(xhr,'No se pudo registrar el aviso'),'danger');
   }).always(function(){btn.prop('disabled',false);});
 });
 if(yearId)load();
