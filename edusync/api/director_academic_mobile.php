@@ -107,7 +107,7 @@ $account = $director->get_result()->fetch_assoc();
 $director->close();
 if (!$account) dma_reply(['status'=>'error','message'=>'No tienes acceso al perfil de Dirección.'], 403);
 $action = trim((string)($_POST['action'] ?? 'overview'));
-if (!in_array($action, ['overview','students','student_detail','identity'], true)) {
+if (!in_array($action, ['overview','students','student_detail','student_course','identity'], true)) {
     dma_reply(['status'=>'error','message'=>'Acción no permitida.'], 400);
 }
 if ($action === 'identity') {
@@ -120,6 +120,202 @@ if ($action === 'identity') {
         'name'=>(string)$account['name'],
     ]);
 }
+if ($action === 'student_course') {
+    // Ficha institucional unitaria, en solo lectura. No aceptar school_id,
+    // teacher_id ni permiso Director enviados por el cliente.
+    $GLOBALS['dma_stage'] = 'ficha_por_curso';
+    $studentId = (int)($_POST['student_id'] ?? 0);
+    $teacherCourseId = (int)($_POST['teacher_course_id'] ?? 0);
+    $yearId = (int)($_POST['academic_year_id'] ?? 0);
+    $bimester = (int)($_POST['bimester'] ?? 0);
+    if ($studentId <= 0 || $teacherCourseId <= 0 || $yearId <= 0 ||
+        $bimester < 1 || $bimester > 4) {
+        dma_reply(['status'=>'error','message'=>'Selecciona estudiante, curso, año y bimestre válidos.'],422);
+    }
+
+    $studentStmt = $conn->prepare(
+        "SELECT id,id_no,name,nivel,grado,seccion,status FROM student
+         WHERE id=? AND school_id=? LIMIT 1"
+    );
+    $studentStmt->bind_param('ii', $studentId, $schoolId);
+    $studentStmt->execute();
+    $student = $studentStmt->get_result()->fetch_assoc();
+    $studentStmt->close();
+    if (!$student) dma_reply(['status'=>'error','message'=>'Estudiante fuera de la institución.'],404);
+
+    $courseStmt = $conn->prepare(
+        "SELECT tc.id,tc.course_id,tc.teacher_id,tc.academic_year_id,
+                tc.grado,tc.seccion,ac.level,ac.name course_name,
+                COALESCE(t.name,'Docente no asignado') teacher_name,
+                ay.year academic_year
+         FROM teacher_courses tc
+         INNER JOIN academic_courses ac ON ac.id=tc.course_id
+             AND ac.school_id=tc.school_id
+         INNER JOIN academic_year ay ON ay.id=tc.academic_year_id
+             AND ay.school_id=tc.school_id
+         LEFT JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id
+         WHERE tc.id=? AND tc.school_id=? AND tc.academic_year_id=? LIMIT 1"
+    );
+    $courseStmt->bind_param('iii', $teacherCourseId, $schoolId, $yearId);
+    $courseStmt->execute();
+    $course = $courseStmt->get_result()->fetch_assoc();
+    $courseStmt->close();
+    if (!$course) dma_reply(['status'=>'error','message'=>'Curso fuera del año o institución seleccionados.'],404);
+
+    // La matrícula actual vincula la ficha con el aula. Para ciclos
+    // históricos únicamente se admite un alumno con calificaciones
+    // registradas en ESTA asignación concreta.
+    $studentKey = dma_class_key(
+        (string)$student['nivel'], (string)$student['grado'], (string)$student['seccion']
+    );
+    $courseKey = dma_class_key(
+        (string)$course['level'], (string)$course['grado'], (string)$course['seccion']
+    );
+    if ($studentKey !== $courseKey) {
+        $historyStmt = $conn->prepare(
+            "SELECT eg.id FROM evaluation_grades eg
+             INNER JOIN evaluations e ON e.id=eg.evaluation_id
+             WHERE eg.student_id=? AND e.teacher_course_id=?
+               AND e.academic_year_id=? LIMIT 1"
+        );
+        $historyStmt->bind_param('iii', $studentId, $teacherCourseId, $yearId);
+        $historyStmt->execute();
+        $wasEnrolled = (bool)$historyStmt->get_result()->fetch_assoc();
+        $historyStmt->close();
+        if (!$wasEnrolled) {
+            dma_reply(['status'=>'error','message'=>'No hay vinculación académica de este estudiante con el curso.'],404);
+        }
+    }
+
+    $GLOBALS['dma_stage'] = 'competencias_del_curso';
+    $competencies = [];
+    $competencyById = [];
+    $compStmt = $conn->prepare(
+        "SELECT id,name,percentage,is_active
+         FROM general_course_competencies
+         WHERE course_id=? AND teacher_id=? AND academic_year_id=?
+         ORDER BY id"
+    );
+    $compStmt->bind_param('iii',
+        $course['course_id'],$course['teacher_id'],$yearId);
+    $compStmt->execute();
+    $compRes = $compStmt->get_result();
+    while ($row = $compRes->fetch_assoc()) {
+        $id = (int)$row['id'];
+        $active = (int)$row['is_active'] === 1;
+        $competency = [
+            'id'=>$id,'name'=>(string)$row['name'],
+            'percentage'=>$active ? (float)$row['percentage'] : 0.0,
+            'historical'=>!$active
+        ];
+        $competencies[] = $competency;
+        $competencyById[$id] = count($competencies)-1;
+    }
+    $compStmt->close();
+
+    $GLOBALS['dma_stage'] = 'evaluaciones_del_curso';
+    $statusColumn = $conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+    $statusFilter = ($statusColumn && $statusColumn->num_rows)
+        ? " AND (e.status IS NULL OR e.status<>'Anulada')" : '';
+    $evalStmt = $conn->prepare(
+        "SELECT e.id,e.title,e.description FROM evaluations e
+         WHERE e.teacher_course_id=? AND e.teacher_id=?
+           AND e.academic_year_id=? AND e.bimestre=? {$statusFilter}
+         ORDER BY e.created_at,e.id"
+    );
+    $evalStmt->bind_param('iiii',
+        $teacherCourseId,$course['teacher_id'],$yearId,$bimester);
+    $evalStmt->execute();
+    $evaluations = [];
+    $evaluationById = [];
+    $evalRes = $evalStmt->get_result();
+    while ($row = $evalRes->fetch_assoc()) {
+        $id = (int)$row['id'];
+        $evaluationById[$id] = count($evaluations);
+        $evaluations[] = [
+            'id'=>$id,'title'=>(string)$row['title'],
+            'description'=>(string)($row['description']??''),
+            'competency_ids'=>[], 'annulled'=>false
+        ];
+    }
+    $evalStmt->close();
+
+    $gradesByCompetency = [];
+    if ($evaluations) {
+        $GLOBALS['dma_stage'] = 'vinculos_competencias';
+        $evaluationIds = array_keys($evaluationById);
+        $in = implode(',',array_map('intval',$evaluationIds));
+        $linkSql = "SELECT ec.evaluation_id,ec.competencia_id,
+                           COALESCE(gcc.name,'Competencia histórica') competency_name,
+                           COALESCE(gcc.percentage,0) percentage
+                    FROM evaluation_competencias ec
+                    LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+                    WHERE ec.evaluation_id IN ($in)
+                    ORDER BY ec.evaluation_id,ec.id";
+        $links = $conn->query($linkSql);
+        while ($row = $links->fetch_assoc()) {
+            $eid = (int)$row['evaluation_id'];
+            $cid = (int)$row['competencia_id'];
+            if ($cid <= 0 || !isset($evaluationById[$eid])) continue;
+            $index = $evaluationById[$eid];
+            if (!in_array($cid,$evaluations[$index]['competency_ids'],true)) {
+                $evaluations[$index]['competency_ids'][] = $cid;
+            }
+            if (!isset($competencyById[$cid])) {
+                $competencyById[$cid] = count($competencies);
+                $competencies[] = [
+                    'id'=>$cid,'name'=>(string)$row['competency_name'],
+                    'percentage'=>0.0,'historical'=>true
+                ];
+            }
+        }
+
+        $GLOBALS['dma_stage'] = 'notas_del_curso';
+        $gradesStmt = $conn->prepare(
+            "SELECT eg.id,eg.evaluation_id,eg.competencia_id,eg.grade
+             FROM evaluation_grades eg
+             WHERE eg.student_id=? AND eg.evaluation_id IN ($in)
+             ORDER BY eg.id"
+        );
+        $gradesStmt->bind_param('i',$studentId);
+        $gradesStmt->execute();
+        $gradeRes=$gradesStmt->get_result();
+        while ($row=$gradeRes->fetch_assoc()) {
+            $eid=(int)$row['evaluation_id'];
+            if (!isset($evaluationById[$eid])) continue;
+            $ids=$evaluations[$evaluationById[$eid]]['competency_ids'];
+            $cid=(int)($row['competencia_id']??0);
+            // Las celdas legacy sin competencia solo se atribuyen cuando
+            // el vínculo de evaluación es inequívoco.
+            if ($cid<=0 && count($ids)===1) $cid=$ids[0];
+            if ($cid<=0 || !in_array($cid,$ids,true)) continue;
+            $gradesByCompetency[(string)$eid][(string)$cid][(string)$studentId] =
+                trim((string)($row['grade']??''));
+        }
+        $gradesStmt->close();
+    }
+    $student['id']=(int)$student['id'];
+    dma_reply([
+        'status'=>'ok','read_only'=>true,
+        'student'=>$student,
+        'academic_year_id'=>$yearId,'bimester'=>$bimester,
+        'course'=>[
+            'teacher_course_id'=>(int)$course['id'],
+            'name'=>(string)$course['course_name'],
+            'teacher_name'=>(string)$course['teacher_name'],
+            'level'=>(string)$course['level'],
+            'grade'=>(string)$course['grado'],
+            'section'=>(string)$course['seccion'],
+            'year'=>(string)$course['academic_year']
+        ],
+        // Contrato de TeacherCourseStudentSummary: misma regla y escala
+        // ponderada de la ficha individual docente, nunca una media distinta.
+        'competencies'=>$competencies,
+        'evaluations'=>$evaluations,
+        'grades_by_competency'=>$gradesByCompetency
+    ]);
+}
+
 if ($action === 'students') {
     $GLOBALS['dma_stage'] = 'nomina_de_aula';
     $level = trim((string)($_POST['level'] ?? ''));
