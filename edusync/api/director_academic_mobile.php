@@ -241,6 +241,7 @@ if ($action === 'student_course') {
     $evalStmt->close();
 
     $gradesByCompetency = [];
+    $unassignedGrades = [];
     if ($evaluations) {
         $GLOBALS['dma_stage'] = 'vinculos_competencias';
         $evaluationIds = array_keys($evaluationById);
@@ -288,11 +289,28 @@ if ($action === 'student_course') {
             // Las celdas legacy sin competencia solo se atribuyen cuando
             // el vínculo de evaluación es inequívoco.
             if ($cid<=0 && count($ids)===1) $cid=$ids[0];
+            if ($cid<=0 && count($ids)===0) {
+                // Evaluaciones antiguas sin vínculo de competencia:
+                // visualizarlas aparte, sin inventar aportes ni promedios.
+                $unassignedGrades[$eid] = trim((string)($row['grade']??''));
+                continue;
+            }
             if ($cid<=0 || !in_array($cid,$ids,true)) continue;
             $gradesByCompetency[(string)$eid][(string)$cid][(string)$studentId] =
                 trim((string)($row['grade']??''));
         }
         $gradesStmt->close();
+    }
+    $unassigned = [];
+    foreach ($evaluations as $evaluation) {
+        if ($evaluation['competency_ids']) continue;
+        $eid=(int)$evaluation['id'];
+        $unassigned[]=[
+            'id'=>$eid,
+            'title'=>$evaluation['title'],
+            'grade'=>$unassignedGrades[$eid]??'',
+            'historical'=>true
+        ];
     }
     $student['id']=(int)$student['id'];
     dma_reply([
@@ -312,7 +330,8 @@ if ($action === 'student_course') {
         // ponderada de la ficha individual docente, nunca una media distinta.
         'competencies'=>$competencies,
         'evaluations'=>$evaluations,
-        'grades_by_competency'=>$gradesByCompetency
+        'grades_by_competency'=>$gradesByCompetency,
+        'unassigned_evaluations'=>$unassigned
     ]);
 }
 
