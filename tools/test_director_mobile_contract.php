@@ -21,6 +21,7 @@ $checks = [
         "evaluaciones_del_curso",
         "notas_del_curso",
         "grades_by_competency",
+        "unassigned_evaluations",
         "evaluation_competencias",
         "academic_year_id",
         "teacher_course_id",
