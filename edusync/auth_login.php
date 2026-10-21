@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/dev_cors.php';
 ini_set('session.save_path', __DIR__ . '/tmp');
 if (!is_dir(__DIR__ . '/tmp')) @mkdir(__DIR__ . '/tmp');
 session_name('EDUSYNCSESSID');
