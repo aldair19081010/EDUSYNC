@@ -107,7 +107,7 @@ $account = $director->get_result()->fetch_assoc();
 $director->close();
 if (!$account) dma_reply(['status'=>'error','message'=>'No tienes acceso al perfil de Dirección.'], 403);
 $action = trim((string)($_POST['action'] ?? 'overview'));
-if (!in_array($action, ['overview','students','student_detail','student_course','identity'], true)) {
+if (!in_array($action, ['overview','students','student_detail','student_course','course_roster','identity'], true)) {
     dma_reply(['status'=>'error','message'=>'Acción no permitida.'], 400);
 }
 if ($action === 'identity') {
@@ -120,7 +120,10 @@ if ($action === 'identity') {
         'name'=>(string)$account['name'],
     ]);
 }
-if ($action === 'student_course') {
+if ($action === 'student_course' || $action === 'course_roster') {
+    // Una ficha individual o el libro del aula por curso con una sola
+    // consulta para toda la nómina, sin calcular un promedio alternativo.
+    $rosterMode = $action === 'course_roster';
     // Ficha institucional unitaria, en solo lectura. No aceptar school_id,
     // teacher_id ni permiso Director enviados por el cliente.
     $GLOBALS['dma_stage'] = 'ficha_por_curso';
@@ -128,26 +131,30 @@ if ($action === 'student_course') {
     $teacherCourseId = (int)($_POST['teacher_course_id'] ?? 0);
     $yearId = (int)($_POST['academic_year_id'] ?? 0);
     $bimester = (int)($_POST['bimester'] ?? 0);
-    if ($studentId <= 0 || $teacherCourseId <= 0 || $yearId <= 0 ||
-        $bimester < 1 || $bimester > 4) {
+    if ((!$rosterMode && $studentId <= 0) || $teacherCourseId <= 0 ||
+        $yearId <= 0 || $bimester < 1 || $bimester > 4) {
         dma_reply(['status'=>'error','message'=>'Selecciona estudiante, curso, año y bimestre válidos.'],422);
     }
 
-    $studentStmt = $conn->prepare(
-        "SELECT id,id_no,name,nivel,grado,seccion,status FROM student
-         WHERE id=? AND school_id=? LIMIT 1"
-    );
-    $studentStmt->bind_param('ii', $studentId, $schoolId);
-    $studentStmt->execute();
-    $student = $studentStmt->get_result()->fetch_assoc();
-    $studentStmt->close();
-    if (!$student) dma_reply(['status'=>'error','message'=>'Estudiante fuera de la institución.'],404);
+    $student = null;
+    $students = [];
+    if (!$rosterMode) {
+        $studentStmt = $conn->prepare(
+            "SELECT id,id_no,name,nivel,grado,seccion,status FROM student
+             WHERE id=? AND school_id=? LIMIT 1"
+        );
+        $studentStmt->bind_param('ii', $studentId, $schoolId);
+        $studentStmt->execute();
+        $student = $studentStmt->get_result()->fetch_assoc();
+        $studentStmt->close();
+        if (!$student) dma_reply(['status'=>'error','message'=>'Estudiante fuera de la institución.'],404);
+    }
 
     $courseStmt = $conn->prepare(
         "SELECT tc.id,tc.course_id,tc.teacher_id,tc.academic_year_id,
                 tc.grado,tc.seccion,ac.level,ac.name course_name,
                 COALESCE(t.name,'Docente no asignado') teacher_name,
-                ay.year academic_year
+                ay.year academic_year,ay.is_active academic_year_active
          FROM teacher_courses tc
          INNER JOIN academic_courses ac ON ac.id=tc.course_id
              AND ac.school_id=tc.school_id
@@ -165,26 +172,66 @@ if ($action === 'student_course') {
     // La matrícula actual vincula la ficha con el aula. Para ciclos
     // históricos únicamente se admite un alumno con calificaciones
     // registradas en ESTA asignación concreta.
-    $studentKey = dma_class_key(
-        (string)$student['nivel'], (string)$student['grado'], (string)$student['seccion']
-    );
-    $courseKey = dma_class_key(
-        (string)$course['level'], (string)$course['grado'], (string)$course['seccion']
-    );
-    if ($studentKey !== $courseKey) {
-        $historyStmt = $conn->prepare(
-            "SELECT eg.id FROM evaluation_grades eg
-             INNER JOIN evaluations e ON e.id=eg.evaluation_id
-             WHERE eg.student_id=? AND e.teacher_course_id=?
-               AND e.academic_year_id=? LIMIT 1"
+    if (!$rosterMode) {
+        $studentKey = dma_class_key(
+            (string)$student['nivel'], (string)$student['grado'], (string)$student['seccion']
         );
-        $historyStmt->bind_param('iii', $studentId, $teacherCourseId, $yearId);
-        $historyStmt->execute();
-        $wasEnrolled = (bool)$historyStmt->get_result()->fetch_assoc();
-        $historyStmt->close();
-        if (!$wasEnrolled) {
-            dma_reply(['status'=>'error','message'=>'No hay vinculación académica de este estudiante con el curso.'],404);
+        $courseKey = dma_class_key(
+            (string)$course['level'], (string)$course['grado'], (string)$course['seccion']
+        );
+        if ($studentKey !== $courseKey) {
+            $historyStmt = $conn->prepare(
+                "SELECT eg.id FROM evaluation_grades eg
+                 INNER JOIN evaluations e ON e.id=eg.evaluation_id
+                 WHERE eg.student_id=? AND e.teacher_course_id=?
+                   AND e.academic_year_id=? LIMIT 1"
+            );
+            $historyStmt->bind_param('iii', $studentId, $teacherCourseId, $yearId);
+            $historyStmt->execute();
+            $wasEnrolled = (bool)$historyStmt->get_result()->fetch_assoc();
+            $historyStmt->close();
+            if (!$wasEnrolled) {
+                dma_reply(['status'=>'error','message'=>'No hay vinculación académica de este estudiante con el curso.'],404);
+            }
         }
+    } else {
+        $GLOBALS['dma_stage'] = 'nomina_del_curso';
+        $isActiveYear = (int)$course['academic_year_active'] === 1;
+        if ($isActiveYear) {
+            // Matrícula del aula actual, aun si todavía no hay evaluaciones.
+            $rosterStmt = $conn->prepare(
+                "SELECT st.id,st.id_no,st.name FROM student st
+                 WHERE st.school_id=? AND st.status='Activo'
+                   AND LOWER(TRIM(st.nivel))=LOWER(TRIM(?))
+                   AND TRIM(REPLACE(REPLACE(st.grado,'°',''),'º',''))=?
+                   AND UPPER(COALESCE(NULLIF(TRIM(st.seccion),''),'U'))=?
+                 ORDER BY st.name,st.id LIMIT 300"
+            );
+            $level = (string)$course['level'];
+            $grade = trim(str_replace(['°','º'],'',(string)$course['grado']));
+            $section = strtoupper(trim((string)$course['seccion']));
+            if ($section === '') $section = 'U';
+            $rosterStmt->bind_param('isss', $schoolId,$level,$grade,$section);
+        } else {
+            // No inventar la nómina histórica usando el grado actual:
+            // solo estudiantes con registros en esta asignación/año.
+            $rosterStmt = $conn->prepare(
+                "SELECT DISTINCT st.id,st.id_no,st.name FROM student st
+                 INNER JOIN evaluation_grades eg ON eg.student_id=st.id
+                 INNER JOIN evaluations e ON e.id=eg.evaluation_id
+                 WHERE st.school_id=? AND e.teacher_course_id=?
+                   AND e.academic_year_id=?
+                 ORDER BY st.name,st.id LIMIT 300"
+            );
+            $rosterStmt->bind_param('iii',$schoolId,$teacherCourseId,$yearId);
+        }
+        $rosterStmt->execute();
+        $rosterResult = $rosterStmt->get_result();
+        while ($row=$rosterResult->fetch_assoc()) {
+            $row['id']=(int)$row['id'];
+            $students[]=$row;
+        }
+        $rosterStmt->close();
     }
 
     $GLOBALS['dma_stage'] = 'competencias_del_curso';
@@ -272,16 +319,20 @@ if ($action === 'student_course') {
         }
 
         $GLOBALS['dma_stage'] = 'notas_del_curso';
-        $gradesStmt = $conn->prepare(
-            "SELECT eg.id,eg.evaluation_id,eg.competencia_id,eg.grade
-             FROM evaluation_grades eg
-             WHERE eg.student_id=? AND eg.evaluation_id IN ($in)
-             ORDER BY eg.id"
-        );
-        $gradesStmt->bind_param('i',$studentId);
-        $gradesStmt->execute();
-        $gradeRes=$gradesStmt->get_result();
-        while ($row=$gradeRes->fetch_assoc()) {
+        $studentIds=$rosterMode
+            ? array_column($students,'id') : [$studentId];
+        if ($studentIds) {
+            $studentIn=implode(',',array_map('intval',$studentIds));
+            $gradesStmt = $conn->prepare(
+                "SELECT eg.id,eg.student_id,eg.evaluation_id,eg.competencia_id,eg.grade
+                 FROM evaluation_grades eg
+                 WHERE eg.student_id IN ($studentIn) AND eg.evaluation_id IN ($in)
+                 ORDER BY eg.id"
+            );
+            $gradesStmt->execute();
+            $gradeRes=$gradesStmt->get_result();
+            while ($row=$gradeRes->fetch_assoc()) {
+            $cellStudentId=(int)$row['student_id'];
             $eid=(int)$row['evaluation_id'];
             if (!isset($evaluationById[$eid])) continue;
             $ids=$evaluations[$evaluationById[$eid]]['competency_ids'];
@@ -292,14 +343,17 @@ if ($action === 'student_course') {
             if ($cid<=0 && count($ids)===0) {
                 // Evaluaciones antiguas sin vínculo de competencia:
                 // visualizarlas aparte, sin inventar aportes ni promedios.
-                $unassignedGrades[$eid] = trim((string)($row['grade']??''));
+                if (!$rosterMode) {
+                    $unassignedGrades[$eid] = trim((string)($row['grade']??''));
+                }
                 continue;
             }
             if ($cid<=0 || !in_array($cid,$ids,true)) continue;
-            $gradesByCompetency[(string)$eid][(string)$cid][(string)$studentId] =
+            $gradesByCompetency[(string)$eid][(string)$cid][(string)$cellStudentId] =
                 trim((string)($row['grade']??''));
+            }
+            $gradesStmt->close();
         }
-        $gradesStmt->close();
     }
     $unassigned = [];
     foreach ($evaluations as $evaluation) {
@@ -312,10 +366,13 @@ if ($action === 'student_course') {
             'historical'=>true
         ];
     }
-    $student['id']=(int)$student['id'];
+    if (!$rosterMode) $student['id']=(int)$student['id'];
     dma_reply([
         'status'=>'ok','read_only'=>true,
         'student'=>$student,
+        'students'=>$students,
+        'roster_scope'=>$rosterMode && (int)$course['academic_year_active']!==1
+            ? 'historical_grades' : 'current_classroom',
         'academic_year_id'=>$yearId,'bimester'=>$bimester,
         'course'=>[
             'teacher_course_id'=>(int)$course['id'],
