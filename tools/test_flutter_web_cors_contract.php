@@ -19,6 +19,8 @@ $errors = [];
 foreach ($rules as $file => $required) {
     $path = $root . '/' . $file;
     $text = is_file($path) ? (string)file_get_contents($path) : '';
+    // En Windows git puede transformar saltos de línea a CRLF.
+    $text = str_replace("\r\n", "\n", $text);
     if (!str_starts_with($text, "<?php\n" . $required)) {
         $errors[] = "$file no ejecuta CORS antes de iniciar sesión o validar peticiones.";
     }
