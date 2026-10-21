@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/dev_cors.php';
 // Vista de asistencia por aula para docentes; consulta únicamente.
 // Las modificaciones de asistencia siguen reservadas a los roles autorizados
 // por attendance_api.php (Administración / Auxiliar).
