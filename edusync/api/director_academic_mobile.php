@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/dev_cors.php';
+require_once __DIR__ . '/../includes/attendance_history_helper.php';
 /**
  * Dirección académica móvil (solo consulta).
  * La escuela y el privilegio Director SIEMPRE se revalidan en la base de datos.
@@ -107,7 +108,7 @@ $account = $director->get_result()->fetch_assoc();
 $director->close();
 if (!$account) dma_reply(['status'=>'error','message'=>'No tienes acceso al perfil de Dirección.'], 403);
 $action = trim((string)($_POST['action'] ?? 'overview'));
-if (!in_array($action, ['overview','students','student_detail','student_course','course_roster','identity'], true)) {
+if (!in_array($action, ['overview','students','student_detail','student_course','course_roster','identity','attendance_overview','attendance_classroom','attendance_student'], true)) {
     dma_reply(['status'=>'error','message'=>'Acción no permitida.'], 400);
 }
 if ($action === 'identity') {
@@ -120,6 +121,154 @@ if ($action === 'identity') {
         'name'=>(string)$account['name'],
     ]);
 }
+// Asistencia institucional: acceso exclusivo al Director validado por MySQL.
+// Ninguna acción modifica la tabla asistencia ni depende de cursos dictados.
+if (in_array($action, ['attendance_overview','attendance_classroom','attendance_student'], true)) {
+    date_default_timezone_set('America/Lima');
+    $GLOBALS['dma_stage']='asistencia_validar';
+    $tableReady=$conn->query("SHOW TABLES LIKE 'asistencia'");
+    if (!$tableReady || $tableReady->num_rows===0) {
+        dma_reply(['status'=>'error','message'=>'El colegio aún no tiene habilitado el módulo de asistencia.'],409);
+    }
+    $checkCol = static function(string $name) use ($conn): bool {
+        $safe=$conn->real_escape_string($name);
+        $found=$conn->query("SHOW COLUMNS FROM asistencia LIKE '$safe'");
+        return $found && $found->num_rows>0;
+    };
+    $hasSchool=$checkCol('school_id');
+    $hasCancelled=$checkCol('is_cancelled');
+    $date=trim((string)($_POST['date']??date('Y-m-d')));
+    $validDate=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
+    if (!$validDate || $validDate->format('Y-m-d')!==$date) {
+        dma_reply(['status'=>'error','message'=>'Fecha de asistencia no válida.'],422);
+    }
+    $level=trim((string)($_POST['level']??''));
+    $grade=trim(str_replace(['°','º'],'',(string)($_POST['grade']??'')));
+    $section=strtoupper(trim((string)($_POST['section']??'')));
+    if (strlen($level)>50 || strlen($grade)>12 || strlen($section)>20) {
+        dma_reply(['status'=>'error','message'=>'El filtro de aula es inválido.'],422);
+    }
+    if ($action==='attendance_classroom' && ($level==='' || $grade==='' || $section==='')) {
+        dma_reply(['status'=>'error','message'=>'Selecciona nivel, grado y sección.'],422);
+    }
+    $classWhere="st.school_id=? AND st.status='Activo'";
+    $types='i';
+    $params=[$schoolId];
+    if ($level!=='') {
+        $classWhere.=" AND LOWER(TRIM(st.nivel))=LOWER(TRIM(?))";
+        $types.='s';$params[]=$level;
+    }
+    if ($grade!=='') {
+        $classWhere.=" AND TRIM(REPLACE(REPLACE(st.grado,'°',''),'º',''))=?";
+        $types.='s';$params[]=$grade;
+    }
+    if ($section!=='') {
+        $classWhere.=" AND UPPER(COALESCE(NULLIF(TRIM(st.seccion),''),'U'))=?";
+        $types.='s';$params[]=$section;
+    }
+    if ($action==='attendance_student') {
+        $GLOBALS['dma_stage']='asistencia_historial_estudiante';
+        $studentId=(int)($_POST['student_id']??0);
+        if ($studentId<=0) dma_reply(['status'=>'error','message'=>'Selecciona un estudiante.'],422);
+        $studentStmt=$conn->prepare("SELECT st.id,st.id_no,st.name,st.nivel,st.grado,st.seccion FROM student st WHERE st.id=? AND st.school_id=? LIMIT 1");
+        $studentStmt->bind_param('ii',$studentId,$schoolId);
+        $studentStmt->execute();
+        $student=$studentStmt->get_result()->fetch_assoc();
+        $studentStmt->close();
+        if (!$student) dma_reply(['status'=>'error','message'=>'El estudiante no pertenece a este colegio.'],404);
+        $from=$validDate->modify('first day of this month')->format('Y-m-d');
+        $until=$validDate->modify('first day of next month')->format('Y-m-d');
+        $where=['a.student_id=?','a.fecha>=?','a.fecha<?'];
+        $paramTypes='iss';$markParams=[$studentId,$from,$until];
+        if ($hasSchool){$where[]='a.school_id=?';$paramTypes.='i';$markParams[]=$schoolId;}
+        if ($hasCancelled) $where[]='COALESCE(a.is_cancelled,0)=0';
+        $stmt=$conn->prepare("SELECT a.fecha,a.tipo,a.hora,a.estado FROM asistencia a WHERE ".implode(' AND ',$where)." ORDER BY a.fecha,a.hora,a.id");
+        $stmt->bind_param($paramTypes,...$markParams);$stmt->execute();
+        $raw=[];
+        foreach ($stmt->get_result() as $mark) {
+            $mark['anio_academico']=(string)$validDate->format('Y');
+            $mark['anio_descripcion']='';
+            $raw[]=$mark;
+        }
+        $stmt->close();
+        $days=attendance_group_days($raw);
+        dma_reply(['status'=>'ok','read_only'=>true,'student'=>$student,'month'=>$from,
+                   'days'=>$days,'has_records'=>count($days)>0]);
+    }
+    $GLOBALS['dma_stage']='asistencia_nomina';
+    $rosterStmt=$conn->prepare("SELECT st.id,st.id_no,st.name,st.nivel,st.grado,COALESCE(NULLIF(TRIM(st.seccion),''),'U') seccion
+         FROM student st WHERE $classWhere ORDER BY st.nivel,st.grado,st.seccion,st.name,st.id");
+    $rosterStmt->bind_param($types,...$params);$rosterStmt->execute();
+    $students=[];$groups=[];
+    foreach ($rosterStmt->get_result() as $st) {
+        $id=(int)$st['id'];$st['id']=$id;$st['status']='Sin registro';$st['entrada']=null;$st['salida']=null;
+        $key=dma_class_key($st['nivel'],$st['grado'],$st['seccion']);
+        $st['_key']=$key;
+        $students[$id]=$st;
+        if (!isset($groups[$key])) {
+            $groups[$key]=['level'=>$st['nivel'],'grade'=>$st['grado'],'section'=>$st['seccion'],
+              'expected'=>0,'recorded'=>0,'present'=>0,'late'=>0,'absent'=>0,
+              'justified'=>0,'permission'=>0,'other'=>0,'unmarked'=>0,
+              'with_entry'=>0,'with_exit'=>0];
+        }
+        $groups[$key]['expected']++;
+    }
+    $rosterStmt->close();
+    $GLOBALS['dma_stage']='asistencia_marcaciones';
+    // Obtener todas las marcaciones de este colegio y día EN UNA consulta.
+    // La nómina se valida por institución; nunca usar school_id del cliente.
+    $markWhere=['a.fecha>=?','a.fecha<?','st.school_id=?'];
+    $start=$date;$end=$validDate->modify('+1 day')->format('Y-m-d');
+    $mt='ssi';$mp=[$start,$end,$schoolId];
+    if ($hasSchool) $markWhere[]='a.school_id=st.school_id';
+    if ($hasCancelled) $markWhere[]='COALESCE(a.is_cancelled,0)=0';
+    $markStmt=$conn->prepare("SELECT a.student_id,a.fecha,a.tipo,a.hora,a.estado
+       FROM asistencia a INNER JOIN student st ON st.id=a.student_id
+       WHERE ".implode(' AND ',$markWhere)." ORDER BY a.fecha,a.hora,a.id");
+    $markStmt->bind_param($mt,...$mp);$markStmt->execute();
+    $rawByStudent=[];
+    foreach ($markStmt->get_result() as $mark) {
+        $id=(int)$mark['student_id'];
+        if (!isset($students[$id])) continue;
+        $mark['anio_academico']=(string)$validDate->format('Y');
+        $mark['anio_descripcion']='';
+        $rawByStudent[$id][]=$mark;
+    }
+    $markStmt->close();
+    $summary=['expected'=>count($students),'recorded'=>0,'present'=>0,'late'=>0,
+      'absent'=>0,'justified'=>0,'permission'=>0,'other'=>0,'unmarked'=>0,
+      'with_entry'=>0,'with_exit'=>0];
+    $statusCodes=['Presente'=>'present','Tarde'=>'late','Ausente'=>'absent',
+      'Ausente Justificada'=>'justified','Permiso'=>'permission'];
+    foreach ($students as $studentId=>&$studentRow) {
+        $days=attendance_group_days($rawByStudent[$studentId]??[]);
+        $day=$days[0]??null;
+        $status=$day===null?'Sin registro':(string)$day['estado'];
+        $code=$day===null?'unmarked':($statusCodes[$status]??'other');
+        $summary[$code]++;$groups[$studentRow['_key']][$code]++;
+        if ($day!==null) {
+            $summary['recorded']++;$groups[$studentRow['_key']]['recorded']++;
+            $studentRow['status']=$status;
+            $studentRow['entrada']=$day['entrada'];
+            $studentRow['salida']=$day['salida'];
+            foreach (['entrada'=>'with_entry','salida'=>'with_exit'] as $field=>$metric) {
+                if (!empty($day[$field])) {
+                    $summary[$metric]++;$groups[$studentRow['_key']][$metric]++;
+                }
+            }
+        }
+        unset($studentRow['_key']);
+    }
+    unset($studentRow);
+    $rooms=array_values($groups);
+    if ($action==='attendance_classroom') {
+        dma_reply(['status'=>'ok','read_only'=>true,'date'=>$date,
+          'summary'=>$summary,'students'=>array_values($students),'classrooms'=>$rooms]);
+    }
+    dma_reply(['status'=>'ok','read_only'=>true,'date'=>$date,
+      'summary'=>$summary,'classrooms'=>$rooms]);
+}
+
 if ($action === 'student_course' || $action === 'course_roster') {
     // Una ficha individual o el libro del aula por curso con una sola
     // consulta para toda la nómina, sin calcular un promedio alternativo.
