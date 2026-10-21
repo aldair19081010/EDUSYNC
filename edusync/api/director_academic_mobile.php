@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/dev_cors.php';
 /**
  * Dirección académica móvil (solo consulta).
  * La escuela y el privilegio Director SIEMPRE se revalidan en la base de datos.
