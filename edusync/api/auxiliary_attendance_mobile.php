@@ -166,26 +166,78 @@ try {
         aam_reply(['status'=>'ok','date'=>$day,'student'=>$rows[0]]);
     }
 
-    if ($action === 'register') {
+    if ($action === 'scan_status') {
+        // Un cliente que perdió la respuesta puede comprobar su petición
+        // sin crear ninguna asistencia adicional.
+        $requestId = strtolower(trim((string)($_POST['request_id'] ?? '')));
+        if (!preg_match('/^[a-f0-9]{32}$/', $requestId)) {
+            aam_reply(['status'=>'error','message'=>'Identificador inválido.'],422);
+        }
+        $pattern = '%"request_id":"'.$requestId.'"%';
+        $check = $conn->prepare("SELECT a.id AS attendance_id,a.student_id,
+            a.fecha AS date,a.hora AS time,a.tipo AS kind,a.estado AS state,
+            st.name,st.nivel,st.grado,st.seccion
+            FROM attendance_audit_log audit
+            INNER JOIN asistencia a ON a.id=audit.attendance_id
+                AND a.school_id=audit.school_id
+            INNER JOIN student st ON st.id=a.student_id AND st.school_id=a.school_id
+            WHERE audit.school_id=? AND audit.user_id=?
+              AND audit.action='attendance_auxiliary_mobile'
+              AND audit.details LIKE ? AND a.is_cancelled=0
+            ORDER BY audit.id DESC LIMIT 1");
+        if (!$check) throw new RuntimeException('estado_marcacion');
+        $check->bind_param('iis',$school,$userId,$pattern);
+        $check->execute();
+        $record = $check->get_result()->fetch_assoc();
+        $check->close();
+        aam_reply(['status'=>'ok','confirmed'=>(bool)$record,
+            'attendance'=>$record ?: null]);
+    }
+
+    if ($action === 'register' || $action === 'scan_register') {
+        $byCode = $action === 'scan_register';
         $studentId = (int)($_POST['student_id'] ?? 0);
+        $code = trim((string)($_POST['code'] ?? ''));
         $kind = trim((string)($_POST['kind'] ?? ''));
-        $source = trim((string)($_POST['source'] ?? 'Manual'));
-        if ($studentId<=0 || !in_array($kind,['Entrada','Salida'],true)
-            || !in_array($source,['Manual','Escáner'],true)) {
+        $source = trim((string)($_POST['source'] ?? ($byCode ? 'Escáner' : 'Manual')));
+        $requestId = strtolower(trim((string)($_POST['request_id'] ?? '')));
+        if (($byCode && ($code === '' || strlen($code)>64))
+            || (!$byCode && $studentId<=0)
+            || !in_array($kind,['Entrada','Salida'],true)
+            || !in_array($source,['Manual','Escáner'],true)
+            || ($requestId !== '' && !preg_match('/^[a-f0-9]{32}$/',$requestId))
+            || ($byCode && $requestId==='')) {
             aam_reply(['status'=>'error','message'=>'Registro no válido.'],422);
         }
         // El propio registro en student se bloquea por transacción: dos
         // móviles del portón no pueden insertar la misma marca simultáneamente.
         $conn->begin_transaction();
         try {
-            $stmt = $conn->prepare("SELECT id,name,nivel,grado,seccion
-                FROM student WHERE id=? AND school_id=? AND status='Activo'
-                LIMIT 1 FOR UPDATE");
-            if (!$stmt) throw new RuntimeException('identidad');
-            $stmt->bind_param('ii',$studentId,$school);
+            if ($byCode) {
+                // Se obtiene y bloquea el estudiante en la MISMA operación.
+                // No se puede marcar un código de otra institución.
+                $stmt = $conn->prepare("SELECT id,name,nivel,grado,seccion
+                    FROM student WHERE school_id=? AND status='Activo'
+                        AND id_no=? LIMIT 2 FOR UPDATE");
+                if (!$stmt) throw new RuntimeException('identidad_carnet');
+                $stmt->bind_param('is',$school,$code);
+            } else {
+                $stmt = $conn->prepare("SELECT id,name,nivel,grado,seccion
+                    FROM student WHERE id=? AND school_id=? AND status='Activo'
+                    LIMIT 1 FOR UPDATE");
+                if (!$stmt) throw new RuntimeException('identidad');
+                $stmt->bind_param('ii',$studentId,$school);
+            }
             $stmt->execute();
-            $student = $stmt->get_result()->fetch_assoc();
+            $results = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             $stmt->close();
+            if (count($results)>1) {
+                $conn->rollback();
+                aam_reply(['status'=>'error',
+                    'message'=>'Código repetido. Solicita a administración corregir el carné.'],409);
+            }
+            $student = $results[0] ?? null;
+            if ($student) $studentId = (int)$student['id'];
             if (!$student) {
                 $conn->rollback();
                 aam_reply(['status'=>'error','message'=>'Estudiante no válido para este colegio.'],403);
@@ -236,7 +288,7 @@ try {
             $recordId = (int)$insert->insert_id;
             $insert->close();
             $details = json_encode(['type'=>$kind,'status'=>$status,
-                'date'=>$day,'source'=>$source],
+                'date'=>$day,'source'=>$source,'request_id'=>$requestId],
                 JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             $ip = $_SERVER['REMOTE_ADDR'] ?? '';
             $audit = $conn->prepare("INSERT INTO attendance_audit_log
@@ -263,7 +315,11 @@ try {
         }
         aam_reply(['status'=>'ok','message'=>"$kind registrada correctamente.",
             'date'=>$day,'time'=>$clock,'kind'=>$kind,'state'=>$status,
-            'student_id'=>$studentId,'attendance_id'=>$recordId]);
+            'student_id'=>$studentId,'attendance_id'=>$recordId,
+            'request_id'=>$requestId,
+            'student'=>['id'=>$studentId,'name'=>$student['name'],
+                'nivel'=>$student['nivel'],'grado'=>$student['grado'],
+                'seccion'=>$student['seccion']]]);
     }
     aam_reply(['status'=>'error','message'=>'Acción no permitida.'],422);
 } catch (Throwable $error) {
