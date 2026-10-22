@@ -282,12 +282,37 @@ if ($action === 'load') {
     $yearReadOnly = (int)$assignment['is_active'] !== 1 || (isset($assignment['year_status']) && in_array($assignment['year_status'], ['Cerrado','Archivado'], true));
 
     $competencies=[];
+    $historicalGradedCompetencies=[];
+    if ($historicalRead) {
+        foreach ($gradesByCompetency as $perEvaluation) {
+            foreach ($perEvaluation as $compId=>$perStudent) {
+                foreach ($perStudent as $grade) {
+                    if (trim((string)$grade)==='') continue;
+                    $historicalGradedCompetencies[(int)$compId]=true;
+                    break;
+                }
+            }
+        }
+    }
     // Una competencia desactivada en un año ARCHIVADO puede seguir teniendo
     // notas históricas. Mostrar su peso original; nunca reactivarla en BD.
     $archivedFilter=$historicalRead?'':" AND is_active=1";
     $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id']."$archivedFilter ORDER BY id");
-    while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>(float)$row['percentage']];
-    $officialWeightTotal=0.0;$officialWeightCount=0;foreach($competencies as $competency){$pct=(float)($competency['percentage']??0);if($pct<=0)continue;$officialWeightTotal+=$pct;$officialWeightCount++;}$officialWeightsValid=$officialWeightCount>0&&abs($officialWeightTotal-100.0)<=0.1;
+    while ($competencyResult && ($row=$competencyResult->fetch_assoc())) {
+        $cid=(int)$row['id'];
+        $historicalOnly=$historicalRead && !isset($historicalGradedCompetencies[$cid]);
+        $competencies[]=['id'=>$cid,'name'=>$row['name'],
+            'percentage'=>(float)$row['percentage'],
+            'historical'=>$historicalOnly];
+    }
+    $officialWeightTotal=0.0;$officialWeightCount=0;
+    foreach($competencies as $competency){
+        if (!empty($competency['historical'])) continue;
+        $pct=(float)($competency['percentage']??0);
+        if($pct<=0)continue;
+        $officialWeightTotal+=$pct;$officialWeightCount++;
+    }
+    $officialWeightsValid=$officialWeightCount>0&&abs($officialWeightTotal-100.0)<=0.1;
     $knownCompetencies=[];
     foreach($competencies as $competency)$knownCompetencies[(int)$competency['id']]=true;
     foreach($evaluationCompetencies as $links){
@@ -298,7 +323,10 @@ if ($action === 'load') {
                 'id'=>$historicalId,
                 'name'=>(string)($link['name']??'Competencia histórica'),
                 'percentage'=>(float)($link['percentage']??0),
-                'historical'=>true,
+                // Una competencia realmente calificada en el periodo
+                // histórico es parte de la ficha, aun si fue desactivada.
+                'historical'=>!$historicalRead ||
+                    !isset($historicalGradedCompetencies[$historicalId]),
             ];
             $knownCompetencies[$historicalId]=true;
         }
