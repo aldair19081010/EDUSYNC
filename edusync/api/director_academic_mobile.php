@@ -549,11 +549,14 @@ if ($action === 'student_course' || $action === 'course_roster') {
         // SOLO vínculos demostrados y del curso autenticado.
         if ($historicalRead) {
             $legacySql = "SELECT DISTINCT eg.evaluation_id,
-                    eg.competencia_id,gcc.name,gcc.percentage
+                    eg.competencia_id,
+                    CASE WHEN gcc.course_id=".(int)$course['course_id']."
+                      THEN gcc.name ELSE 'Competencia histórica' END name,
+                    CASE WHEN gcc.course_id=".(int)$course['course_id']."
+                      THEN gcc.percentage ELSE 0 END percentage
                 FROM evaluation_grades eg
-                INNER JOIN general_course_competencies gcc
+                LEFT JOIN general_course_competencies gcc
                   ON gcc.id=eg.competencia_id
-                 AND gcc.course_id=".(int)$course['course_id']."
                 WHERE eg.evaluation_id IN ($in)
                   AND eg.competencia_id>0";
             $legacyLinks=$conn->query($legacySql);
