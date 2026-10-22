@@ -393,6 +393,85 @@ try {
             'message'=>'Asistencia registrada correctamente.','state'=>$state]);
     }
 
+    if ($action === 'mark_unmarked_present') {
+        $level=trim((string)($_POST['level']??''));
+        $grade=trim((string)($_POST['grade']??''));
+        $section=trim((string)($_POST['section']??''));
+        if (!$level||!$grade||!$section)
+            aam_reply(['status'=>'error','message'=>'Selecciona un aula.'],422);
+        $saved=0;$events=[];
+        $conn->begin_transaction();
+        try {
+            // Bloquear filas de estudiantes: el escáner usa el mismo
+            // bloqueo y no puede registrar simultáneamente dos Entradas.
+            $q=$conn->prepare("SELECT id,name,nivel,grado,seccion
+                FROM student WHERE school_id=? AND status='Activo'
+                  AND nivel=? AND grado=? AND seccion=?
+                ORDER BY id FOR UPDATE");
+            $q->bind_param('isss',$school,$level,$grade,$section);
+            $q->execute();$students=$q->get_result()->fetch_all(MYSQLI_ASSOC);
+            $q->close();
+            if (!$students) {
+                $conn->rollback();
+                aam_reply(['status'=>'error','message'=>'El aula no tiene estudiantes.'],404);
+            }
+            $q=$conn->prepare("SELECT id FROM attendance_day_closures
+                WHERE school_id=? AND attendance_date=? AND nivel=?
+                  AND grado=? AND seccion=? AND status='Cerrada' LIMIT 1");
+            $q->bind_param('issss',$school,$day,$level,$grade,$section);
+            $q->execute();$closed=(bool)$q->get_result()->fetch_assoc();$q->close();
+            if ($closed) {
+                $conn->rollback();
+                aam_reply(['status'=>'error','message'=>'El aula está cerrada.'],409);
+            }
+            $q=$conn->prepare("SELECT id FROM academic_year
+                WHERE school_id=? AND ? BETWEEN start_date AND end_date
+                ORDER BY is_active DESC,id DESC LIMIT 1");
+            $q->bind_param('is',$school,$day);$q->execute();
+            $yearId=(int)($q->get_result()->fetch_assoc()['id']??0);$q->close();
+            foreach ($students as $student) {
+                $id=(int)$student['id'];
+                $q=$conn->prepare("SELECT id FROM asistencia
+                    WHERE school_id=? AND student_id=? AND fecha=?
+                      AND tipo='Entrada' AND is_cancelled=0 LIMIT 1");
+                $q->bind_param('iis',$school,$id,$day);$q->execute();
+                $found=(bool)$q->get_result()->fetch_assoc();$q->close();
+                if($found)continue;
+                $q=$conn->prepare("INSERT INTO asistencia
+                    (school_id,academic_year_id,student_id,fecha,tipo,hora,
+                    estado,source,created_by,updated_by)
+                    VALUES (?,NULLIF(?,0),?,?,'Entrada',?,'Presente','Aula',?,?)");
+                $q->bind_param('iiissii',
+                    $school,$yearId,$id,$day,$clock,$userId,$userId);
+                if (!$q->execute()) throw new RuntimeException('marcar_nómina');
+                $attId=(int)$q->insert_id;$q->close();
+                $details=json_encode(['status'=>'Presente','date'=>$day,
+                    'source'=>'Aula'],JSON_UNESCAPED_UNICODE);
+                $ip=(string)($_SERVER['REMOTE_ADDR']??'');
+                $q=$conn->prepare("INSERT INTO attendance_audit_log
+                    (school_id,attendance_id,student_id,user_id,action,details,ip_address)
+                    VALUES (?,?,?,?,'attendance_created',?,?)");
+                $q->bind_param('iiiiss',
+                    $school,$attId,$id,$userId,$details,$ip);
+                if(!$q->execute())throw new RuntimeException('auditar_nómina');
+                $q->close();
+                $events[]=[$id,$attId];
+                $saved++;
+            }
+            $conn->commit();
+        } catch(Throwable $e){$conn->rollback();throw $e;}
+        try {
+            require_once __DIR__.'/../includes/push_notifications.php';
+            foreach($events as $event) {
+                push_send_attendance_state_notification(
+                    $conn,$school,$event[0],$event[1],$day,'',
+                    'Presente',$clock);
+            }
+        } catch(Throwable $e) {error_log('[aux bulk push] '.$e->getMessage());}
+        aam_reply(['status'=>'ok','saved'=>$saved,
+            'message'=>"$saved estudiantes sin marcar registrados como Presente."]);
+    }
+
     if (in_array($action,['close_day','reopen_request'],true)) {
         $level=trim((string)($_POST['level']??''));
         $grade=trim((string)($_POST['grade']??''));
