@@ -447,6 +447,7 @@ if ($action === 'student_course' || $action === 'course_roster') {
     }
 
     $GLOBALS['dma_stage'] = 'competencias_del_curso';
+    $historicalYear=(int)$course['academic_year_active']!==1;
     $competencies = [];
     $competencyById = [];
     $compStmt = $conn->prepare(
@@ -464,8 +465,9 @@ if ($action === 'student_course' || $action === 'course_roster') {
         $active = (int)$row['is_active'] === 1;
         $competency = [
             'id'=>$id,'name'=>(string)$row['name'],
-            'percentage'=>$active ? (float)$row['percentage'] : 0.0,
-            'historical'=>!$active
+            'percentage'=>($active || $historicalYear)
+                ? (float)$row['percentage'] : 0.0,
+            'historical'=>!$active && !$historicalYear
         ];
         $competencies[] = $competency;
         $competencyById[$id] = count($competencies)-1;
@@ -529,9 +531,29 @@ if ($action === 'student_course' || $action === 'course_roster') {
                 $competencyById[$cid] = count($competencies);
                 $competencies[] = [
                     'id'=>$cid,'name'=>(string)$row['competency_name'],
-                    'percentage'=>0.0,'historical'=>true
+                    'percentage'=>$historicalYear
+                        ? (float)$row['percentage'] : 0.0,
+                    'historical'=>!$historicalYear
                 ];
             }
+        }
+
+        // En años cerrados la tabla de competencias puede contener otras
+        // que no formaron parte del bimestre. Reporte web usa solo las
+        // competencias asociadas a evaluaciones de ese periodo.
+        if ($historicalYear) {
+            $linkedCompetencyIds=[];
+            foreach ($evaluations as $evaluation) {
+                foreach ($evaluation['competency_ids'] as $linkedId) {
+                    $linkedCompetencyIds[(int)$linkedId]=true;
+                }
+            }
+            $competencies=array_values(array_filter(
+                $competencies,
+                static function(array $item) use ($linkedCompetencyIds): bool {
+                    return isset($linkedCompetencyIds[(int)$item['id']]);
+                }
+            ));
         }
 
         $GLOBALS['dma_stage'] = 'notas_del_curso';
