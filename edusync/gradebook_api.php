@@ -1,5 +1,6 @@
 <?php
 include_once __DIR__ . '/session_config.php';
+require_once __DIR__ . '/includes/historical_grade_period.php';
 include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
@@ -106,9 +107,7 @@ if ($action === 'load') {
     // la escritura del año vigente: solo lectura histórica.
     $historicalRead = (int)$assignment['is_active'] !== 1;
     $historicPeriodSql = $historicalRead
-        ? " AND CAST(REPLACE(REPLACE(REPLACE(REPLACE(
-              UPPER(TRIM(COALESCE(e.bimestre,''))),' ',''),'BIMESTRE',''),
-              'BIM',''),'B','') AS UNSIGNED)=$bimester"
+        ? " AND ".edh_historical_bimester_sql('e.bimestre')."=$bimester"
         : " AND e.academic_year_id=".(int)$assignment['academic_year_id'].
           " AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'";
     $historicTeacherSql = $historicalRead ? '' : " AND e.teacher_id=$teacherId";
