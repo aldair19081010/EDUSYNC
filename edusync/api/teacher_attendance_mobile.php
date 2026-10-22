@@ -268,6 +268,7 @@ if ($action === 'history') {
     tam_reply([
         'status'=>'ok','available'=>true,'year'=>$year,'month'=>$month,
         'date_from'=>$from,'date_to'=>$to,'course'=>$assignment,
+        'roster_scope'=>$isHistorical?'historical_verified':'current',
         'summary'=>$summary,'students'=>array_values($students),
         'days'=>array_values($daily),'records'=>$records,'read_only'=>true,
         'diagnostics'=>[
