@@ -736,13 +736,17 @@ if ($action === 'student_detail') {
              FROM evaluation_grades eg
              INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
              INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
-               AND tc.academic_year_id=ev.academic_year_id
              INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
              LEFT JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id
-             LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id
+             LEFT JOIN evaluation_competencias ec
+               ON ec.evaluation_id=ev.id
+              AND (COALESCE(eg.competencia_id,0)=0
+                OR ec.competencia_id=eg.competencia_id)
+             LEFT JOIN general_course_competencies gcc
+               ON gcc.id=COALESCE(NULLIF(eg.competencia_id,0),ec.competencia_id)
              WHERE eg.student_id=? AND tc.school_id=? AND tc.academic_year_id=?
                {$visibleEvaluations}
-             ORDER BY ac.name,CAST(ev.bimestre AS UNSIGNED),ev.id,eg.id LIMIT 300"
+             ORDER BY ac.name,ev.id,eg.id LIMIT 300"
         );
         if (!$stmt) dma_reply(['status'=>'error','message'=>'No se pudieron consultar las notas.'],500);
         $stmt->bind_param('iii',$studentId,$schoolId,$yearId);
