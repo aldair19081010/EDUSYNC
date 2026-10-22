@@ -276,11 +276,20 @@ $sql = "SELECT tc.id teacher_course_id, tc.course_id, tc.academic_year_id,
                ac.name course_name, ac.level, ac.is_active course_is_active,
                COALESCE(ac.course_status,'Activo') course_status,
                COALESCE(a.name,'Sin área') area_name, COALESCE(a.color,'#1565C0') area_color,
-               (SELECT COUNT(*) FROM student st
-                WHERE st.school_id=tc.school_id AND st.status='Activo'
-                  AND st.nivel=ac.level AND st.grado=tc.grado
-                  AND COALESCE(NULLIF(st.seccion,''),'U')=COALESCE(NULLIF(tc.seccion,''),'U')
-               ) student_count,
+               (CASE WHEN ay.is_active=1 THEN
+                  (SELECT COUNT(*) FROM student st
+                   WHERE st.school_id=tc.school_id AND st.status='Activo'
+                     AND st.nivel=ac.level AND st.grado=tc.grado
+                     AND COALESCE(NULLIF(st.seccion,''),'U')=
+                       COALESCE(NULLIF(tc.seccion,''),'U'))
+                ELSE
+                  (SELECT COUNT(DISTINCT st.id)
+                   FROM student st
+                   INNER JOIN evaluation_grades eg ON eg.student_id=st.id
+                   INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
+                   WHERE st.school_id=tc.school_id
+                     AND ev.teacher_course_id=tc.id)
+                END) student_count,
                (SELECT COUNT(*) FROM general_course_competencies gcc
                 WHERE gcc.course_id=tc.course_id AND gcc.teacher_id=tc.teacher_id
                   AND gcc.academic_year_id=tc.academic_year_id AND gcc.is_active=1
