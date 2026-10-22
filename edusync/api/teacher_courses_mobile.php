@@ -108,7 +108,7 @@ if ($action === 'students') {
     // La asignación debe pertenecer al docente autenticado Y a su institución.
     $context = $conn->prepare(
         "SELECT tc.id, tc.grado, COALESCE(NULLIF(tc.seccion,''),'U') seccion,
-                ac.name course_name, ac.level, ay.year
+                ac.name course_name, ac.level, ay.year, ay.is_active, tc.academic_year_id
          FROM teacher_courses tc
          INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
          INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id
@@ -121,6 +121,47 @@ if ($action === 'students') {
     if (!$course) {
         teacher_mobile_reply(['status' => 'error', 'message' => 'Esta asignación no te pertenece.'], 404);
     }
+    // La nómina actual no determina la matrícula de un año anterior.
+    // Reporte de Notas web usa las calificaciones del año y verifica el nivel real.
+    if ((int)$course['is_active'] !== 1) {
+        require_once __DIR__ . '/../includes/grades_report_historical_level.php';
+        $historicalGuard = grhl_sql(
+            $conn, 'st', 'tc', 'ac', $sessionSchoolId,
+            (int)$course['academic_year_id'], (string)$course['level']
+        );
+        $historicalStmt = $conn->prepare(
+            "SELECT DISTINCT st.id, st.id_no, st.name
+             FROM student st
+             INNER JOIN evaluation_grades eg ON eg.student_id=st.id
+             INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
+             INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
+             INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
+             WHERE st.school_id=? AND tc.school_id=?
+               AND tc.id=? AND tc.academic_year_id=? {$historicalGuard}
+             ORDER BY st.name,st.id"
+        );
+        if (!$historicalStmt) {
+            teacher_mobile_reply(['status'=>'error','message'=>'No se pudo consultar la nómina histórica.'],500);
+        }
+        $yearId = (int)$course['academic_year_id'];
+        $historicalStmt->bind_param('iiii',
+            $sessionSchoolId, $sessionSchoolId, $assignmentId, $yearId);
+        $historicalStmt->execute();
+        $historicalStudents = [];
+        foreach ($historicalStmt->get_result() as $row) {
+            $historicalStudents[] = [
+                'id'=>(int)$row['id'],
+                'dni'=>(string)$row['id_no'],
+                'name'=>(string)$row['name'],
+            ];
+        }
+        $historicalStmt->close();
+        teacher_mobile_reply([
+            'status'=>'ok', 'course'=>$course, 'students'=>$historicalStudents,
+            'roster_scope'=>'historical_grades', 'read_only'=>true,
+        ]);
+    }
+
     $studentsStmt = $conn->prepare(
         "SELECT st.id, st.id_no, st.name
          FROM student st
