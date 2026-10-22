@@ -669,9 +669,7 @@ if ($action === 'students') {
         $historicalGuard=grhc_sql($conn,'st','tc','ac',$schoolId,$studentYearId,
             $level,$grade,$section);
         $stmt=$conn->prepare(
-            "SELECT DISTINCT st.id,st.id_no,st.name,
-                    ac.level nivel,tc.grado grado,
-                    COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion
+            "SELECT DISTINCT st.id,st.id_no,st.name
              FROM student st
              INNER JOIN evaluation_grades eg ON eg.student_id=st.id
              INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
@@ -692,11 +690,16 @@ if ($action === 'students') {
         $students=[];
         foreach ($stmt->get_result() as $row) {
             $row['id']=(int)$row['id'];
+            // La etiqueta debe ser el aula elegida, no una variante de
+            // grado/sección guardada en alguna asignación antigua.
+            $row['nivel']=$level;
+            $row['grado']=$grade;
+            $row['seccion']=$section;
             $students[]=$row;
         }
         $stmt->close();
         dma_reply(['status'=>'ok','students'=>$students,
-            'roster_scope'=>'historical_grades','read_only'=>true]);
+            'roster_scope'=>'historical_verified_classroom','read_only'=>true]);
     }
 
     $stmt = $conn->prepare(
