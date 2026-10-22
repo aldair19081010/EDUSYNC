@@ -108,8 +108,66 @@ $account = $director->get_result()->fetch_assoc();
 $director->close();
 if (!$account) dma_reply(['status'=>'error','message'=>'No tienes acceso al perfil de Dirección.'], 403);
 $action = trim((string)($_POST['action'] ?? 'overview'));
-if (!in_array($action, ['overview','students','student_detail','student_course','course_roster','identity','attendance_overview','attendance_classroom','attendance_student'], true)) {
+if (!in_array($action, ['overview','students','student_detail','student_course','course_roster','identity','attendance_overview','attendance_classroom','attendance_student','change_password'], true)) {
     dma_reply(['status'=>'error','message'=>'Acción no permitida.'], 400);
+}
+if ($action === 'change_password') {
+    // Modificación permitida solo a la cuenta Directora autenticada; el
+    // privilegio, colegio, rol y estado fueron validados antes en MySQL.
+    // Nunca se actualiza una cuenta aportada por el dispositivo.
+    $GLOBALS['dma_stage']='cambiar_contrasena';
+    if (!hash_equals(session_id(), $sid) ||
+        strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) !== 'xmlhttprequest') {
+        dma_reply(['status'=>'error','message'=>'La sesión de seguridad no es válida.'],403);
+    }
+    $old=(string)($_POST['current_password'] ?? '');
+    $new=(string)($_POST['new_password'] ?? '');
+    $confirm=(string)($_POST['confirm_password'] ?? '');
+    if ($old==='' || $new==='' || $confirm==='') {
+        dma_reply(['status'=>'error','message'=>'Completa todos los campos.'],422);
+    }
+    if (!hash_equals($new,$confirm)) {
+        dma_reply(['status'=>'error','message'=>'La confirmación no coincide.'],422);
+    }
+    $length=function_exists('mb_strlen') ? mb_strlen($new,'UTF-8') : strlen($new);
+    if ($length<8 || $length>64 ||
+        !preg_match('/\p{L}/u',$new) || !preg_match('/\d/u',$new)) {
+        dma_reply(['status'=>'error','message'=>'La contraseña debe tener entre 8 y 64 caracteres, con letras y números.'],422);
+    }
+    $passwordStmt=$conn->prepare(
+        'SELECT password FROM users WHERE id=? AND school_id=? AND is_director=1 AND type IN (1,2) LIMIT 1'
+    );
+    if (!$passwordStmt) throw new RuntimeException('No se pudo consultar la cuenta.');
+    $passwordStmt->bind_param('ii',$userId,$schoolId);
+    $passwordStmt->execute();
+    $passwordRow=$passwordStmt->get_result()->fetch_assoc();
+    $passwordStmt->close();
+    if (!$passwordRow) dma_reply(['status'=>'error','message'=>'Cuenta no autorizada.'],403);
+    $storedHash=(string)$passwordRow['password'];
+    $verified=$storedHash!=='' && (
+        password_verify($old,$storedHash) ||
+        (preg_match('/^[a-f0-9]{32}$/i',$storedHash) &&
+         hash_equals(strtolower($storedHash),md5($old)))
+    );
+    if (!$verified) dma_reply(['status'=>'error','message'=>'La contraseña actual es incorrecta.'],422);
+    if (hash_equals($old,$new)) {
+        dma_reply(['status'=>'error','message'=>'La nueva contraseña debe ser diferente.'],422);
+    }
+    $newHash=password_hash($new,PASSWORD_DEFAULT);
+    if ($newHash===false) throw new RuntimeException('No se pudo cifrar la contraseña.');
+    $up=$conn->prepare(
+        'UPDATE users SET password=? WHERE id=? AND school_id=? AND is_director=1 AND password=?'
+    );
+    if (!$up) throw new RuntimeException('No se pudo preparar el cambio.');
+    $up->bind_param('siis',$newHash,$userId,$schoolId,$storedHash);
+    $ok=$up->execute();
+    $affected=$up->affected_rows;
+    $up->close();
+    if (!$ok) throw new RuntimeException('No se pudo guardar el cambio.');
+    if ($affected!==1) {
+        dma_reply(['status'=>'error','message'=>'Tu contraseña cambió en otra sesión. Inicia sesión nuevamente.'],409);
+    }
+    dma_reply(['status'=>'ok','message'=>'Contraseña actualizada correctamente.']);
 }
 if ($action === 'identity') {
     // Comprobación ligera para restaurar el perfil híbrido Dirección + Docente.
