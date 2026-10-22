@@ -87,8 +87,10 @@ function arq_class_alias(array $f): string {
 }
 
 function arq_where(array $f, int $school, bool $entryOnly=false, bool $applyStatus=true): string {
+    // Intervalo semiabierto: incluir todo el último día si fecha es DATETIME.
     $w=["a.school_id=$school","s.school_id=$school","a.is_cancelled=0",
-        "a.fecha BETWEEN '{$f['from']}' AND '{$f['to']}'"];
+        "a.fecha>='{$f['from']}'",
+        "a.fecha<DATE_ADD('{$f['to']}', INTERVAL 1 DAY)"];
     if (empty($f['valid_range'])) $w[]='1=0';
     if ($f['year']>0) $w[]="(a.academic_year_id={$f['year']} OR a.academic_year_id IS NULL)";
     $alias=arq_class_alias($f);
