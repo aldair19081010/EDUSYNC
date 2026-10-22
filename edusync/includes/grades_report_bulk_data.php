@@ -190,8 +190,9 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=s.school_id
         WHERE e.teacher_course_id IN ($tcList)";
     if (!$isCurrentAcademicYear) {
-        require_once __DIR__.'/grades_report_historical_level.php';
-        $historySql .= grhl_sql($conn, 's', 'tc', 'ac', $schoolId, $yearId, $level);
+        require_once __DIR__.'/grades_report_historical_classroom.php';
+        $historySql .= grhc_sql($conn, 's', 'tc', 'ac', $schoolId, $yearId,
+            $level, $grade, $section);
     }
     $historyStmt = $conn->prepare($historySql);
     if ($historyStmt) {
