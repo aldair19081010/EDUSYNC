@@ -265,7 +265,22 @@ if ($action === 'load') {
     $yearReadOnly = (int)$assignment['is_active'] !== 1 || (isset($assignment['year_status']) && in_array($assignment['year_status'], ['Cerrado','Archivado'], true));
 
     $competencies=[];
-    $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id']." AND is_active=1 ORDER BY id");
+    // El reporte web usa las competencias con evaluaciones en ese año
+    // aunque hoy figuren inactivas. Su peso histórico no debe perderse.
+    $historicalYear=(int)$assignment['is_active']!==1;
+    $relatedCompetencyIds=[];
+    foreach ($evaluationCompetencies as $links) {
+        foreach ($links as $link) {
+            $cid=(int)($link['id']??0);
+            if ($cid>0) $relatedCompetencyIds[$cid]=true;
+        }
+    }
+    $competencyScope=$historicalYear
+        ? ($relatedCompetencyIds
+            ? ' AND id IN ('.implode(',',array_keys($relatedCompetencyIds)).')'
+            : ' AND 1=0')
+        : ' AND is_active=1';
+    $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id'].$competencyScope." ORDER BY id");
     while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>(float)$row['percentage']];
     $officialWeightTotal=0.0;$officialWeightCount=0;foreach($competencies as $competency){$pct=(float)($competency['percentage']??0);if($pct<=0)continue;$officialWeightTotal+=$pct;$officialWeightCount++;}$officialWeightsValid=$officialWeightCount>0&&abs($officialWeightTotal-100.0)<=0.1;
     $knownCompetencies=[];
@@ -278,7 +293,9 @@ if ($action === 'load') {
                 'id'=>$historicalId,
                 'name'=>(string)($link['name']??'Competencia histórica'),
                 'percentage'=>(float)($link['percentage']??0),
-                'historical'=>true,
+                // En un año archivado esta competencia participaba en el
+                // promedio del reporte original, incluso si hoy está inactiva.
+                'historical'=>!$historicalYear,
             ];
             $knownCompetencies[$historicalId]=true;
         }
