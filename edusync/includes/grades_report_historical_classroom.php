@@ -101,8 +101,8 @@ if (!function_exists('grhc_student_classrooms')) {
         // Contar cursos distintos, no filas de nota: un solo curso con diez
         // evaluaciones no demuestra pertenencia a otro salón.
         $counts=[];
-        $stmt=$db->prepare("SELECT eg.student_id,ac.level,tc.grado,tc.seccion,
-                         COUNT(DISTINCT tc.course_id) course_count
+        $stmt=$db->prepare("SELECT DISTINCT eg.student_id,ac.level,tc.grado,tc.seccion,
+                         tc.course_id
             FROM evaluation_grades eg
             INNER JOIN student st ON st.id=eg.student_id AND st.school_id=?
             INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
@@ -114,7 +114,7 @@ if (!function_exists('grhc_student_classrooms')) {
               AND (NULLIF(TRIM(tc.level),'') IS NULL
                    OR LOWER(REPLACE(TRIM(tc.level),' ',''))
                     = LOWER(REPLACE(TRIM(ac.level),' ','')))
-            GROUP BY eg.student_id,ac.level,tc.grado,tc.seccion");
+            ORDER BY eg.student_id,tc.course_id");
         if (!$stmt) {
             error_log('[historical classroom] courses SQL: '.$db->error);
             return $cache[$cacheKey]=[];
@@ -125,7 +125,8 @@ if (!function_exists('grhc_student_classrooms')) {
             $sid=(int)$row['student_id'];
             $key=grhc_key($row['level'],$row['grado'],$row['seccion']);
             if ($key==='') continue;
-            $counts[$sid][$key]=($counts[$sid][$key]??0)+(int)$row['course_count'];
+            $courseId=(int)$row['course_id'];
+            if ($courseId>0) $counts[$sid][$key][$courseId]=true;
         }
         $stmt->close();
 
@@ -153,8 +154,10 @@ if (!function_exists('grhc_student_classrooms')) {
             if ($documentedClass!=='' && explode('|',$documentedClass)[0]!==$level) continue;
             if ($snapshot!=='' && explode('|',$snapshot)[0]!==$level) $snapshot='';
             $inLevel=[];
-            foreach ($counts[$sid]??[] as $key=>$count) {
-                if (explode('|',$key)[0]===$level) $inLevel[$key]=$count;
+            foreach ($counts[$sid]??[] as $key=>$courseIds) {
+                if (explode('|',$key)[0]===$level) {
+                    $inLevel[$key]=count($courseIds);
+                }
             }
             $class=grhc_choose_class($inLevel,$documentedClass,$snapshot);
             if ($class!=='' && explode('|',$class)[0]===$level) $classrooms[$sid]=$class;
