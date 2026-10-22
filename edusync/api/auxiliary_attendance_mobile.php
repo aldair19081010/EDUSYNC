@@ -96,6 +96,19 @@ try {
         aam_reply(['status'=>'ok','date'=>$day,'time'=>$clock,'summary'=>$summary]);
     }
 
+    if ($action === 'filters') {
+        $sql = "SELECT DISTINCT nivel,grado,seccion FROM student
+                WHERE school_id=? AND status='Activo'
+                ORDER BY FIELD(nivel,'Inicial','Primaria','Secundaria'),nivel,grado,seccion";
+        $stmt = $conn->prepare($sql);
+        if (!$stmt) throw new RuntimeException('filtros');
+        $stmt->bind_param('i',$school);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+        aam_reply(['status'=>'ok','classrooms'=>$rows]);
+    }
+
     if ($action === 'students') {
         $query = trim((string)($_POST['query'] ?? ''));
         $level = trim((string)($_POST['level'] ?? ''));
@@ -119,7 +132,7 @@ try {
                 LIMIT ? OFFSET ?";
         $stmt = $conn->prepare($sql);
         if (!$stmt) throw new RuntimeException('nomina');
-        $stmt->bind_param('isisissssssssii',
+        $stmt->bind_param('isisisssssssssii',
             $school,$day,$school,$day,
             $school,$level,$level,$grade,$grade,$section,$section,
             $query,$search,$search,$limit,$offset);
