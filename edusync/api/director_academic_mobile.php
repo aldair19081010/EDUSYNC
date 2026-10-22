@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/dev_cors.php';
 require_once __DIR__ . '/../includes/attendance_history_helper.php';
+require_once __DIR__ . '/../includes/historical_grade_period.php';
 /**
  * Dirección académica móvil (solo consulta).
  * La escuela y el privilegio Director SIEMPRE se revalidan en la base de datos.
@@ -484,9 +485,7 @@ if ($action === 'student_course' || $action === 'course_roster') {
     // tc, ya validada. Compatibilidad de bimestres migrados (B1, BIM 1,
     // BIMESTRE 1), exclusivamente para lectura histórica.
     $historicalPeriod = $historicalRead
-        ? "CAST(REPLACE(REPLACE(REPLACE(REPLACE(
-            UPPER(TRIM(COALESCE(e.bimestre,''))),' ',''),'BIMESTRE',''),
-            'BIM',''),'B','') AS UNSIGNED)=?"
+        ? edh_historical_bimester_sql('e.bimestre')."=?"
         : 'e.bimestre=?';
     $historicalTeacher = $historicalRead ? '' : ' AND e.teacher_id=? AND e.academic_year_id=?';
     $evalStmt = $conn->prepare(
@@ -821,10 +820,9 @@ if ($bimester<0 || $bimester>4) dma_reply(['status'=>'error','message'=>'Bimestr
 if ($bimester===0) {
     $bimester=1;
     if ($yearId>0) {
+        $normalizedPeriod=edh_historical_bimester_sql('ev.bimestre');
         $stmt=$conn->prepare(
-            "SELECT MAX(CAST(REPLACE(REPLACE(REPLACE(REPLACE(
-                 UPPER(TRIM(COALESCE(ev.bimestre,''))),' ',''),'BIMESTRE',''),
-                 'BIM',''),'B','') AS UNSIGNED)) n
+            "SELECT MAX($normalizedPeriod) n
              FROM evaluations ev INNER JOIN teacher_courses tc
                ON tc.id=ev.teacher_course_id AND tc.school_id=?
              WHERE tc.academic_year_id=?"
