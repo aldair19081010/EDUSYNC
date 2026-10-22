@@ -544,6 +544,39 @@ if ($action === 'student_course' || $action === 'course_roster') {
             }
         }
 
+        // Muchos cursos migrados guardaban competencia_id en la propia
+        // nota, sin fila equivalente en evaluation_competencias. Rescatar
+        // SOLO vínculos demostrados y del curso autenticado.
+        if ($historicalRead) {
+            $legacySql = "SELECT DISTINCT eg.evaluation_id,
+                    eg.competencia_id,gcc.name,gcc.percentage
+                FROM evaluation_grades eg
+                INNER JOIN general_course_competencies gcc
+                  ON gcc.id=eg.competencia_id
+                 AND gcc.course_id=".(int)$course['course_id']."
+                WHERE eg.evaluation_id IN ($in)
+                  AND eg.competencia_id>0";
+            $legacyLinks=$conn->query($legacySql);
+            while ($legacyLinks && ($legacy=$legacyLinks->fetch_assoc())) {
+                $eid=(int)$legacy['evaluation_id'];
+                $cid=(int)$legacy['competencia_id'];
+                if ($cid<=0 || !isset($evaluationById[$eid])) continue;
+                $index=$evaluationById[$eid];
+                if (!in_array($cid,$evaluations[$index]['competency_ids'],true)) {
+                    $evaluations[$index]['competency_ids'][]=$cid;
+                }
+                if (!isset($competencyById[$cid])) {
+                    $competencyById[$cid]=count($competencies);
+                    $competencies[]=[
+                        'id'=>$cid,
+                        'name'=>(string)$legacy['name'],
+                        'percentage'=>(float)$legacy['percentage'],
+                        'historical'=>false
+                    ];
+                }
+            }
+        }
+
         $GLOBALS['dma_stage'] = 'notas_del_curso';
         $studentIds=$rosterMode
             ? array_column($students,'id') : [$studentId];
