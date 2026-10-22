@@ -390,10 +390,9 @@ if ($action === 'student_course' || $action === 'course_roster') {
             $historyStmt = $conn->prepare(
                 "SELECT eg.id FROM evaluation_grades eg
                  INNER JOIN evaluations e ON e.id=eg.evaluation_id
-                 WHERE eg.student_id=? AND e.teacher_course_id=?
-                   AND e.academic_year_id=? LIMIT 1"
+                 WHERE eg.student_id=? AND e.teacher_course_id=? LIMIT 1"
             );
-            $historyStmt->bind_param('iii', $studentId, $teacherCourseId, $yearId);
+            $historyStmt->bind_param('ii', $studentId, $teacherCourseId);
             $historyStmt->execute();
             $wasEnrolled = (bool)$historyStmt->get_result()->fetch_assoc();
             $historyStmt->close();
@@ -420,14 +419,20 @@ if ($action === 'student_course' || $action === 'course_roster') {
             if ($section === '') $section = 'U';
             $rosterStmt->bind_param('isss', $schoolId,$level,$grade,$section);
         } else {
-            // No inventar la nómina histórica usando el grado actual:
-            // solo estudiantes con registros en esta asignación/año.
+            // La nómina histórica reproduce los criterios del Reporte de Notas web.
+            require_once __DIR__.'/../includes/grades_report_historical_level.php';
+            $historicalGuard=grhl_sql($conn,'st','tc','ac',$schoolId,$yearId,
+                (string)$course['level']);
             $rosterStmt = $conn->prepare(
                 "SELECT DISTINCT st.id,st.id_no,st.name FROM student st
                  INNER JOIN evaluation_grades eg ON eg.student_id=st.id
                  INNER JOIN evaluations e ON e.id=eg.evaluation_id
-                 WHERE st.school_id=? AND e.teacher_course_id=?
-                   AND e.academic_year_id=?
+                 INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                     AND tc.school_id=st.school_id
+                 INNER JOIN academic_courses ac ON ac.id=tc.course_id
+                     AND ac.school_id=tc.school_id
+                 WHERE st.school_id=? AND tc.id=? AND tc.academic_year_id=?
+                   {$historicalGuard}
                  ORDER BY st.name,st.id LIMIT 300"
             );
             $rosterStmt->bind_param('iii',$schoolId,$teacherCourseId,$yearId);
@@ -471,14 +476,18 @@ if ($action === 'student_course' || $action === 'course_roster') {
     $statusColumn = $conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
     $statusFilter = ($statusColumn && $statusColumn->num_rows)
         ? " AND (e.status IS NULL OR e.status<>'Anulada')" : '';
+    // Para los historiales la asignación validada determina el año.
+    // Una evaluación migrada puede no tener sincronizado e.academic_year_id.
+    $evalOwnershipFilter=(int)$course['academic_year_active']===1
+        ? " AND e.teacher_id=".(int)$course['teacher_id'].
+            " AND e.academic_year_id=".$yearId : '';
     $evalStmt = $conn->prepare(
         "SELECT e.id,e.title,e.description FROM evaluations e
-         WHERE e.teacher_course_id=? AND e.teacher_id=?
-           AND e.academic_year_id=? AND e.bimestre=? {$statusFilter}
+         WHERE e.teacher_course_id=? {$evalOwnershipFilter}
+           AND e.bimestre=? {$statusFilter}
          ORDER BY e.created_at,e.id"
     );
-    $evalStmt->bind_param('iiii',
-        $teacherCourseId,$course['teacher_id'],$yearId,$bimester);
+    $evalStmt->bind_param('ii',$teacherCourseId,$bimester);
     $evalStmt->execute();
     $evaluations = [];
     $evaluationById = [];
@@ -609,12 +618,6 @@ if ($action === 'students') {
     $yearRow=$yearStmt->get_result()->fetch_assoc();
     $yearStmt->close();
     if (!$yearRow) dma_reply(['status'=>'error','message'=>'Año no autorizado.'],404);
-    if ((int)$yearRow['is_active']!==1) {
-        // La matrícula de student refleja la situación ACTUAL, no una
-        // inscripción histórica demostrada. No exponerla como pasado.
-        dma_reply(['status'=>'ok','students'=>[],
-            'roster_scope'=>'historical_unavailable','read_only'=>true]);
-    }
     $level = trim((string)($_POST['level'] ?? ''));
     $grade = trim(str_replace(['°','º'], '', (string)($_POST['grade'] ?? '')));
     $section = strtoupper(trim((string)($_POST['section'] ?? '')));
@@ -622,6 +625,43 @@ if ($action === 'students') {
         strlen($level)>50 || strlen($grade)>12 || strlen($section)>20) {
         dma_reply(['status'=>'error','message'=>'Selecciona un aula válida.'], 422);
     }
+    if ((int)$yearRow['is_active']!==1) {
+        // Mismo criterio de Reporte de Notas: curso y grado del año consultado,
+        // con nivel histórico validado; nunca utilizar el grado actual del alumno.
+        $GLOBALS['dma_stage']='nomina_historica_de_aula';
+        require_once __DIR__.'/../includes/grades_report_historical_level.php';
+        $historicalGuard=grhl_sql($conn,'st','tc','ac',$schoolId,$studentYearId,$level);
+        $stmt=$conn->prepare(
+            "SELECT DISTINCT st.id,st.id_no,st.name,
+                    ac.level nivel,tc.grado grado,
+                    COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion
+             FROM student st
+             INNER JOIN evaluation_grades eg ON eg.student_id=st.id
+             INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
+             INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
+                 AND tc.school_id=st.school_id
+             INNER JOIN academic_courses ac ON ac.id=tc.course_id
+                 AND ac.school_id=tc.school_id
+             WHERE st.school_id=? AND tc.school_id=? AND tc.academic_year_id=?
+               AND LOWER(REPLACE(TRIM(ac.level),' ',''))=LOWER(REPLACE(TRIM(?),' ',''))
+               AND TRIM(REPLACE(REPLACE(tc.grado,'°',''),'º',''))=?
+               AND UPPER(COALESCE(NULLIF(TRIM(tc.seccion),''),'U'))=?
+               {$historicalGuard}
+             ORDER BY st.name,st.id LIMIT 300"
+        );
+        if (!$stmt) dma_reply(['status'=>'error','message'=>'No se pudo consultar la nómina histórica.'],500);
+        $stmt->bind_param('iiisss',$schoolId,$schoolId,$studentYearId,$level,$grade,$section);
+        $stmt->execute();
+        $students=[];
+        foreach ($stmt->get_result() as $row) {
+            $row['id']=(int)$row['id'];
+            $students[]=$row;
+        }
+        $stmt->close();
+        dma_reply(['status'=>'ok','students'=>$students,
+            'roster_scope'=>'historical_grades','read_only'=>true]);
+    }
+
     $stmt = $conn->prepare(
         "SELECT st.id,st.id_no,st.name,st.nivel,st.grado,st.seccion
          FROM student st WHERE st.school_id=? AND st.status='Activo'
@@ -684,7 +724,6 @@ if ($action === 'student_detail') {
              FROM evaluation_grades eg
              INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
              INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
-               AND tc.academic_year_id=ev.academic_year_id
              INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
              LEFT JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id
              LEFT JOIN general_course_competencies gcc ON gcc.id=eg.competencia_id
