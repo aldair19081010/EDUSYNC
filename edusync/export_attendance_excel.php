@@ -25,19 +25,31 @@ if($dayCount>370)die('Seleccione un rango máximo de 370 días para generar la m
 $days=[];for($date=$start;$date<=$end;$date=$date->modify('+1 day'))$days[]=$date->format('Y-m-d');
 
 // La matriz conserva el formato tradicional: un estudiante por fila y una fecha por columna.
-$studentWhere=["s.school_id=$school","s.status='Activo'"];
-if($f['level']!=='')$studentWhere[]="s.nivel='{$f['level']}'";
-if($f['grade']!=='')$studentWhere[]="s.grado='{$f['grade']}'";
-if($f['section']!=='')$studentWhere[]="s.seccion='{$f['section']}'";
+$historic=!empty($f['historical']);
+$alias=arq_class_alias($f);
+$join=arq_roster_join($f);
+$studentWhere=["s.school_id=$school"];
+if(!$historic)$studentWhere[]="s.status='Activo'";
+if($f['level']!=='')$studentWhere[]="$alias.nivel='{$f['level']}'";
+if($f['grade']!==''){
+    $grade=$historic?preg_replace('/[°º\\s]+/u','',$f['grade']):$f['grade'];
+    $studentWhere[]="$alias.grado='$grade'";
+}
+if($f['section']!=='')$studentWhere[]="UPPER($alias.seccion)=UPPER('{$f['section']}')";
 if($f['student']>0)$studentWhere[]="s.id={$f['student']}";
+if(empty($f['valid_range']))$studentWhere[]='1=0';
 $students=[];$studentIds=[];
-$studentsQuery=$conn->query('SELECT s.id,s.id_no,s.name,s.nivel,s.grado,s.seccion FROM student s WHERE '.implode(' AND ',$studentWhere)." ORDER BY FIELD(s.nivel,'Inicial','Primaria','Secundaria'),s.grado,s.seccion,s.name");
+$studentsQuery=$conn->query("SELECT s.id,s.id_no,s.name,
+    $alias.nivel nivel,$alias.grado grado,$alias.seccion seccion
+    FROM student s $join WHERE ".implode(' AND ',$studentWhere).
+    " ORDER BY FIELD($alias.nivel,'Inicial','Primaria','Secundaria'),
+             $alias.grado,$alias.seccion,s.name");
 while($studentsQuery&&($student=$studentsQuery->fetch_assoc())){$students[]=$student;$studentIds[]=(int)$student['id'];}
 
 $attendance=[];
 if($studentIds){
     $where=arq_where($f,$school,true,true).' AND a.student_id IN ('.implode(',',$studentIds).')';
-    $query=$conn->query("SELECT a.student_id,a.fecha,a.hora,CASE WHEN a.estado IN('Normal','Temprano') THEN 'Presente' ELSE a.estado END estado FROM asistencia a INNER JOIN student s ON s.id=a.student_id WHERE $where ORDER BY a.id");
+    $query=$conn->query("SELECT a.student_id,a.fecha,a.hora,CASE WHEN a.estado IN('Normal','Temprano') THEN 'Presente' ELSE a.estado END estado FROM asistencia a INNER JOIN student s ON s.id=a.student_id $join WHERE $where ORDER BY a.id");
     while($query&&($row=$query->fetch_assoc()))$attendance[(int)$row['student_id']][$row['fecha']]=$row;
 }
 
