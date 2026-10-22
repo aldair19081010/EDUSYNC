@@ -124,10 +124,11 @@ if ($action === 'students') {
     // La nómina actual no determina la matrícula de un año anterior.
     // Reporte de Notas web usa las calificaciones del año y verifica el nivel real.
     if ((int)$course['is_active'] !== 1) {
-        require_once __DIR__ . '/../includes/grades_report_historical_level.php';
-        $historicalGuard = grhl_sql(
+        require_once __DIR__ . '/../includes/grades_report_historical_classroom.php';
+        $historicalGuard = grhc_sql(
             $conn, 'st', 'tc', 'ac', $sessionSchoolId,
-            (int)$course['academic_year_id'], (string)$course['level']
+            (int)$course['academic_year_id'], (string)$course['level'],
+            (string)$course['grado'], (string)$course['seccion']
         );
         $historicalStmt = $conn->prepare(
             "SELECT DISTINCT st.id, st.id_no, st.name
