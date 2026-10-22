@@ -160,12 +160,14 @@ if ($action === 'load') {
             // podía existir solo en evaluation_grades.competencia_id.
             // Recuperarla usando el ID real y el curso verificado.
             $legacyLinkSql = "SELECT DISTINCT eg.evaluation_id,
-                        eg.competencia_id,gcc.name competency_name,
-                        gcc.percentage competency_percentage
+                        eg.competencia_id,
+                        CASE WHEN gcc.course_id=".(int)$assignment['course_id']."
+                          THEN gcc.name ELSE 'Competencia histórica' END competency_name,
+                        CASE WHEN gcc.course_id=".(int)$assignment['course_id']."
+                          THEN gcc.percentage ELSE 0 END competency_percentage
                 FROM evaluation_grades eg
-                INNER JOIN general_course_competencies gcc
+                LEFT JOIN general_course_competencies gcc
                   ON gcc.id=eg.competencia_id
-                 AND gcc.course_id=".(int)$assignment['course_id']."
                 WHERE eg.evaluation_id IN ($evaluationListForLinks)
                   AND eg.competencia_id>0";
             $legacyResult = $conn->query($legacyLinkSql);
