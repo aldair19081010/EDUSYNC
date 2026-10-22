@@ -195,11 +195,46 @@ if (in_array($action, ['attendance_overview','attendance_classroom','attendance_
     };
     $hasSchool=$checkCol('school_id');
     $hasCancelled=$checkCol('is_cancelled');
+    $hasAcademicYear=$checkCol('academic_year_id');
     $date=trim((string)($_POST['date']??date('Y-m-d')));
     $validDate=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
     if (!$validDate || $validDate->format('Y-m-d')!==$date) {
         dma_reply(['status'=>'error','message'=>'Fecha de asistencia no válida.'],422);
     }
+    // La fecha determina el año de la consulta. Nunca interpretar un día de
+    // 2024 como si correspondiera al aula actualmente matriculada en 2026.
+    $GLOBALS['dma_stage']='asistencia_resolver_ano';
+    $attendanceYear=null;
+    $yearStmt=$conn->prepare(
+        "SELECT id,year,is_active FROM academic_year
+         WHERE school_id=? AND ? BETWEEN start_date AND end_date
+         ORDER BY is_active DESC,id DESC LIMIT 1"
+    );
+    if (!$yearStmt) throw new RuntimeException('No se pudo resolver el año escolar.');
+    $yearStmt->bind_param('is',$schoolId,$date);
+    $yearStmt->execute();
+    $attendanceYear=$yearStmt->get_result()->fetch_assoc();
+    $yearStmt->close();
+    if (!$attendanceYear) {
+        // Calendarios antiguos pueden no tener límites registrados.
+        $calendarYear=(int)$validDate->format('Y');
+        $yearStmt=$conn->prepare(
+            'SELECT id,year,is_active FROM academic_year
+             WHERE school_id=? AND year=? ORDER BY id DESC LIMIT 1'
+        );
+        if ($yearStmt) {
+            $yearStmt->bind_param('ii',$schoolId,$calendarYear);
+            $yearStmt->execute();
+            $attendanceYear=$yearStmt->get_result()->fetch_assoc();
+            $yearStmt->close();
+        }
+    }
+    if (!$attendanceYear) {
+        dma_reply(['status'=>'error',
+            'message'=>'No existe un año académico registrado para esta fecha.'],422);
+    }
+    $attendanceYearId=(int)$attendanceYear['id'];
+    $historicAttendance=(int)$attendanceYear['is_active']!==1;
     $level=trim((string)($_POST['level']??''));
     $grade=trim(str_replace(['°','º'],'',(string)($_POST['grade']??'')));
     $section=strtoupper(trim((string)($_POST['section']??'')));
@@ -209,18 +244,33 @@ if (in_array($action, ['attendance_overview','attendance_classroom','attendance_
     if ($action==='attendance_classroom' && ($level==='' || $grade==='' || $section==='')) {
         dma_reply(['status'=>'error','message'=>'Selecciona nivel, grado y sección.'],422);
     }
-    $classWhere="st.school_id=? AND st.status='Activo'";
+    $historicRoster=[];
+    if ($historicAttendance) {
+        require_once __DIR__.'/../includes/grades_report_historical_classroom.php';
+        $historicRoster=grhc_student_classrooms($conn,$schoolId,$attendanceYearId);
+        // Pertenencia a una sola aula histórica, nunca grado/sección actual.
+        foreach ($historicRoster as $studentId=>$roomKey) {
+            [$hLevel,$hGrade,$hSection]=explode('|',$roomKey);
+            if ($level!=='' && grhc_level($level)!==$hLevel) unset($historicRoster[$studentId]);
+            elseif ($grade!=='' && grhc_grade($grade)!==$hGrade) unset($historicRoster[$studentId]);
+            elseif ($section!=='' && grhc_section($section)!==$hSection) unset($historicRoster[$studentId]);
+        }
+        $historicIds=$historicRoster ? implode(',',array_map('intval',array_keys($historicRoster))) : '0';
+        $classWhere="st.school_id=? AND st.id IN ($historicIds)";
+    } else {
+        $classWhere="st.school_id=? AND st.status='Activo'";
+    }
     $types='i';
     $params=[$schoolId];
-    if ($level!=='') {
+    if (!$historicAttendance && $level!=='') {
         $classWhere.=" AND LOWER(TRIM(st.nivel))=LOWER(TRIM(?))";
         $types.='s';$params[]=$level;
     }
-    if ($grade!=='') {
+    if (!$historicAttendance && $grade!=='') {
         $classWhere.=" AND TRIM(REPLACE(REPLACE(st.grado,'°',''),'º',''))=?";
         $types.='s';$params[]=$grade;
     }
-    if ($section!=='') {
+    if (!$historicAttendance && $section!=='') {
         $classWhere.=" AND UPPER(COALESCE(NULLIF(TRIM(st.seccion),''),'U'))=?";
         $types.='s';$params[]=$section;
     }
@@ -240,6 +290,10 @@ if (in_array($action, ['attendance_overview','attendance_classroom','attendance_
         $paramTypes='iss';$markParams=[$studentId,$from,$until];
         if ($hasSchool){$where[]='a.school_id=?';$paramTypes.='i';$markParams[]=$schoolId;}
         if ($hasCancelled) $where[]='COALESCE(a.is_cancelled,0)=0';
+        if ($hasAcademicYear) {
+            $where[]='(a.academic_year_id=? OR a.academic_year_id IS NULL)';
+            $paramTypes.='i';$markParams[]=$attendanceYearId;
+        }
         $stmt=$conn->prepare("SELECT a.fecha,a.tipo,a.hora,a.estado FROM asistencia a WHERE ".implode(' AND ',$where)." ORDER BY a.fecha,a.hora,a.id");
         $stmt->bind_param($paramTypes,...$markParams);$stmt->execute();
         $raw=[];
@@ -260,6 +314,14 @@ if (in_array($action, ['attendance_overview','attendance_classroom','attendance_
     $students=[];$groups=[];
     foreach ($rosterStmt->get_result() as $st) {
         $id=(int)$st['id'];$st['id']=$id;$st['status']='Sin registro';$st['entrada']=null;$st['salida']=null;
+        if ($historicAttendance) {
+            $verified=$historicRoster[$id]??'';
+            if ($verified==='') continue;
+            [$hLevel,$hGrade,$hSection]=explode('|',$verified);
+            $st['nivel']=ucfirst($hLevel);
+            $st['grado']=$hGrade;
+            $st['seccion']=strtoupper($hSection);
+        }
         $key=dma_class_key($st['nivel'],$st['grado'],$st['seccion']);
         $st['_key']=$key;
         $students[$id]=$st;
@@ -280,6 +342,9 @@ if (in_array($action, ['attendance_overview','attendance_classroom','attendance_
     $mt='ssi';$mp=[$start,$end,$schoolId];
     if ($hasSchool) $markWhere[]='a.school_id=st.school_id';
     if ($hasCancelled) $markWhere[]='COALESCE(a.is_cancelled,0)=0';
+    if ($hasAcademicYear) {
+        $markWhere[]="(a.academic_year_id=$attendanceYearId OR a.academic_year_id IS NULL)";
+    }
     $markStmt=$conn->prepare("SELECT a.student_id,a.fecha,a.tipo,a.hora,a.estado
        FROM asistencia a INNER JOIN student st ON st.id=a.student_id
        WHERE ".implode(' AND ',$markWhere)." ORDER BY a.fecha,a.hora,a.id");
@@ -321,9 +386,13 @@ if (in_array($action, ['attendance_overview','attendance_classroom','attendance_
     $rooms=array_values($groups);
     if ($action==='attendance_classroom') {
         dma_reply(['status'=>'ok','read_only'=>true,'date'=>$date,
+          'academic_year_id'=>$attendanceYearId,
+          'roster_scope'=>$historicAttendance?'historical_verified':'current',
           'summary'=>$summary,'students'=>array_values($students),'classrooms'=>$rooms]);
     }
     dma_reply(['status'=>'ok','read_only'=>true,'date'=>$date,
+      'academic_year_id'=>$attendanceYearId,
+      'roster_scope'=>$historicAttendance?'historical_verified':'current',
       'summary'=>$summary,'classrooms'=>$rooms]);
 }
 
