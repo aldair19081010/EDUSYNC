@@ -220,15 +220,13 @@ foreach ($years as $year) {
 $suggestedBimester = 1;
 if ($selectedYearId > 0) {
     $bimesterStmt = $conn->prepare(
-        "SELECT MAX(CAST(ev.bimestre AS UNSIGNED)) suggested_bimester
+        "SELECT MAX(CAST(REPLACE(REPLACE(REPLACE(REPLACE(
+               UPPER(TRIM(COALESCE(ev.bimestre,''))),' ',''),'BIMESTRE',''),
+               'BIM',''),'B','') AS UNSIGNED)) suggested_bimester
          FROM evaluations ev
-         INNER JOIN teacher_courses tc
-           ON tc.id=ev.teacher_course_id
-          AND tc.teacher_id=ev.teacher_id
-          AND tc.academic_year_id=ev.academic_year_id
-         WHERE ev.teacher_id=? AND ev.academic_year_id=?
-           AND tc.school_id=?
-           AND CAST(ev.bimestre AS UNSIGNED) BETWEEN 1 AND 4"
+         INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
+         WHERE tc.teacher_id=? AND tc.academic_year_id=?
+           AND tc.school_id=?"
     );
     if ($bimesterStmt) {
         $bimesterStmt->bind_param(
@@ -346,7 +344,9 @@ $summary['courses'] = count($courses);
 // Una sola consulta para todos los cursos del año: evita N solicitudes
 // cuando un profesor tiene muchas asignaciones. Se cuentan exclusivamente
 // notas no vacías de estudiantes activos del curso y evaluaciones vigentes.
-if ($courses) {
+if ($courses && !empty($selectedYear['is_active'])) {
+    // Para un año archivado no presentar como avance 0% la matrícula
+    // actual; el historial se consulta por evaluaciones y notas reales.
     $hasEvaluationStatus = $conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
     $activeEvaluationFilter = ($hasEvaluationStatus && $hasEvaluationStatus->num_rows > 0)
         ? " AND COALESCE(e.status,'Activa') <> 'Anulada'" : '';
