@@ -91,8 +91,20 @@ if ((int)$academic_year_id > 0) {
         $yearInfo = $queryYear->get_result()->fetch_assoc();
         $queryYear->close();
         if ($yearInfo && (int)$yearInfo['is_active'] !== 1) {
-            require_once __DIR__.'/includes/grades_report_historical_level.php';
-            $historicalLevelGuard = grhl_sql($conn, 's', 'tc', 'ac', (int)$school_id, (int)$academic_year_id, (string)$level_filter);
+            require_once __DIR__.'/includes/grades_report_historical_classroom.php';
+            // El reporte Detalle permite filtrar solamente por año/nivel.
+            // Exigir aula única solo si se ha elegido grado y sección.
+            // Las tablas por aula siempre proporcionan ambos filtros.
+            if (trim((string)$grado_filter)!=='' && trim((string)$seccion_filter)!=='') {
+                $historicalLevelGuard = grhc_sql($conn, 's', 'tc', 'ac',
+                    (int)$school_id, (int)$academic_year_id,
+                    (string)$level_filter, (string)$grado_filter,
+                    (string)$seccion_filter);
+            } else {
+                $historicalLevelGuard = grhl_sql($conn, 's', 'tc', 'ac',
+                    (int)$school_id, (int)$academic_year_id,
+                    (string)$level_filter);
+            }
         }
     }
 }
