@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/dev_cors.php';
 // session_config.php
 // Configuración básica de sesión para PHP
 

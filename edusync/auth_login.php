@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/includes/dev_cors.php';
 ini_set('session.save_path', __DIR__ . '/tmp');
 if (!is_dir(__DIR__ . '/tmp')) @mkdir(__DIR__ . '/tmp');
 session_name('EDUSYNCSESSID');
@@ -122,6 +123,8 @@ $mobile_session_id = session_id();
 session_write_close();
 auth_reply(1, 'Inicio de sesión exitoso.', [
     'login_type' => intval($row['type']),
+    'is_director' => (int)($row['is_director'] ?? 0) === 1,
+    'name' => (string)($row['name'] ?? ''),
     'login_id' => intval($row['id']),
     'session_id' => $mobile_session_id,
     'remember_saved' => $remember_saved,

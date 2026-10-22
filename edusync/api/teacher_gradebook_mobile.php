@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../includes/dev_cors.php';
 // Puente móvil del Libro de Notas: reutiliza la lógica y reglas de EduSync Web.
 ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');

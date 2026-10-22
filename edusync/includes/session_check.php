@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/dev_cors.php';
 // Common session initializer and login guard for modal pages
 if (session_status() === PHP_SESSION_NONE) {
     ini_set('session.save_path', __DIR__ . '/../tmp');
