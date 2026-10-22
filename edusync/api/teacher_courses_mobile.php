@@ -108,7 +108,7 @@ if ($action === 'students') {
     // La asignación debe pertenecer al docente autenticado Y a su institución.
     $context = $conn->prepare(
         "SELECT tc.id, tc.grado, COALESCE(NULLIF(tc.seccion,''),'U') seccion,
-                ac.name course_name, ac.level, ay.year
+                ac.name course_name, ac.level, ay.year, ay.is_active academic_year_active
          FROM teacher_courses tc
          INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
          INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id
@@ -121,31 +121,66 @@ if ($action === 'students') {
     if (!$course) {
         teacher_mobile_reply(['status' => 'error', 'message' => 'Esta asignación no te pertenece.'], 404);
     }
-    $studentsStmt = $conn->prepare(
-        "SELECT st.id, st.id_no, st.name
-         FROM student st
-         WHERE st.school_id=? AND st.status='Activo' AND st.nivel=?
-           AND st.grado=? AND COALESCE(NULLIF(st.seccion,''),'U')=?
-         ORDER BY st.name"
-    );
-    $studentsStmt->bind_param(
-        'isss', $sessionSchoolId, $course['level'], $course['grado'], $course['seccion']
-    );
-    $studentsStmt->execute();
+    // Historial real: al pasar de grado/sección, el registro actual de
+    // student ya no describe a los alumnos de este curso en años previos.
+    // Las evaluaciones pertenecen a la asignación validada, como en la
+    // ficha del Estudiante (teacher_courses.academic_year_id).
+    $historical = (int)$course['academic_year_active'] !== 1;
     $items = [];
-    $studentsResult = $studentsStmt->get_result();
-    while ($student = $studentsResult->fetch_assoc()) {
-        $items[] = [
-            'id' => (int)$student['id'],
-            'dni' => (string)$student['id_no'],
-            'name' => (string)$student['name'],
-        ];
+    if (!$historical) {
+        $current = $conn->prepare(
+            "SELECT st.id, st.id_no, st.name
+             FROM student st
+             WHERE st.school_id=? AND st.status='Activo'
+               AND LOWER(TRIM(st.nivel))=LOWER(TRIM(?))
+               AND TRIM(REPLACE(REPLACE(st.grado,'°',''),'º',''))=?
+               AND UPPER(COALESCE(NULLIF(TRIM(st.seccion),''),'U'))=?
+             ORDER BY st.name"
+        );
+        if (!$current) teacher_mobile_reply([
+            'status'=>'error','message'=>'No se pudo consultar la nómina.'],500);
+        $grade = trim(str_replace(['°','º'],'',(string)$course['grado']));
+        $section = strtoupper(trim((string)$course['seccion']));
+        if ($section==='') $section='U';
+        $current->bind_param('isss',
+            $sessionSchoolId,$course['level'],$grade,$section);
+        $current->execute();
+        foreach ($current->get_result() as $student) {
+            $id=(int)$student['id'];
+            $items[$id]=['id'=>$id,'dni'=>(string)$student['id_no'],
+                'name'=>(string)$student['name']];
+        }
+        $current->close();
     }
-    $studentsStmt->close();
+    // Incluir alumnado con calificaciones en esa asignación, sin basarse
+    // en el grado ACTUAL ni en el estado actual de su matrícula.
+    $historicStmt=$conn->prepare(
+        "SELECT DISTINCT st.id,st.id_no,st.name FROM student st
+         INNER JOIN evaluation_grades eg ON eg.student_id=st.id
+         INNER JOIN evaluations e ON e.id=eg.evaluation_id
+         WHERE st.school_id=? AND e.teacher_course_id=?
+         ORDER BY st.name,st.id"
+    );
+    if (!$historicStmt) teacher_mobile_reply([
+        'status'=>'error','message'=>'No se pudo consultar el historial.'],500);
+    $historicStmt->bind_param('ii',$sessionSchoolId,$assignmentId);
+    $historicStmt->execute();
+    foreach ($historicStmt->get_result() as $student) {
+        $id=(int)$student['id'];
+        $items[$id]=['id'=>$id,'dni'=>(string)$student['id_no'],
+            'name'=>(string)$student['name']];
+    }
+    $historicStmt->close();
+    $items=array_values($items);
+    usort($items,static function($a,$b){
+        return strcasecmp($a['name'],$b['name']);
+    });
     teacher_mobile_reply([
         'status' => 'ok',
         'course' => $course,
         'students' => $items,
+        'roster_scope' => $historical ? 'historical_grades' : 'current_classroom',
+        'read_only' => $historical,
     ]);
 }
 
