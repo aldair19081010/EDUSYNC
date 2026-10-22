@@ -400,7 +400,21 @@ if ($action === 'student_course' || $action === 'course_roster') {
                 dma_reply(['status'=>'error','message'=>'No hay vinculación académica de este estudiante con el curso.'],404);
             }
         }
-    } else {
+    }
+
+    // Un alumno con notas migradas a otra aula no puede consultar por ellas
+    // asignaturas de un grado o sección al que nunca perteneció.
+    if (!$rosterMode && (int)$course['academic_year_active'] !== 1) {
+        require_once __DIR__.'/../includes/grades_report_historical_classroom.php';
+        $studentClass=grhc_student_classrooms($conn,$schoolId,$yearId)[$studentId]??'';
+        $courseClass=grhc_key($course['level'],$course['grado'],$course['seccion']);
+        if ($studentClass==='' || $studentClass!==$courseClass) {
+            dma_reply(['status'=>'error',
+                'message'=>'El estudiante no pertenece al aula histórica del curso.'],404);
+        }
+    }
+
+    if ($rosterMode) {
         $GLOBALS['dma_stage'] = 'nomina_del_curso';
         $isActiveYear = (int)$course['academic_year_active'] === 1;
         if ($isActiveYear) {
@@ -420,9 +434,9 @@ if ($action === 'student_course' || $action === 'course_roster') {
             $rosterStmt->bind_param('isss', $schoolId,$level,$grade,$section);
         } else {
             // La nómina histórica reproduce los criterios del Reporte de Notas web.
-            require_once __DIR__.'/../includes/grades_report_historical_level.php';
-            $historicalGuard=grhl_sql($conn,'st','tc','ac',$schoolId,$yearId,
-                (string)$course['level']);
+            require_once __DIR__.'/../includes/grades_report_historical_classroom.php';
+            $historicalGuard=grhc_sql($conn,'st','tc','ac',$schoolId,$yearId,
+                (string)$course['level'],(string)$course['grado'],(string)$course['seccion']);
             $rosterStmt = $conn->prepare(
                 "SELECT DISTINCT st.id,st.id_no,st.name FROM student st
                  INNER JOIN evaluation_grades eg ON eg.student_id=st.id
@@ -651,8 +665,9 @@ if ($action === 'students') {
         // Mismo criterio de Reporte de Notas: curso y grado del año consultado,
         // con nivel histórico validado; nunca utilizar el grado actual del alumno.
         $GLOBALS['dma_stage']='nomina_historica_de_aula';
-        require_once __DIR__.'/../includes/grades_report_historical_level.php';
-        $historicalGuard=grhl_sql($conn,'st','tc','ac',$schoolId,$studentYearId,$level);
+        require_once __DIR__.'/../includes/grades_report_historical_classroom.php';
+        $historicalGuard=grhc_sql($conn,'st','tc','ac',$schoolId,$studentYearId,
+            $level,$grade,$section);
         $stmt=$conn->prepare(
             "SELECT DISTINCT st.id,st.id_no,st.name,
                     ac.level nivel,tc.grado grado,
