@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/dev_cors.php';
+require_once __DIR__ . '/../includes/historical_grade_period.php';
 // API móvil de docentes: la identidad se obtiene EXCLUSIVAMENTE de la sesión PHP.
 ini_set('display_errors', '0');
 ini_set('display_startup_errors', '0');
@@ -219,10 +220,9 @@ foreach ($years as $year) {
 
 $suggestedBimester = 1;
 if ($selectedYearId > 0) {
+    $normalizedBimester=edh_historical_bimester_sql('ev.bimestre');
     $bimesterStmt = $conn->prepare(
-        "SELECT MAX(CAST(REPLACE(REPLACE(REPLACE(REPLACE(
-               UPPER(TRIM(COALESCE(ev.bimestre,''))),' ',''),'BIMESTRE',''),
-               'BIM',''),'B','') AS UNSIGNED)) suggested_bimester
+        "SELECT MAX($normalizedBimester) suggested_bimester
          FROM evaluations ev
          INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
          WHERE tc.teacher_id=? AND tc.academic_year_id=?
