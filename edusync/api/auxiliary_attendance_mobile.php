@@ -44,7 +44,7 @@ try {
     if (!$allowed) aam_reply(['status'=>'error','message'=>'La cuenta Auxiliar no está habilitada.'],403);
 
     // Sin tablas de asistencia/migración no se permite crear registros parciales.
-    foreach (['asistencia','attendance_audit_log','attendance_day_closures'] as $table) {
+    foreach (['asistencia','attendance_audit_log','attendance_day_closures','attendance_change_requests'] as $table) {
         $q = $conn->query("SHOW TABLES LIKE '{$table}'");
         if (!$q || !$q->num_rows) {
             aam_reply(['status'=>'error','message'=>'Falta instalar el módulo actualizado de asistencia en el servidor.'],409);
@@ -225,6 +225,17 @@ try {
             $school,$attendance,$userId,$type,$json,$reason);
         if (!$q->execute()) throw new RuntimeException('guardar_solicitud');
         $id=(int)$q->insert_id; $q->close();
+        $auditDetails=json_encode(['request_id'=>$id,'type'=>$type,
+            'reason'=>$reason],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        $ip=(string)($_SERVER['REMOTE_ADDR']??'');
+        $audit=$conn->prepare("INSERT INTO attendance_audit_log
+            (school_id,attendance_id,student_id,user_id,action,details,ip_address)
+            VALUES (?,NULLIF(?,0),NULL,?,'attendance_change_requested',?,?)");
+        if (!$audit) throw new RuntimeException('auditar_solicitud');
+        $audit->bind_param('iiiss',
+            $school,$attendance,$userId,$auditDetails,$ip);
+        if (!$audit->execute()) throw new RuntimeException('guardar_auditoria');
+        $audit->close();
         try {
             require_once __DIR__.'/../includes/web_push_staff_immediate.php';
             register_shutdown_function(static function() use ($conn,$school,$id):void {
