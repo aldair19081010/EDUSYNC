@@ -71,7 +71,11 @@ try {
         WHERE school_id=? AND fecha=? AND tipo='Salida' AND is_cancelled=0
         GROUP BY student_id
       ) ex ON ex.student_id=st.id";
-    $attendanceCols = ',en.entry_time,en.entry_state,ex.exit_time';
+    $attendanceCols = ",en.entry_time,en.entry_state,ex.exit_time,
+        (SELECT ax.estado FROM asistencia ax
+         WHERE ax.student_id=st.id AND ax.school_id=st.school_id
+           AND ax.fecha='$day' AND ax.tipo='Entrada' AND ax.is_cancelled=0
+         ORDER BY ax.id DESC LIMIT 1) AS record_state";
 
     if ($action === 'summary') {
         $summary = ['entries'=>0,'exits'=>0];
@@ -262,6 +266,33 @@ try {
         $q->execute();$closed=(bool)$q->get_result()->fetch_assoc();$q->close();
         aam_reply(['status'=>'ok','date'=>$day,'student'=>$student,
             'entry'=>$entry,'exit'=>$exit,'closed'=>$closed]);
+    }
+
+    if ($action === 'classroom_state') {
+        $level=trim((string)($_POST['level']??''));
+        $grade=trim((string)($_POST['grade']??''));
+        $section=trim((string)($_POST['section']??''));
+        if (!$level||!$grade||!$section)
+            aam_reply(['status'=>'error','message'=>'Selecciona un aula.'],422);
+        $q=$conn->prepare("SELECT COUNT(*) AS expected,
+            SUM(CASE WHEN a.id IS NOT NULL THEN 1 ELSE 0 END) AS marked
+            FROM student st LEFT JOIN asistencia a ON
+              a.id=(SELECT x.id FROM asistencia x
+                WHERE x.school_id=st.school_id AND x.student_id=st.id
+                  AND x.fecha=? AND x.tipo='Entrada' AND x.is_cancelled=0
+                ORDER BY x.id DESC LIMIT 1)
+            WHERE st.school_id=? AND st.status='Activo'
+              AND st.nivel=? AND st.grado=? AND st.seccion=?");
+        $q->bind_param('sisss',$day,$school,$level,$grade,$section);
+        $q->execute();$totals=$q->get_result()->fetch_assoc();$q->close();
+        $q=$conn->prepare("SELECT id FROM attendance_day_closures
+            WHERE school_id=? AND attendance_date=? AND nivel=? AND grado=?
+              AND seccion=? AND status='Cerrada' LIMIT 1");
+        $q->bind_param('issss',$school,$day,$level,$grade,$section);
+        $q->execute();$closed=(bool)$q->get_result()->fetch_assoc();$q->close();
+        aam_reply(['status'=>'ok','date'=>$day,'closed'=>$closed,
+            'expected'=>(int)($totals['expected']??0),
+            'marked'=>(int)($totals['marked']??0)]);
     }
 
     if ($action === 'my_requests') {
