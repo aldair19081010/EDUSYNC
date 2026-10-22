@@ -10,6 +10,7 @@ $files=[
     'book'=>$root.'gradebook_api.php',
     'director'=>$root.'api/director_academic_mobile.php',
     'student'=>$root.'api/my_grades_v2.php',
+    'period'=>$root.'includes/historical_grade_period.php',
 ];
 foreach ($files as $key=>$path) {
     if (!is_file($path)) { fwrite(STDERR,"Falta $key\n"); exit(1); }
@@ -24,9 +25,16 @@ contract_has($files['student'],'tc.academic_year_id','Año de asignación en la 
 contract_has($files['teacher'],"'historical_grades'","La nómina docente informa su fuente");
 contract_has($files['teacher'],"e.teacher_course_id=?","Nómina histórica acotada a la asignación");
 contract_has($files['teacher'],"COUNT(DISTINCT st.id)","Conteo histórico no basado en el aula actual");
-contract_has($files['teacher'],"'BIMESTRE'","Lectura del bimestre histórico normalizado");
+contract_has($files['teacher'],"edh_historical_bimester_sql('ev.bimestre')","Lectura del bimestre histórico normalizado");
+contract_has($files['period'],"'IV','CUARTO'","Alias romanos y ordinales de periodos");
+contract_has($files['period'],"'II','SEGUNDO'","Alias históricos del segundo bimestre");
+require_once $root.'includes/historical_grade_period.php';
+$periodSql=edh_historical_bimester_sql('ev.bimestre');
+contract_has($periodSql,"CASE","SQL de periodos históricos");
+contract_has($periodSql,"ELSE 1","Respaldo del primer bimestre como Estudiantes");
 contract_has($files['book'],'$historicalRead',"Modo histórico del libro");
 contract_has($files['book'],'$historicPeriodSql',"Filtro de bimestre histórico");
+contract_has($files['book'],"edh_historical_bimester_sql('e.bimestre')","Libro comparte normalización");
 contract_has($files['book'],'$historicalGradedCompetencies',"Competencias con notas reales");
 contract_has($files['book'],'eg.competencia_id>0',"Competencia heredada de la nota");
 contract_has($files['book'],"LEFT JOIN general_course_competencies gcc","Notas sin metadatos de competencia en el Libro");
@@ -34,6 +42,7 @@ contract_has($files['book'],"THEN gcc.percentage ELSE 0","Sin inventar ponderaci
 contract_has($files['book'],'$yearReadOnly',"El historial nunca se vuelve editable");
 contract_has($files['director'],"$historicalRead","Filtro histórico de Dirección");
 contract_has($files['director'],"$historicalPeriod","Bimestres históricos de Dirección");
+contract_has($files['director'],"edh_historical_bimester_sql('ev.bimestre')","Dirección comparte normalización");
 contract_has($files['director'],'$gradedCompetencies',"Peso de competencias con notas");
 contract_has($files['director'],"eg.competencia_id>0","Vínculos legacy de Dirección");
 contract_has($files['director'],"LEFT JOIN general_course_competencies gcc","Respaldo sin metadata de competencia");
