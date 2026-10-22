@@ -187,10 +187,11 @@ if ($action === 'load') {
         // La ficha docente debe conservar al alumno al cambiar de bimestre,
         // aun si no tiene evaluaciones en el bimestre seleccionado.
         // Usar la misma prueba de nivel histórico del reporte web.
-        require_once __DIR__.'/includes/grades_report_historical_level.php';
-        $historyLevelGuard = grhl_sql(
+        require_once __DIR__.'/includes/grades_report_historical_classroom.php';
+        $historyLevelGuard = grhc_sql(
             $conn, 's', 'tc', 'ac', $schoolId,
-            (int)$assignment['academic_year_id'], (string)$assignment['level']
+            (int)$assignment['academic_year_id'], (string)$assignment['level'],
+            (string)$assignment['grado'], (string)$assignment['seccion']
         );
         $historyYearId=(int)$assignment['academic_year_id'];
         $studentParts = [
