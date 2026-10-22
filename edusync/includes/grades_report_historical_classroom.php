@@ -57,7 +57,11 @@ if (!function_exists('grhc_choose_class')) {
                 $tie=true;
             }
         }
-        if ($max>0) return $tie ? '' : $winner;
+        // Si las notas contradicen la pertenencia pero existe una ficha
+        // vinculada a ESTE MISMO año, usarla sólo si es una de las aulas
+        // candidatas. Sin evidencia suficiente, dejar sin aula.
+        if ($max>0 && $tie) return isset($courseCounts[$sameYear]) ? $sameYear : '';
+        if ($max>0) return $winner;
         return $sameYear;
     }
 }
@@ -86,8 +90,9 @@ if (!function_exists('grhc_student_classrooms')) {
                     $sid=(int)$row['student_id'];
                     if (array_key_exists($sid,$documented)) continue;
                     $key=grhc_key($row['nivel'],$row['grado'],$row['seccion']);
-                    // No sustituir un grado conocido con un nivel de otro año.
-                    $documented[$sid]=$key;
+                    // Conservar el último registro válido. Una actualización
+                    // sin grado no debe borrar la última matrícula conocida.
+                    if ($key!=='') $documented[$sid]=$key;
                 }
                 $stmt->close();
             }
