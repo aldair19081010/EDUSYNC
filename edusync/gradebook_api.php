@@ -155,6 +155,39 @@ if ($action === 'load') {
                 'percentage' => (float)$link['competency_percentage'],
             ];
         }
+        if ($historicalRead) {
+            // Antes del vínculo evaluation_competencias, la competencia
+            // podía existir solo en evaluation_grades.competencia_id.
+            // Recuperarla usando el ID real y el curso verificado.
+            $legacyLinkSql = "SELECT DISTINCT eg.evaluation_id,
+                        eg.competencia_id,gcc.name competency_name,
+                        gcc.percentage competency_percentage
+                FROM evaluation_grades eg
+                INNER JOIN general_course_competencies gcc
+                  ON gcc.id=eg.competencia_id
+                 AND gcc.course_id=".(int)$assignment['course_id']."
+                WHERE eg.evaluation_id IN ($evaluationListForLinks)
+                  AND eg.competencia_id>0";
+            $legacyResult = $conn->query($legacyLinkSql);
+            while ($legacyResult && ($legacy = $legacyResult->fetch_assoc())) {
+                $evaluationId=(int)$legacy['evaluation_id'];
+                $competencyId=(int)$legacy['competencia_id'];
+                if ($competencyId<=0) continue;
+                $already=false;
+                foreach ($evaluationCompetencies[$evaluationId] ?? [] as $link) {
+                    if ((int)$link['id']===$competencyId) {
+                        $already=true;break;
+                    }
+                }
+                if (!$already) {
+                    $evaluationCompetencies[$evaluationId][]=[
+                        'id'=>$competencyId,
+                        'name'=>(string)$legacy['competency_name'],
+                        'percentage'=>(float)$legacy['competency_percentage'],
+                    ];
+                }
+            }
+        }
         foreach ($evaluations as &$evaluation) {
             $links = $evaluationCompetencies[(int)$evaluation['id']] ?? [];
             $evaluation['competency_links'] = $links;
