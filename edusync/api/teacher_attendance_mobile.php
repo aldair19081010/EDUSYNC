@@ -99,9 +99,34 @@ if ($action === 'history') {
     // Primero validar la nómina de la asignación; después consultar por los
     // mismos student_id que utiliza my_attendance.php en la sesión familiar.
     [$level, $grade, $section] = attendance_normalize_classroom($assignment);
-    $rosterStmt = $conn->prepare(attendance_teacher_roster_sql());
+    $isHistorical = (int)$assignment['is_active'] !== 1;
+    if ($isHistorical) {
+        // La matrícula actual no pertenece al año del curso consultado.
+        // Reutilizar la identificación de aula histórica que ya funciona
+        // en Reporte de Notas, sin atribuir marcaciones a otra sección.
+        require_once __DIR__.'/../includes/grades_report_historical_classroom.php';
+        $resolved = grhc_student_classrooms($conn, $school,
+            (int)$assignment['academic_year_id']);
+        $classKey = grhc_key($level, $grade, $section);
+        $ids = [];
+        foreach ($resolved as $studentId=>$key) {
+            if ($key === $classKey) $ids[] = (int)$studentId;
+        }
+        $idList = $ids ? implode(',', $ids) : '0';
+        $rosterStmt = $conn->prepare(
+            "SELECT st.id,st.id_no,st.name FROM student st
+             WHERE st.school_id=? AND st.id IN ($idList)
+             ORDER BY st.name,st.id"
+        );
+    } else {
+        $rosterStmt = $conn->prepare(attendance_teacher_roster_sql());
+    }
     if (!$rosterStmt) tam_reply(['status'=>'error','message'=>'No se pudo consultar la nómina del aula.'],500);
-    $rosterStmt->bind_param('isss', $school, $level, $grade, $section);
+    if ($isHistorical) {
+        $rosterStmt->bind_param('i', $school);
+    } else {
+        $rosterStmt->bind_param('isss', $school, $level, $grade, $section);
+    }
     if (!$rosterStmt->execute()) {
         $rosterStmt->close();
         tam_reply(['status'=>'error','message'=>'No se pudo cargar la nómina del aula.'],500);
@@ -144,6 +169,13 @@ if ($action === 'history') {
             $types .= 'i';
         }
         if ($hasCancelled) $where[] = "COALESCE(a.is_cancelled,0)=0";
+        if ($hasAcademicYearId) {
+            // Años explícitamente distintos nunca se muestran bajo este curso.
+            // Las marcaciones legacy sin año siguen disponibles por su fecha.
+            $where[] = "(a.academic_year_id=? OR a.academic_year_id IS NULL)";
+            $params[] = (int)$assignment['academic_year_id'];
+            $types .= 'i';
+        }
         // No limitar a Entrada: la sesión del estudiante conserva Salida y
         // otros tipos, incluso cuando un día no tiene una Entrada registrada.
         $sql = "SELECT a.student_id,a.fecha,a.tipo,a.hora,a.estado
@@ -236,6 +268,7 @@ if ($action === 'history') {
     tam_reply([
         'status'=>'ok','available'=>true,'year'=>$year,'month'=>$month,
         'date_from'=>$from,'date_to'=>$to,'course'=>$assignment,
+        'roster_scope'=>$isHistorical?'historical_verified':'current',
         'summary'=>$summary,'students'=>array_values($students),
         'days'=>array_values($daily),'records'=>$records,'read_only'=>true,
         'diagnostics'=>[
