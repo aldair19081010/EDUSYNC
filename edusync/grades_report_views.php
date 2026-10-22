@@ -145,8 +145,9 @@ if ($yearStmt) {
     $selectedYear = $yearStmt->get_result()->fetch_assoc();
     $yearStmt->close();
     if ($selectedYear && (int)$selectedYear['is_active'] !== 1) {
-        require_once __DIR__.'/includes/grades_report_historical_level.php';
-        $sql .= grhl_sql($conn, 's', 'tc', 'ac', $schoolId, $yearId, $level);
+        require_once __DIR__.'/includes/grades_report_historical_classroom.php';
+        $sql .= grhc_sql($conn, 's', 'tc', 'ac', $schoolId, $yearId,
+            $level, $grade, $section);
     }
 }
 if ($loginType === 2 && $teacherId > 0 && !$reportDirector) {
