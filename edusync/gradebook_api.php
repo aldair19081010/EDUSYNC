@@ -100,14 +100,26 @@ if ($action === 'load') {
 
     $hasEvaluationStatus = gradebook_column_exists($conn, 'evaluations', 'status');
     $evaluationStatusSelect = $hasEvaluationStatus ? ',e.status' : ", 'Activa' status";
+    // Para leer notas de años previos, el año fiable es el de la
+    // asignación tc. Los registros migrados pueden tener e.academic_year_id
+    // vacío/incorrecto y bimestres como B1 o BIMESTRE 1. No flexibilizar
+    // la escritura del año vigente: solo lectura histórica.
+    $historicalRead = (int)$assignment['is_active'] !== 1;
+    $historicPeriodSql = $historicalRead
+        ? " AND CAST(REPLACE(REPLACE(REPLACE(REPLACE(
+              UPPER(TRIM(COALESCE(e.bimestre,''))),' ',''),'BIMESTRE',''),
+              'BIM',''),'B','') AS UNSIGNED)=$bimester"
+        : " AND e.academic_year_id=".(int)$assignment['academic_year_id'].
+          " AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'";
+    $historicTeacherSql = $historicalRead ? '' : " AND e.teacher_id=$teacherId";
     $evaluationsSql = "SELECT e.id,e.title,e.type,e.created_at$evaluationStatusSelect,
                               (SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id,
                               (SELECT gcc.name FROM evaluation_competencias ec2 INNER JOIN general_course_competencies gcc ON gcc.id=ec2.competencia_id WHERE ec2.evaluation_id=e.id ORDER BY ec2.id LIMIT 1) competency_name,
                               (SELECT gcc.percentage FROM evaluation_competencias ec3 INNER JOIN general_course_competencies gcc ON gcc.id=ec3.competencia_id WHERE ec3.evaluation_id=e.id ORDER BY ec3.id LIMIT 1) competency_percentage,
                               (SELECT COUNT(*) FROM evaluation_grades egc WHERE egc.evaluation_id=e.id) grades_count
                        FROM evaluations e
-                       WHERE e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId
-                         AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
+                       WHERE e.teacher_course_id=$teacherCourseId
+                         $historicTeacherSql $historicPeriodSql
                        ORDER BY e.created_at,e.id";
     $evaluationResult = $conn->query($evaluationsSql);
     $evaluations = [];
@@ -237,7 +249,10 @@ if ($action === 'load') {
     $yearReadOnly = (int)$assignment['is_active'] !== 1 || (isset($assignment['year_status']) && in_array($assignment['year_status'], ['Cerrado','Archivado'], true));
 
     $competencies=[];
-    $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id']." AND is_active=1 ORDER BY id");
+    // Una competencia desactivada en un año ARCHIVADO puede seguir teniendo
+    // notas históricas. Mostrar su peso original; nunca reactivarla en BD.
+    $archivedFilter=$historicalRead?'':" AND is_active=1";
+    $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id']."$archivedFilter ORDER BY id");
     while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>(float)$row['percentage']];
     $officialWeightTotal=0.0;$officialWeightCount=0;foreach($competencies as $competency){$pct=(float)($competency['percentage']??0);if($pct<=0)continue;$officialWeightTotal+=$pct;$officialWeightCount++;}$officialWeightsValid=$officialWeightCount>0&&abs($officialWeightTotal-100.0)<=0.1;
     $knownCompetencies=[];
