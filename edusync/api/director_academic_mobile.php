@@ -798,10 +798,12 @@ if ($bimester===0) {
     $bimester=1;
     if ($yearId>0) {
         $stmt=$conn->prepare(
-            "SELECT MAX(CAST(ev.bimestre AS UNSIGNED)) n
+            "SELECT MAX(CAST(REPLACE(REPLACE(REPLACE(REPLACE(
+                 UPPER(TRIM(COALESCE(ev.bimestre,''))),' ',''),'BIMESTRE',''),
+                 'BIM',''),'B','') AS UNSIGNED)) n
              FROM evaluations ev INNER JOIN teacher_courses tc
                ON tc.id=ev.teacher_course_id AND tc.school_id=?
-             WHERE tc.academic_year_id=? AND CAST(ev.bimestre AS UNSIGNED) BETWEEN 1 AND 4"
+             WHERE tc.academic_year_id=?"
         );
         if ($stmt) {
             $stmt->bind_param('ii',$schoolId,$yearId);
