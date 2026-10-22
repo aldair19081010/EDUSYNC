@@ -100,14 +100,21 @@ if ($action === 'load') {
 
     $hasEvaluationStatus = gradebook_column_exists($conn, 'evaluations', 'status');
     $evaluationStatusSelect = $hasEvaluationStatus ? ',e.status' : ", 'Activa' status";
+    // En años antiguos la asignación (tc.id) determina el año, igual que
+    // Reporte de Notas web. Algunas evaluaciones migradas conservan otros
+    // valores en e.teacher_id o e.academic_year_id.
+    $historicalEvaluationFilter = (int)$assignment['is_active'] === 1
+        ? ' AND e.teacher_id='.$teacherId
+            .' AND e.academic_year_id='.(int)$assignment['academic_year_id']
+        : '';
     $evaluationsSql = "SELECT e.id,e.title,e.type,e.created_at$evaluationStatusSelect,
                               (SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id,
                               (SELECT gcc.name FROM evaluation_competencias ec2 INNER JOIN general_course_competencies gcc ON gcc.id=ec2.competencia_id WHERE ec2.evaluation_id=e.id ORDER BY ec2.id LIMIT 1) competency_name,
                               (SELECT gcc.percentage FROM evaluation_competencias ec3 INNER JOIN general_course_competencies gcc ON gcc.id=ec3.competencia_id WHERE ec3.evaluation_id=e.id ORDER BY ec3.id LIMIT 1) competency_percentage,
                               (SELECT COUNT(*) FROM evaluation_grades egc WHERE egc.evaluation_id=e.id) grades_count
                        FROM evaluations e
-                       WHERE e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId
-                         AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
+                       WHERE e.teacher_course_id=$teacherCourseId {$historicalEvaluationFilter}
+                         AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
                        ORDER BY e.created_at,e.id";
     $evaluationResult = $conn->query($evaluationsSql);
     $evaluations = [];
@@ -175,6 +182,27 @@ if ($action === 'load') {
     if ($evaluationIds) {
         $evaluationList = implode(',', $evaluationIds);
         $studentParts[] = "SELECT s.id,s.id_no,s.name FROM student s INNER JOIN evaluation_grades eg ON eg.student_id=s.id WHERE s.school_id=$schoolId AND eg.evaluation_id IN ($evaluationList)";
+    }
+    if ((int)$assignment['is_active'] !== 1) {
+        // La ficha docente debe conservar al alumno al cambiar de bimestre,
+        // aun si no tiene evaluaciones en el bimestre seleccionado.
+        // Usar la misma prueba de nivel histórico del reporte web.
+        require_once __DIR__.'/includes/grades_report_historical_level.php';
+        $historyLevelGuard = grhl_sql(
+            $conn, 's', 'tc', 'ac', $schoolId,
+            (int)$assignment['academic_year_id'], (string)$assignment['level']
+        );
+        $historyYearId=(int)$assignment['academic_year_id'];
+        $studentParts = [
+            "SELECT DISTINCT s.id,s.id_no,s.name FROM student s
+             INNER JOIN evaluation_grades eg ON eg.student_id=s.id
+             INNER JOIN evaluations ev ON ev.id=eg.evaluation_id
+             INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
+             INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
+             WHERE s.school_id=$schoolId AND tc.school_id=$schoolId
+               AND tc.id=$teacherCourseId AND tc.academic_year_id=$historyYearId
+               $historyLevelGuard"
+        ];
     }
     $students = [];
     if ($studentParts) {
