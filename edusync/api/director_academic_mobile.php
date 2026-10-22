@@ -601,6 +601,20 @@ if ($action === 'student_course' || $action === 'course_roster') {
 
 if ($action === 'students') {
     $GLOBALS['dma_stage'] = 'nomina_de_aula';
+    $studentYearId=(int)($_POST['academic_year_id']??0);
+    if ($studentYearId<=0) dma_reply(['status'=>'error','message'=>'Selecciona un año académico.'],422);
+    $yearStmt=$conn->prepare('SELECT is_active FROM academic_year WHERE id=? AND school_id=? LIMIT 1');
+    $yearStmt->bind_param('ii',$studentYearId,$schoolId);
+    $yearStmt->execute();
+    $yearRow=$yearStmt->get_result()->fetch_assoc();
+    $yearStmt->close();
+    if (!$yearRow) dma_reply(['status'=>'error','message'=>'Año no autorizado.'],404);
+    if ((int)$yearRow['is_active']!==1) {
+        // La matrícula de student refleja la situación ACTUAL, no una
+        // inscripción histórica demostrada. No exponerla como pasado.
+        dma_reply(['status'=>'ok','students'=>[],
+            'roster_scope'=>'historical_unavailable','read_only'=>true]);
+    }
     $level = trim((string)($_POST['level'] ?? ''));
     $grade = trim(str_replace(['°','º'], '', (string)($_POST['grade'] ?? '')));
     $section = strtoupper(trim((string)($_POST['section'] ?? '')));
