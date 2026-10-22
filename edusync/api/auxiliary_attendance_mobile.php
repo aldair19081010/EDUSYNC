@@ -194,6 +194,262 @@ try {
             'attendance'=>$record ?: null]);
     }
 
+
+    // Las correcciones siguen el contrato de attendance_api.php: un cambio
+    // de estado existente solo se aplica cuando Administración lo aprueba.
+    $requestChange = static function(
+        int $attendance, string $type, array $payload, string $reason = ''
+    ) use ($conn,$school,$userId): int {
+        if ($attendance > 0) {
+            $d=$conn->prepare("SELECT id FROM attendance_change_requests
+                WHERE school_id=? AND attendance_id=? AND requested_by=?
+                  AND request_type=? AND status='Pendiente'
+                LIMIT 1");
+            $d->bind_param('iiis',$school,$attendance,$userId,$type);
+            $d->execute();
+            $existing=$d->get_result()->fetch_assoc();
+            $d->close();
+            if ($existing) return (int)$existing['id'];
+        }
+        $json=json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        $q=$conn->prepare("INSERT INTO attendance_change_requests
+            (school_id,attendance_id,requested_by,request_type,
+             request_payload,reason,status)
+            VALUES (?,NULLIF(?,0),?,?,?,?,'Pendiente')");
+        if (!$q) throw new RuntimeException('solicitar_cambio');
+        $q->bind_param('iiisss',
+            $school,$attendance,$userId,$type,$json,$reason);
+        if (!$q->execute()) throw new RuntimeException('guardar_solicitud');
+        $id=(int)$q->insert_id; $q->close();
+        try {
+            require_once __DIR__.'/../includes/web_push_staff_immediate.php';
+            register_shutdown_function(static function() use ($conn,$school,$id):void {
+                try { edwp_send_staff_attendance_now($conn,$school,$id,'att_request'); }
+                catch (Throwable $e) { error_log('[aux request push] '.$e->getMessage()); }
+            });
+        } catch (Throwable $e) { error_log('[aux request init] '.$e->getMessage()); }
+        return $id;
+    };
+
+    if ($action === 'student_state') {
+        $studentId=(int)($_POST['student_id']??0);
+        if ($studentId<=0) aam_reply(['status'=>'error','message'=>'Estudiante inválido.'],422);
+        $q=$conn->prepare("SELECT id,id_no,name,nivel,grado,seccion
+            FROM student WHERE id=? AND school_id=? AND status='Activo' LIMIT 1");
+        $q->bind_param('ii',$studentId,$school);$q->execute();
+        $student=$q->get_result()->fetch_assoc();$q->close();
+        if (!$student) aam_reply(['status'=>'error','message'=>'Estudiante no disponible.'],404);
+        $q=$conn->prepare("SELECT id,tipo,hora,estado,notes,source,
+            justification_status,justification_reason FROM asistencia
+            WHERE school_id=? AND student_id=? AND fecha=? AND is_cancelled=0
+            ORDER BY id DESC");
+        $q->bind_param('iis',$school,$studentId,$day);$q->execute();
+        $records=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();
+        $entry=null;$exit=null;
+        foreach ($records as $record) {
+            if ($record['tipo']==='Entrada' && !$entry) {
+                $record['estado'] = in_array($record['estado'],['Normal','Temprano'],true)
+                    ? 'Presente' : $record['estado'];
+                $entry=$record;
+            }
+            if ($record['tipo']==='Salida' && !$exit) $exit=$record;
+        }
+        $q=$conn->prepare("SELECT id FROM attendance_day_closures
+            WHERE school_id=? AND attendance_date=? AND nivel=? AND grado=?
+              AND seccion=? AND status='Cerrada' LIMIT 1");
+        $q->bind_param('issss',$school,$day,
+            $student['nivel'],$student['grado'],$student['seccion']);
+        $q->execute();$closed=(bool)$q->get_result()->fetch_assoc();$q->close();
+        aam_reply(['status'=>'ok','date'=>$day,'student'=>$student,
+            'entry'=>$entry,'exit'=>$exit,'closed'=>$closed]);
+    }
+
+    if ($action === 'my_requests') {
+        $q=$conn->prepare("SELECT id,request_type,reason,status,
+            created_at,reviewed_at,review_notes FROM attendance_change_requests
+            WHERE school_id=? AND requested_by=? ORDER BY id DESC LIMIT 40");
+        $q->bind_param('ii',$school,$userId);$q->execute();
+        $requests=$q->get_result()->fetch_all(MYSQLI_ASSOC);$q->close();
+        aam_reply(['status'=>'ok','requests'=>$requests]);
+    }
+
+    if ($action === 'set_status') {
+        $studentId=(int)($_POST['student_id']??0);
+        $state=trim((string)($_POST['attendance_status']??''));
+        $notes=trim((string)($_POST['notes']??''));
+        $validStates=['Presente','Tarde','Ausente','Ausente Justificada','Permiso'];
+        if ($studentId<=0 || !in_array($state,$validStates,true) || strlen($notes)>500)
+            aam_reply(['status'=>'error','message'=>'Estado u observación no válidos.'],422);
+        $conn->begin_transaction();
+        try {
+            $q=$conn->prepare("SELECT id,name,nivel,grado,seccion FROM student
+                WHERE id=? AND school_id=? AND status='Activo' LIMIT 1 FOR UPDATE");
+            $q->bind_param('ii',$studentId,$school);$q->execute();
+            $student=$q->get_result()->fetch_assoc();$q->close();
+            if (!$student) {
+                $conn->rollback();
+                aam_reply(['status'=>'error','message'=>'Estudiante no encontrado.'],404);
+            }
+            $q=$conn->prepare("SELECT id FROM attendance_day_closures
+                WHERE school_id=? AND attendance_date=? AND nivel=? AND grado=?
+                  AND seccion=? AND status='Cerrada' LIMIT 1");
+            $q->bind_param('issss',$school,$day,
+                $student['nivel'],$student['grado'],$student['seccion']);
+            $q->execute();$closed=(bool)$q->get_result()->fetch_assoc();$q->close();
+            if ($closed) {
+                $conn->rollback();
+                aam_reply(['status'=>'error',
+                    'message'=>'Aula cerrada. Solicita su reapertura a Administración.'],409);
+            }
+            $q=$conn->prepare("SELECT id,hora,estado,notes FROM asistencia
+                WHERE school_id=? AND student_id=? AND fecha=?
+                  AND tipo='Entrada' AND is_cancelled=0 LIMIT 1 FOR UPDATE");
+            $q->bind_param('iis',$school,$studentId,$day);$q->execute();
+            $previous=$q->get_result()->fetch_assoc();$q->close();
+            $isAbsent=in_array($state,['Ausente','Ausente Justificada','Permiso'],true);
+            $recordTime=$isAbsent?'00:00:00':$clock;
+            $just=$state==='Ausente Justificada'?'Aprobada':null;
+            if ($previous) {
+                $oldState=in_array($previous['estado'],['Normal','Temprano'],true)
+                    ? 'Presente' : $previous['estado'];
+                $recordTime=$isAbsent?'00:00:00':(string)$previous['hora'];
+                if ($oldState===$state && (string)($previous['notes']??'')===$notes) {
+                    $conn->commit();
+                    aam_reply(['status'=>'ok','mode'=>'unchanged',
+                        'message'=>'La asistencia no tiene cambios.']);
+                }
+                $payload=['requested'=>['status'=>$state,'time'=>$recordTime,
+                    'notes'=>$notes,'justification_status'=>$just],
+                    'previous'=>['status'=>$oldState,'time'=>$previous['hora'],
+                        'notes'=>$previous['notes']]];
+                $requestId=$requestChange((int)$previous['id'],
+                    'Editar registro',$payload,'Cambio solicitado desde la app Auxiliar');
+                $conn->commit();
+                aam_reply(['status'=>'ok','mode'=>'approval','request_id'=>$requestId,
+                    'message'=>'Cambio enviado a Administración para autorización.']);
+            }
+            $y=$conn->prepare("SELECT id FROM academic_year WHERE school_id=?
+                AND ? BETWEEN start_date AND end_date
+                ORDER BY is_active DESC,id DESC LIMIT 1");
+            $y->bind_param('is',$school,$day);$y->execute();
+            $yearId=(int)($y->get_result()->fetch_assoc()['id']??0);$y->close();
+            $q=$conn->prepare("INSERT INTO asistencia
+                (school_id,academic_year_id,student_id,fecha,tipo,hora,
+                 estado,source,notes,justification_status,created_by,updated_by)
+                VALUES (?,NULLIF(?,0),?,?,'Entrada',?,?,?,?,?,?,?)");
+            $q->bind_param('iiisssssii',$school,$yearId,$studentId,$day,
+                $recordTime,$state,$notes,$just,$userId,$userId);
+            if (!$q->execute()) throw new RuntimeException('crear_asistencia');
+            $attId=(int)$q->insert_id; $q->close();
+            $auditPayload=json_encode(['status'=>$state,'source'=>'Aula',
+                'date'=>$day],JSON_UNESCAPED_UNICODE);
+            $ip=(string)($_SERVER['REMOTE_ADDR']??'');
+            $q=$conn->prepare("INSERT INTO attendance_audit_log
+                (school_id,attendance_id,student_id,user_id,action,details,ip_address)
+                VALUES (?,?,?,?,'attendance_created',?,?)");
+            $q->bind_param('iiiiss',$school,$attId,$studentId,$userId,$auditPayload,$ip);
+            if (!$q->execute()) throw new RuntimeException('auditar_asistencia');
+            $q->close();$conn->commit();
+        } catch (Throwable $e) {
+            $conn->rollback();throw $e;
+        }
+        try {
+            require_once __DIR__.'/../includes/push_notifications.php';
+            push_send_attendance_state_notification($conn,$school,$studentId,
+                $attId,$day,'',$state,$recordTime);
+        } catch (Throwable $e) { error_log('[aux state push] '.$e->getMessage()); }
+        aam_reply(['status'=>'ok','mode'=>'created',
+            'message'=>'Asistencia registrada correctamente.','state'=>$state]);
+    }
+
+    if (in_array($action,['close_day','reopen_request'],true)) {
+        $level=trim((string)($_POST['level']??''));
+        $grade=trim((string)($_POST['grade']??''));
+        $section=trim((string)($_POST['section']??''));
+        $reason=trim((string)($_POST['reason']??''));
+        if (!$level || !$grade || !$section)
+            aam_reply(['status'=>'error','message'=>'Selecciona nivel, grado y sección.'],422);
+        if ($action==='reopen_request' && strlen($reason)<3)
+            aam_reply(['status'=>'error','message'=>'Indica el motivo de reapertura.'],422);
+        $q=$conn->prepare("SELECT COUNT(*) n FROM student WHERE school_id=?
+            AND status='Activo' AND nivel=? AND grado=? AND seccion=?");
+        $q->bind_param('isss',$school,$level,$grade,$section);$q->execute();
+        $total=(int)($q->get_result()->fetch_assoc()['n']??0);$q->close();
+        if (!$total) aam_reply(['status'=>'error','message'=>'El aula no tiene estudiantes activos.'],404);
+        $q=$conn->prepare("SELECT id FROM attendance_day_closures
+            WHERE school_id=? AND attendance_date=? AND nivel=? AND grado=?
+                AND seccion=? AND status='Cerrada' LIMIT 1");
+        $q->bind_param('issss',$school,$day,$level,$grade,$section);
+        $q->execute();$closure=$q->get_result()->fetch_assoc();$q->close();
+        if ($action==='reopen_request') {
+            if (!$closure) aam_reply(['status'=>'error','message'=>'El aula no está cerrada.'],409);
+            $rid=$requestChange(0,'Reabrir día',['closure_id'=>(int)$closure['id'],
+                'date'=>$day,'nivel'=>$level,'grado'=>$grade,'seccion'=>$section],$reason);
+            aam_reply(['status'=>'ok','mode'=>'approval','request_id'=>$rid,
+                'message'=>'Solicitud de reapertura enviada a Administración.']);
+        }
+        if ($closure) aam_reply(['status'=>'error','message'=>'El aula ya está cerrada.'],409);
+        $q=$conn->prepare("SELECT COUNT(*) AS missing FROM student st
+            LEFT JOIN asistencia a ON a.student_id=st.id AND a.school_id=?
+                AND a.fecha=? AND a.tipo='Entrada' AND a.is_cancelled=0
+            WHERE st.school_id=? AND st.status='Activo'
+                AND st.nivel=? AND st.grado=? AND st.seccion=? AND a.id IS NULL");
+        $q->bind_param('isisss',$school,$day,$school,$level,$grade,$section);
+        $q->execute();$missing=(int)($q->get_result()->fetch_assoc()['missing']??0);
+        $q->close();
+        if ($missing) aam_reply(['status'=>'error',
+            'message'=>"Faltan $missing estudiantes por marcar."],409);
+        $y=$conn->prepare("SELECT id FROM academic_year WHERE school_id=?
+            AND ? BETWEEN start_date AND end_date ORDER BY is_active DESC,id DESC LIMIT 1");
+        $y->bind_param('is',$school,$day);$y->execute();
+        $yearId=(int)($y->get_result()->fetch_assoc()['id']??0);$y->close();
+        $q=$conn->prepare("INSERT INTO attendance_day_closures
+            (school_id,academic_year_id,attendance_date,nivel,grado,seccion,
+             status,closed_at,closed_by) VALUES
+            (?,NULLIF(?,0),?,?,?,?,'Cerrada',NOW(),?)
+            ON DUPLICATE KEY UPDATE status='Cerrada',
+                closed_at=NOW(),closed_by=VALUES(closed_by),
+                reopened_at=NULL,reopened_by=NULL,reopen_reason=NULL");
+        $q->bind_param('iissssi',$school,$yearId,$day,$level,$grade,$section,$userId);
+        if (!$q->execute()) throw new RuntimeException('cerrar_aula');
+        $q->close();
+        aam_reply(['status'=>'ok','mode'=>'closed',
+            'message'=>'Asistencia del aula cerrada.']);
+    }
+
+    if (in_array($action,['cancel_request','justify_request'],true)) {
+        $attendanceId=(int)($_POST['attendance_id']??0);
+        $reason=trim((string)($_POST['reason']??''));
+        $justStatus=trim((string)($_POST['justification_status']??'Pendiente'));
+        if ($attendanceId<=0 || strlen($reason)<3 || strlen($reason)>255)
+            aam_reply(['status'=>'error','message'=>'Indica el motivo de la solicitud.'],422);
+        if ($action==='justify_request' &&
+            !in_array($justStatus,['Pendiente','Aprobada','Rechazada'],true))
+            aam_reply(['status'=>'error','message'=>'Estado de justificación inválido.'],422);
+        $q=$conn->prepare("SELECT a.id,a.estado FROM asistencia a
+            INNER JOIN student st ON st.id=a.student_id AND st.school_id=a.school_id
+            WHERE a.id=? AND a.school_id=? AND st.status='Activo'
+              AND a.tipo='Entrada' AND a.is_cancelled=0 LIMIT 1");
+        $q->bind_param('ii',$attendanceId,$school);$q->execute();
+        $entry=$q->get_result()->fetch_assoc();$q->close();
+        if (!$entry) aam_reply(['status'=>'error','message'=>'Marcación no disponible.'],404);
+        if ($action==='justify_request' &&
+            !in_array($entry['estado'],['Ausente','Ausente Justificada'],true))
+            aam_reply(['status'=>'error','message'=>'Solo puede justificarse una ausencia.'],422);
+        if ($action==='cancel_request') {
+            $type='Anular registro';
+            $payload=['attendance_id'=>$attendanceId];
+        } else {
+            $type='Justificar ausencia';
+            $payload=['attendance_id'=>$attendanceId,
+                'status'=>$justStatus,
+                'new_state'=>$justStatus==='Aprobada'?'Ausente Justificada':'Ausente'];
+        }
+        $rid=$requestChange($attendanceId,$type,$payload,$reason);
+        aam_reply(['status'=>'ok','mode'=>'approval','request_id'=>$rid,
+            'message'=>'Solicitud enviada a Administración para autorización.']);
+    }
+
     if ($action === 'register' || $action === 'scan_register') {
         $byCode = $action === 'scan_register';
         $studentId = (int)($_POST['student_id'] ?? 0);
