@@ -614,6 +614,27 @@ if ($action === 'student_course' || $action === 'course_roster') {
             $gradesStmt->close();
         }
     }
+    // Las competencias archivadas no usadas en el bimestre no deben
+    // alterar el resultado ponderado. La ficha del Estudiante agrupa por
+    // competencias efectivamente calificadas, no por todas las del catálogo.
+    if ($historicalRead) {
+        $gradedCompetencies=[];
+        foreach ($gradesByCompetency as $byCompetency) {
+            foreach ($byCompetency as $cid=>$byStudent) {
+                foreach ($byStudent as $grade) {
+                    if (trim((string)$grade)==='') continue;
+                    $gradedCompetencies[(int)$cid]=true;
+                    break;
+                }
+            }
+        }
+        foreach ($competencies as &$competency) {
+            if (!isset($gradedCompetencies[(int)$competency['id']])) {
+                $competency['historical']=true;
+            }
+        }
+        unset($competency);
+    }
     $unassigned = [];
     foreach ($evaluations as $evaluation) {
         if ($evaluation['competency_ids']) continue;
