@@ -62,5 +62,57 @@ if($action==='options'){
     while($q&&($r=$q->fetch_assoc()))$students[]=$r;
     aro(['status'=>1,'grades'=>$grades,'sections'=>$sections,'students'=>$students]);
 }
-if($action==='detail'){$id=(int)($_GET['id']??0);$s=$conn->prepare("SELECT a.*,s.id_no,s.name student_name,s.nivel,s.grado,s.seccion,uc.name created_name,uu.name updated_name FROM asistencia a INNER JOIN student s ON s.id=a.student_id LEFT JOIN users uc ON uc.id=a.created_by LEFT JOIN users uu ON uu.id=a.updated_by WHERE a.id=? AND a.school_id=? LIMIT 1");$s->bind_param('ii',$id,$school);$s->execute();$row=$s->get_result()->fetch_assoc();$s->close();if(!$row)aro(['status'=>0,'message'=>'Registro no encontrado.'],404);$audit=[];$q=$conn->query("SELECT al.action,al.details,al.created_at,u.name user_name FROM attendance_audit_log al LEFT JOIN users u ON u.id=al.user_id WHERE al.school_id=$school AND al.attendance_id=$id ORDER BY al.id DESC LIMIT 50");while($q&&($r=$q->fetch_assoc()))$audit[]=$r;aro(['status'=>1,'record'=>$row,'audit'=>$audit]);}
+if($action==='detail'){
+    $id=(int)($_GET['id']??0);
+    $stmt=$conn->prepare("SELECT a.*,s.id_no,s.name student_name,
+        s.nivel,s.grado,s.seccion,uc.name created_name,uu.name updated_name
+        FROM asistencia a INNER JOIN student s ON s.id=a.student_id
+        LEFT JOIN users uc ON uc.id=a.created_by
+        LEFT JOIN users uu ON uu.id=a.updated_by
+        WHERE a.id=? AND a.school_id=? LIMIT 1");
+    $stmt->bind_param('ii',$id,$school);
+    $stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();
+    if(!$row)aro(['status'=>0,'message'=>'Registro no encontrado.'],404);
+    // Mostrar el salón del año de la marcación, nunca el salón actual.
+    $yearId=(int)($row['academic_year_id']??0);
+    if($yearId<=0){
+        $date=substr((string)$row['fecha'],0,10);
+        $q=$conn->prepare("SELECT id FROM academic_year
+            WHERE school_id=? AND ? BETWEEN start_date AND end_date LIMIT 1");
+        $q->bind_param('is',$school,$date);$q->execute();
+        $yearId=(int)($q->get_result()->fetch_assoc()['id']??0);$q->close();
+        if($yearId<=0){
+            $calendarYear=(int)substr($date,0,4);
+            $q=$conn->prepare("SELECT id FROM academic_year WHERE school_id=?
+                AND year=? ORDER BY id DESC LIMIT 1");
+            $q->bind_param('ii',$school,$calendarYear);$q->execute();
+            $yearId=(int)($q->get_result()->fetch_assoc()['id']??0);$q->close();
+        }
+    }
+    if($yearId>0){
+        $q=$conn->prepare("SELECT is_active FROM academic_year
+            WHERE id=? AND school_id=? LIMIT 1");
+        $q->bind_param('ii',$yearId,$school);$q->execute();
+        $year=$q->get_result()->fetch_assoc();$q->close();
+        if($year && (int)$year['is_active']!==1){
+            require_once __DIR__.'/includes/grades_report_historical_classroom.php';
+            $room=grhc_student_classrooms($conn,$school,$yearId)[(int)$row['student_id']]??'';
+            if($room!==''){
+                [$lvl,$gr,$sec]=explode('|',$room);
+                $row['nivel']=ucfirst($lvl);$row['grado']=$gr;$row['seccion']=strtoupper($sec);
+                $row['aula_historica_verificada']=true;
+            }else{
+                $row['nivel']='Aula histórica no determinada';
+                $row['grado']='';$row['seccion']='';
+                $row['aula_historica_verificada']=false;
+            }
+        }
+    }
+    $audit=[];
+    $q=$conn->query("SELECT al.action,al.details,al.created_at,u.name user_name
+        FROM attendance_audit_log al LEFT JOIN users u ON u.id=al.user_id
+        WHERE al.school_id=$school AND al.attendance_id=$id ORDER BY al.id DESC LIMIT 50");
+    while($q&&($r=$q->fetch_assoc()))$audit[]=$r;
+    aro(['status'=>1,'record'=>$row,'audit'=>$audit]);
+}
 $draw=(int)($_GET['draw']??1);$start=max(0,(int)($_GET['start']??0));$length=min(100,max(10,(int)($_GET['length']??25)));$view=$_GET['view']??'detail';$filters=arq_filters($conn,$school,$_GET);$result=arq_rows($conn,$school,$filters,$view,$start,$length);aro(['draw'=>$draw,'recordsTotal'=>$result['total'],'recordsFiltered'=>$result['total'],'data'=>$result['rows'],'summary'=>arq_summary($conn,$school,$filters)]);
