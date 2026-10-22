@@ -40,8 +40,8 @@ contract_has($files['book'],'eg.competencia_id>0',"Competencia heredada de la no
 contract_has($files['book'],"LEFT JOIN general_course_competencies gcc","Notas sin metadatos de competencia en el Libro");
 contract_has($files['book'],"THEN gcc.percentage ELSE 0","Sin inventar ponderaciones en competencias antiguas");
 contract_has($files['book'],'$yearReadOnly',"El historial nunca se vuelve editable");
-contract_has($files['director'],"$historicalRead","Filtro histórico de Dirección");
-contract_has($files['director'],"$historicalPeriod","Bimestres históricos de Dirección");
+contract_has($files['director'],'$historicalRead',"Filtro histórico de Dirección");
+contract_has($files['director'],'$historicalPeriod',"Bimestres históricos de Dirección");
 contract_has($files['director'],"edh_historical_bimester_sql('ev.bimestre')","Dirección comparte normalización");
 contract_has($files['director'],'$gradedCompetencies',"Peso de competencias con notas");
 contract_has($files['director'],"eg.competencia_id>0","Vínculos legacy de Dirección");
