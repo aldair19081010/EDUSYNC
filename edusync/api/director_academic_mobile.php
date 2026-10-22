@@ -391,7 +391,9 @@ if ($action === 'student_course' || $action === 'course_roster') {
                 "SELECT eg.id FROM evaluation_grades eg
                  INNER JOIN evaluations e ON e.id=eg.evaluation_id
                  WHERE eg.student_id=? AND e.teacher_course_id=?
-                   AND e.academic_year_id=? LIMIT 1"
+                   AND EXISTS (SELECT 1 FROM teacher_courses tc
+                     WHERE tc.id=e.teacher_course_id
+                       AND tc.academic_year_id=?) LIMIT 1"
             );
             $historyStmt->bind_param('iii', $studentId, $teacherCourseId, $yearId);
             $historyStmt->execute();
@@ -427,7 +429,9 @@ if ($action === 'student_course' || $action === 'course_roster') {
                  INNER JOIN evaluation_grades eg ON eg.student_id=st.id
                  INNER JOIN evaluations e ON e.id=eg.evaluation_id
                  WHERE st.school_id=? AND e.teacher_course_id=?
-                   AND e.academic_year_id=?
+                   AND EXISTS (SELECT 1 FROM teacher_courses tc
+                     WHERE tc.id=e.teacher_course_id
+                       AND tc.academic_year_id=?)
                  ORDER BY st.name,st.id LIMIT 300"
             );
             $rosterStmt->bind_param('iii',$schoolId,$teacherCourseId,$yearId);
@@ -457,10 +461,14 @@ if ($action === 'student_course' || $action === 'course_roster') {
     while ($row = $compRes->fetch_assoc()) {
         $id = (int)$row['id'];
         $active = (int)$row['is_active'] === 1;
+        $isPastYear = (int)$course['academic_year_active'] !== 1;
         $competency = [
             'id'=>$id,'name'=>(string)$row['name'],
-            'percentage'=>$active ? (float)$row['percentage'] : 0.0,
-            'historical'=>!$active
+            // Inactiva hoy no equivale a inexistente en su ciclo anterior.
+            // Mantener el peso histórico para la boleta de ese año.
+            'percentage'=>($active || $isPastYear)
+                ? (float)$row['percentage'] : 0.0,
+            'historical'=>!$active && !$isPastYear
         ];
         $competencies[] = $competency;
         $competencyById[$id] = count($competencies)-1;
@@ -471,13 +479,24 @@ if ($action === 'student_course' || $action === 'course_roster') {
     $statusColumn = $conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
     $statusFilter = ($statusColumn && $statusColumn->num_rows)
         ? " AND (e.status IS NULL OR e.status<>'Anulada')" : '';
+    $historicalRead=(int)$course['academic_year_active']!==1;
+    // Igual que la ficha del Estudiante: el año se toma de la asignación
+    // tc, ya validada. Compatibilidad de bimestres migrados (B1, BIM 1,
+    // BIMESTRE 1), exclusivamente para lectura histórica.
+    $historicalPeriod = $historicalRead
+        ? "CAST(REPLACE(REPLACE(REPLACE(REPLACE(
+            UPPER(TRIM(COALESCE(e.bimestre,''))),' ',''),'BIMESTRE',''),
+            'BIM',''),'B','') AS UNSIGNED)=?"
+        : 'e.bimestre=?';
+    $historicalTeacher = $historicalRead ? '' : ' AND e.teacher_id=? AND e.academic_year_id=?';
     $evalStmt = $conn->prepare(
         "SELECT e.id,e.title,e.description FROM evaluations e
-         WHERE e.teacher_course_id=? AND e.teacher_id=?
-           AND e.academic_year_id=? AND e.bimestre=? {$statusFilter}
+         WHERE e.teacher_course_id=? $historicalTeacher
+           AND $historicalPeriod {$statusFilter}
          ORDER BY e.created_at,e.id"
     );
-    $evalStmt->bind_param('iiii',
+    if ($historicalRead) $evalStmt->bind_param('ii',$teacherCourseId,$bimester);
+    else $evalStmt->bind_param('iiii',
         $teacherCourseId,$course['teacher_id'],$yearId,$bimester);
     $evalStmt->execute();
     $evaluations = [];
