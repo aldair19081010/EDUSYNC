@@ -775,6 +775,12 @@ foreach ($roomsStmt->get_result() as $row) {
     }
 }
 $roomsStmt->close();
+// En años históricos no usar las aulas y matrículas ACTIVAS como si
+// pertenecieran a ese año. Solo usar asignaciones del año solicitado.
+if ($selectedYear && empty($selectedYear['is_active'])) {
+    $classrooms=[];
+    $byKey=[];
+}
 $courses=[];
 if ($yearId>0) {
     $GLOBALS['dma_stage'] = 'cursos_asignados';
@@ -815,6 +821,42 @@ if ($yearId>0) {
 }
 $totals['classrooms']=count($classrooms);
 $totals['courses']=count($courses);
+
+// Estado REAL de cierre bimestral. Las notas al 100% NO implican cierre.
+// Cuando la migración falta, null = desconocido; nunca declarar "Abierto".
+$closureSupported=false;
+$closedCount=0;
+$closureTable=$conn->query("SHOW TABLES LIKE 'grade_period_closures'");
+if ($closureTable && $closureTable->num_rows>0) {
+    $closureSupported=true;
+    if ($courses) {
+        $stmt=$conn->prepare(
+            "SELECT gpc.teacher_course_id,gpc.closed_at FROM grade_period_closures gpc
+             WHERE gpc.school_id=? AND gpc.academic_year_id=?
+               AND gpc.bimester=? AND gpc.status='Cerrado'"
+        );
+        if (!$stmt) throw new RuntimeException('No se pudo consultar el cierre bimestral.');
+        $stmt->bind_param('iii',$schoolId,$yearId,$bimester);
+        $stmt->execute();
+        foreach ($stmt->get_result() as $row) {
+            $id=(int)$row['teacher_course_id'];
+            if (!isset($courses[$id])) continue;
+            $courses[$id]['closure_status']='Cerrado';
+            $courses[$id]['closed_at']=(string)($row['closed_at']??'');
+            $closedCount++;
+        }
+        $stmt->close();
+    }
+}
+foreach ($courses as &$course) {
+    if (!isset($course['closure_status'])) {
+        $course['closure_status']=$closureSupported?'Abierto':null;
+        $course['closed_at']=null;
+    }
+}
+unset($course);
+$totals['closed_courses']=$closureSupported?$closedCount:null;
+$totals['closure_supported']=$closureSupported;
 
 // Avance institucional: promedio del porcentaje de celdas llenas POR
 // competencia. Una competencia sin evaluaciones cuenta como 0%.
