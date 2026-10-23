@@ -174,7 +174,7 @@ if ($action === 'app_status') {
         wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
     }
     if ($identity['kind'] !== 'staff' ||
-        !in_array((int)$identity['role'],[2,3],true)) {
+        !in_array((int)$identity['role'],[1,2,3],true)) {
         wp_reply(['status'=>'error','message'=>'Disponible para personal autorizado.'],403);
     }
     $browserId = trim((string)($_GET['browser_id'] ?? ''));
