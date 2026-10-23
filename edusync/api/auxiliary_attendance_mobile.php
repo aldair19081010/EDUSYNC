@@ -313,7 +313,8 @@ try {
                 WHERE a.school_id=st.school_id AND a.student_id=st.id
                   AND a.fecha=? AND a.tipo='Entrada' AND a.is_cancelled=0
             ) THEN 1 ELSE 0 END) AS marked,
-            MAX(CASE WHEN dc.id IS NULL THEN 0 ELSE 1 END) AS closed
+            MAX(CASE WHEN dc.id IS NULL THEN 0 ELSE 1 END) AS closed,
+            MAX(dc.id) AS closure_id
             FROM student st
             LEFT JOIN attendance_day_closures dc
               ON dc.school_id=st.school_id AND dc.attendance_date=?
@@ -329,6 +330,27 @@ try {
         $q->execute();
         $rows=$q->get_result()->fetch_all(MYSQLI_ASSOC);
         $q->close();
+        // Una solicitud pendiente no cambia el estado del aula.
+        // Relacionar solo peticiones del Auxiliar autenticado con su cierre.
+        $pending=[];
+        $req=$conn->prepare("SELECT id,request_payload
+            FROM attendance_change_requests
+            WHERE school_id=? AND requested_by=?
+              AND request_type='Reabrir día' AND status='Pendiente'
+            ORDER BY id DESC");
+        $req->bind_param('ii',$school,$userId);
+        $req->execute();
+        foreach ($req->get_result()->fetch_all(MYSQLI_ASSOC) as $record) {
+            $payload=json_decode((string)$record['request_payload'],true);
+            $cid=(int)($payload['closure_id']??0);
+            if ($cid>0 && !isset($pending[$cid])) $pending[$cid]=(int)$record['id'];
+        }
+        $req->close();
+        foreach ($rows as &$row) {
+            $cid=(int)($row['closure_id']??0);
+            $row['pending_request_id']=$cid>0?($pending[$cid]??null):null;
+        }
+        unset($row);
         aam_reply(['status'=>'ok','date'=>$day,'classrooms'=>$rows]);
     }
 
@@ -594,6 +616,24 @@ try {
         $q->execute();$closure=$q->get_result()->fetch_assoc();$q->close();
         if ($action==='reopen_request') {
             if (!$closure) aam_reply(['status'=>'error','message'=>'El aula no está cerrada.'],409);
+            // No duplicar solicitudes de la misma aula mientras esperan revisión.
+            $check=$conn->prepare("SELECT id,request_payload
+                FROM attendance_change_requests
+                WHERE school_id=? AND requested_by=?
+                  AND request_type='Reabrir día' AND status='Pendiente'
+                ORDER BY id DESC");
+            $check->bind_param('ii',$school,$userId);
+            $check->execute();
+            foreach ($check->get_result()->fetch_all(MYSQLI_ASSOC) as $request) {
+                $payload=json_decode((string)$request['request_payload'],true);
+                if ((int)($payload['closure_id']??0)===(int)$closure['id']) {
+                    $check->close();
+                    aam_reply(['status'=>'ok','mode'=>'approval','already_pending'=>true,
+                        'request_id'=>(int)$request['id'],
+                        'message'=>'Esta solicitud ya está pendiente de aprobación.']);
+                }
+            }
+            $check->close();
             $rid=$requestChange(0,'Reabrir día',['closure_id'=>(int)$closure['id'],
                 'date'=>$day,'nivel'=>$level,'grado'=>$grade,'seccion'=>$section],$reason);
             aam_reply(['status'=>'ok','mode'=>'approval','request_id'=>$rid,
