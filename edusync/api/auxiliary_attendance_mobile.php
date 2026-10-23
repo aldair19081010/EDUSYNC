@@ -279,6 +279,35 @@ try {
             'entry'=>$entry,'exit'=>$exit,'closed'=>$closed]);
     }
 
+    if ($action === 'classrooms_progress') {
+        // Consulta compacta de las aulas para mostrar el cierre del día
+        // sin obligar a configurar tres filtros en una pantalla distinta.
+        $sql = "SELECT st.nivel,st.grado,st.seccion,
+            COUNT(*) AS expected,
+            SUM(CASE WHEN EXISTS(
+                SELECT 1 FROM asistencia a
+                WHERE a.school_id=st.school_id AND a.student_id=st.id
+                  AND a.fecha=? AND a.tipo='Entrada' AND a.is_cancelled=0
+            ) THEN 1 ELSE 0 END) AS marked,
+            MAX(CASE WHEN dc.id IS NULL THEN 0 ELSE 1 END) AS closed
+            FROM student st
+            LEFT JOIN attendance_day_closures dc
+              ON dc.school_id=st.school_id AND dc.attendance_date=?
+                AND dc.nivel=st.nivel AND dc.grado=st.grado
+                AND dc.seccion=st.seccion AND dc.status='Cerrada'
+            WHERE st.school_id=? AND st.status='Activo'
+            GROUP BY st.nivel,st.grado,st.seccion
+            ORDER BY FIELD(st.nivel,'Inicial','Primaria','Secundaria'),
+                st.nivel,st.grado,st.seccion";
+        $q=$conn->prepare($sql);
+        if (!$q) throw new RuntimeException('aulas_activas');
+        $q->bind_param('ssi',$day,$day,$school);
+        $q->execute();
+        $rows=$q->get_result()->fetch_all(MYSQLI_ASSOC);
+        $q->close();
+        aam_reply(['status'=>'ok','date'=>$day,'classrooms'=>$rows]);
+    }
+
     if ($action === 'classroom_state') {
         $level=trim((string)($_POST['level']??''));
         $grade=trim((string)($_POST['grade']??''));
