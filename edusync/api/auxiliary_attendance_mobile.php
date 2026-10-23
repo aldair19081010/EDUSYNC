@@ -407,7 +407,7 @@ try {
             $q=$conn->prepare("INSERT INTO asistencia
                 (school_id,academic_year_id,student_id,fecha,tipo,hora,
                  estado,source,notes,justification_status,created_by,updated_by)
-                VALUES (?,NULLIF(?,0),?,?,'Entrada',?,?,?,?,?,?,?)");
+                VALUES (?,NULLIF(?,0),?,?,'Entrada',?,?,?,?,?,?)");
             $q->bind_param('iiisssssii',$school,$yearId,$studentId,$day,
                 $recordTime,$state,$notes,$just,$userId,$userId);
             if (!$q->execute()) throw new RuntimeException('crear_asistencia');
