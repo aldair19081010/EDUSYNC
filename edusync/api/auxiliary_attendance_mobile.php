@@ -356,9 +356,18 @@ try {
         $studentId=(int)($_POST['student_id']??0);
         $state=trim((string)($_POST['attendance_status']??''));
         $notes=trim((string)($_POST['notes']??''));
+        $inputTime=trim((string)($_POST['time']??''));
         $validStates=['Presente','Tarde','Ausente','Ausente Justificada','Permiso'];
         if ($studentId<=0 || !in_array($state,$validStates,true) || strlen($notes)>500)
             aam_reply(['status'=>'error','message'=>'Estado u observación no válidos.'],422);
+        // Contrato web: HH:MM o HH:MM:SS. La hora es opcional para
+        // Presente/Tarde; si se omite, se conserva la anterior o se usa ahora.
+        if ($inputTime!=='' &&
+            !preg_match('/^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9])?$/',$inputTime)) {
+            aam_reply(['status'=>'error',
+                'message'=>'La hora debe tener el formato HH:MM (24 horas).'],422);
+        }
+        if (strlen($inputTime)===5) $inputTime.=':00';
         $stage = 'set_status.begin';
         $conn->begin_transaction();
         try {
@@ -389,20 +398,31 @@ try {
             $q->bind_param('iis',$school,$studentId,$day);$q->execute();
             $previous=$q->get_result()->fetch_assoc();$q->close();
             $isAbsent=in_array($state,['Ausente','Ausente Justificada','Permiso'],true);
-            $recordTime=$isAbsent?'00:00:00':$clock;
+            $recordTime=$isAbsent?'00:00:00':($inputTime!==''?$inputTime:$clock);
             $just=$state==='Ausente Justificada'?'Aprobada':null;
             if ($previous) {
                 $oldState=in_array($previous['estado'],['Normal','Temprano'],true)
                     ? 'Presente' : $previous['estado'];
-                $recordTime=$isAbsent?'00:00:00':(string)$previous['hora'];
-                if ($oldState===$state && (string)($previous['notes']??'')===$notes) {
+                $oldTime=(string)$previous['hora'];
+                // Si ya tiene Entrada y no se escogió otra hora, conservarla.
+                // Si se cambia de Ausente/Permiso a Presente/Tarde,
+                // usar la hora actual, no la marca técnica 00:00:00.
+                if (!$isAbsent && $inputTime==='' &&
+                    !in_array($oldState,['Ausente','Ausente Justificada','Permiso'],true) &&
+                    $oldTime!=='' && $oldTime!=='00:00:00') {
+                    $recordTime=$oldTime;
+                }
+                $changed=$oldState!==$state
+                    || substr($oldTime,0,8)!==substr($recordTime,0,8)
+                    || (string)($previous['notes']??'')!==$notes;
+                if (!$changed) {
                     $conn->commit();
                     aam_reply(['status'=>'ok','mode'=>'unchanged',
                         'message'=>'La asistencia no tiene cambios.']);
                 }
                 $payload=['requested'=>['status'=>$state,'time'=>$recordTime,
                     'notes'=>$notes,'justification_status'=>$just],
-                    'previous'=>['status'=>$oldState,'time'=>$previous['hora'],
+                    'previous'=>['status'=>$oldState,'time'=>$oldTime,
                         'notes'=>$previous['notes']]];
                 $stage = 'set_status.request_approval';
                 $requestId=$requestChange((int)$previous['id'],
@@ -426,7 +446,7 @@ try {
             if (!$q->execute()) throw new RuntimeException('crear_asistencia');
             $attId=(int)$q->insert_id; $q->close();
             $auditPayload=json_encode(['status'=>$state,'source'=>'Aula',
-                'date'=>$day],JSON_UNESCAPED_UNICODE);
+                'date'=>$day,'time'=>$recordTime],JSON_UNESCAPED_UNICODE);
             $ip=(string)($_SERVER['REMOTE_ADDR']??'');
             $stage = 'set_status.audit';
             $q=$conn->prepare("INSERT INTO attendance_audit_log
@@ -444,7 +464,8 @@ try {
                 $attId,$day,'',$state,$recordTime);
         } catch (Throwable $e) { error_log('[aux state push] '.$e->getMessage()); }
         aam_reply(['status'=>'ok','mode'=>'created',
-            'message'=>'Asistencia registrada correctamente.','state'=>$state]);
+            'message'=>'Asistencia registrada correctamente.',
+            'state'=>$state,'time'=>$recordTime]);
     }
 
     if ($action === 'mark_unmarked_present') {
