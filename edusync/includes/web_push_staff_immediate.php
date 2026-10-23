@@ -30,7 +30,10 @@ function edwp_send_staff_attendance_now(mysqli $db, int $schoolId, int $requestI
         $tz = $db->query("SELECT @@session.time_zone AS tz");
         if ($tz) $priorTimeZone = (string)($tz->fetch_assoc()['tz'] ?? '');
         $db->query("SET time_zone = '+00:00'");
-        $resolved='COALESCE(r.reviewed_at,r.updated_at,r.created_at)';
+        // reviewed_at es DATETIME guardado en zona local (-05),
+        // pero subscribed_at/updated_at son TIMESTAMP. Usar updated_at
+        // garantiza comparación homogénea UTC tras SET time_zone.
+        $resolved='r.updated_at';
         $when=$kind==='att_request'?'r.created_at':$resolved;
         $userStatus=push_column_exists($db,'users','status')?" AND u.status='Activo'":'';
         $join="JOIN web_push_subscriptions s ON s.account_kind='staff'
@@ -55,7 +58,7 @@ function edwp_send_staff_attendance_now(mysqli $db, int $schoolId, int $requestI
             $title="IF(r.status='Aprobada','Asistencia aprobada','Asistencia rechazada')";
             $body="CONCAT('Solicitud de ',r.request_type,' resuelta por administración')";
         }
-        $sql="SELECT s.id subscription_id,s.fcm_token,$title title,$body body,
+        $sql="SELECT s.id subscription_id,s.fcm_token,s.browser_id,$title title,$body body,
                  COALESCE(d.attempts,0) attempts
               FROM attendance_change_requests r
               $join
@@ -75,7 +78,8 @@ function edwp_send_staff_attendance_now(mysqli $db, int $schoolId, int $requestI
             $answer=edwp_send_message((string)$event['fcm_token'],
                 (string)$event['title'],(string)$event['body'],
                 'index.php?page=notifications',
-                'edusync-'.$kind.'-'.$schoolId.'-'.$requestId);
+                'edusync-'.$kind.'-'.$schoolId.'-'.$requestId,
+                strncmp((string)$event['browser_id'],'app-',4)===0);
             $ok=!empty($answer['ok']);
             $code=(int)($answer['code']??0);
             $message=mb_substr((string)($answer['message']??''),0,500,'UTF-8');
