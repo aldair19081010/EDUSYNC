@@ -223,7 +223,7 @@ if ($action === 'test_push') {
             'android' => [
                 'priority' => 'HIGH',
                 'notification' => [
-                    'channel_id' => 'debt_alerts',
+                    'channel_id' => 'student_alerts_v2',
                     'sound' => 'default',
                     'icon' => 'ic_notification',
                 ],
