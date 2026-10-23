@@ -517,9 +517,14 @@ function push_send_student_event(
         return $result;
     }
 
-    $credentials = push_load_firebase_credentials();
+    // Usar el MISMO cargador de credenciales que Web Push. Este resuelve
+    // variables de entorno y el archivo privado externo (incluido XAMPP).
+    // Antes el envío Android sólo consultaba variables de entorno y podía
+    // fallar aunque el envío Web Push sí encontrara las credenciales.
+    require_once __DIR__ . '/web_push_fcm_sender.php';
+    $credentials = edwp_load_firebase_credentials();
     if (!$credentials) {
-        error_log('[push] Firebase no configurado: faltan credenciales del service account.');
+        error_log('[push] Firebase no configurado para Android: revise el archivo privado o las variables de entorno.');
         return $result;
     }
 
