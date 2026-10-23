@@ -88,8 +88,44 @@ if ($action === 'status') {
     );
     $stmt->bind_param('iiss', $schoolId, $studentId, $deviceId, $tokenHash);
     $stmt->execute();
-    $registered = (bool)$stmt->get_result()->fetch_assoc();
+    $deviceRow = $stmt->get_result()->fetch_assoc();
+    $registered = (bool)$deviceRow;
     $stmt->close();
+
+    // Último intento de envío real para este token, independiente de
+    // Firebase test_push, que no genera registros de cobros ni comunicados.
+    // Un status=sent significa "aceptado por FCM", NO "mostrado por Android".
+    $lastNativePush = null;
+    if ($registered && device_table_exists($conn, 'push_notification_log')) {
+        $tokenRecordId = (int)$deviceRow['id'];
+        $log = $conn->prepare(
+            'SELECT notification_type,delivery_status,provider_code,created_at
+             FROM push_notification_log
+             WHERE school_id=? AND student_id=? AND device_token_id=?
+             ORDER BY id DESC LIMIT 1'
+        );
+        if ($log) {
+            $log->bind_param('iii', $schoolId, $studentId, $tokenRecordId);
+            $log->execute();
+            $lastNativePush = $log->get_result()->fetch_assoc() ?: null;
+            $log->close();
+        }
+    }
+    $lastEvent = null;
+    if (device_table_exists($conn, 'student_notification_events')) {
+        $eventStmt = $conn->prepare(
+            'SELECT id,notification_type,created_at
+             FROM student_notification_events
+             WHERE school_id=? AND student_id=?
+             ORDER BY id DESC LIMIT 1'
+        );
+        if ($eventStmt) {
+            $eventStmt->bind_param('ii', $schoolId, $studentId);
+            $eventStmt->execute();
+            $lastEvent = $eventStmt->get_result()->fetch_assoc() ?: null;
+            $eventStmt->close();
+        }
+    }
 
     // Diagnóstico para el entorno EFECTIVO de la API (XAMPP o hosting).
     // No devuelve credenciales, claves privadas ni tokens FCM.
@@ -110,6 +146,8 @@ if ($action === 'status') {
         'sender_configured' => $senderReady,
         'sender_project_id' => $senderProject,
         'transport_supported' => $transportReady,
+        'last_native_push' => $lastNativePush,
+        'last_student_event' => $lastEvent,
     ]);
 }
 
