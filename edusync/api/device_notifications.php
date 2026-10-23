@@ -73,15 +73,20 @@ if (!$student) {
     device_reply(['status' => 'error', 'message' => 'Estudiante no disponible.'], 403);
 }
 
-// Estado del dispositivo autenticado: solo responde para el alumno y
-// colegio de la sesión. No devuelve ni permite consultar tokens FCM.
+// Comprobar únicamente el token ACTUAL de esta instalación y sesión.
+// Nunca devolver tokens FCM ni aceptar otros estudiantes/colegios.
 if ($action === 'status') {
+    $currentToken = trim((string)($_POST['fcm_token'] ?? ''));
+    if (strlen($currentToken) < 20 || strlen($currentToken) > 1024) {
+        device_reply(['status' => 'error', 'message' => 'Token actual inválido.'], 422);
+    }
+    $tokenHash = hash('sha256', $currentToken);
     $stmt = $conn->prepare(
         'SELECT id FROM student_device_tokens
-         WHERE school_id=? AND student_id=? AND device_id=? AND is_active=1
-         LIMIT 1'
+         WHERE school_id=? AND student_id=? AND device_id=? AND token_hash=?
+           AND is_active=1 LIMIT 1'
     );
-    $stmt->bind_param('iis', $schoolId, $studentId, $deviceId);
+    $stmt->bind_param('iiss', $schoolId, $studentId, $deviceId, $tokenHash);
     $stmt->execute();
     $registered = (bool)$stmt->get_result()->fetch_assoc();
     $stmt->close();
