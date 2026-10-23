@@ -20,6 +20,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     aam_reply(['status'=>'error','message'=>'Método no permitido.'],405);
 }
 $sid = trim((string)($_POST['sid'] ?? ''));
+$stage = 'session';
+$action = 'init';
 if (!preg_match('/^[a-zA-Z0-9,-]{16,128}$/', $sid)) {
     aam_reply(['status'=>'error','message'=>'Inicia sesión nuevamente.'],401);
 }
@@ -55,6 +57,7 @@ try {
     $day = $now->format('Y-m-d');
     $clock = $now->format('H:i:s');
     $action = trim((string)($_POST['action'] ?? 'summary'));
+    $stage = 'action.'.$action;
 
     // Datos de la ficha limitados a identificación y asistencia; sin notas/pagos.
     $studentColumns = 'st.id,st.id_no,st.name,st.nivel,st.grado,st.seccion';
@@ -203,8 +206,10 @@ try {
     // de estado existente solo se aplica cuando Administración lo aprueba.
     $requestChange = static function(
         int $attendance, string $type, array $payload, string $reason = ''
-    ) use ($conn,$school,$userId): int {
+    ) use ($conn,$school,$userId,&$stage): int {
+        $stage = 'request.'.$type.'.start';
         if ($attendance > 0) {
+            $stage = 'request.'.$type.'.check_existing';
             $d=$conn->prepare("SELECT id FROM attendance_change_requests
                 WHERE school_id=? AND attendance_id=? AND requested_by=?
                   AND request_type=? AND status='Pendiente'
@@ -216,6 +221,7 @@ try {
             if ($existing) return (int)$existing['id'];
         }
         $json=json_encode($payload,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        $stage = 'request.'.$type.'.insert';
         $q=$conn->prepare("INSERT INTO attendance_change_requests
             (school_id,attendance_id,requested_by,request_type,
              request_payload,reason,status)
@@ -228,6 +234,7 @@ try {
         $auditDetails=json_encode(['request_id'=>$id,'type'=>$type,
             'reason'=>$reason],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         $ip=(string)($_SERVER['REMOTE_ADDR']??'');
+        $stage = 'request.'.$type.'.audit';
         $audit=$conn->prepare("INSERT INTO attendance_audit_log
             (school_id,attendance_id,student_id,user_id,action,details,ip_address)
             VALUES (?,NULLIF(?,0),NULL,?,'attendance_change_requested',?,?)");
@@ -345,14 +352,17 @@ try {
     }
 
     if ($action === 'set_status') {
+        $stage = 'set_status.validate';
         $studentId=(int)($_POST['student_id']??0);
         $state=trim((string)($_POST['attendance_status']??''));
         $notes=trim((string)($_POST['notes']??''));
         $validStates=['Presente','Tarde','Ausente','Ausente Justificada','Permiso'];
         if ($studentId<=0 || !in_array($state,$validStates,true) || strlen($notes)>500)
             aam_reply(['status'=>'error','message'=>'Estado u observación no válidos.'],422);
+        $stage = 'set_status.begin';
         $conn->begin_transaction();
         try {
+            $stage = 'set_status.student';
             $q=$conn->prepare("SELECT id,name,nivel,grado,seccion FROM student
                 WHERE id=? AND school_id=? AND status='Activo' LIMIT 1 FOR UPDATE");
             $q->bind_param('ii',$studentId,$school);$q->execute();
@@ -372,6 +382,7 @@ try {
                 aam_reply(['status'=>'error',
                     'message'=>'Aula cerrada. Solicita su reapertura a Administración.'],409);
             }
+            $stage = 'set_status.existing_attendance';
             $q=$conn->prepare("SELECT id,hora,estado,notes FROM asistencia
                 WHERE school_id=? AND student_id=? AND fecha=?
                   AND tipo='Entrada' AND is_cancelled=0 LIMIT 1 FOR UPDATE");
@@ -393,6 +404,7 @@ try {
                     'notes'=>$notes,'justification_status'=>$just],
                     'previous'=>['status'=>$oldState,'time'=>$previous['hora'],
                         'notes'=>$previous['notes']]];
+                $stage = 'set_status.request_approval';
                 $requestId=$requestChange((int)$previous['id'],
                     'Editar registro',$payload,'Cambio solicitado desde la app Auxiliar');
                 $conn->commit();
@@ -404,6 +416,7 @@ try {
                 ORDER BY is_active DESC,id DESC LIMIT 1");
             $y->bind_param('is',$school,$day);$y->execute();
             $yearId=(int)($y->get_result()->fetch_assoc()['id']??0);$y->close();
+            $stage = 'set_status.create_attendance';
             $q=$conn->prepare("INSERT INTO asistencia
                 (school_id,academic_year_id,student_id,fecha,tipo,hora,
                  estado,source,notes,justification_status,created_by,updated_by)
@@ -415,6 +428,7 @@ try {
             $auditPayload=json_encode(['status'=>$state,'source'=>'Aula',
                 'date'=>$day],JSON_UNESCAPED_UNICODE);
             $ip=(string)($_SERVER['REMOTE_ADDR']??'');
+            $stage = 'set_status.audit';
             $q=$conn->prepare("INSERT INTO attendance_audit_log
                 (school_id,attendance_id,student_id,user_id,action,details,ip_address)
                 VALUES (?,?,?,?,'attendance_created',?,?)");
@@ -729,7 +743,17 @@ try {
     }
     aam_reply(['status'=>'error','message'=>'Acción no permitida.'],422);
 } catch (Throwable $error) {
-    error_log('[auxiliary mobile] '.$error->getMessage());
+    // No enviar consultas SQL, credenciales o trazas al dispositivo.
+    // Referencia verificable en el registro de errores de PHP.
+    $reference = substr(bin2hex(random_bytes(8)),0,12);
+    $where = (string)($stage ?? 'unknown');
+    error_log('[auxiliary mobile] ref='.$reference
+        .' stage='.$where.' action='.($action ?? 'unknown')
+        .' error='.$error->getMessage());
+    $label = ($action ?? '') === 'set_status'
+        ? 'No se pudo guardar el estado o su solicitud de aprobación.'
+        : 'No se pudo completar la operación de asistencia.';
     aam_reply(['status'=>'error',
-        'message'=>'No se pudo completar la operación de asistencia. Revisa el servidor.'],500);
+        'message'=>$label.' Referencia: '.$reference,
+        'reference'=>$reference],500);
 }
