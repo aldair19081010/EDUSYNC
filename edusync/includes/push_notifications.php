@@ -389,6 +389,37 @@ function push_send_payment_notification(
     );
 }
 
+/**
+ * Termina un envío estudiantil con el canal Web Push después del Android.
+ *
+ * Antes se ejecutaba FCM navegador ANTES del envío Android. Si un servidor
+ * local tenía suscripciones de navegador lentas, o caía en límite de tiempo,
+ * el push nativo de cobranza/comunicados ni siquiera llegaba a ejecutarse.
+ * Se conservan los contadores de respuesta y los reintentos de Web Push.
+ */
+function push_finish_student_event(mysqli $db, int $schoolId, array $result): array {
+    $result['web_push'] = [
+        'sent' => 0,
+        'failed' => 0,
+        'skipped' => false,
+        'subscriptions' => 0,
+    ];
+    if (empty($result['event_created']) || (int)($result['event_id'] ?? 0) <= 0) {
+        return $result;
+    }
+
+    try {
+        require_once __DIR__ . '/web_push_immediate.php';
+        $result['web_push'] = edwp_send_student_event_now(
+            $db, $schoolId, (int)$result['event_id']
+        );
+    } catch (Throwable $error) {
+        $result['web_push']['skipped'] = true;
+        error_log('[EduSync student immediate Web Push] ' . $error->getMessage());
+    }
+    return $result;
+}
+
 function push_send_student_event(
     mysqli $db,
     int $schoolId,
@@ -432,25 +463,10 @@ function push_send_student_event(
     $result['event_id'] = (int)$event['id'];
     $result['event_created'] = !empty($event['created']);
     $result['retry'] = !$result['event_created'];
-    // Todos los eventos estudiantiles (asistencia, cobranza, pagos, notas,
-    // deudas y comunicados) intentan Web Push al crearse, igual que Android.
-    // Solo una creación nueva dispara el envío: el cron comparte la tabla
-    // web_push_delivery y recupera pendientes, sin generar duplicados.
-    $result['web_push'] = ['sent'=>0,'failed'=>0,'skipped'=>false,'subscriptions'=>0];
-    if ($result['event_created'] && $result['event_id'] > 0) {
-        try {
-            require_once __DIR__.'/web_push_immediate.php';
-            $result['web_push'] = edwp_send_student_event_now(
-                $db, $schoolId, $result['event_id']
-            );
-        } catch (Throwable $e) {
-            $result['web_push']['skipped'] = true;
-            error_log('[EduSync student immediate Web Push] '.$e->getMessage());
-        }
-    }
+    // Priorizar la entrega Android. El envío a navegadores se realiza
+    // al finalizar, incluso si no hay dispositivos nativos registrados.
 
-
-    if (!push_table_exists($db, 'student_device_tokens')) return $result;
+    if (!push_table_exists($db, 'student_device_tokens')) return push_finish_student_event($db, $schoolId, $result);
 
     $stmt = $db->prepare(
         'SELECT id,fcm_token
@@ -458,7 +474,7 @@ function push_send_student_event(
          WHERE school_id=? AND student_id=? AND is_active=1
          ORDER BY last_seen_at DESC'
     );
-    if (!$stmt) return $result;
+    if (!$stmt) return push_finish_student_event($db, $schoolId, $result);
 
     $stmt->bind_param('ii', $schoolId, $studentId);
     $stmt->execute();
@@ -468,7 +484,7 @@ function push_send_student_event(
     $stmt->close();
 
     $result['devices'] = count($devices);
-    if (!$devices) return $result;
+    if (!$devices) return push_finish_student_event($db, $schoolId, $result);
 
     $eventAwareLog = $result['event_id'] > 0
         && push_table_exists($db, 'push_notification_log')
@@ -479,7 +495,7 @@ function push_send_student_event(
         // un evento ya entregado de uno pendiente. Evitamos duplicar notificaciones.
         $result['duplicate'] = true;
         $result['retry'] = false;
-        return $result;
+        return push_finish_student_event($db, $schoolId, $result);
     }
 
     $pendingDevices = [];
@@ -514,20 +530,25 @@ function push_send_student_event(
     if (!$pendingDevices) {
         $result['duplicate'] = true;
         $result['retry'] = false;
-        return $result;
+        return push_finish_student_event($db, $schoolId, $result);
     }
 
-    $credentials = push_load_firebase_credentials();
+    // Usar el MISMO cargador de credenciales que Web Push. Este resuelve
+    // variables de entorno y el archivo privado externo (incluido XAMPP).
+    // Antes el envío Android sólo consultaba variables de entorno y podía
+    // fallar aunque el envío Web Push sí encontrara las credenciales.
+    require_once __DIR__ . '/web_push_fcm_sender.php';
+    $credentials = edwp_load_firebase_credentials();
     if (!$credentials) {
-        error_log('[push] Firebase no configurado: faltan credenciales del service account.');
-        return $result;
+        error_log('[push] Firebase no configurado para Android: revise el archivo privado o las variables de entorno.');
+        return push_finish_student_event($db, $schoolId, $result);
     }
 
     $projectId = trim((string)($credentials['project_id'] ?? ''));
     $accessToken = push_firebase_access_token($credentials);
     if ($projectId === '' || !$accessToken) {
         error_log('[push] Firebase no configurado correctamente o no se pudo obtener OAuth.');
-        return $result;
+        return push_finish_student_event($db, $schoolId, $result);
     }
 
     $result['configured'] = true;
@@ -566,7 +587,9 @@ function push_send_student_event(
                 'android' => [
                     'priority' => 'HIGH',
                     'notification' => [
-                        'channel_id' => $channelId,
+                        // Canal Android nuevo y único para avisos del estudiante.
+                        // El tipo y la pantalla se conservan en data.
+                        'channel_id' => 'student_alerts_v2',
                         'sound' => 'default',
                         'icon' => 'ic_notification',
                         'color' => '#1565C0',
@@ -634,7 +657,7 @@ function push_send_student_event(
         }
     }
 
-    return $result;
+    return push_finish_student_event($db, $schoolId, $result);
 }
 
 function push_send_attendance_state_notification(
@@ -721,7 +744,7 @@ function push_send_debt_notification(
         $title,
         $body,
         'debts',
-        'payment_alerts',
+        'debt_alerts',
         'debt',
         $debtId,
         'debt:' . $debtId . ':' . $stage,
@@ -789,7 +812,7 @@ function push_send_bulk_debt_notification(
         $title,
         $body,
         'debts',
-        'payment_alerts',
+        'debt_alerts',
         'debt_bulk',
         null,
         'debt-bulk:' . $studentId . ':' . $stage . ':' . hash('sha256', implode(',', $debtIds)),
@@ -951,7 +974,7 @@ function push_send_collection_notification(
         $title,
         $body,
         'debts',
-        'payment_alerts',
+        'debt_alerts',
         'collection_campaign',
         $campaignId,
         'collection:' . $campaignId . ':' . $studentId,

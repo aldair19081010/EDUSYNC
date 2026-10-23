@@ -814,14 +814,20 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
             const webFailed=Number(r.web_push_failed||0);
             const webSubscriptions=Number(r.web_push_subscriptions||0);
             const webSkipped=Number(r.web_push_skipped||0);
-            let msg='Cobranza enviada a '+Number(r.recipients||0)+' estudiante(s). Android: '+
-                Number(r.push_sent||0)+' aceptados por Firebase. Web: '+webSent+' aceptados por Firebase.';
-            if(!webSubscriptions && !webSkipped)msg+=' Ningún navegador estudiantil suscrito para estos avisos.';
+            // Al igual que en Comunicados, la falta de navegadores suscritos
+            // es información, no un error cuando Android envió correctamente.
+            const androidSent=Number(r.push_sent||0);
+            const androidFailed=Number(r.push_failed||0);
+            let msg='Cobranza enviada a '+Number(r.recipients||0)+' estudiante(s). '+
+                'Android: '+androidSent+' '+(androidSent===1?'aceptado':'aceptados')+' por Firebase.';
+            if(webSubscriptions)msg+=' Web: '+webSent+' '+(webSent===1?'aceptado':'aceptados')+' por Firebase.';
+            else if(!webSkipped)msg+=' Sin navegadores web suscritos.';
             if(missing)msg+=' '+missing+' sin dispositivo Android registrado.';
-            if(Number(r.push_failed||0))msg+=' '+Number(r.push_failed)+' fallos Android.';
+            if(androidFailed)msg+=' '+androidFailed+' fallos Android.';
             if(webFailed)msg+=' '+webFailed+' fallos Web.';
             if(webSkipped)msg+=' '+webSkipped+' envíos Web pendientes de reintento mediante cron.';
-            toast(msg,(missing||Number(r.push_failed||0)||webFailed||!webSubscriptions||webSkipped)?'warning':'success');
+            const noDeliveryAccepted=androidSent===0&&webSent===0;
+            toast(msg,(missing||androidFailed||webFailed||webSkipped||noDeliveryAccepted)?'warning':'success');
             loadSummary();
             loadHistory();
         }).fail(x=>inline((x.responseJSON||{}).message||'No se pudo enviar la cobranza.','danger'))
