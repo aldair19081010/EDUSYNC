@@ -93,8 +93,9 @@ if ($action === 'status') {
 
     // Diagnóstico para el entorno EFECTIVO de la API (XAMPP o hosting).
     // No devuelve credenciales, claves privadas ni tokens FCM.
-    require_once __DIR__ . '/../includes/push_notifications.php';
-    $credentials = push_load_firebase_credentials();
+    // Estado de Firebase usando el mismo remitente de Web Push/Android.
+    require_once __DIR__ . '/../includes/web_push_fcm_sender.php';
+    $credentials = edwp_load_firebase_credentials();
     $senderProject = is_array($credentials)
         ? trim((string)($credentials['project_id'] ?? '')) : '';
     $senderReady = $senderProject !== ''
@@ -151,8 +152,9 @@ if ($action === 'test_push') {
     }
     $_SESSION['student_push_test_last_at'] = $now;
 
-    require_once __DIR__ . '/../includes/push_notifications.php';
-    $credentials = push_load_firebase_credentials();
+    // Estado de Firebase usando el mismo remitente de Web Push/Android.
+    require_once __DIR__ . '/../includes/web_push_fcm_sender.php';
+    $credentials = edwp_load_firebase_credentials();
     $projectId = trim((string)($credentials['project_id'] ?? ''));
     if (!$credentials || $projectId === '') {
         device_reply([
