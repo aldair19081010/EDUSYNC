@@ -587,7 +587,9 @@ function push_send_student_event(
                 'android' => [
                     'priority' => 'HIGH',
                     'notification' => [
-                        'channel_id' => $channelId,
+                        // Canal Android nuevo y único para avisos del estudiante.
+                        // El tipo y la pantalla se conservan en data.
+                        'channel_id' => 'student_alerts_v2',
                         'sound' => 'default',
                         'icon' => 'ic_notification',
                         'color' => '#1565C0',
