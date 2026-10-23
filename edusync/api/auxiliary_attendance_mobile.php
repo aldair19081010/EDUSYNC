@@ -386,6 +386,13 @@ try {
                 'message'=>'La hora debe tener el formato HH:MM (24 horas).'],422);
         }
         if (strlen($inputTime)===5) $inputTime.=':00';
+        // No registrar por accidente la hora de hoy en una jornada anterior.
+        if ($day !== $now->format('Y-m-d')
+            && in_array($state,['Presente','Tarde'],true)
+            && $inputTime === '') {
+            aam_reply(['status'=>'error',
+                'message'=>'Para registrar asistencia en una fecha anterior debes indicar la hora.'],422);
+        }
         $stage = 'set_status.begin';
         $conn->begin_transaction();
         try {
