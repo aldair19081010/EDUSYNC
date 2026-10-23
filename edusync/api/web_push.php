@@ -173,8 +173,9 @@ if ($action === 'app_status') {
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
         wp_reply(['status'=>'error','message'=>'Método no permitido.'],405);
     }
-    if ($identity['kind'] !== 'staff' || (int)$identity['role'] !== 2) {
-        wp_reply(['status'=>'error','message'=>'Sólo disponible para docentes.'],403);
+    if ($identity['kind'] !== 'staff' ||
+        !in_array((int)$identity['role'],[2,3],true)) {
+        wp_reply(['status'=>'error','message'=>'Disponible para personal autorizado.'],403);
     }
     $browserId = trim((string)($_GET['browser_id'] ?? ''));
     if (!preg_match('/^app-[a-zA-Z0-9._:-]{16,96}$/D', $browserId)) {
@@ -185,9 +186,10 @@ if ($action === 'app_status') {
             'latest_delivery_status'=>null,'last_seen_at_utc'=>null]);
     }
     $stmt=$conn->prepare("SELECT id,last_seen_at FROM web_push_subscriptions
-        WHERE school_id=? AND account_kind='staff' AND role_type=2
+        WHERE school_id=? AND account_kind='staff' AND role_type=?
           AND account_id=? AND browser_id=? AND is_active=1 LIMIT 1");
-    $stmt->bind_param('iis',$identity['school'],$identity['id'],$browserId);
+    $stmt->bind_param('iiis',$identity['school'],$identity['role'],
+        $identity['id'],$browserId);
     $stmt->execute();$subscription=$stmt->get_result()->fetch_assoc();$stmt->close();
     $delivery=null;
     if ($subscription && wp_exists($conn,'web_push_delivery')) {
