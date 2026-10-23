@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// Registro móvil de portería: exclusivo para Auxiliar (users.type=3).
+// Registro móvil de asistencia: exclusivo para Auxiliar (users.type=3).
 // Misma tabla de asistencia, reglas y trazabilidad del sistema web.
 require_once __DIR__ . '/../includes/dev_cors.php';
 ini_set('display_errors', '0');
@@ -58,6 +58,23 @@ try {
     $clock = $now->format('H:i:s');
     $action = trim((string)($_POST['action'] ?? 'summary'));
     $stage = 'action.'.$action;
+
+    // Registrar y escanear siempre operan en la jornada actual. Solo las
+    // consultas de nómina y su edición usan la fecha seleccionada.
+    $rosterActions = ['students','student_state','classroom_state','set_status'];
+    if (in_array($action,$rosterActions,true)) {
+        $selectedDate = trim((string)($_POST['date'] ?? ''));
+        if ($selectedDate !== '') {
+            $parsed = DateTimeImmutable::createFromFormat(
+                '!Y-m-d',$selectedDate,new DateTimeZone('America/Lima'));
+            if (!$parsed || $parsed->format('Y-m-d') !== $selectedDate
+                || $selectedDate > $now->format('Y-m-d')) {
+                aam_reply(['status'=>'error',
+                    'message'=>'Selecciona una fecha válida, no posterior a hoy.'],422);
+            }
+            $day = $selectedDate;
+        }
+    }
 
     // Datos de la ficha limitados a identificación y asistencia; sin notas/pagos.
     $studentColumns = 'st.id,st.id_no,st.name,st.nivel,st.grado,st.seccion';
