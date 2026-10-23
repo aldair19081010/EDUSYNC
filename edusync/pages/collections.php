@@ -819,14 +819,15 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
             const androidSent=Number(r.push_sent||0);
             const androidFailed=Number(r.push_failed||0);
             let msg='Cobranza enviada a '+Number(r.recipients||0)+' estudiante(s). '+
-                'Android: '+androidSent+' aceptados por Firebase.';
-            if(webSubscriptions)msg+=' Web: '+webSent+' aceptados por Firebase.';
+                'Android: '+androidSent+' '+(androidSent===1?'aceptado':'aceptados')+' por Firebase.';
+            if(webSubscriptions)msg+=' Web: '+webSent+' '+(webSent===1?'aceptado':'aceptados')+' por Firebase.';
             else if(!webSkipped)msg+=' Sin navegadores web suscritos.';
             if(missing)msg+=' '+missing+' sin dispositivo Android registrado.';
             if(androidFailed)msg+=' '+androidFailed+' fallos Android.';
             if(webFailed)msg+=' '+webFailed+' fallos Web.';
             if(webSkipped)msg+=' '+webSkipped+' envíos Web pendientes de reintento mediante cron.';
-            toast(msg,(missing||androidFailed||webFailed||webSkipped)?'warning':'success');
+            const noDeliveryAccepted=androidSent===0&&webSent===0;
+            toast(msg,(missing||androidFailed||webFailed||webSkipped||noDeliveryAccepted)?'warning':'success');
             loadSummary();
             loadHistory();
         }).fail(x=>inline((x.responseJSON||{}).message||'No se pudo enviar la cobranza.','danger'))
