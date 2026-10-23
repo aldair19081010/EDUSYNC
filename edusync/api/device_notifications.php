@@ -73,6 +73,25 @@ if (!$student) {
     device_reply(['status' => 'error', 'message' => 'Estudiante no disponible.'], 403);
 }
 
+// Estado del dispositivo autenticado: solo responde para el alumno y
+// colegio de la sesión. No devuelve ni permite consultar tokens FCM.
+if ($action === 'status') {
+    $stmt = $conn->prepare(
+        'SELECT id FROM student_device_tokens
+         WHERE school_id=? AND student_id=? AND device_id=? AND is_active=1
+         LIMIT 1'
+    );
+    $stmt->bind_param('iis', $schoolId, $studentId, $deviceId);
+    $stmt->execute();
+    $registered = (bool)$stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    device_reply([
+        'status' => 'ok',
+        'registered' => $registered,
+    ]);
+}
+
 if ($action === 'unregister') {
     $stmt = $conn->prepare(
         'UPDATE student_device_tokens
