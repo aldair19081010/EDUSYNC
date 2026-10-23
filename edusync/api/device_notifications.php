@@ -91,9 +91,24 @@ if ($action === 'status') {
     $registered = (bool)$stmt->get_result()->fetch_assoc();
     $stmt->close();
 
+    // Diagnóstico para el entorno EFECTIVO de la API (XAMPP o hosting).
+    // No devuelve credenciales, claves privadas ni tokens FCM.
+    require_once __DIR__ . '/../includes/push_notifications.php';
+    $credentials = push_load_firebase_credentials();
+    $senderProject = is_array($credentials)
+        ? trim((string)($credentials['project_id'] ?? '')) : '';
+    $senderReady = $senderProject !== ''
+        && trim((string)($credentials['client_email'] ?? '')) !== ''
+        && trim((string)($credentials['private_key'] ?? '')) !== '';
+    $transportReady = function_exists('curl_init')
+        && function_exists('openssl_sign');
+
     device_reply([
         'status' => 'ok',
         'registered' => $registered,
+        'sender_configured' => $senderReady,
+        'sender_project_id' => $senderProject,
+        'transport_supported' => $transportReady,
     ]);
 }
 
