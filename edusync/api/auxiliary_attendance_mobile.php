@@ -356,6 +356,7 @@ try {
         $studentId=(int)($_POST['student_id']??0);
         $state=trim((string)($_POST['attendance_status']??''));
         $notes=trim((string)($_POST['notes']??''));
+        $hasTimeField=array_key_exists('time',$_POST);
         $inputTime=trim((string)($_POST['time']??''));
         $validStates=['Presente','Tarde','Ausente','Ausente Justificada','Permiso'];
         if ($studentId<=0 || !in_array($state,$validStates,true) || strlen($notes)>500)
@@ -404,10 +405,11 @@ try {
                 $oldState=in_array($previous['estado'],['Normal','Temprano'],true)
                     ? 'Presente' : $previous['estado'];
                 $oldTime=(string)$previous['hora'];
-                // Si ya tiene Entrada y no se escogió otra hora, conservarla.
-                // Si se cambia de Ausente/Permiso a Presente/Tarde,
-                // usar la hora actual, no la marca técnica 00:00:00.
-                if (!$isAbsent && $inputTime==='' &&
+                // Como en la web: un campo de hora vacío utiliza NOW().
+                // La app envía la hora previa cuando no se ha modificado.
+                // Compatibilidad: clientes antiguos sin campo "time"
+                // conservan la hora existente y no generan una solicitud falsa.
+                if (!$isAbsent && !$hasTimeField && $inputTime==='' &&
                     !in_array($oldState,['Ausente','Ausente Justificada','Permiso'],true) &&
                     $oldTime!=='' && $oldTime!=='00:00:00') {
                     $recordTime=$oldTime;
