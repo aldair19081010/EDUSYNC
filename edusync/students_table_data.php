@@ -147,6 +147,7 @@ if ($students) {
                 '<button class="btn btn-sm ed-action-more" type="button" data-toggle="dropdown" data-boundary="window" aria-haspopup="true" aria-expanded="false" title="Más acciones"><i class="fa fa-ellipsis-v"></i></button>' .
                 '<div class="dropdown-menu dropdown-menu-right ed-action-menu">' .
                     '<button class="dropdown-item edit_student" type="button" data-id="' . (int)$row['id'] . '"><i class="fa fa-edit text-primary"></i>Editar estudiante</button>' .
+                    '<button class="dropdown-item qr_student" type="button" data-id="' . (int)$row['id'] . '"><i class="fa fa-qrcode text-primary"></i> Carné QR de asistencia</button>' .
                     '<div class="dropdown-divider"></div>' .
                     '<button class="dropdown-item delete_student ed-action-danger" type="button" data-id="' . (int)$row['id'] . '" data-name="' . $escape($row['name']) . '" data-dni="' . $escape($row['id_no']) . '"><i class="fa fa-trash-alt"></i>Eliminar estudiante</button>' .
                 '</div>' .
