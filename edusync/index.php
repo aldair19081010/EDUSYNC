@@ -199,12 +199,51 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
                 <div class="modal-body">Selecciona "Cerrar Sesión" a continuación si estás listo para finalizar tu sesión actual.</div>
                 <div class="modal-footer">
                     <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancelar</button>
-                    <a class="btn btn-primary" href="logout.php">Cerrar Sesión</a>
+                    <?php if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32)); ?>
+                    <form action="logout.php" method="post" id="edusync-logout-form" class="d-inline">
+                        <input type="hidden" name="logout_csrf_token" value="<?php echo htmlspecialchars((string)$_SESSION['csrf_token'],ENT_QUOTES,'UTF-8'); ?>">
+                        <input type="hidden" name="push_browser_id" id="edusync-logout-push-browser" value="">
+                        <button class="btn btn-primary" type="submit">Cerrar Sesión</button>
+                    </form>
                 </div>
             </div>
         </div>
     </div>
-
+    <script>
+    (function(){
+        var form=document.getElementById('edusync-logout-form');
+        if(!form)return;
+        form.addEventListener('submit',function(event){
+            event.preventDefault();
+            if(form.dataset.submitting==='1')return;
+            form.dataset.submitting='1';
+            try {
+                var device=localStorage.getItem('edusync:webpush:device')||'';
+                if(/^[A-Za-z0-9._:-]{20,100}$/.test(device))
+                    document.getElementById('edusync-logout-push-browser').value=device;
+                // Un cierre explícito exige activar de nuevo los avisos
+                // después de iniciar otra sesión, incluso con permiso Chrome.
+                for(var n=localStorage.length-1;n>=0;n--){
+                    var key=localStorage.key(n);
+                    if(key&&key.indexOf('edusync:webpush:enabled:')===0)
+                        localStorage.removeItem(key);
+                }
+            }catch(_){}
+            function finish(){HTMLFormElement.prototype.submit.call(form);}
+            if(!('caches' in window)){finish();return;}
+            // El Service Worker bloquea incluso los FCM ya en tránsito
+            // después de que la persona pulsa Cerrar sesión.
+            var guard=caches.open('edusync-push-session-v1').then(function(cache){
+                return cache.put(
+                    new URL('web-push-session-state',new URL('./',window.location.href)).href,
+                    new Response('logged_out',{headers:{'Content-Type':'text/plain'}})
+                );
+            });
+            Promise.race([guard,new Promise(function(resolve){setTimeout(resolve,600);})])
+                .then(finish,finish);
+        });
+    })();
+    </script>
 
     <!-- Page Wrapper -->
     <div id="wrapper">
