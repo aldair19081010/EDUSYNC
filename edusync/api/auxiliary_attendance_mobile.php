@@ -141,12 +141,17 @@ try {
     }
 
     if ($action === 'filters') {
-        $sql = "SELECT DISTINCT nivel,grado,seccion FROM student
+        // GROUP BY permite ordenar los niveles con FIELD bajo
+        // ONLY_FULL_GROUP_BY (DISTINCT + FIELD puede fallar en MySQL 8).
+        $stage = 'filters.prepare';
+        $sql = "SELECT nivel,grado,seccion FROM student
                 WHERE school_id=? AND status='Activo'
+                GROUP BY nivel,grado,seccion
                 ORDER BY FIELD(nivel,'Inicial','Primaria','Secundaria'),nivel,grado,seccion";
         $stmt = $conn->prepare($sql);
         if (!$stmt) throw new RuntimeException('filtros');
         $stmt->bind_param('i',$school);
+        $stage = 'filters.execute';
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -938,6 +943,7 @@ try {
         ? 'No se pudo guardar el estado o su solicitud de aprobación.'
         : 'No se pudo completar la operación de asistencia.';
     aam_reply(['status'=>'error',
-        'message'=>$label.' Referencia: '.$reference,
+        'message'=>$label.' Etapa: '.$where.'. Referencia: '.$reference,
+        'stage'=>$where,
         'reference'=>$reference],500);
 }
