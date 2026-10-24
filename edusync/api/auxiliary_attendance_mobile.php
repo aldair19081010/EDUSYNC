@@ -17,12 +17,19 @@ function aam_reply(array $data, int $code = 200): void {
     exit;
 }
 
-// Solo el servidor interpreta y verifica la firma de ESQ1. Los carnés
-// heredados siguen usando student.id_no sin alterar su formato.
-require_once __DIR__ . '/../includes/attendance_qr_code.php';
+// El validador ESQ1 es opcional para las operaciones normales.
+// Nunca cargarlo en el arranque: si aún no se publicó el archivo en
+// Hostinger, un require_once global provoca HTTP 500 sin JSON y bloquea
+// incluso la nómina, los filtros y la asistencia con DNI/código de barras.
 function aam_qr_student_id(string $code, int $school): ?int {
     if (strncmp($code, 'ESQ1', 4) !== 0) return null;
+    $helper = __DIR__ . '/../includes/attendance_qr_code.php';
+    if (!is_file($helper)) {
+        aam_reply(['status'=>'error',
+            'message'=>'La validación QR aún no está instalada en el servidor.'], 503);
+    }
     try {
+        require_once $helper;
         return edusync_attendance_qr_verify($code, $school);
     } catch (DomainException $error) {
         aam_reply(['status'=>'error',
