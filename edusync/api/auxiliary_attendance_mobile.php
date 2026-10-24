@@ -174,10 +174,27 @@ try {
         if ($code === '' || strlen($code)>64) {
             aam_reply(['status'=>'error','message'=>'Ingresa o escanea un código válido.'],422);
         }
-        $stmt = $conn->prepare("SELECT {$studentColumns}{$attendanceCols}
-            FROM student st {$todayJoins}
-            WHERE st.school_id=? AND st.status='Activo' AND st.id_no=?
-            LIMIT 2");
+        // Los QR EDUQR1 contienen solo un secreto aleatorio; nunca
+        // codifican DNI, nombre, colegio ni ID de estudiante.
+        $isSecureQr = strncmp($code, 'EDUQR1-', 7) === 0;
+        if ($isSecureQr && !preg_match('/^EDUQR1-[a-f0-9]{48}$/D', $code)) {
+            aam_reply(['status'=>'error','message'=>'QR de EduSync inválido.'],422);
+        }
+        if ($isSecureQr) {
+            $qrHash = hash('sha256', substr($code, 7));
+            $stmt = $conn->prepare("SELECT {$studentColumns}{$attendanceCols}
+                FROM student st {$todayJoins}
+                INNER JOIN student_attendance_qr qr
+                    ON qr.school_id=st.school_id AND qr.student_id=st.id
+                WHERE st.school_id=? AND st.status='Activo' AND qr.token_hash=?
+                LIMIT 2");
+            $code = $qrHash;
+        } else {
+            $stmt = $conn->prepare("SELECT {$studentColumns}{$attendanceCols}
+                FROM student st {$todayJoins}
+                WHERE st.school_id=? AND st.status='Activo' AND st.id_no=?
+                LIMIT 2");
+        }
         if (!$stmt) throw new RuntimeException('identificar');
         $stmt->bind_param('isisis',$school,$day,$school,$day,$school,$code);
         $stmt->execute();
@@ -721,11 +738,29 @@ try {
         $conn->begin_transaction();
         try {
             if ($byCode) {
-                // Se obtiene y bloquea el estudiante en la MISMA operación.
-                // No se puede marcar un código de otra institución.
-                $stmt = $conn->prepare("SELECT id,name,nivel,grado,seccion
-                    FROM student WHERE school_id=? AND status='Activo'
-                        AND id_no=? LIMIT 2 FOR UPDATE");
+                // Un único bloqueo de identidad tanto para los carnés
+                // anteriores (id_no) como para las credenciales QR EDUQR1.
+                if (strncmp($code, 'EDUQR1-', 7) === 0) {
+                    if (!preg_match('/^EDUQR1-[a-f0-9]{48}$/D', $code)) {
+                        $conn->rollback();
+                        aam_reply(['status'=>'error',
+                            'message'=>'El QR de EduSync no es válido.'],422);
+                    }
+                    $qrHash = hash('sha256', substr($code, 7));
+                    $stmt = $conn->prepare("SELECT st.id,st.name,st.nivel,
+                            st.grado,st.seccion
+                        FROM student_attendance_qr qr
+                        INNER JOIN student st
+                            ON st.id=qr.student_id AND st.school_id=qr.school_id
+                        WHERE qr.school_id=? AND qr.token_hash=?
+                          AND st.status='Activo'
+                        LIMIT 2 FOR UPDATE");
+                    $code = $qrHash;
+                } else {
+                    $stmt = $conn->prepare("SELECT id,name,nivel,grado,seccion
+                        FROM student WHERE school_id=? AND status='Activo'
+                            AND id_no=? LIMIT 2 FOR UPDATE");
+                }
                 if (!$stmt) throw new RuntimeException('identidad_carnet');
                 $stmt->bind_param('is',$school,$code);
             } else {
