@@ -121,12 +121,17 @@ try {
     }
 
     if ($action === 'filters') {
-        $sql = "SELECT DISTINCT nivel,grado,seccion FROM student
+        // GROUP BY permite ordenar los niveles con FIELD bajo
+        // ONLY_FULL_GROUP_BY (DISTINCT + FIELD puede fallar en MySQL 8).
+        $stage = 'filters.prepare';
+        $sql = "SELECT nivel,grado,seccion FROM student
                 WHERE school_id=? AND status='Activo'
+                GROUP BY nivel,grado,seccion
                 ORDER BY FIELD(nivel,'Inicial','Primaria','Secundaria'),nivel,grado,seccion";
         $stmt = $conn->prepare($sql);
         if (!$stmt) throw new RuntimeException('filtros');
         $stmt->bind_param('i',$school);
+        $stage = 'filters.execute';
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -145,8 +150,11 @@ try {
         $limit = 40;
         $offset = ($page-1)*$limit;
         $search = '%'.$query.'%';
-        $sql = "SELECT {$studentColumns}{$attendanceCols}
-                FROM student st {$todayJoins}
+
+        // Primero paginar la nómina. Evitar agregar todas las asistencias
+        // históricas de la institución para mostrar solo 40 estudiantes.
+        $stage = 'students.roster.prepare';
+        $sql = "SELECT {$studentColumns} FROM student st
                 WHERE st.school_id=? AND st.status='Activo'
                   AND (?='' OR st.nivel=?)
                   AND (?='' OR st.grado=?)
@@ -155,14 +163,70 @@ try {
                 ORDER BY st.nivel,st.grado,st.seccion,st.name,st.id
                 LIMIT ? OFFSET ?";
         $stmt = $conn->prepare($sql);
-        if (!$stmt) throw new RuntimeException('nomina');
-        $stmt->bind_param('isisisssssssssii',
-            $school,$day,$school,$day,
+        if (!$stmt) throw new RuntimeException('preparar_nomina');
+        $stmt->bind_param('isssssssssii',
             $school,$level,$level,$grade,$grade,$section,$section,
             $query,$search,$search,$limit,$offset);
+        $stage = 'students.roster.execute';
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
+
+        // Las mismas claves de respuesta que espera Flutter, incluso cuando
+        // el alumno todavía no tiene una Entrada/Salida en la fecha elegida.
+        $index = [];
+        $ids = [];
+        foreach ($rows as $position => &$row) {
+            $id = (int)$row['id'];
+            $index[$id] = $position;
+            $ids[] = $id;
+            $row['entry_time'] = null;
+            $row['entry_state'] = null;
+            $row['exit_time'] = null;
+            $row['record_state'] = null;
+        }
+        unset($row);
+
+        if ($ids) {
+            // Solo IDs enteros leídos de la BD, nunca valores del cliente.
+            $idList = implode(',', $ids);
+            $stage = 'students.attendance.prepare';
+            $marks = $conn->prepare("SELECT student_id,id,tipo,hora,estado
+                FROM asistencia
+                WHERE school_id=? AND fecha=? AND is_cancelled=0
+                  AND tipo IN ('Entrada','Salida')
+                  AND student_id IN ({$idList})
+                ORDER BY student_id,id");
+            if (!$marks) throw new RuntimeException('preparar_asistencia_nomina');
+            $marks->bind_param('is', $school, $day);
+            $stage = 'students.attendance.execute';
+            $marks->execute();
+            $records = $marks->get_result();
+            while ($mark = $records->fetch_assoc()) {
+                $studentId = (int)$mark['student_id'];
+                if (!isset($index[$studentId])) continue;
+                $position = $index[$studentId];
+                $time = (string)$mark['hora'];
+                if ($mark['tipo'] === 'Entrada') {
+                    if ($rows[$position]['entry_time'] === null
+                        || strcmp($time, (string)$rows[$position]['entry_time']) < 0) {
+                        $rows[$position]['entry_time'] = $time;
+                    }
+                    // ORDER BY id conserva el último estado registrado.
+                    if ($rows[$position]['entry_state'] === null ||
+                        strcmp((string)$mark['estado'], (string)$rows[$position]['entry_state']) > 0) {
+                        $rows[$position]['entry_state'] = $mark['estado'];
+                    }
+                    $rows[$position]['record_state'] = $mark['estado'];
+                } elseif ($mark['tipo'] === 'Salida') {
+                    if ($rows[$position]['exit_time'] === null
+                        || strcmp($time, (string)$rows[$position]['exit_time']) > 0) {
+                        $rows[$position]['exit_time'] = $time;
+                    }
+                }
+            }
+            $marks->close();
+        }
         aam_reply(['status'=>'ok','date'=>$day,'students'=>$rows,'page'=>$page,
             'has_more'=>count($rows)===$limit]);
     }
@@ -841,6 +905,7 @@ try {
         ? 'No se pudo guardar el estado o su solicitud de aprobación.'
         : 'No se pudo completar la operación de asistencia.';
     aam_reply(['status'=>'error',
-        'message'=>$label.' Referencia: '.$reference,
+        'message'=>$label.' Etapa: '.$where.'. Referencia: '.$reference,
+        'stage'=>$where,
         'reference'=>$reference],500);
 }
