@@ -27,7 +27,7 @@ qr_expect_failure(static function () use ($code): void {
     edusync_attendance_qr_verify($code, 13);
 }, 'QR de otro colegio');
 qr_expect_failure(static function () use ($code): void {
-    edusync_attendance_qr_verify(substr($code, 0, -1).'X', 12);
+    edusync_attendance_qr_verify(substr($code, 0, -1).(substr($code, -1) === 'X' ? 'Y' : 'X'), 12);
 }, 'firma adulterada');
 qr_expect_failure(static function (): void {
     edusync_attendance_qr_verify('ESQ1.12.345.not-valid', 12);
