@@ -6,6 +6,8 @@ Se mantiene el lector de código de barras existente (por `student.id_no`) y el 
 
 En la configuración **privada** del proceso PHP, definir `EDUSYNC_ATTENDANCE_QR_KEY` con un secreto aleatorio de al menos 32 caracteres, compartido por las instancias de la API y el emisor. Nunca guardar el valor en el repositorio, en Flutter, en la web pública ni dentro del QR. Sin esa variable, la emisión y comprobación del QR firmado quedan deshabilitadas; los carnés de barras anteriores siguen operativos.
 
+Para generar un secreto nuevo desde un equipo confiable con PHP instalado: `php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"`. Configurar el resultado en las variables privadas del entorno PHP del hosting; no enviarlo por chat ni añadirlo al código fuente. Si el hosting no expone variables al proceso PHP, será necesario configurar una vía privada equivalente antes de habilitar el QR firmado.
+
 Mantener este secreto respaldado de forma privada. Cambiarlo invalida todos los carnés QR emitidos anteriormente. El formato ESQ1 no caduca por sí solo: desactivar al estudiante impide marcar asistencia; una revocación individual de carné requerirá una versión posterior.
 
 ## Emisión para el colegio
