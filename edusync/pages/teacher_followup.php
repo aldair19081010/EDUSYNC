@@ -28,8 +28,9 @@ if($tfQuery){
 }
 $tfYearId=$tfYears?(int)$tfYears[0]['id']:0;
 $tfBimester=1;
+$tfPeriodOptions=[];
 if($tfYearId>0){
-    $tfPeriodQuery=$conn->prepare('SELECT period_number,start_date,end_date FROM academic_periods WHERE school_id=? AND academic_year_id=? ORDER BY period_number');
+    $tfPeriodQuery=$conn->prepare('SELECT period_number,name,start_date,end_date FROM academic_periods WHERE school_id=? AND academic_year_id=? ORDER BY period_number');
     if($tfPeriodQuery){
         $tfPeriodQuery->bind_param('ii',$tfSchool,$tfYearId);
         $tfPeriodQuery->execute();$tfPeriods=$tfPeriodQuery->get_result();
@@ -37,6 +38,7 @@ if($tfYearId>0){
         while($tfP=$tfPeriods->fetch_assoc()){
             $tfN=(int)$tfP['period_number'];
             if($tfN<1||$tfN>4)continue;
+            $tfPeriodOptions[]=['number'=>$tfN,'name'=>(string)$tfP['name']];
             if(!$tfBest)$tfBest=$tfN;
             if($tfP['start_date']&&$tfP['start_date']<=$tfToday)$tfBest=$tfN;
             if($tfP['start_date']&&$tfP['end_date']&&$tfToday>=$tfP['start_date']&&$tfToday<=$tfP['end_date']){
@@ -87,11 +89,14 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
         </div>
         <div class="form-group col-md-3 col-lg-3 mb-2">
           <label class="small font-weight-bold text-gray-700 mb-1" for="taca-bim">Bimestre</label>
-          <select id="taca-bim" class="form-control form-control-sm">
-            <option value="1"<?php echo $tfBimester===1?' selected':''; ?>>I Bimestre</option>
-            <option value="2"<?php echo $tfBimester===2?' selected':''; ?>>II Bimestre</option>
-            <option value="3"<?php echo $tfBimester===3?' selected':''; ?>>III Bimestre</option>
-            <option value="4"<?php echo $tfBimester===4?' selected':''; ?>>IV Bimestre</option>
+          <select id="taca-bim" class="form-control form-control-sm" <?php echo !$tfPeriodOptions?'disabled':''; ?>>
+            <?php if(!$tfPeriodOptions): ?>
+              <option value="">Sin bimestres configurados</option>
+            <?php else: foreach($tfPeriodOptions as $tfOption): ?>
+              <option value="<?php echo (int)$tfOption['number']; ?>"<?php echo $tfBimester===$tfOption['number']?' selected':''; ?>>
+                <?php echo htmlspecialchars($tfOption['name']?:($tfOption['number'].'° bimestre'),ENT_QUOTES,'UTF-8'); ?>
+              </option>
+            <?php endforeach; endif; ?>
           </select>
         </div>
         <div class="form-group col-md-4 col-lg-5 mb-2">
