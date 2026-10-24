@@ -194,8 +194,22 @@
                 message('Permiso bloqueado. Debes cambiarlo en la configuración del navegador.',true);
                 return;
             }
-            // Renovar la vinculación sin volver a solicitar permisos después del login.
-            if(currentEnabled() && Notification.permission==='granted') enable(false);
+            // Renovar automáticamente SOLO si la cuenta ya había aceptado
+            // notificaciones. El logout pausa los envíos, no revoca el permiso.
+            if(currentEnabled() && Notification.permission==='granted') {
+                enable(false);
+            } else if(Notification.permission==='granted' && 'caches' in window) {
+                // Usuarios afectados por versiones que borraban la preferencia
+                // tras salir deben activarla una sola vez desde la campana.
+                caches.open('edusync-push-session-v1').then(function(cache){
+                    return cache.match(new URL('web-push-session-state',new URL('./',location.href)).href);
+                }).then(function(response){
+                    return response?response.text():'';
+                }).then(function(status){
+                    if(status==='logged_out' && !currentEnabled())
+                        message('Al volver a ingresar, activa las notificaciones una vez desde la campana.',false);
+                }).catch(function(){});
+            }
         }).fail(function(){message('No se pudo consultar la configuración del servidor.',true);});
     });
 })(window.jQuery);
