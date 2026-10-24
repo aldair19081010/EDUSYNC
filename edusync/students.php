@@ -465,7 +465,13 @@ if ($years_query) {
 			</div>
 		</div>
 		<div class="ed-page-actions">
-			<?php if ($can_manage_students): ?><div class="btn-group">
+			<?php if ($can_manage_students): ?>
+			<a class="btn btn-outline-primary mr-2" href="attendance_qr_cards.php"
+			   target="_blank" rel="noopener noreferrer"
+			   title="Generar carnés QR firmados del colegio">
+				<i class="fa fa-qrcode mr-1"></i> Carnés QR
+			</a>
+			<div class="btn-group">
 				<button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-plus mr-1"></i>Agregar / importar</button>
 				<div class="dropdown-menu dropdown-menu-right student-add-menu">
 					<h6 class="dropdown-header">Registro</h6>
