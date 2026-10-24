@@ -48,6 +48,76 @@
                 return id;
             } catch (_) { return ''; }
         }
+        var foregroundBound=false, foregroundLastKey='', foregroundLastAt=0;
+        function safeNotificationUrl(value) {
+            try {
+                var scope=new URL('./',window.location.href);
+                var url=new URL(String(value||'index.php?page=notifications'),scope);
+                if(url.origin===scope.origin && url.pathname.indexOf(scope.pathname)===0)
+                    return url.href;
+            } catch (_) {}
+            return new URL('index.php?page=notifications',new URL('./',window.location.href)).href;
+        }
+        async function foregroundAllowed() {
+            if(!currentEnabled() || Notification.permission!=='granted')return false;
+            try {
+                if('caches' in window){
+                    var cache=await caches.open('edusync-push-session-v1');
+                    var item=await cache.match(new URL('web-push-session-state',new URL('./',location.href)).href);
+                    if(item && (await item.text())==='logged_out')return false;
+                }
+            } catch (_) {}
+            return true;
+        }
+        function showInAppNotification(title,body,url) {
+            if(document.visibilityState==='hidden')return;
+            $('.edwp-foreground-alert').remove();
+            var box=$('<div>',{
+                class:'edwp-foreground-alert alert alert-primary shadow',
+                role:'alert',
+                'aria-live':'polite'
+            }).css({
+                position:'fixed',top:'76px',right:'16px',width:'min(380px,calc(100vw - 32px))',
+                zIndex:1090,margin:0,borderRadius:'12px',cursor:'pointer'
+            });
+            var close=$('<button>',{type:'button','aria-label':'Cerrar aviso'})
+                .addClass('close').html('&times;').css({marginLeft:'12px'});
+            close.on('click',function(event){event.stopPropagation();box.remove();});
+            box.append(close);
+            box.append($('<div>').addClass('font-weight-bold mb-1').text(title));
+            if(body)box.append($('<div>').addClass('small').text(body));
+            box.append($('<div>').addClass('small mt-2').text('Pulsa para abrir el aviso'));
+            box.on('click',function(){window.location.href=url;});
+            $('body').append(box);
+            window.setTimeout(function(){box.remove();},9000);
+        }
+        async function foregroundNotification(payload) {
+            if(!(await foregroundAllowed()))return;
+            var data=payload&&payload.data&&typeof payload.data==='object'?payload.data:{};
+            var info=payload&&payload.notification&&typeof payload.notification==='object'?payload.notification:{};
+            var title=String(data.title||info.title||'').slice(0,150);
+            var body=String(data.body||info.body||'').slice(0,450);
+            if(!title)return;
+            var tag=String(data.tag||'edusync-web').slice(0,100);
+            var url=safeNotificationUrl(data.url||info.click_action);
+            var dedupe=tag+'|'+title+'|'+body;
+            var now=Date.now();
+            if(foregroundLastKey===dedupe && now-foregroundLastAt<5000)return;
+            foregroundLastKey=dedupe;foregroundLastAt=now;
+            showInAppNotification(title,body,url);
+            try {
+                var worker=await navigator.serviceWorker.getRegistration('./');
+                if(worker && Notification.permission==='granted'){
+                    var icon=new URL('assets/uploads/logo.jpg',new URL('./',window.location.href)).href;
+                    await worker.showNotification(title,{
+                        body:body,tag:tag,icon:icon,badge:icon,renotify:true,data:{url:url}
+                    });
+                }
+            } catch (_) {
+                // La alerta dentro de EduSync sigue visible si el sistema
+                // operativo o navegador no permite mostrar banners nativos.
+            }
+        }
         function script(url) {
             return new Promise(function(resolve,reject) {
                 var existing=document.querySelector('script[data-edwp-url="'+url+'"]');
@@ -75,6 +145,16 @@
             try { app=firebase.app('edusync-web'); }
             catch (_) { app=firebase.initializeApp(config.firebase,'edusync-web'); }
             messaging=firebase.messaging(app);
+            // Con EduSync abierto Firebase puede entregar mensajes por
+            // onMessage en lugar del evento push de segundo plano.
+            if(!foregroundBound && typeof messaging.onMessage==='function'){
+                messaging.onMessage(function(payload){
+                    foregroundNotification(payload).catch(function(err){
+                        console.warn('[EduSync Web Push] Aviso de primer plano:',err);
+                    });
+                });
+                foregroundBound=true;
+            }
             return messaging;
         }
         async function fcmToken() {
