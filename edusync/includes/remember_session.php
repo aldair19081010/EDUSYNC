@@ -11,8 +11,17 @@ const EDRS_COOKIE = 'edusync_remember_session';
 const EDRS_TTL = 30 * 24 * 60 * 60;
 
 function edrs_https(): bool {
-    return (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off')
-        || (int)($_SERVER['SERVER_PORT'] ?? 0) === 443;
+    if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') return true;
+    if ((int)($_SERVER['SERVER_PORT'] ?? 0) === 443) return true;
+    // Hospedajes con terminación TLS en un proxy inverso: el navegador usa
+    // HTTPS, aunque PHP reciba la solicitud del proxy por HTTP interno.
+    // Estos indicadores únicamente endurecen las cookies (Secure), nunca
+    // autentican a un usuario ni permiten saltarse las credenciales.
+    $proto = strtolower(trim(explode(',',(string)($_SERVER['HTTP_X_FORWARDED_PROTO']??''))[0]));
+    if ($proto === 'https') return true;
+    if (strtolower((string)($_SERVER['HTTP_X_FORWARDED_SSL']??'')) === 'on') return true;
+    if (strtolower((string)($_SERVER['HTTP_CF_VISITOR']??'')) === '{"scheme":"https"}') return true;
+    return false;
 }
 
 function edrs_cookie_allowed(): bool {
@@ -173,11 +182,14 @@ function edrs_restore(mysqli $db): bool {
         $saved=$stmt->get_result()->fetch_assoc();
         $stmt->close();
         $expiry=$saved ? strtotime($saved['expires_at'].' UTC') : false;
-        if (!$saved || !hash_equals((string)$saved['token_hash'],$hash)
-            || $saved['revoked_at']!==null || !$expiry || $expiry<=time()) {
+        if (!$saved || $saved['revoked_at']!==null || !$expiry || $expiry<=time()) {
             edrs_clear_cookie();
             return false;
         }
+        // Otra petición simultánea pudo haber rotado ya el verificador y
+        // enviado la cookie nueva. No borrar esa cookie desde una respuesta
+        // tardía con el verificador anterior.
+        if (!hash_equals((string)$saved['token_hash'],$hash)) return false;
         $school=(int)$saved['school_id'];
         $account=(int)$saved['account_id'];
         $kind=(string)$saved['account_kind'];
@@ -202,7 +214,9 @@ function edrs_restore(mysqli $db): bool {
         $stmt->execute();
         $changed=$stmt->affected_rows===1;
         $stmt->close();
-        if (!$changed) {edrs_clear_cookie();return false;}
+        // Un segundo intento concurrente puede perder el UPDATE CAS; el
+        // ganador ya generó la cookie nueva. No anularla en este navegador.
+        if (!$changed) return false;
         session_regenerate_id(true);
         $_SESSION=[];
         if ($kind==='staff') {
