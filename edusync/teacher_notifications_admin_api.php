@@ -300,8 +300,16 @@ $bim=(int)($_POST['bimester']??$_GET['bimester']??0);
 if($yearId<=0||$bim<1||$bim>4)taca_response(['status'=>0,'message'=>'Año y bimestre inválidos.'],422);
 $GLOBALS['taca_stage']='period';
 $year=taca_year($conn,$school,$yearId);
+if(!$year) {
+    taca_response(['status'=>0,'error_code'=>'TACA_YEAR_NOT_FOUND',
+        'message'=>'El año académico seleccionado no pertenece a esta institución.'],404);
+}
 $period=taca_period($conn,$school,$yearId,$bim);
-if(!$year||!$period)taca_response(['status'=>0,'message'=>'El periodo no pertenece a tu institución.'],404);
+if(!$period) {
+    taca_response(['status'=>0,'error_code'=>'TACA_PERIOD_NOT_CONFIGURED',
+        'setup_required'=>true,
+        'message'=>'Este bimestre aún no está configurado para el año académico seleccionado. Ve a Años académicos > Gestionar > Periodos y guarda los periodos correspondientes.'],409);
+}
 // Evita que la consulta agrupada de notas bloquee, por la sesión PHP,
 // la bandeja y otras peticiones del mismo administrador.
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
