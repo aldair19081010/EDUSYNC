@@ -91,7 +91,7 @@
             $('body').append(box);
             window.setTimeout(function(){box.remove();},9000);
         }
-        async function foregroundNotification(payload) {
+        async function foregroundNotification(payload,alreadyShownByWorker) {
             if(!(await foregroundAllowed()))return;
             var data=payload&&payload.data&&typeof payload.data==='object'?payload.data:{};
             var info=payload&&payload.notification&&typeof payload.notification==='object'?payload.notification:{};
@@ -105,6 +105,9 @@
             if(foregroundLastKey===dedupe && now-foregroundLastAt<5000)return;
             foregroundLastKey=dedupe;foregroundLastAt=now;
             showInAppNotification(title,body,url);
+            // El Service Worker ya ha presentado la notificación nativa;
+            // el mensaje al cliente sólo proporciona el aviso dentro de EduSync.
+            if(alreadyShownByWorker)return;
             try {
                 var worker=await navigator.serviceWorker.getRegistration('./');
                 if(worker && Notification.permission==='granted'){
@@ -248,6 +251,15 @@
             message(iphone?'En iPhone, agrega EduSync a la pantalla de inicio y ábrelo desde allí.':
                 'Necesitas HTTPS (o localhost) y un navegador compatible.',false);
             return;
+        }
+        // El service worker personalizado puede recibir FCM incluso sin que
+        // el SDK invocase onMessage. Su mensaje activa el toast de primer plano.
+        if(navigator.serviceWorker && typeof navigator.serviceWorker.addEventListener==='function'){
+            navigator.serviceWorker.addEventListener('message',function(event){
+                var payload=event.data||{};
+                if(payload.type!=='edusync-web-push-visible')return;
+                foregroundNotification({data:payload.data||{}},true).catch(function(){});
+            });
         }
         browserId=deviceId();
         if(!browserId){
