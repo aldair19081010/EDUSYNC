@@ -17,8 +17,11 @@ if ($userId <= 0 || $school <= 0 || (int)($_SESSION['login_type'] ?? 0) !== 1) {
     http_response_code(403);
     exit('Solo Administración puede emitir o revocar carnés QR.');
 }
+$statusColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+$activeClause = $statusColumn && $statusColumn->num_rows > 0
+    ? " AND status='Activo'" : '';
 $allowed = $conn->prepare("SELECT id FROM users
-    WHERE id=? AND school_id=? AND type=1 LIMIT 1");
+    WHERE id=? AND school_id=? AND type=1 {$activeClause} LIMIT 1");
 $allowed->bind_param('ii', $userId, $school);
 $allowed->execute();
 $validAdmin = (bool)$allowed->get_result()->fetch_assoc();
