@@ -48,79 +48,6 @@
                 return id;
             } catch (_) { return ''; }
         }
-        var foregroundBound=false, foregroundLastKey='', foregroundLastAt=0;
-        function safeNotificationUrl(value) {
-            try {
-                var scope=new URL('./',window.location.href);
-                var url=new URL(String(value||'index.php?page=notifications'),scope);
-                if(url.origin===scope.origin && url.pathname.indexOf(scope.pathname)===0)
-                    return url.href;
-            } catch (_) {}
-            return new URL('index.php?page=notifications',new URL('./',window.location.href)).href;
-        }
-        async function foregroundAllowed() {
-            if(!currentEnabled() || Notification.permission!=='granted')return false;
-            try {
-                if('caches' in window){
-                    var cache=await caches.open('edusync-push-session-v1');
-                    var item=await cache.match(new URL('web-push-session-state',new URL('./',location.href)).href);
-                    if(item && (await item.text())==='logged_out')return false;
-                }
-            } catch (_) {}
-            return true;
-        }
-        function showInAppNotification(title,body,url) {
-            if(document.visibilityState==='hidden')return;
-            $('.edwp-foreground-alert').remove();
-            var box=$('<div>',{
-                class:'edwp-foreground-alert alert alert-primary shadow',
-                role:'alert',
-                'aria-live':'polite'
-            }).css({
-                position:'fixed',top:'76px',right:'16px',width:'min(380px,calc(100vw - 32px))',
-                zIndex:1090,margin:0,borderRadius:'12px',cursor:'pointer'
-            });
-            var close=$('<button>',{type:'button','aria-label':'Cerrar aviso'})
-                .addClass('close').html('&times;').css({marginLeft:'12px'});
-            close.on('click',function(event){event.stopPropagation();box.remove();});
-            box.append(close);
-            box.append($('<div>').addClass('font-weight-bold mb-1').text(title));
-            if(body)box.append($('<div>').addClass('small').text(body));
-            box.append($('<div>').addClass('small mt-2').text('Pulsa para abrir el aviso'));
-            box.on('click',function(){window.location.href=url;});
-            $('body').append(box);
-            window.setTimeout(function(){box.remove();},9000);
-        }
-        async function foregroundNotification(payload,alreadyShownByWorker) {
-            if(!(await foregroundAllowed()))return;
-            var data=payload&&payload.data&&typeof payload.data==='object'?payload.data:{};
-            var info=payload&&payload.notification&&typeof payload.notification==='object'?payload.notification:{};
-            var title=String(data.title||info.title||'').slice(0,150);
-            var body=String(data.body||info.body||'').slice(0,450);
-            if(!title)return;
-            var tag=String(data.tag||'edusync-web').slice(0,100);
-            var url=safeNotificationUrl(data.url||info.click_action);
-            var dedupe=tag+'|'+title+'|'+body;
-            var now=Date.now();
-            if(foregroundLastKey===dedupe && now-foregroundLastAt<5000)return;
-            foregroundLastKey=dedupe;foregroundLastAt=now;
-            showInAppNotification(title,body,url);
-            // El Service Worker ya ha presentado la notificación nativa;
-            // el mensaje al cliente sólo proporciona el aviso dentro de EduSync.
-            if(alreadyShownByWorker)return;
-            try {
-                var worker=await navigator.serviceWorker.getRegistration('./');
-                if(worker && Notification.permission==='granted'){
-                    var icon=new URL('assets/uploads/logo.jpg',new URL('./',window.location.href)).href;
-                    await worker.showNotification(title,{
-                        body:body,tag:tag,icon:icon,badge:icon,renotify:true,data:{url:url}
-                    });
-                }
-            } catch (_) {
-                // La alerta dentro de EduSync sigue visible si el sistema
-                // operativo o navegador no permite mostrar banners nativos.
-            }
-        }
         function script(url) {
             return new Promise(function(resolve,reject) {
                 var existing=document.querySelector('script[data-edwp-url="'+url+'"]');
@@ -148,16 +75,6 @@
             try { app=firebase.app('edusync-web'); }
             catch (_) { app=firebase.initializeApp(config.firebase,'edusync-web'); }
             messaging=firebase.messaging(app);
-            // Con EduSync abierto Firebase puede entregar mensajes por
-            // onMessage en lugar del evento push de segundo plano.
-            if(!foregroundBound && typeof messaging.onMessage==='function'){
-                messaging.onMessage(function(payload){
-                    foregroundNotification(payload).catch(function(err){
-                        console.warn('[EduSync Web Push] Aviso de primer plano:',err);
-                    });
-                });
-                foregroundBound=true;
-            }
             return messaging;
         }
         async function fcmToken() {
@@ -252,30 +169,16 @@
                 'Necesitas HTTPS (o localhost) y un navegador compatible.',false);
             return;
         }
-        // El service worker personalizado puede recibir FCM incluso sin que
-        // el SDK invocase onMessage. Su mensaje activa el toast de primer plano.
-        if(navigator.serviceWorker && typeof navigator.serviceWorker.addEventListener==='function'){
-            navigator.serviceWorker.addEventListener('message',function(event){
-                var payload=event.data||{};
-                if(payload.type!=='edusync-web-push-visible')return;
-                foregroundNotification({data:payload.data||{}},true).catch(function(){});
-            });
-        }
         browserId=deviceId();
         if(!browserId){
             toggle.prop('disabled',true);message('Este navegador no permite guardar la suscripción.',true);return;
         }
         label(false);
-        $.getJSON('api/web_push.php',{action:'config',browser_id:browserId}).done(function(result){
+        $.getJSON('api/web_push.php',{action:'config'}).done(function(result){
             if(!result||result.status!=='ok'){message('No se pudo verificar Web Push.',true);return;}
             config=result;
             enabledKey='edusync:webpush:enabled:'+result.identity;
-            // La versión anterior borraba por error el consentimiento local.
-            // Restaurarlo sólo si el servidor confirma que esta misma cuenta
-            // mantiene una suscripción activa en ESTE navegador.
-            if(result.device_registered===true && Notification.permission==='granted'
-                && !currentEnabled())saveEnabled(true);
-            else label(currentEnabled());
+            label(currentEnabled());
             if(!config.configured) {
                 toggle.prop('disabled',true);
                 message('Falta configurar Firebase web (clave VAPID y datos públicos).',false);
@@ -291,22 +194,8 @@
                 message('Permiso bloqueado. Debes cambiarlo en la configuración del navegador.',true);
                 return;
             }
-            // Renovar automáticamente SOLO si la cuenta ya había aceptado
-            // notificaciones. El logout pausa los envíos, no revoca el permiso.
-            if(currentEnabled() && Notification.permission==='granted') {
-                enable(false);
-            } else if(Notification.permission==='granted' && 'caches' in window) {
-                // Usuarios afectados por versiones que borraban la preferencia
-                // tras salir deben activarla una sola vez desde la campana.
-                caches.open('edusync-push-session-v1').then(function(cache){
-                    return cache.match(new URL('web-push-session-state',new URL('./',location.href)).href);
-                }).then(function(response){
-                    return response?response.text():'';
-                }).then(function(status){
-                    if(status==='logged_out' && !currentEnabled())
-                        message('Al volver a ingresar, activa las notificaciones una vez desde la campana.',false);
-                }).catch(function(){});
-            }
+            // Renovar la vinculación sin volver a solicitar permisos después del login.
+            if(currentEnabled() && Notification.permission==='granted') enable(false);
         }).fail(function(){message('No se pudo consultar la configuración del servidor.',true);});
     });
 })(window.jQuery);
