@@ -17,7 +17,7 @@ Mantener este secreto respaldado de forma privada. Cambiarlo invalida todos los 
 
 La API verifica el rol, el colegio, la cuenta activa y que el estudiante esté activo en la institución. Retorna `code` y datos de presentación. Convertir **exactamente** `code` en un código QR al imprimir el carné; no modificarlo ni transformarlo en un enlace público.
 
-Para una interfaz de generación/impresión masiva de carnés, conectar el módulo administrativo de estudiantes a esta API; la emisión no está habilitada desde la sesión Auxiliar.
+La interfaz de impresión por lotes está en **Gestión de Estudiantes → Carnés QR**, disponible solo para Administración. Filtrar por nivel, grado y sección; el máximo es 200 carnés por lote. La página utiliza QRCode.js 1.0.0 desde cdnjs con SRI y genera las imágenes exclusivamente en el navegador. No pasa el contenido QR a un servicio externo de generación. La emisión no está habilitada desde la sesión Auxiliar.
 
 ## Lectura
 
