@@ -191,6 +191,7 @@ try {
         $stmt->bind_param($types, ...$params);
         $stage = 'students.roster.execute';
         $stmt->execute();
+        $stage = 'students.roster.fetch';
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
