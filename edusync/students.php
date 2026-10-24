@@ -821,6 +821,14 @@ if ($years_query) {
 		$('#student-table tbody').on('click', '.view_student', function() {
 			uni_modal("Ver Estudiante", "view_student.php?id=" + $(this).attr('data-id'), "mid-large");
 		});
+		// El carné se emite en ventana propia para imprimirlo en privado;
+		// nunca mostramos el secreto QR en los datos JSON de DataTables.
+		$('#student-table tbody').on('click', '.qr_student', function() {
+			var id = parseInt($(this).attr('data-id'), 10);
+			if (!Number.isSafeInteger(id) || id <= 0) return;
+			window.open('student_attendance_qr.php?id=' + encodeURIComponent(id),
+				'_blank', 'noopener,noreferrer');
+		});
 		$('#student-table tbody').on('click', '.delete_student', function() {
 			confirmStudentDeletion(this);
 		});
