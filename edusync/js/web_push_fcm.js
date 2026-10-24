@@ -266,11 +266,16 @@
             toggle.prop('disabled',true);message('Este navegador no permite guardar la suscripción.',true);return;
         }
         label(false);
-        $.getJSON('api/web_push.php',{action:'config'}).done(function(result){
+        $.getJSON('api/web_push.php',{action:'config',browser_id:browserId}).done(function(result){
             if(!result||result.status!=='ok'){message('No se pudo verificar Web Push.',true);return;}
             config=result;
             enabledKey='edusync:webpush:enabled:'+result.identity;
-            label(currentEnabled());
+            // La versión anterior borraba por error el consentimiento local.
+            // Restaurarlo sólo si el servidor confirma que esta misma cuenta
+            // mantiene una suscripción activa en ESTE navegador.
+            if(result.device_registered===true && Notification.permission==='granted'
+                && !currentEnabled())saveEnabled(true);
+            else label(currentEnabled());
             if(!config.configured) {
                 toggle.prop('disabled',true);
                 message('Falta configurar Firebase web (clave VAPID y datos públicos).',false);
