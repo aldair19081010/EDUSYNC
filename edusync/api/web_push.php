@@ -119,23 +119,8 @@ if ($action === 'config') {
     $fields = ['apiKey','authDomain','projectId','messagingSenderId','appId'];
     $ok = is_array($firebase) && strlen($vapid) > 30;
     if ($ok) foreach ($fields as $key) if (empty($firebase[$key])) $ok = false;
-    // Comprobar si ESTE navegador está realmente asociado con la cuenta
-    // autenticada. Nunca devolver el token FCM ni datos de otros dispositivos.
-    $deviceRegistered=false;
-    $requestedBrowser=trim((string)($_GET['browser_id']??''));
-    if(preg_match('/^[a-zA-Z0-9._:-]{20,100}$/D',$requestedBrowser)
-        && wp_exists($conn,'web_push_subscriptions')) {
-        $check=$conn->prepare('SELECT id FROM web_push_subscriptions WHERE browser_id=? AND school_id=? AND account_kind=? AND account_id=? AND is_active=1 LIMIT 1');
-        if($check){
-            $check->bind_param('sisi',$requestedBrowser,$identity['school'],$identity['kind'],$identity['id']);
-            $check->execute();
-            $deviceRegistered=(bool)$check->get_result()->fetch_assoc();
-            $check->close();
-        }
-    }
     wp_reply([
         'status'=>'ok','configured'=>$ok,
-        'device_registered'=>$deviceRegistered,
         'firebase'=>$ok ? array_intersect_key($firebase,array_fill_keys($fields,true)) : null,
         'vapid_key'=>$ok ? $vapid : '',
         'csrf_token'=>$_SESSION['csrf_token'],
