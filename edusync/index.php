@@ -221,12 +221,13 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
                 var device=localStorage.getItem('edusync:webpush:device')||'';
                 if(/^[A-Za-z0-9._:-]{20,100}$/.test(device))
                     document.getElementById('edusync-logout-push-browser').value=device;
-                // Mantener la preferencia de avisos de CADA cuenta.
-                // El backend desactiva la suscripción al cerrar sesión y el
-                // Service Worker bloquea avisos pendientes. Al regresar con
-                // la misma cuenta, web_push_fcm.js reactivará la suscripción
-                // sólo si el usuario ya la había habilitado voluntariamente.
-                // No borrar edusync:webpush:enabled:<identidad> aquí.
+                // Un cierre explícito exige activar de nuevo los avisos
+                // después de iniciar otra sesión, incluso con permiso Chrome.
+                for(var n=localStorage.length-1;n>=0;n--){
+                    var key=localStorage.key(n);
+                    if(key&&key.indexOf('edusync:webpush:enabled:')===0)
+                        localStorage.removeItem(key);
+                }
             }catch(_){}
             function finish(){HTMLFormElement.prototype.submit.call(form);}
             if(!('caches' in window)){finish();return;}
