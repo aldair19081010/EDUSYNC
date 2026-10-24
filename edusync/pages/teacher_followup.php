@@ -34,7 +34,7 @@ if($tfYearId>0){
     if($tfPeriodQuery){
         $tfPeriodQuery->bind_param('ii',$tfSchool,$tfYearId);
         $tfPeriodQuery->execute();$tfPeriods=$tfPeriodQuery->get_result();
-        $tfToday=(new DateTimeImmutable('now',new DateTimeZone('America/Lima')))->format('Y-m-d');$tfBest=null;
+        $tfToday=(new DateTimeImmutable('now',new DateTimeZone('America/Lima')))->format('Y-m-d');$tfBest=null;$tfCurrent=null;
         while($tfP=$tfPeriods->fetch_assoc()){
             $tfN=(int)$tfP['period_number'];
             if($tfN<1||$tfN>4)continue;
@@ -42,10 +42,10 @@ if($tfYearId>0){
             if(!$tfBest)$tfBest=$tfN;
             if($tfP['start_date']&&$tfP['start_date']<=$tfToday)$tfBest=$tfN;
             if($tfP['start_date']&&$tfP['end_date']&&$tfToday>=$tfP['start_date']&&$tfToday<=$tfP['end_date']){
-                $tfBest=$tfN;break;
+                $tfCurrent=$tfN;
             }
         }
-        $tfBimester=$tfBest?:1;
+        $tfBimester=$tfCurrent?:($tfBest?:1);
         $tfPeriodQuery->close();
     }
 }
