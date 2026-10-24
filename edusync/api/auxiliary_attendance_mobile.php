@@ -16,26 +16,6 @@ function aam_reply(array $data, int $code = 200): void {
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
-
-// Solo el servidor interpreta y verifica la firma de ESQ1. Los carnés
-// heredados siguen usando student.id_no sin alterar su formato.
-require_once __DIR__ . '/../includes/attendance_qr_code.php';
-function aam_qr_student_id(string $code, int $school): ?int {
-    if (strncmp($code, 'ESQ1', 4) !== 0) return null;
-    try {
-        return edusync_attendance_qr_verify($code, $school);
-    } catch (DomainException $error) {
-        aam_reply(['status'=>'error',
-            'message'=>'Este QR corresponde a otra institución.'], 403);
-    } catch (InvalidArgumentException $error) {
-        aam_reply(['status'=>'error',
-            'message'=>'El código QR no es auténtico o está incompleto.'], 422);
-    } catch (RuntimeException $error) {
-        aam_reply(['status'=>'error',
-            'message'=>'El QR firmado no está configurado en el servidor.'], 503);
-    }
-    return null;
-}
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     aam_reply(['status'=>'error','message'=>'Método no permitido.'],405);
 }
@@ -191,24 +171,15 @@ try {
         // El código del carné es exactamente student.id_no, igual que el
         // escáner actual de attendance_api.php. Nunca deducir DNI de un QR.
         $code = trim((string)($_POST['code'] ?? ''));
-        if ($code === '' || strlen($code)>128) {
+        if ($code === '' || strlen($code)>64) {
             aam_reply(['status'=>'error','message'=>'Ingresa o escanea un código válido.'],422);
         }
-        $qrStudentId = aam_qr_student_id($code, $school);
-        if ($qrStudentId === null && strlen($code)>64) {
-            aam_reply(['status'=>'error','message'=>'Código de carné demasiado largo.'],422);
-        }
-        $whereCode = $qrStudentId !== null ? 'st.id=?' : 'st.id_no=?';
         $stmt = $conn->prepare("SELECT {$studentColumns}{$attendanceCols}
             FROM student st {$todayJoins}
-            WHERE st.school_id=? AND st.status='Activo' AND {$whereCode}
+            WHERE st.school_id=? AND st.status='Activo' AND st.id_no=?
             LIMIT 2");
         if (!$stmt) throw new RuntimeException('identificar');
-        if ($qrStudentId !== null) {
-            $stmt->bind_param('isisii',$school,$day,$school,$day,$school,$qrStudentId);
-        } else {
-            $stmt->bind_param('isisis',$school,$day,$school,$day,$school,$code);
-        }
+        $stmt->bind_param('isisis',$school,$day,$school,$day,$school,$code);
         $stmt->execute();
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
@@ -737,7 +708,7 @@ try {
         $kind = trim((string)($_POST['kind'] ?? ''));
         $source = trim((string)($_POST['source'] ?? ($byCode ? 'Escáner' : 'Manual')));
         $requestId = strtolower(trim((string)($_POST['request_id'] ?? '')));
-        if (($byCode && ($code === '' || strlen($code)>128))
+        if (($byCode && ($code === '' || strlen($code)>64))
             || (!$byCode && $studentId<=0)
             || !in_array($kind,['Entrada','Salida'],true)
             || !in_array($source,['Manual','Escáner'],true)
@@ -745,28 +716,18 @@ try {
             || ($byCode && $requestId==='')) {
             aam_reply(['status'=>'error','message'=>'Registro no válido.'],422);
         }
-        $qrStudentId = $byCode ? aam_qr_student_id($code, $school) : null;
-        if ($byCode && $qrStudentId === null && strlen($code)>64) {
-            aam_reply(['status'=>'error','message'=>'Código de carné demasiado largo.'],422);
-        }
         // El propio registro en student se bloquea por transacción: dos
         // móviles del portón no pueden insertar la misma marca simultáneamente.
         $conn->begin_transaction();
         try {
             if ($byCode) {
-                // Firma ESQ1 ya verificada; la transacción valida además
-                // colegio, matrícula activa, cierre del aula y duplicados.
-                // Código de barras antiguo se consulta por student.id_no.
-                $whereCode = $qrStudentId !== null ? 'id=?' : 'id_no=?';
+                // Se obtiene y bloquea el estudiante en la MISMA operación.
+                // No se puede marcar un código de otra institución.
                 $stmt = $conn->prepare("SELECT id,name,nivel,grado,seccion
                     FROM student WHERE school_id=? AND status='Activo'
-                        AND {$whereCode} LIMIT 2 FOR UPDATE");
+                        AND id_no=? LIMIT 2 FOR UPDATE");
                 if (!$stmt) throw new RuntimeException('identidad_carnet');
-                if ($qrStudentId !== null) {
-                    $stmt->bind_param('ii',$school,$qrStudentId);
-                } else {
-                    $stmt->bind_param('is',$school,$code);
-                }
+                $stmt->bind_param('is',$school,$code);
             } else {
                 $stmt = $conn->prepare("SELECT id,name,nivel,grado,seccion
                     FROM student WHERE id=? AND school_id=? AND status='Activo'
@@ -863,8 +824,6 @@ try {
             'date'=>$day,'time'=>$clock,'kind'=>$kind,'state'=>$status,
             'student_id'=>$studentId,'attendance_id'=>$recordId,
             'request_id'=>$requestId,
-            'code_type'=>$qrStudentId !== null ? 'qr_signed'
-                : ($byCode ? 'legacy_barcode' : 'manual'),
             'student'=>['id'=>$studentId,'name'=>$student['name'],
                 'nivel'=>$student['nivel'],'grado'=>$student['grado'],
                 'seccion'=>$student['seccion']]]);
