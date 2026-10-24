@@ -41,7 +41,25 @@ self.addEventListener('push', function(event) {
             // Si el navegador no ofrece CacheStorage, el servidor sigue
             // controlando la baja de futuras notificaciones.
         }
-        return self.registration.showNotification(title,options);
+        await self.registration.showNotification(title,options);
+        // Además del aviso nativo, mostrar una alerta en EduSync si una
+        // pestaña está visible. El SDK FCM no siempre llama onMessage cuando
+        // el service worker es personalizado y no importa Firebase.
+        try {
+            const pages=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+            const scope=new URL(self.registration.scope);
+            const notification={
+                type:'edusync-web-push-visible',
+                data:{title:title,body:body,tag:tag,url:options.data.url}
+            };
+            for(const client of pages){
+                const u=new URL(client.url);
+                if(client.visibilityState==='visible' && u.origin===scope.origin
+                    && u.pathname.startsWith(scope.pathname) && typeof client.postMessage==='function')
+                    client.postMessage(notification);
+            }
+        } catch (_) {}
+        return;
     })());
 });
 
