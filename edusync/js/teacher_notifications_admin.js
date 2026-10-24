@@ -27,8 +27,16 @@ function explainApiFailure(xhr,fallback){
 function currentYear(){return years.find(function(y){return Number(y.id)===yearId;})||null;}
 function canEdit(){var y=currentYear();return !!y&&y.status==='Activo'&&Number(y.active)===1;}
 function alertsReady(){return !!state && state.alerts_ready!==false;}
-function bimester(){return Number($('#taca-bim').val()||1);}
+function bimester(){return Number($('#taca-bim').val()||0);}
 function periodLabel(){return bimester()+'° bimestre';}
+function showPeriodSetup(){
+  $('#taca-settings-open, #taca-history-open').prop('disabled',true);
+  var link='index.php?page=academic_year&manage=1&id='+encodeURIComponent(String(yearId));
+  $('#taca-error').html('<div class="alert alert-warning" role="alert">'+
+    '<strong>Este año académico todavía no tiene bimestres configurados.</strong> '+
+    'En Años académicos, abre Gestionar > Periodos y guarda los bimestres de esta institución. '+
+    '<a class="alert-link" href="'+link+'">Configurar periodos</a>.</div>');
+}
 function api(data,post){
   var args=$.extend({},data,{academic_year_id:yearId,bimester:bimester()});
   if(post){args.csrf_token=cfg.csrf;return $.ajax({url:endpoint,type:'POST',data:args,dataType:'json'});}
@@ -220,6 +228,11 @@ function load(){
   $('#taca-data').addClass('d-none');
   $('#taca-error').empty();
   if(!yearId)return;
+  if(!bimester()){
+    showPeriodSetup();
+    $('#taca-loading').addClass('d-none');
+    return;
+  }
   $('#taca-loading').removeClass('d-none');
   api({action:'status'},false).done(function(response){
     if(token!==requestNumber||yearId!==yearKey||bimester()!==periodKey)return;
@@ -241,13 +254,17 @@ function load(){
   }).fail(function(xhr){
     if(token!==requestNumber)return;
     var r=xhr.responseJSON||{},http=xhr.status||0;
+    if(r.error_code==='TACA_PERIOD_NOT_CONFIGURED'){
+      showPeriodSetup();
+      return;
+    }
     var msg=r.message||('No se pudo consultar Seguimiento Docente (HTTP '+http+').');
     if(r.error_ref){
       msg+=' [Etapa: '+String(r.stage||'no identificada')+'; referencia: '+String(r.error_ref)+']';
     }
     if(r.migration_required){
       msg+=' Tabla pendiente: '+(r.missing_table||((r.missing_tables||[]).join(', '))||'consultar migraciones')+'.';
-    }else if(http===404){
+    }else if(http===404 && !xhr.responseJSON){
       msg+=' Verifica que teacher_notifications_admin_api.php esté publicado en producción.';
     }else if(http===401||http===403){
       msg+=' Comprueba tu sesión de administrador y vuelve a iniciar sesión si es necesario.';
@@ -261,15 +278,25 @@ function selectYearAndLoad(){
   if(gradeRequest&&gradeRequest.readyState!==4)gradeRequest.abort();
   state=null;
   $('#taca-data').addClass('d-none');
+  $('#taca-error').empty();
   $('#taca-loading').removeClass('d-none');
+  var selector=$('#taca-bim').empty()
+    .append($('<option>',{value:'',text:'Cargando bimestres...'})).prop('disabled',true);
   if(!yearId){$('#taca-loading').addClass('d-none');return;}
   $.getJSON('ajax.php?action=get_academic_periods',{academic_year_id:yearId})
     .done(function(response){
       if(pToken!==periodNumber)return;
+      if(Number(response.status)!==1){
+        $('#taca-loading').addClass('d-none');
+        $('#taca-error').html('<div class="alert alert-warning">'+
+          esc(response.msg||response.message||'No se pudieron consultar los periodos.')+'</div>');
+        return;
+      }
       var periods=Array.isArray(response.periods)?response.periods:[];
       var today=new Date(),now=today.getFullYear()+'-'+
         String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-      var valid=periods.filter(function(p){return Number(p.period_number)>=1&&Number(p.period_number)<=4;});
+      var valid=periods.filter(function(p){return Number(p.period_number)>=1&&Number(p.period_number)<=4;})
+        .sort(function(a,b){return Number(a.period_number)-Number(b.period_number);});
       var active=valid.find(function(p){
         return p.start_date&&p.end_date&&now>=p.start_date&&now<=p.end_date;
       });
@@ -277,9 +304,27 @@ function selectYearAndLoad(){
         var past=valid.filter(function(p){return p.start_date&&p.start_date<=now;});
         active=past[past.length-1]||valid[0];
       }
-      if(active)$('#taca-bim').val(String(active.period_number));
+      selector.empty();
+      if(valid.length){
+        valid.forEach(function(p){
+          selector.append($('<option>',{
+            value:String(p.period_number),
+            text:String(p.name||p.period_number+'° bimestre')
+          }));
+        });
+        selector.prop('disabled',false).val(String(active.period_number));
+      }else{
+        selector.append($('<option>',{value:'',text:'Sin bimestres configurados'}));
+      }
+      load();
     })
-    .always(function(){if(pToken===periodNumber)load();});
+    .fail(function(xhr,status){
+      if(status==='abort'||pToken!==periodNumber)return;
+      $('#taca-loading').addClass('d-none');
+      $('#taca-error').html('<div class="alert alert-warning">'+
+        esc((xhr.responseJSON||{}).message||'No se pudieron consultar los bimestres del año seleccionado.')+
+        '</div>');
+    });
 }
 $('#taca-year').on('change',function(){
   yearId=Number(this.value||0);
@@ -297,7 +342,7 @@ $('#taca-filter').on('change',function(){
   if(table)table.draw();
   else if(state)drawTable();
 });
-$('#taca-reload').on('click',load);
+$('#taca-reload').on('click',selectYearAndLoad);
 $('#taca-settings-open').on('click',function(){
   if(!state){toast('Selecciona un periodo con información.','warning');return;}
   $('#taca-settings-error').remove();
