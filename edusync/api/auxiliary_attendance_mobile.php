@@ -149,26 +149,49 @@ try {
         $page = max(1,min(10000,(int)($_POST['page'] ?? 1)));
         $limit = 40;
         $offset = ($page-1)*$limit;
-        $search = '%'.$query.'%';
-
-        // Primero paginar la nómina. Evitar agregar todas las asistencias
-        // históricas de la institución para mostrar solo 40 estudiantes.
+        // Construir solo los filtros que el usuario eligió. El patrón
+        // anterior (?='' OR columna=?) provocaba coerciones innecesarias
+        // de parámetros en algunos servidores MySQL/MariaDB.
+        $where = ["st.school_id=?", "st.status='Activo'"];
+        $types = 'i';
+        $params = [$school];
+        if ($level !== '') {
+            $where[] = 'st.nivel=?';
+            $types .= 's';
+            $params[] = $level;
+        }
+        if ($grade !== '') {
+            $where[] = 'st.grado=?';
+            $types .= 's';
+            $params[] = $grade;
+        }
+        if ($section !== '') {
+            $where[] = 'st.seccion=?';
+            $types .= 's';
+            $params[] = $section;
+        }
+        if ($query !== '') {
+            $search = '%'.$query.'%';
+            $where[] = '(st.name LIKE ? OR st.id_no LIKE ?)';
+            $types .= 'ss';
+            $params[] = $search;
+            $params[] = $search;
+        }
+        $types .= 'ii';
+        $params[] = $limit;
+        $params[] = $offset;
         $stage = 'students.roster.prepare';
         $sql = "SELECT {$studentColumns} FROM student st
-                WHERE st.school_id=? AND st.status='Activo'
-                  AND (?='' OR st.nivel=?)
-                  AND (?='' OR st.grado=?)
-                  AND (?='' OR st.seccion=?)
-                  AND (?='' OR st.name LIKE ? OR st.id_no LIKE ?)
+                WHERE ".implode(' AND ', $where)."
                 ORDER BY st.nivel,st.grado,st.seccion,st.name,st.id
                 LIMIT ? OFFSET ?";
         $stmt = $conn->prepare($sql);
         if (!$stmt) throw new RuntimeException('preparar_nomina');
-        $stmt->bind_param('isssssssssii',
-            $school,$level,$level,$grade,$grade,$section,$section,
-            $query,$search,$search,$limit,$offset);
+        $stage = 'students.roster.bind';
+        $stmt->bind_param($types, ...$params);
         $stage = 'students.roster.execute';
         $stmt->execute();
+        $stage = 'students.roster.fetch';
         $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
         $stmt->close();
 
@@ -904,8 +927,13 @@ try {
     $label = ($action ?? '') === 'set_status'
         ? 'No se pudo guardar el estado o su solicitud de aprobación.'
         : 'No se pudo completar la operación de asistencia.';
+    // Solo el número de error MySQL es visible al cliente; la consulta,
+    // los datos, las credenciales y el texto técnico quedan en error_log.
+    $dbCode = $error instanceof mysqli_sql_exception ? (int)$error->getCode() : 0;
+    $diagnostic = $dbCode > 0 ? ' Código BD: '.$dbCode.'.' : '';
     aam_reply(['status'=>'error',
-        'message'=>$label.' Etapa: '.$where.'. Referencia: '.$reference,
+        'message'=>$label.' Etapa: '.$where.'.'.$diagnostic.' Referencia: '.$reference,
         'stage'=>$where,
+        'db_code'=>$dbCode > 0 ? $dbCode : null,
         'reference'=>$reference],500);
 }
