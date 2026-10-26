@@ -43,12 +43,26 @@ function statuses(x){var n=x&&x.state||'Incompleto',tones={'Cerrado':'success','
 function progressLine(value){var n=Math.max(0,Math.min(100,Number(value||0)));return '<div class="progress bc-progress"><div class="progress-bar" style="width:'+n.toFixed(1)+'%"></div></div>';}
 function stat(label,value,icon,tone){return '<div class="col-xl-3 col-sm-6 mb-3"><div class="bc-stat"><span class="bc-stat-icon '+(tone||'')+'"><i class="fas fa-'+icon+'"></i></span><div><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong></div></div></div>';}
 function reportTeachers(){
-  if(data.teacherStatus && Array.isArray(data.teacherStatus.teachers))return data.teacherStatus.teachers;
-  // Degradación de solo lectura si faltan las tablas opcionales de avisos.
-  var grouped={};data.items.forEach(function(x){var name=x.teacher_name||'Docente sin nombre';
-    if(!grouped[name])grouped[name]={teacher_name:name,total:0,closed:0,pending:0,pending_courses:[],recipient_user_id:0};
-    var t=grouped[name];t.total++;if(x.closed)t.closed++;else {t.pending++;t.pending_courses.push(x.course_name+' · '+x.level+' · '+x.grado+' '+x.seccion);}
-  });return Object.values(grouped);
+  // Una sola fuente de verdad para los cierres: la matriz académica.
+  // El API de avisos solo aporta el usuario receptor, nunca el conteo.
+  // Se agrupa por ID para no unir docentes con nombres idénticos.
+  var notified={};
+  if(data.teacherStatus && Array.isArray(data.teacherStatus.teachers))
+    data.teacherStatus.teachers.forEach(function(t){notified[Number(t.teacher_id)]=t;});
+  var grouped={};
+  data.items.forEach(function(x){
+    var teacher=Number(x.teacher_id)||0,key=String(teacher||('sin-id:'+x.teacher_name));
+    if(!grouped[key]){
+      var n=notified[teacher]||{};
+      grouped[key]={teacher_id:teacher,teacher_name:x.teacher_name||'Docente sin nombre',
+        recipient_user_id:Number(n.recipient_user_id||0),
+        total:0,closed:0,pending:0,pending_courses:[]};
+    }
+    var t=grouped[key];t.total++;
+    if(x.closed)t.closed++;
+    else {t.pending++;t.pending_courses.push(x.course_name+' · '+x.level+' · '+x.grado+' '+x.seccion);}
+  });
+  return Object.values(grouped).sort(function(a,b){return a.teacher_name.localeCompare(b.teacher_name,'es');});
 }
 function rebindTable(name,selector,sort){
   if(tables[name]&&$.fn.DataTable){tables[name].destroy();tables[name]=null;}
@@ -91,7 +105,7 @@ function renderTeachers(){
       '<td data-order="'+r.closed+'"><strong>'+r.closed+'</strong> / '+r.total+'</td><td data-order="'+r.remaining+'">'+r.remaining+'</td>'+
       '<td data-order="'+r.pct+'"><strong>'+r.pct+'%</strong>'+progressLine(r.pct)+'</td>'+
       '<td><span class="badge badge-'+(!r.remaining?'success':'warning')+'">'+esc(r.state)+'</span></td>'+
-      '<td><div class="bc-actions-cell"><button class="btn btn-sm btn-outline-primary bc-teacher-courses" data-teacher="'+esc(t.teacher_name)+'">Ver cursos</button>'+
+      '<td><div class="bc-actions-cell"><button class="btn btn-sm btn-outline-primary bc-teacher-courses" data-teacher-id="'+num(t.teacher_id)+'">Ver cursos</button>'+
       (canNotify?'<button class="btn btn-sm btn-outline-secondary bc-send-reminder" data-user="'+rec+'">Avisar</button>':'')+'</div></td></tr>';
   });
   if(!body)body='<tr><td colspan="6" class="text-center text-muted py-4">No existen docentes asignados a este bimestre.</td></tr>';
@@ -104,13 +118,15 @@ function fillOptions(id,values){var unique=Array.from(new Set(values.filter(Bool
 function filterCourseRows(){
   return data.items.filter(function(x){
     return (!$id('bc-level').val()||x.level===$id('bc-level').val())
-      &&(!$id('bc-teacher').val()||x.teacher_name===$id('bc-teacher').val())
+      &&( !$id('bc-teacher').val() || Number(x.teacher_id)===Number($id('bc-teacher').val()) )
       &&(!$id('bc-state').val()||x.state===$id('bc-state').val());
   });
 }
 function renderCourses(){
   fillOptions('bc-level',data.items.map(function(x){return x.level;}));
-  fillOptions('bc-teacher',data.items.map(function(x){return x.teacher_name;}));
+  var selectedTeacher=$id('bc-teacher').val(),trows=reportTeachers();
+  $id('bc-teacher').html('<option value="">Todos</option>'+trows.map(function(t){return '<option value="'+num(t.teacher_id)+'">'+esc(t.teacher_name)+'</option>';}).join(''));
+  if(trows.some(function(t){return String(t.teacher_id)===String(selectedTeacher);}))$id('bc-teacher').val(selectedTeacher);
   var items=filterCourseRows(),rows='';
   items.forEach(function(x){
     var key=String(x.teacher_course_id),meta=data.meta[key]||{},closed=!!x.closed;
@@ -330,7 +346,7 @@ $(function(){
   $id('bc-root').on('click','.bc-go-courses',function(){linkTab('courses');});
   $id('bc-root').on('click','.bc-go-teachers',function(){linkTab('teachers');});
   $id('bc-root').on('click','.bc-go-institution',function(){linkTab('institution');});
-  $id('bc-teacher-table').on('click','.bc-teacher-courses',function(){var name=$(this).data('teacher');$id('bc-teacher').val(name);$id('bc-state').val('');renderCourses();linkTab('courses');});
+  $id('bc-teacher-table').on('click','.bc-teacher-courses',function(){var id=Number($(this).attr('data-teacher-id'));$id('bc-teacher').val(String(id));$id('bc-state').val('');renderCourses();linkTab('courses');});
   $id('bc-teacher-table').on('click','.bc-send-reminder',function(){var id=Number($(this).data('user')),t=reportTeachers().find(function(t){return Number(t.recipient_user_id)===id;});if(!t||!canEdit())return;
     modal('Avisar a docente','<p><strong>'+esc(t.teacher_name)+'</strong> · '+num(t.pending)+' curso(s) pendientes</p><label for="bc-reminder-note">Observación opcional</label><textarea id="bc-reminder-note" class="form-control" rows="3" maxlength="250"></textarea><p class="small text-muted mt-2">Máximo un aviso manual por docente cada 24 horas. Registrar un aviso no significa que haya sido leído.</p>',function(){
       return followPost('send_reminder',{recipient_user_id:id,note:$id('bc-reminder-note').val()}).then(function(r){if(Number(r.status)===1){$id('bc-action-modal').modal('hide');toast(r.message);reload();}else toast(r.message||'No se pudo enviar el aviso.','warning');},function(xhr){toast(message(xhr,'Error al registrar el aviso'),'danger');});
