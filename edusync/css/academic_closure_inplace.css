@@ -1,0 +1,42 @@
+/* Control de cierre dentro de Años Académicos · EduSync / SB Admin 2.
+ * Mantiene los cuatro bimestres como tarjetas y elimina el modal de gestión masiva.
+ */
+#ay-admin-close-panel{display:none!important}
+#aym-inline-root{width:100%;max-width:100%;min-width:0}
+#aym-inline-root .aym-inline-card{border:1px solid #e3e6f0!important;border-radius:10px;overflow:hidden}
+#aym-inline-root .aym-inline-card>.card-header{border-bottom:1px solid #edf0f5;min-height:60px;gap:12px}
+#aym-inline-root .aym-inline-stat{background:#fff;border:1px solid #e3e6f0;border-radius:9px;padding:11px;display:flex;gap:10px;align-items:center;min-height:73px}
+#aym-inline-root .aym-inline-stat small{color:#697790;display:block;font-size:.73rem;font-weight:600}
+#aym-inline-root .aym-inline-stat strong{display:block;color:#364358;font-weight:800;font-size:1.4rem;line-height:1.2;font-variant-numeric:tabular-nums}
+#aym-inline-root .aym-inline-icon{height:33px;width:33px;flex:0 0 33px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#4e73df;background:#edf1ff}
+#aym-inline-root .aym-inline-icon.success{color:#14926d;background:#e9f8f2}
+#aym-inline-root .aym-inline-icon.warning{color:#b47d12;background:#fff4dd}
+#aym-inline-root .aym-inline-icon.info{color:#28869b;background:#eaf7f9}
+#aym-inline-root .aym-inline-filters{gap:8px 10px}
+#aym-inline-root .aym-inline-filters>div{flex:1 1 140px;max-width:260px;min-width:120px}
+#aym-inline-root .aym-inline-filters label{display:block;font-size:.72rem;color:#607088;font-weight:700;margin-bottom:4px}
+#aym-inline-root .aym-inline-filters button{align-self:flex-end;white-space:nowrap}
+#aym-inline-root .aym-inline-actions{gap:6px}
+#aym-inline-root .aym-inline-progress{height:5px;margin-top:5px;background:#e9eef6;border-radius:6px;min-width:68px}
+#aym-inline-root .aym-inline-big-progress{height:9px;background:#eaf0f7;border-radius:8px}
+#aym-inline-root .aym-inline-tablebar{gap:10px}
+#aym-inline-root .table{min-width:750px}
+#aym-inline-root .table th{background:#f8f9fc;color:#52627a;font-size:.73rem;font-weight:700;white-space:nowrap;padding:.78rem .65rem;vertical-align:middle}
+#aym-inline-root .table td{font-size:.8rem;vertical-align:middle;padding:.7rem .65rem;color:#49566d}
+#aym-inline-root .table .btn{white-space:nowrap;font-size:.73rem}
+#aym-inline-root .dataTables_wrapper>.row{margin:0!important}
+#aym-inline-root .dataTables_length,#aym-inline-root .dataTables_filter{padding:13px 15px 4px;font-size:.78rem}
+#aym-inline-root .dataTables_info,#aym-inline-root .dataTables_paginate{padding:10px 15px 15px!important;font-size:.75rem}
+#aym-inline-root .dataTables_filter input{height:32px;border:1px solid #d9dfeb;border-radius:7px;padding:4px 8px;outline:none}
+#aym-inline-root .dataTables_length select{border:1px solid #d9dfeb;border-radius:7px;height:32px}
+#aym-inline-root .badge{font-size:.72rem;font-weight:700;padding:.37em .55em}
+#aym-inline-root .btn-sm{font-size:.77rem}
+#aym-inline-root .card-header .btn{white-space:nowrap}
+@media(max-width:767.98px){
+ #aym-inline-root .aym-inline-filters>div{flex:1 1 130px;max-width:none}
+ #aym-inline-root .aym-inline-actions{width:100%}
+ #aym-inline-root .aym-inline-tablebar .aym-inline-actions{justify-content:flex-start}
+ #aym-inline-root .dataTables_filter,#aym-inline-root .dataTables_length{float:none!important;text-align:left!important}
+ #aym-inline-root .dataTables_info,#aym-inline-root .dataTables_paginate{text-align:center!important;float:none!important}
+ #aym-inline-root .aym-inline-stat{min-height:70px;padding:8px}
+}
