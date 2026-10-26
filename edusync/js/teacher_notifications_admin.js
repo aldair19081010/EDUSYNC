@@ -40,6 +40,50 @@ function badge(t){
     return '<span class="badge badge-danger">Incompleto</span>';
   return '<span class="badge badge-warning">Pendiente</span>';
 }
+function complianceRows(){
+  if(!state || !Array.isArray(state.teachers))return [];
+  return state.teachers.map(function(t){
+    var total=Number(t.total||0),closed=Number(t.closed||0),pending=Math.max(0,total-closed);
+    return {name:String(t.teacher_name||'Docente'),total:total,closed:closed,pending:pending,
+      pct:total?Math.round(closed/total*100):0,
+      state:pending===0?'Cumplió':closed>0?'En proceso':'Pendiente',
+      missing:gradesLoaded?Number(t.missing_cells||0):null,
+      courses:Array.isArray(t.pending_courses)?t.pending_courses:[]
+    };
+  });
+}
+function escapeCsv(value){
+  var s=String(value==null?'':value);
+  if(/^[ \t\r\n]*[=+@-]/.test(s))s="'"+s;
+  return '"'+s.replace(/"/g,'""')+'"';
+}
+function complianceCsv(){
+  var rows=complianceRows();if(!rows.length)return;
+  var y=currentYear()||{},data=[
+    ['EduSync - Reporte de cumplimiento docente'],
+    ['Año',y.year||'','Bimestre',periodLabel()],
+    ['Alcance','Docentes activos. Se contabilizan cierres formales de sus cursos.'],[],
+    ['Docente','Asignaciones','Cerradas','Pendientes','Cumplimiento','Estado','Notas faltantes','Cursos pendientes']
+  ];
+  rows.forEach(function(t){data.push([t.name,t.total,t.closed,t.pending,t.pct+'%',t.state,
+    t.missing===null?'No calculado':t.missing,t.courses.join(' | ')]);});
+  var text='\ufeff'+data.map(function(r){return r.map(escapeCsv).join(';');}).join('\r\n');
+  var blob=new Blob([text],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='EduSync_cumplimiento_'+String(y.year||'')+'_bimestre_'+bimester()+'.csv';
+  document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+function compliancePrint(){
+  var rows=complianceRows();if(!rows.length)return;
+  var y=currentYear()||{},pop=window.open('','_blank');
+  if(!pop){toast('Permite ventanas emergentes para imprimir o guardar el reporte en PDF.','warning');return;}
+  var items=rows.map(function(t){return '<tr><td>'+esc(t.name)+'</td><td>'+t.total+'</td><td>'+t.closed+'</td><td>'+t.pending+'</td><td>'+t.pct+'%</td><td>'+esc(t.state)+'</td><td>'+esc(t.missing===null?'No calculado':t.missing)+'</td><td>'+esc(t.courses.join(' | '))+'</td></tr>';}).join('');
+  var html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>EduSync · Cumplimiento docente</title>'+
+    '<style>body{font-family:Arial,sans-serif;font-size:12px;color:#334155;padding:20px}h1{font-size:20px;margin-bottom:4px}p{color:#64748b}table{border-collapse:collapse;width:100%}th,td{border:1px solid #cbd5e1;padding:7px;text-align:left}th{background:#eef2ff}@page{size:A4 landscape;margin:12mm}</style></head><body>'+
+    '<h1>EduSync · Cumplimiento docente</h1><p>Año académico '+esc(y.year||'')+' · '+esc(periodLabel())+' · Fecha de consulta: '+esc(new Date().toLocaleString('es-PE'))+'</p>'+
+    '<table><thead><tr><th>Docente</th><th>Asignadas</th><th>Cerradas</th><th>Pendientes</th><th>Cumplimiento</th><th>Estado</th><th>Notas faltantes</th><th>Cursos pendientes</th></tr></thead><tbody>'+items+'</tbody></table>'+
+    '<p>Alcance: docentes activos. El porcentaje se calcula con cierres formales, no con el avance de notas. No se determina retraso sin un plazo oficial de cumplimiento.</p></body></html>';
+  pop.document.open();pop.document.write(html);pop.document.close();pop.focus();pop.print();
+}
 function stats(){
   if(!state)return;
   var s=state.totals||{},missing=(!canEdit()?'—':gradesLoaded?num(s.incomplete):'…');
@@ -217,6 +261,7 @@ function load(){
   var token=++requestNumber,yearKey=yearId,periodKey=bimester();
   if(gradeRequest&&gradeRequest.readyState!==4)gradeRequest.abort();
   state=null;gradesLoaded=false;historyKey='';historyData=null;
+  $('#taca-export-csv,#taca-print-report').prop('disabled',true);
   $('#taca-data').addClass('d-none');
   $('#taca-error').empty();
   if(!yearId)return;
@@ -228,6 +273,7 @@ function load(){
       return;
     }
     state=response;
+    $('#taca-export-csv,#taca-print-report').prop('disabled',!Array.isArray(response.teachers)||!response.teachers.length);
     if(!alertsReady()){
       $('#taca-error').html('<div class="alert alert-warning" role="alert">'+
         '<strong>Seguimiento en modo consulta.</strong> Puedes revisar los cierres, pero los avisos y su configuración están desactivados porque faltan tablas de notificaciones. '+
@@ -371,5 +417,7 @@ $('#taca-reminder-form').on('submit',function(e){
     toast(explainApiFailure(xhr,'No se pudo registrar el aviso'),'danger');
   }).always(function(){btn.prop('disabled',false);});
 });
+$('#taca-export-csv').on('click',complianceCsv);
+$('#taca-print-report').on('click',compliancePrint);
 if(yearId)load();
 })(window.jQuery);
