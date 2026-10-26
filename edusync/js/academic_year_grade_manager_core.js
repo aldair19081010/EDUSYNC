@@ -130,6 +130,8 @@ function syncSelection(){
 function load(bim,move){
   var seq=++requestIndex;
   currentBimester=Number(bim)||1;chosen.clear();
+  // Destruir DataTables ANTES de reemplazar el DOM para evitar tablas huérfanas.
+  destroyGrid();
   $('#aym-inline-root').html('<div class="card shadow-sm mb-3"><div class="card-body text-center text-muted py-4"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando el '+roman(currentBimester)+' bimestre...</div></div>');
   $.when(apiGet('academic_year_grade_control_api.php','progress'),
     apiGet('admin_grade_closure_api.php','closure_info'))
