@@ -46,6 +46,7 @@ $checks = [
     'Exportación Excel y PDF mediante impresión' => str_contains($js, 'reportCsv()') && str_contains($js, 'reportPrint()'),
     'Salvaguarda de fórmulas en CSV' => str_contains($js, 'if(/^[\\t\\r\\n ]*[=+@-]/.test(t))'),
     'Estilo alineado a EduSync' => str_contains($css, '.bc-root') && str_contains($css, '.bc-root .ed-table'),
+    'Docentes agrupados por identificador estable' => str_contains($read('edusync/academic_year_grade_control_api.php'), "'teacher_id'=>(int)\$assignment['teacher_id']") && str_contains($js, 'key=String(teacher||'),
     'Cierre docente mantiene sus endpoints originales' => str_contains($gradeClosure, 'grade_closure_api.php') && str_contains($gradeClosure, 'gc-confirm-close'),
 ];
 $passed=0;
