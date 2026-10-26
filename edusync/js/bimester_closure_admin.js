@@ -266,6 +266,7 @@ function bulk(ids){
       toast(totals.closed+' cerradas; '+totals.skipped+' omitidas.',totals.skipped?'warning':'success');
       reload();
     }).catch(function(err){
+      $id('bc-action-modal').modal('hide');
       toast(err.message+' · Completadas antes del error: '+totals.closed,'danger');
       reload();
     });
@@ -326,7 +327,15 @@ function reportPrint(){
 $(function(){
   if(cfg.yearId)$id('bc-year').val(String(cfg.yearId));
   $id('bc-bim').val(String(cfg.bimester||1));
-  $id('bc-year,#bc-bim').on('change',reload);
+  $id('bc-year,#bc-bim').on('change',function(){
+    $id('bc-level,#bc-teacher,#bc-state').val('');
+    reload();
+  });
+  // Las tablas se inicializan bajo pestañas ocultas: ajustar tamaños al abrirlas.
+  $('#bc-tabs a[data-toggle="pill"]').on('shown.bs.tab',function(){
+    if(tables.teacher)tables.teacher.columns.adjust();
+    if(tables.course)tables.course.columns.adjust();
+  });
   $id('bc-reload').on('click',reload);
   $id('bc-level,#bc-teacher,#bc-state').on('change',renderCourses);
   $id('bc-clear-filters').on('click',function(){$id('bc-level,#bc-teacher,#bc-state').val('');selected.clear();renderCourses();});
