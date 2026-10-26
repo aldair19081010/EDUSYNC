@@ -35,7 +35,7 @@ $allowed_pages = [
     // Admin pages
     'students', 'bulk_student_update',
     'teachers', 'teacher_courses',
-    'academic_management', 'academic_year', 'teacher_followup',
+    'academic_management', 'academic_year', 'teacher_followup', 'bimester_closure',
     'competencias',
     'concepts', 'fees', 'payments', 'discounts',
     'asistencia', 'attendance_rules_page',
@@ -106,6 +106,13 @@ $allowed_for_role = array_merge($common_pages, $role_pages[$current_user_type] ?
 if (!in_array($page, $allowed_for_role, true)) {
     $_SESSION['access_denied_message'] = 'No tienes permisos para acceder al módulo solicitado.';
     header('Location: index.php?page=home');
+    exit();
+}
+
+// Compatibilidad con enlaces previos de Seguimiento Docente.
+// El nuevo módulo reúne seguimiento y cierre en una sola interfaz.
+if ($page === 'teacher_followup' && $current_user_type === 1) {
+    header('Location: index.php?page=bimester_closure&tab=teachers');
     exit();
 }
 
