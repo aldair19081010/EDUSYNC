@@ -352,8 +352,8 @@ $(function(){
     $id('bc-history-body').html('<div class="text-center text-muted">Consultando historial...</div>');$id('bc-history-modal').modal('show');
     followGet('history').done(function(r){var rows=r.history||[];if(Number(r.status)!==1){$id('bc-history-body').text(r.message||'No disponible');return;}
       if(!rows.length){$id('bc-history-body').html('<div class="text-muted">No existen avisos para este bimestre.</div>');return;}
-      var html='<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Aviso</th><th>Entrega</th></tr></thead><tbody>';
-      rows.forEach(function(x){html+='<tr><td>'+date(x.created_at)+'</td><td><strong>'+esc(x.title)+'</strong><div class="small text-muted">'+esc(x.message)+'</div></td><td class="small">'+esc(x.delivery_status||'No confirmada')+'</td></tr>';});
+      var html='<p class="small text-muted">Últimos 30 avisos del bimestre. El proveedor puede aceptar un envío sin que el usuario lo lea.</p><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Fecha</th><th>Docente y aviso</th><th>FCM</th></tr></thead><tbody>';
+      rows.forEach(function(x){html+='<tr><td>'+date(x.created_at)+'</td><td><strong>'+esc(x.recipient_name||'Docente')+'</strong><div class="small font-weight-bold">'+esc(x.title)+'</div><div class="small text-muted">'+esc(x.message)+'</div></td><td class="small"><span class="text-success">'+num(x.sent)+' aceptados</span><br><span class="text-danger">'+num(x.failed)+' fallidos</span><br>'+num(x.pending)+' pendientes</td></tr>';});
       $id('bc-history-body').html(html+'</tbody></table></div>');
     }).fail(function(xhr){$id('bc-history-body').text(message(xhr,'No se pudo consultar el historial.'));});
   });
