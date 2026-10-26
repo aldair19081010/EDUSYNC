@@ -39,7 +39,7 @@ function buttons(x){
   if(x.closed)return '<button type="button" class="btn btn-sm btn-outline-info aym-detail" data-id="'+id+'">Ver cierre</button>';
   var normal=x.ready&&editable()&&!x.pending_reopen;
   if(normal)return '<button type="button" class="btn btn-sm btn-outline-success aym-close" data-id="'+id+'">Cerrar</button>';
-  return '<button type="button" class="btn btn-sm btn-outline-secondary aym-detail" data-id="'+id+'">Ver pendientes</button>';
+  return '<button type="button" class="btn btn-sm btn-outline-secondary aym-detail" data-id="'+id+'">'+(x.ready?'Ver detalle':'Ver pendientes')+'</button>';
 }
 function row(x){
   var id=Number(x.teacher_course_id),meta=closureMeta[id]||{};
@@ -139,6 +139,8 @@ function load(bim,move){
     if(Number(r.status)!==1){displayError(r.message||'No se pudo consultar el periodo.');return;}
     gradeData=r;yearStatus=String((r.year||{}).status||'');closureMeta=Number(meta.status)===1?meta.items||{}:{};
     list=period().items||[];renderPanel();
+    $('.ay-manage-bim').attr('aria-pressed','false').closest('.ay-close-card').removeClass('aym-selected-bim');
+    $('.ay-manage-bim[data-bim="'+currentBimester+'"]').attr('aria-pressed','true').closest('.ay-close-card').addClass('aym-selected-bim');
     if(move)tabFocus();
   }).fail(function(xhr){if(seq===requestIndex)displayError(notice(xhr,'No se pudo consultar el estado del bimestre.'));});
 }
@@ -156,6 +158,10 @@ function details(x){
   $('#admin-close-title').text(x.closed?'Información del cierre':'Pendientes por corregir');
   $('#admin-close-summary').attr('class','alert alert-light border').html(html);
   $('#admin-close-issues').html(!x.closed?(problems.length?'<strong>Pendientes detectados</strong><ul class="small mt-2">'+problems.map(function(v){return '<li>'+esc(v)+'</li>';}).join('')+'</ul>':'<div class="small text-success">No se detectan notas pendientes. Comprueba el estado antes de cerrar.</div>'):'');
+  if(!x.closed && !x.ready && editable() && !x.pending_reopen){
+    $('#admin-close-issues').append('<div class="mt-3 pt-2 border-top"><div class="small text-muted mb-2">Solo Administración: un cierre excepcional requiere un motivo y autorización expresa.</div>'+
+      '<button type="button" class="btn btn-sm btn-outline-danger aym-exceptional" data-id="'+Number(x.teacher_course_id)+'"><i class="fas fa-exclamation-triangle mr-1"></i>Evaluar cierre excepcional</button></div>');
+  }
   $('#admin-close-reason').closest('.form-group').hide();
   $('#admin-close-confirm-wrap,#admin-close-confirm').hide();
   action=null;$('#admin-close-modal').modal('show');
@@ -223,9 +229,10 @@ document.addEventListener('click',function(e){
 $(document).on('change','#aym-bim',function(){load(Number(this.value),false);});
 $(document).on('change','#aym-level,#aym-teacher,#aym-state',applyFilters);
 $(document).on('click','.aym-clear',function(){$('#aym-level,#aym-teacher,#aym-state').val('');applyFilters();});
-$(document).on('click','.aym-hide',function(){destroyGrid();$('#aym-inline-root').empty();currentBimester=0;chosen.clear();});
+$(document).on('click','.aym-hide',function(){++requestIndex;destroyGrid();$('#aym-inline-root').empty();currentBimester=0;chosen.clear();$('.ay-manage-bim').attr('aria-pressed','false').closest('.ay-close-card').removeClass('aym-selected-bim');});
 $(document).on('click','.aym-detail',function(){var x=find($(this).data('id'));if(x)details(x);});
 $(document).on('click','.aym-close',function(){var x=find($(this).data('id'));if(x)askClose(x,false);});
+$(document).on('click','.aym-exceptional',function(){var x=find($(this).data('id'));if(x)askClose(x,true);});
 $(document).on('change','#aym-table .aym-select',function(){var id=Number(this.value);if(this.checked)chosen.add(id);else chosen.delete(id);syncSelection();});
 $(document).on('change','#aym-select-all',function(){
   var enabled=this.checked;
