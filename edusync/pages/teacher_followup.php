@@ -118,7 +118,9 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
         <div>
           <strong class="text-gray-800">Estado de docentes</strong>
         </div>
-        <div class="d-flex align-items-center flex-wrap">
+        <div class="d-flex align-items-center flex-wrap tf-report-actions">
+          <button type="button" class="btn btn-sm btn-outline-success mr-2 mb-1" id="taca-export-csv" disabled title="Reporte de cumplimiento que puedes abrir en Excel"><i class="fas fa-file-excel mr-1"></i>Excel (CSV)</button>
+          <button type="button" class="btn btn-sm btn-outline-danger mr-2 mb-1" id="taca-print-report" disabled title="Imprimir o guardar en PDF"><i class="fas fa-file-pdf mr-1"></i>PDF / Imprimir</button>
           <small class="text-muted mr-2" id="taca-grades-status" aria-live="polite"></small>
           <span id="taca-teacher-count" class="badge badge-light border mt-2 mt-sm-0"></span>
         </div>
@@ -134,6 +136,7 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
       </div>
     </div>
     <p class="small text-muted mb-3"><i class="fas fa-info-circle mr-1"></i>Los recordatorios se registran en la bandeja del docente. Máximo un envío manual cada 24 horas.</p>
+    <p class="small text-muted mb-3"><i class="fas fa-chart-bar mr-1"></i>El reporte mide asignaciones cerradas frente a asignadas; una nota completa no equivale a un cierre formal. El listado corresponde a docentes activos de la institución.</p>
   </div>
   <?php if(!$tfYears): ?>
     <div class="alert alert-light border">No hay años académicos configurados para esta institución.</div>
