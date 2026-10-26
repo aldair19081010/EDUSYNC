@@ -63,7 +63,7 @@ $active=(int)$evaluation['is_active']===1;
 // Las columnas y los parámetros pueden usar collations diferentes en producción.
 // Comparamos las secciones con una collation explícita, sin usar IN sobre parámetros.
 $normalizedSectionSql = "CONVERT(COALESCE(NULLIF(TRIM(s.seccion),''),'U') USING utf8mb4) COLLATE utf8mb4_unicode_ci";
-$isSingleSection = in_array(mb_strtoupper($section, 'UTF-8'), ['U', 'ÚNICA', 'UNICA'], true);
+$isSingleSection = preg_match('/^(?:u|[uú]nica)$/iu', $section) === 1;
 $sectionFilterSql = $isSingleSection
     ? "($normalizedSectionSql = _utf8mb4'U' COLLATE utf8mb4_unicode_ci OR $normalizedSectionSql = _utf8mb4'Unica' COLLATE utf8mb4_unicode_ci)"
     : "$normalizedSectionSql = CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
