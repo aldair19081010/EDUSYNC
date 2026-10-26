@@ -40,3 +40,6 @@
  #aym-inline-root .dataTables_info,#aym-inline-root .dataTables_paginate{text-align:center!important;float:none!important}
  #aym-inline-root .aym-inline-stat{min-height:70px;padding:8px}
 }
+
+/* Tarjeta del bimestre cuyo detalle se está consultando. */
+#ay-cierre-notas .ay-close-card.aym-selected-bim{border-color:#7396e8!important;box-shadow:0 0 0 2px rgba(78,115,223,.11)}
