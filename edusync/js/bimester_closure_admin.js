@@ -116,7 +116,7 @@ function renderCourses(){
     var key=String(x.teacher_course_id),meta=data.meta[key]||{},closed=!!x.closed;
     var action=closed?'<button class="btn btn-sm btn-outline-info bc-view-course" data-id="'+key+'">Ver cierre</button>':
       x.ready&&canEdit()?'<button class="btn btn-sm btn-outline-success bc-close-one" data-id="'+key+'">Cerrar</button>':
-      '<button class="btn btn-sm btn-outline-secondary bc-view-course" data-id="'+key+'">Pendientes</button>';
+      '<button class="btn btn-sm btn-outline-secondary bc-view-course" data-id="'+key+'">'+(x.ready?'Ver detalle':'Pendientes')+'</button>';
     rows+='<tr><td><input type="checkbox" class="bc-check" value="'+key+'" '+(selected.has(Number(key))?'checked':'')+' '+(!x.ready||closed||!canEdit()?'disabled':'')+' aria-label="Seleccionar '+esc(x.course_name)+'"></td>'+
       '<td><strong>'+esc(x.course_name)+'</strong><div class="small text-muted">'+aula(x)+'</div></td><td>'+esc(x.teacher_name)+'</td>'+
       '<td data-order="'+num(x.grade_progress)+'"><strong>'+num(x.grade_progress).toFixed(1)+'%</strong>'+progressLine(x.grade_progress)+'</td>'+
@@ -230,11 +230,29 @@ function viewCourse(x){
 }
 function bulk(ids){
   if(!canEdit()||!ids.length)return;
-  modal('Confirmar cierre de asignaciones','<p>Se cerrarán <strong>'+ids.length+'</strong> asignaciones listas, previa validación del servidor.</p><p class="small text-muted">Las asignaciones incompletas serán omitidas. Ninguna se cerrará de forma excepcional.</p>',function(){
-    return adminPost('close_bulk',{teacher_course_ids:JSON.stringify(ids.slice(0,500))}).then(function(r){
-      if(Number(r.status)===1){$id('bc-action-modal').modal('hide');toast(r.message,r.skipped_count?'warning':'success');reload();}
-      else toast(r.message||'No se completó el cierre.','danger');
-    },function(xhr){toast(message(xhr,'Error en cierre masivo'),'danger');});
+  modal('Confirmar cierre de asignaciones','<p>Se procesarán <strong>'+ids.length+'</strong> asignaciones listas, previa validación del servidor.</p><p class="small text-muted">Se procesan lotes de hasta 500. Las incompletas serán omitidas; nunca se cerrarán excepcionalmente en lote.</p><div id="bc-bulk-progress" class="small text-muted" role="status"></div>',function(){
+    var batches=[];for(var n=0;n<ids.length;n+=500)batches.push(ids.slice(n,n+500));
+    var totals={closed:0,skipped:0},chain=Promise.resolve();
+    batches.forEach(function(batch,i){
+      chain=chain.then(function(){
+        $id('bc-bulk-progress').text('Procesando lote '+(i+1)+' de '+batches.length+'...');
+        return new Promise(function(resolve,reject){
+          adminPost('close_bulk',{teacher_course_ids:JSON.stringify(batch)})
+            .done(function(r){
+              if(Number(r.status)!==1){reject(new Error(r.message||'No se completó el lote.'));return;}
+              totals.closed+=num(r.closed_count);totals.skipped+=num(r.skipped_count);resolve();
+            }).fail(function(xhr){reject(new Error(message(xhr,'Error en cierre masivo')));});
+        });
+      });
+    });
+    return chain.then(function(){
+      $id('bc-action-modal').modal('hide');
+      toast(totals.closed+' cerradas; '+totals.skipped+' omitidas.',totals.skipped?'warning':'success');
+      reload();
+    }).catch(function(err){
+      toast(err.message+' · Completadas antes del error: '+totals.closed,'danger');
+      reload();
+    });
   },'success');
 }
 function institutionAction(mode){
@@ -271,7 +289,7 @@ function reportCsv(){
   teacherRows().forEach(function(r){rows.push([r.source.teacher_name,r.total,r.closed,r.remaining,r.pct+'%',r.state,(r.source.pending_courses||[]).join(' | ')]);});
   rows.push([],['DETALLE DE ASIGNACIONES'],['Docente','Curso','Nivel','Grado','Seccion','Avance notas','Estado','Fecha cierre','Responsable','Tipo cierre']);
   data.items.forEach(function(x){var m=data.meta[String(x.teacher_course_id)]||{};rows.push([x.teacher_name,x.course_name,x.level,x.grado,x.seccion,num(x.grade_progress).toFixed(1)+'%',x.state,m.closed_at||x.closed_at||'',m.closed_by_name||x.closed_by_name||'',m.mode||'']);});
-  var q=function(v){return '"'+String(v==null?'':v).replace(/"/g,'""')+'"';};
+  var q=function(v){var t=String(v==null?'':v);if(/^[\t\r\n ]*[=+@-]/.test(t))t="'"+t;return '"'+t.replace(/"/g,'""')+'"';};
   var csv='\ufeff'+rows.map(function(row){return row.map(q).join(';');}).join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download='edusync_cumplimiento_'+(year()?year().year:'')+'_bim'+bimester()+'.csv';document.body.appendChild(a);a.click();a.remove();
