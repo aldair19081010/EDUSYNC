@@ -59,20 +59,32 @@ $grade=trim((string)$evaluation['grado']);
 $section=trim((string)$evaluation['seccion']);
 $level=trim((string)$evaluation['level']);
 $active=(int)$evaluation['is_active']===1;
+
+// Las columnas y los parámetros pueden usar collations diferentes en producción.
+// Comparamos las secciones con una collation explícita, sin usar IN sobre parámetros.
+$normalizedSectionSql = "CONVERT(COALESCE(NULLIF(TRIM(s.seccion),''),'U') USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+$isSingleSection = in_array(mb_strtoupper($section, 'UTF-8'), ['U', 'ÚNICA', 'UNICA'], true);
+$sectionFilterSql = $isSingleSection
+    ? "($normalizedSectionSql = _utf8mb4'U' COLLATE utf8mb4_unicode_ci OR $normalizedSectionSql = _utf8mb4'Unica' COLLATE utf8mb4_unicode_ci)"
+    : "$normalizedSectionSql = CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci";
+
 $studentSql="SELECT DISTINCT s.id,s.name,s.id_no FROM student s
  WHERE s.school_id=? AND (
     EXISTS (SELECT 1 FROM evaluation_grades eg
         WHERE eg.student_id=s.id AND eg.evaluation_id=?)
     OR ( ?=1 AND (s.status='Activo' OR s.status IS NULL)
          AND LOWER(s.nivel)=LOWER(?) AND s.grado=?
-         AND (s.seccion=? OR
-              (? IN ('U','Única','Unica') AND COALESCE(NULLIF(TRIM(s.seccion),''),'U') IN ('U','u','Única','Unica','única','unica')))
+         AND $sectionFilterSql
        )
  ) ORDER BY s.name";
 $stmt=$conn->prepare($studentSql);
 if (!$stmt) { echo '<div class="alert alert-warning">No se pudo cargar la nómina.</div>'; return; }
 $activeFlag=$active?1:0;
-$stmt->bind_param('iiissss',$school,$evaluationId,$activeFlag,$level,$grade,$section,$section);
+if ($isSingleSection) {
+    $stmt->bind_param('iiiss', $school, $evaluationId, $activeFlag, $level, $grade);
+} else {
+    $stmt->bind_param('iiisss', $school, $evaluationId, $activeFlag, $level, $grade, $section);
+}
 $stmt->execute();$students=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
 $notes=[];
 $stmt=$conn->prepare("SELECT eg.student_id,eg.competencia_id,eg.grade
