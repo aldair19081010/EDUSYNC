@@ -161,6 +161,7 @@ function redrawRows(){
   stats();
   if(table)table.rows().invalidate().draw(false);
   else drawTable();
+  if(detailTeacherId)renderTeacherDetail();
 }
 function fillSettings(){
   if(!state)return;
@@ -365,6 +366,9 @@ function load(){
   var token=++requestNumber,yearKey=yearId,periodKey=bimester();
   if(gradeRequest&&gradeRequest.readyState!==4)gradeRequest.abort();
   state=null;gradesLoaded=false;historyKey='';historyData=null;
+  gradeMatrix=null;matrixLoading=false;closeDetail();
+  if(matrixRequest&&matrixRequest.readyState!==4)matrixRequest.abort();
+  $('#taca-export-csv,#taca-print-report').prop('disabled',true);
   $('#taca-data').addClass('d-none');
   $('#taca-error').empty();
   if(!yearId)return;
@@ -376,6 +380,7 @@ function load(){
       return;
     }
     state=response;
+    $('#taca-export-csv,#taca-print-report').prop('disabled',!Array.isArray(response.teachers)||response.teachers.length===0);
     if(!alertsReady()){
       $('#taca-error').html('<div class="alert alert-warning" role="alert">'+
         '<strong>Seguimiento en modo consulta.</strong> Puedes revisar los cierres, pero los avisos y su configuración están desactivados porque faltan tablas de notificaciones. '+
@@ -386,6 +391,7 @@ function load(){
     $('#taca-grades-status').text(canEdit()?'Revisando notas…':'Año histórico · cierres únicamente');
     stats();drawTable();fillSettings();
     loadMissing(token,yearKey,periodKey);
+    loadGradeMatrix(token,yearKey,periodKey);
   }).fail(function(xhr){
     if(token!==requestNumber)return;
     var r=xhr.responseJSON||{},http=xhr.status||0;
@@ -407,7 +413,8 @@ function selectYearAndLoad(){
   var pToken=++periodNumber;
   ++requestNumber;
   if(gradeRequest&&gradeRequest.readyState!==4)gradeRequest.abort();
-  state=null;
+  state=null;closeDetail();gradeMatrix=null;
+  $('#taca-export-csv,#taca-print-report').prop('disabled',true);
   $('#taca-data').addClass('d-none');
   $('#taca-loading').removeClass('d-none');
   if(!yearId){$('#taca-loading').addClass('d-none');return;}
@@ -495,6 +502,16 @@ $('#taca-settings-form').on('submit',function(e){
     toast('No se pudo guardar. Revisa el detalle en la ventana.','danger');
   }).always(function(){btn.prop('disabled',false);});
 });
+$('#taca-teachers-table').on('click','.taca-detail',function(){
+  if(!state)return;
+  detailTeacherId=Number($(this).attr('data-teacher')||0);
+  renderTeacherDetail();
+  var card=document.getElementById('taca-teacher-detail');
+  if(card){card.classList.remove('d-none');card.scrollIntoView({behavior:'smooth',block:'nearest'});}
+});
+$('#taca-detail-close').on('click',closeDetail);
+$('#taca-export-csv').on('click',exportComplianceCsv);
+$('#taca-print-report').on('click',printCompliance);
 $('#taca-teachers-table').on('click','.taca-send',function(){
   if(!state)return;
   var id=Number($(this).data('user'));
