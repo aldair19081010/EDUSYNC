@@ -31,6 +31,75 @@ function my_debts_log($message, $details = null) {
     error_log('[my_debts API] ' . $message . ($details !== null ? ' - ' . json_encode($details) : ''));
 }
 
+
+// Orden de presentación exclusivo de la API de Deudas del estudiante.
+// El mes del período facturado prevalece sobre fechas de pago o vencimiento.
+function my_debts_month_from_text($raw) {
+    $text = strtr(strtolower(trim((string)$raw)), [
+        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
+        'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ú' => 'u'
+    ]);
+    if ($text === '') return null;
+
+    // Períodos numerados: 2026-03, 2026/03, 03/2026 o 03-2026.
+    if (preg_match('/(?:^|[^0-9])(?:19|20)\d{2}[-\/](0?[1-9]|1[0-2])(?:$|[^0-9])/', $text, $matches)) {
+        return (int)$matches[1];
+    }
+    if (preg_match('/(?:^|[^0-9])(0?[1-9]|1[0-2])[-\/](?:19|20)\d{2}(?:$|[^0-9])/', $text, $matches)) {
+        return (int)$matches[1];
+    }
+
+    $months = [
+        'enero' => 1, 'febrero' => 2, 'marzo' => 3, 'abril' => 4,
+        'mayo' => 5, 'junio' => 6, 'julio' => 7, 'agosto' => 8,
+        'setiembre' => 9, 'septiembre' => 9, 'octubre' => 10,
+        'noviembre' => 11, 'diciembre' => 12
+    ];
+    foreach ($months as $name => $number) {
+        if (preg_match('/(?:^|[^a-z])' . $name . '(?:$|[^a-z])/', $text)) {
+            return $number;
+        }
+    }
+    return null;
+}
+
+function my_debts_year_from_text($raw) {
+    return preg_match('/(?:^|[^0-9])((?:19|20)\d{2})(?:$|[^0-9])/', (string)$raw, $matches)
+        ? (int)$matches[1]
+        : null;
+}
+
+function my_debts_valid_due_date(array $debt) {
+    $due = trim((string)($debt['due_date'] ?? ''));
+    if (preg_match('/^((?:19|20)\d{2})-(\d{2})-(\d{2})/', $due, $parts)
+        && checkdate((int)$parts[2], (int)$parts[3], (int)$parts[1])) {
+        return substr($due, 0, 10);
+    }
+    return null;
+}
+
+function my_debts_chronological_key(array $debt) {
+    $period = (string)($debt['billing_period'] ?? '');
+    $month = my_debts_month_from_text($period);
+    if ($month === null) {
+        $month = my_debts_month_from_text($debt['concepto'] ?? '');
+    }
+
+    if ($month !== null) {
+        $year = my_debts_year_from_text($period)
+            ?? my_debts_year_from_text($debt['anio_academico'] ?? '')
+            ?? my_debts_year_from_text($debt['due_date'] ?? '')
+            ?? my_debts_year_from_text($debt['issue_date'] ?? '');
+        if ($year !== null) {
+            return sprintf('%04d-%02d-01', $year, $month);
+        }
+    }
+
+    // Conceptos sin mes: fecha real de vencimiento. Sin período ni fecha,
+    // se muestran al final en vez de inventar una fecha.
+    return my_debts_valid_due_date($debt) ?? '9999-12-31';
+}
+
 try {
     $dni = trim($_GET['dni'] ?? ($_POST['dni'] ?? ''));
     $requestedSchoolId = (int)($_GET['school_id'] ?? ($_POST['school_id'] ?? 0));
@@ -85,6 +154,23 @@ try {
 
     $allDebts = debt_engine_get_student_debts($conn, $studentId, $schoolId);
     $pendingDebts = debt_engine_pending_debts($allDebts);
+
+    // Orden final enviado al estudiante: período/mes cronológico, no estado.
+    // No cambia importes, estados, filtros financieros ni otras API.
+    usort($pendingDebts, static function ($a, $b) {
+        $order = strcmp(my_debts_chronological_key($a), my_debts_chronological_key($b));
+        if ($order !== 0) return $order;
+
+        $dueA = my_debts_valid_due_date($a) ?? '9999-12-31';
+        $dueB = my_debts_valid_due_date($b) ?? '9999-12-31';
+        $byDue = strcmp($dueA, $dueB);
+        if ($byDue !== 0) return $byDue;
+
+        $byConcept = strnatcasecmp((string)($a['concepto'] ?? ''), (string)($b['concepto'] ?? ''));
+        if ($byConcept !== 0) return $byConcept;
+        return ((int)($a['ef_id'] ?? 0)) <=> ((int)($b['ef_id'] ?? 0));
+    });
+
     $summary = debt_engine_summary($pendingDebts);
     $yearSummary = debt_engine_year_summary($pendingDebts);
     $gradeAccess = grade_debt_blocks_grades($conn, $studentId);
