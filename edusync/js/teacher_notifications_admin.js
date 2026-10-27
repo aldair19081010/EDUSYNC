@@ -7,6 +7,7 @@ if(!$('#teacher-followup-root').length) return;
 var years=Array.isArray(cfg.years)?cfg.years:[];
 var yearId=Number(cfg.yearId||0),state=null,table=null,requestNumber=0,periodNumber=0;
 var gradeRequest=null,gradesLoaded=false,historyKey='',historyData=null;
+var gradeMatrix=null,matrixRequest=null,matrixLoading=false,detailTeacherId=0;
 
 function esc(value){return $('<span>').text(value==null?'':String(value)).html();}
 function num(value){return Number(value||0).toLocaleString('es-PE');}
@@ -174,6 +175,143 @@ function fillSettings(){
     ' · Límite para avisos: '+(state.effective_deadline||'sin definir'));
   $('#taca-settings-form').find('input,select,textarea').prop('disabled',!editable);
   $('#taca-save').prop('disabled',!editable).toggleClass('d-none',!editable);
+}
+function periodAssignments(){
+  return Array.isArray(gradeMatrix)?gradeMatrix:[];
+}
+function teacherAssignments(t){
+  return periodAssignments().filter(function(x){return Number(x.teacher_id)===Number(t.teacher_id);});
+}
+function teacherForDetail(){
+  return state&&Array.isArray(state.teachers)?state.teachers.find(function(t){return Number(t.teacher_id)===detailTeacherId;}):null;
+}
+function closeDetail(){
+  detailTeacherId=0;$('#taca-teacher-detail').addClass('d-none');$('#taca-detail-body').empty();
+}
+function renderTeacherDetail(){
+  if(!detailTeacherId)return;
+  var t=teacherForDetail();if(!t){closeDetail();return;}
+  var total=Number(t.total||0),closed=Number(t.closed||0),pending=Number(t.pending||0),
+    pct=total?Math.round(100*closed/total):0;
+  var subtitle=(currentYear()?currentYear().year:'')+' · '+periodLabel()+' · '+closed+'/'+total+' asignaciones cerradas';
+  $('#taca-detail-heading').text(t.teacher_name||'Docente');
+  $('#taca-detail-subtitle').text(subtitle);
+  var html='<div class="d-flex align-items-center justify-content-between flex-wrap mb-2">'+
+    '<div><strong>'+pct+'% de cierres</strong><div class="small text-muted">'+pending+' asignación(es) sin cerrar</div></div>'+badge(t)+'</div>'+
+    '<div class="progress tf-compliance-bar mb-3"><div class="progress-bar bg-success" style="width:'+pct+'%"></div></div>';
+  var items=teacherAssignments(t);
+  if(matrixLoading && gradeMatrix===null){
+    html+='<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando asignaciones del docente...</div>';
+  }else if(gradeMatrix===null){
+    html+='<div class="alert alert-light border small">No se pudo recuperar el detalle académico por curso; el resumen de cierres sigue disponible.</div>';
+    if((t.pending_courses||[]).length)html+='<strong class="small">Cursos sin cierre</strong><ul class="small mt-2">'+
+      t.pending_courses.map(function(name){return '<li>'+esc(name)+'</li>';}).join('')+'</ul>';
+  }else if(!items.length){
+    html+='<div class="alert alert-light border small">No se encontraron asignaciones académicas para este docente en el periodo.</div>';
+  }else{
+    html+='<div class="table-responsive"><table class="table table-sm table-hover mb-0 tf-detail-table"><thead class="thead-light">'+
+      '<tr><th>Curso y aula</th><th>Notas</th><th>Estado del cierre</th><th>Fecha</th></tr></thead><tbody>';
+    items.forEach(function(x){
+      html+='<tr><td><strong>'+esc(x.course_name)+'</strong><div class="small text-muted">'+esc(x.level)+' · '+
+        esc(x.grado)+'° '+esc(x.seccion)+'</div></td>'+
+        '<td>'+Number(x.grade_progress||0).toFixed(1)+'%</td>'+
+        '<td>'+badgeForAssignment(x.state)+'</td><td class="small">'+(x.closed?dateOf(x.closed_at):'—')+'</td></tr>';
+    });
+    html+='</tbody></table></div><p class="small text-muted mt-2 mb-0">«Listo» significa que las notas están completas, pero la asignación aún no ha sido cerrada.</p>';
+  }
+  $('#taca-detail-body').html(html);
+}
+function badgeForAssignment(x){
+  var colors={'Cerrado':'success','Listo':'primary','Incompleto':'warning',
+    'Reabierto':'info','Reapertura pendiente':'danger'};
+  return '<span class="badge badge-'+(colors[x]||'secondary')+'">'+esc(x||'Pendiente')+'</span>';
+}
+function dateOf(v){
+  if(!v)return '—';
+  var d=String(v).match(/^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d))?/);
+  return d?d[3]+'/'+d[2]+'/'+d[1]+(d[4]?' '+d[4]+':'+d[5]:''):esc(v);
+}
+function loadGradeMatrix(token,yearKey,periodKey){
+  if(matrixRequest&&matrixRequest.readyState!==4)matrixRequest.abort();
+  gradeMatrix=null;matrixLoading=true;
+  matrixRequest=$.getJSON('academic_year_grade_control_api.php',
+    {action:'progress',academic_year_id:yearKey})
+    .done(function(result){
+      if(token!==requestNumber||yearKey!==yearId||periodKey!==bimester())return;
+      if(Number(result.status)===1){
+        var p=result.periods||{},record=p[periodKey]||p[String(periodKey)]||{};
+        gradeMatrix=Array.isArray(record.items)?record.items:null;
+      }
+    }).always(function(){
+      if(token!==requestNumber||yearKey!==yearId||periodKey!==bimester())return;
+      matrixLoading=false;
+      if(detailTeacherId)renderTeacherDetail();
+    });
+}
+function reportRows(){
+  if(!state||!Array.isArray(state.teachers))return [];
+  return state.teachers.map(function(t){
+    var total=Number(t.total||0),closed=Number(t.closed||0),pending=Math.max(0,total-closed);
+    return {id:Number(t.teacher_id),name:String(t.teacher_name||''),total:total,closed:closed,
+      pending:pending,pct:total?Math.round(100*closed/total):0,state:complianceState(t),
+      missing:!canEdit()?'No calculado':gradesLoaded?Number(t.missing_cells||0):'Pendiente cálculo',
+      courses:teacherAssignments(t)};
+  });
+}
+function safeCsv(v){
+  var text=String(v==null?'':v);
+  if(/^[ \t\r\n]*[=+@-]/.test(text))text="'"+text;
+  return '"'+text.replace(/"/g,'""')+'"';
+}
+function exportComplianceCsv(){
+  var rows=reportRows();if(!rows.length)return;
+  var yr=(currentYear()||{}).year||'',cells=[
+    ['EduSync · Cumplimiento docente'],
+    ['Año académico',yr,'Periodo',periodLabel()],
+    ['Alcance','Docentes activos del año y bimestre seleccionados'],
+    ['Criterio','Cierres formales de asignaciones; la fecha de avisos no implica un plazo oficial de cumplimiento'],[],
+    ['Docente','ID docente','Asignaciones','Cerradas','Pendientes','Cumplimiento','Estado','Notas faltantes']
+  ];
+  rows.forEach(function(r){cells.push([r.name,r.id,r.total,r.closed,r.pending,r.pct+'%',r.state,r.missing]);});
+  if(gradeMatrix!==null){
+    cells.push([],['Detalle de asignaciones'],['Docente','Curso','Nivel','Grado','Sección','Avance notas','Estado cierre','Fecha cierre','Responsable']);
+    rows.forEach(function(r){
+      r.courses.forEach(function(x){cells.push([r.name,x.course_name,x.level,x.grado,x.seccion,
+        Number(x.grade_progress||0).toFixed(1)+'%',x.state,x.closed_at||'',x.closed_by_name||'']);});
+    });
+  }else cells.push([],['Detalle por curso','No disponible en esta consulta']);
+  var content='\ufeff'+cells.map(function(row){return row.map(safeCsv).join(';');}).join('\r\n');
+  var blob=new Blob([content],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),
+    link=document.createElement('a');
+  link.href=url;link.download='EduSync_cumplimiento_'+String(yr)+'_bim'+bimester()+'.csv';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+function printCompliance(){
+  var rows=reportRows();if(!rows.length)return;
+  var win=window.open('','_blank');if(!win){toast('Permite abrir ventanas emergentes para guardar el reporte como PDF.','warning');return;}
+  var year=(currentYear()||{}).year||'';
+  var tableRows=rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+r.total+'</td><td>'+r.closed+'</td>'+
+    '<td>'+r.pending+'</td><td>'+r.pct+'%</td><td>'+esc(r.state)+'</td><td>'+esc(r.missing)+'</td></tr>';}).join('');
+  var detail='';
+  if(gradeMatrix!==null){
+    detail='<h2>Detalle de asignaciones</h2><table><thead><tr><th>Docente</th><th>Curso</th><th>Aula</th><th>Avance de notas</th><th>Estado</th><th>Fecha de cierre</th></tr></thead><tbody>';
+    rows.forEach(function(r){r.courses.forEach(function(x){detail+='<tr><td>'+esc(r.name)+'</td><td>'+esc(x.course_name)+'</td>'+
+      '<td>'+esc(x.level)+' · '+esc(x.grado)+'° '+esc(x.seccion)+'</td><td>'+Number(x.grade_progress||0).toFixed(1)+'%</td>'+
+      '<td>'+esc(x.state)+'</td><td>'+dateOf(x.closed_at)+'</td></tr>';});});
+    detail+='</tbody></table>';
+  }else detail='<p>El detalle por asignación no estuvo disponible en esta consulta.</p>';
+  var html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>EduSync · Cumplimiento docente</title>'+
+    '<style>body{font:12px Arial,sans-serif;color:#2d3952;padding:24px}h1{font-size:22px;margin-bottom:5px}h2{font-size:16px;margin-top:24px}'+
+    'p{color:#657187}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:7px;text-align:left;border:1px solid #cbd5e1}th{background:#edf2ff}'+
+    '@page{size:A4 landscape;margin:13mm}</style></head><body>'+
+    '<h1>EduSync · Reporte de cumplimiento docente</h1>'+
+    '<p>Año académico '+esc(year)+' · '+esc(periodLabel())+' · Consulta '+esc(new Date().toLocaleString('es-PE'))+'</p>'+
+    '<p>Docentes activos. Cumplimiento = asignaciones formalmente cerradas / asignaciones asignadas. No se califica atraso sin fecha oficial.</p>'+
+    '<h2>Resumen por docente</h2><table><thead><tr><th>Docente</th><th>Asignadas</th><th>Cerradas</th><th>Pendientes</th><th>Cumplimiento</th><th>Estado</th><th>Notas faltantes</th></tr></thead><tbody>'+
+    tableRows+'</tbody></table>'+detail+'</body></html>';
+  win.document.open();win.document.write(html);win.document.close();
+  win.focus();win.print();
 }
 function renderHistory(items){
   if(!items||!items.length){
