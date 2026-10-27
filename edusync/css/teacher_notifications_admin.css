@@ -134,3 +134,37 @@
   #teacher-followup-root #taca-teachers-table_wrapper .dataTables_filter input{min-width:120px}
   #teacher-followup-root #taca-teachers-table{min-width:680px}
 }
+
+/* Seguimiento docente: panel de cumplimiento (mismo diseño EduSync/SB Admin 2) */
+#teacher-followup-root .tf-stat-primary{border-left-color:#4e73df}
+#teacher-followup-root .tf-stat-info{border-left-color:#36b9cc}
+#teacher-followup-root .tf-stat-warning{border-left-color:#f6c23e}
+#teacher-followup-root .tf-compliance-progress,
+#teacher-followup-root .tf-detail-card{border:1px solid #e3e6f0!important;border-radius:10px;box-shadow:none!important;overflow:hidden}
+#teacher-followup-root .tf-compliance-progress .card-body{padding:13px 16px!important}
+#teacher-followup-root .tf-compliance-bar{height:8px;border-radius:10px;overflow:hidden;background:#e9eef7}
+#teacher-followup-root .tf-compliance-bar .progress-bar{border-radius:10px}
+#teacher-followup-root .tf-alert-menu{display:inline-flex;align-items:center}
+#teacher-followup-root .tf-alert-menu .dropdown-menu{border:1px solid #e2e8f2;border-radius:8px;min-width:195px;padding:5px;box-shadow:0 7px 24px rgba(24,41,78,.09)}
+#teacher-followup-root .tf-alert-menu .dropdown-item{border-radius:6px;font-size:.79rem;color:#53647c;padding:9px 10px}
+#teacher-followup-root .tf-alert-menu .dropdown-item:focus,
+#teacher-followup-root .tf-alert-menu .dropdown-item:hover{background:#edf3ff;color:#2d57bc}
+#teacher-followup-root .tf-report-actions{gap:5px}
+#teacher-followup-root .tf-report-actions .btn{font-size:.75rem;min-height:31px}
+#teacher-followup-root .tf-row-actions{display:flex;justify-content:center;align-items:center;gap:5px;flex-wrap:wrap}
+#teacher-followup-root .tf-row-actions .btn{font-size:.72rem;white-space:nowrap;padding:4px 7px}
+#teacher-followup-root .tf-detail-card .card-header{padding:12px 15px!important;border-bottom:1px solid #edf0f5;gap:8px}
+#teacher-followup-root .tf-detail-card .card-header strong{color:#35425a;font-size:.92rem}
+#teacher-followup-root .tf-detail-card .card-body{padding:14px 16px}
+#teacher-followup-root .tf-detail-table{margin-bottom:0}
+#teacher-followup-root .tf-detail-table th{background:#f7f9fd;color:#5c6c86;font-size:.74rem;font-weight:700;white-space:nowrap;border-top:0}
+#teacher-followup-root .tf-detail-table td{font-size:.8rem;color:#4d596f;vertical-align:middle;padding:9px 10px}
+#teacher-followup-root .tf-detail-table .badge{font-size:.7rem}
+#teacher-followup-root #taca-teachers-table tbody td:last-child{min-width:145px}
+#teacher-followup-root .tf-table-header .tf-report-actions{justify-content:flex-end}
+@media(max-width:767.98px){
+ #teacher-followup-root .tf-top-actions{width:100%;justify-content:flex-start}
+ #teacher-followup-root .tf-table-header .tf-report-actions{width:100%;justify-content:flex-start}
+ #teacher-followup-root .tf-detail-table{min-width:530px}
+ #teacher-followup-root .tf-detail-card .card-header{align-items:flex-start}
+}
