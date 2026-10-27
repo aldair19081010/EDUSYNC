@@ -42,7 +42,7 @@ function kpi(label,value,icon,tone){
 function modalTemplate(){
   if(modal().length)return;
   $('body').append(
-    '<div class="modal fade" id="aym-control-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="aym-modal-title">'+
+    '<div class="modal fade" id="aym-control-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="aym-modal-title" data-backdrop="static" data-keyboard="false">'+
     '<div class="modal-dialog modal-xl modal-dialog-centered" role="document"><div class="modal-content">'+
     '<div class="modal-header"><div class="flex-grow-1"><div class="aym-kicker">EDUSYNC · GESTIÓN ACADÉMICA</div>'+
     '<h5 class="modal-title" id="aym-modal-title">Control de cierre de notas</h5>'+
@@ -202,6 +202,8 @@ function showFooter(){
 }
 function viewDetail(id){
   var x=lookup(id);if(!x)return;
+  // Desmontar Select2 y DataTables antes de sustituir la vista del listado.
+  destroyWidgets();
   mode='detail';detailId=id;confirmData=null;
   $('#aym-modal-title').text(x.closed?'Detalle del cierre':'Detalle de pendientes');
   $('#aym-modal-subtitle').text(roman(bimester)+' Bimestre · '+String((matrix.year||{}).year||''));
@@ -243,6 +245,8 @@ function beginConfirm(kind,ids){
   var force=kind==='exceptional',bulk=ids.length>1||kind==='bulk';
   if(force&&!lookup(ids[0]))return;
   confirmData={kind:force?'exceptional':bulk?'bulk':'single',ids:ids,bimester:bimester};
+  // Evitar tablas huérfanas y dropdowns Select2 residuales al confirmar.
+  destroyWidgets();
   mode='confirm';
   $('#aym-modal-title').text(force?'Cierre administrativo excepcional':bulk?'Confirmar cierre de asignaciones':'Confirmar cierre de notas');
   $('#aym-modal-subtitle').text(roman(bimester)+' Bimestre · Año '+String((matrix.year||{}).year||''));
