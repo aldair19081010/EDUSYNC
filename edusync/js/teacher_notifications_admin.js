@@ -34,48 +34,56 @@ function api(data,post){
   if(post){args.csrf_token=cfg.csrf;return $.ajax({url:endpoint,type:'POST',data:args,dataType:'json'});}
   return $.getJSON(endpoint,args);
 }
+function complianceState(t){
+  var total=Number(t.total||0),closed=Number(t.closed||0),pending=Math.max(0,total-closed);
+  if(total>0&&pending===0)return 'Cumplió';
+  if(gradesLoaded&&Number(t.incomplete_courses)>0)return 'Notas incompletas';
+  if(closed>0)return 'En proceso';
+  return 'Sin cierres';
+}
 function badge(t){
-  if(Number(t.pending)===0)return '<span class="badge badge-success">Al día</span>';
-  if(canEdit()&&gradesLoaded&&Number(t.incomplete_courses)>0)
-    return '<span class="badge badge-danger">Incompleto</span>';
-  return '<span class="badge badge-warning">Pendiente</span>';
+  var x=complianceState(t),colors={'Cumplió':'success','Notas incompletas':'danger','En proceso':'info','Sin cierres':'warning'};
+  return '<span class="badge badge-'+(colors[x]||'secondary')+'">'+esc(x)+'</span>';
 }
 function stats(){
   if(!state)return;
-  var s=state.totals||{},missing=(!canEdit()?'—':gradesLoaded?num(s.incomplete):'…');
-  var data=[
-    {label:'Cerrados',value:num(s.closed),icon:'check-circle',color:'success'},
-    {label:'Pendientes',value:num(s.pending),icon:'clock',color:'warning'},
-    {label:'Incompletos',value:missing,icon:'exclamation-circle',color:'danger'}
+  var teachers=state.teachers||[],s=state.totals||{},total=Number(s.assignments||0),closed=Number(s.closed||0),
+      pct=total?Math.min(100,Math.round(100*closed/total)):0;
+  var cards=[
+    {label:'Docentes',value:teachers.length,icon:'users',color:'primary'},
+    {label:'Cumplieron',value:teachers.filter(function(t){return Number(t.total)>0&&Number(t.pending)===0;}).length,icon:'check-circle',color:'success'},
+    {label:'En proceso',value:teachers.filter(function(t){return Number(t.closed)>0&&Number(t.pending)>0;}).length,icon:'clock',color:'info'},
+    {label:'Sin cierres',value:teachers.filter(function(t){return Number(t.total)>0&&Number(t.closed)===0;}).length,icon:'exclamation-circle',color:'warning'}
   ];
-  $('#taca-stats').html(data.map(function(x){
-    return '<div class="col-4 mb-2"><div class="tf-stat tf-stat-'+x.color+'">'+
+  $('#taca-stats').html(cards.map(function(x){
+    return '<div class="col-6 col-lg-3 mb-2"><div class="tf-stat tf-stat-'+x.color+'">'+
       '<i class="fas fa-'+x.icon+' tf-stat-icon text-'+x.color+'"></i>'+
-      '<div><strong class="tf-stat-value">'+x.value+'</strong>'+
+      '<div><strong class="tf-stat-value">'+Number(x.value).toLocaleString('es-PE')+'</strong>'+
       '<div class="tf-stat-caption">'+esc(x.label)+'</div></div></div></div>';
   }).join(''));
+  $('#taca-compliance-value').text(pct+'%');
+  $('#taca-compliance-caption').text(closed+' de '+total+' asignaciones cerradas formalmente');
+  $('#taca-compliance-bar').css('width',pct+'%').attr('aria-valuenow',pct);
 }
 function rowCells(t){
   var total=Number(t.total),closed=Number(t.closed),pending=Number(t.pending);
-  var complete=total>0?Math.max(0,Math.min(100,Math.round(100*closed/total))):0;
-  var courseText=(t.pending_courses||[]).join(' | ');
+  var pct=total>0?Math.max(0,Math.min(100,Math.round(100*closed/total))):0;
+  var details='<button type="button" class="btn btn-sm btn-outline-primary taca-detail" data-teacher="'+Number(t.teacher_id)+'">'+
+    '<i class="fas fa-list mr-1"></i>Detalle</button>';
+  var notify=canEdit()&&alertsReady()&&state&&state.period&&
+    Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0&&Number(t.recipient_user_id)>0?
+    '<button type="button" class="btn btn-sm btn-outline-secondary taca-send" data-user="'+Number(t.recipient_user_id)+'">'+
+      '<i class="fas fa-paper-plane mr-1"></i>Avisar</button>':'';
   return [
-    '<strong class="tf-person">'+esc(t.teacher_name)+'</strong>'+
-      (courseText?'<div class="small text-muted text-truncate tf-course" title="'+esc(courseText)+'">'+esc(courseText)+'</div>':''),
+    '<strong class="tf-person">'+esc(t.teacher_name)+'</strong>',
     '<div class="text-nowrap"><strong>'+closed+'</strong> / '+total+'</div>'+
-      '<div class="progress tf-mini-progress"><div class="progress-bar bg-success" style="width:'+complete+'%"></div></div>',
+      '<div class="progress tf-mini-progress"><div class="progress-bar bg-success" style="width:'+pct+'%"></div></div>',
     '<span class="'+(pending>0?'font-weight-bold text-warning':'text-success')+'">'+pending+'</span>',
-    !canEdit()?'<span class="text-muted">—</span>':
+    !canEdit()?'<span class="text-muted" title="No se recalculan calificaciones de años históricos">—</span>':
       !gradesLoaded?'<span class="small text-muted">Calculando…</span>':
-      Number(t.missing_cells)>0?'<span class="font-weight-bold text-danger">'+num(t.missing_cells)+'</span>':
-      '<span class="text-success">0</span>',
+      Number(t.missing_cells)>0?'<strong class="text-danger">'+num(t.missing_cells)+'</strong>':'<span class="text-success">0</span>',
     badge(t),
-    canEdit()&&alertsReady()&&state&&state.period&&
-      Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0&&Number(t.recipient_user_id)>0?
-      '<button type="button" class="btn btn-sm btn-outline-primary taca-send" data-user="'+Number(t.recipient_user_id)+'"><i class="fas fa-paper-plane mr-1"></i>Avisar</button>':
-      Number(t.recipient_user_id)===0?
-      '<span class="badge badge-light border text-muted" title="El docente aún no tiene una cuenta de usuario docente activa">Sin cuenta</span>':
-      '<button type="button" class="btn btn-sm btn-light border" disabled>—</button>'
+    '<div class="tf-row-actions">'+details+notify+'</div>'
   ];
 }
 function drawTable(){
@@ -96,7 +104,7 @@ function drawTable(){
             return type==='display'?rowCells(t)[3]:Number(v||0);
           }},
           {data:null,render:function(v,type,t){
-            if(type!=='display')return Number(t.pending)===0?'Al día':gradesLoaded&&Number(t.incomplete_courses)>0?'Incompleto':'Pendiente';
+            if(type!=='display')return complianceState(t);
             return rowCells(t)[4];
           }},
           {data:null,orderable:false,searchable:false,render:function(v,type,t){
@@ -127,7 +135,9 @@ function drawTable(){
           if(!t)return true;
           var f=$('#taca-filter').val();
           if(f==='pending')return Number(t.pending)>0;
-          if(f==='done')return Number(t.pending)===0;
+          if(f==='progress')return Number(t.closed)>0&&Number(t.pending)>0;
+          if(f==='not_started')return Number(t.closed)===0&&Number(t.total)>0;
+          if(f==='done')return Number(t.total)>0&&Number(t.pending)===0;
           if(f==='incomplete')return gradesLoaded&&Number(t.incomplete_courses)>0;
           return true;
         });
@@ -283,13 +293,13 @@ function selectYearAndLoad(){
 }
 $('#taca-year').on('change',function(){
   yearId=Number(this.value||0);
-  $('#taca-filter').val('pending');
+  $('#taca-filter').val('all');
   if(table)table.search('');
   selectYearAndLoad();
 });
 $('#taca-bim').on('change',function(){
   ++periodNumber;
-  $('#taca-filter').val('pending');
+  $('#taca-filter').val('all');
   if(table)table.search('');
   load();
 });
