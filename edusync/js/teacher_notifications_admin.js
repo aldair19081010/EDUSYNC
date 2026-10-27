@@ -217,7 +217,7 @@ function renderTeacherDetail(){
       '<tr><th>Curso y aula</th><th>Notas</th><th>Estado del cierre</th><th>Fecha</th></tr></thead><tbody>';
     items.forEach(function(x){
       html+='<tr><td><strong>'+esc(x.course_name)+'</strong><div class="small text-muted">'+esc(x.level)+' · '+
-        esc(x.grado)+'° '+esc(x.seccion)+'</div></td>'+
+        esc(gradeLabel(x.grado))+' '+esc(x.seccion)+'</div></td>'+
         '<td>'+Number(x.grade_progress||0).toFixed(1)+'%</td>'+
         '<td>'+badgeForAssignment(x.state)+'</td><td class="small">'+(x.closed?dateOf(x.closed_at):'—')+'</td></tr>';
     });
@@ -229,6 +229,11 @@ function badgeForAssignment(x){
   var colors={'Cerrado':'success','Listo':'primary','Incompleto':'warning',
     'Reabierto':'info','Reapertura pendiente':'danger'};
   return '<span class="badge badge-'+(colors[x]||'secondary')+'">'+esc(x||'Pendiente')+'</span>';
+}
+// Normaliza grados recibidos con o sin símbolo ordinal (p. ej. 3, 3° o 3°°).
+function gradeLabel(v){
+  var value=String(v==null?'':v).trim().replace(/[°º]+\s*$/g,'').trim();
+  return value?value+'°':'';
 }
 function dateOf(v){
   if(!v)return '—';
@@ -280,7 +285,7 @@ function exportComplianceCsv(){
   if(gradeMatrix!==null){
     cells.push([],['Detalle de asignaciones'],['Docente','Curso','Nivel','Grado','Sección','Avance notas','Estado cierre','Fecha cierre','Responsable']);
     rows.forEach(function(r){
-      r.courses.forEach(function(x){cells.push([r.name,x.course_name,x.level,x.grado,x.seccion,
+      r.courses.forEach(function(x){cells.push([r.name,x.course_name,x.level,gradeLabel(x.grado),x.seccion,
         Number(x.grade_progress||0).toFixed(1)+'%',x.state,x.closed_at||'',x.closed_by_name||'']);});
     });
   }else cells.push([],['Detalle por curso','No disponible en esta consulta']);
@@ -302,7 +307,7 @@ function printCompliance(){
   if(gradeMatrix!==null){
     detail='<h2>Detalle de asignaciones</h2><table><thead><tr><th>Docente</th><th>Curso</th><th>Aula</th><th>Avance de notas</th><th>Estado</th><th>Fecha de cierre</th></tr></thead><tbody>';
     rows.forEach(function(r){r.courses.forEach(function(x){detail+='<tr><td>'+esc(r.name)+'</td><td>'+esc(x.course_name)+'</td>'+
-      '<td>'+esc(x.level)+' · '+esc(x.grado)+'° '+esc(x.seccion)+'</td><td>'+Number(x.grade_progress||0).toFixed(1)+'%</td>'+
+      '<td>'+esc(x.level)+' · '+esc(gradeLabel(x.grado))+' '+esc(x.seccion)+'</td><td>'+Number(x.grade_progress||0).toFixed(1)+'%</td>'+
       '<td>'+esc(x.state)+'</td><td>'+dateOf(x.closed_at)+'</td></tr>';});});
     detail+='</tbody></table>';
   }else detail='<p>El detalle por asignación no estuvo disponible en esta consulta.</p>';
