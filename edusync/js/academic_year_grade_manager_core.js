@@ -54,7 +54,7 @@ function modalTemplate(){
       '<button class="btn btn-sm btn-light border d-none" id="aym-back" type="button"><i class="fas fa-arrow-left mr-1"></i>Volver</button>'+
       '<button class="btn btn-sm btn-light border" id="aym-dismiss" type="button" data-dismiss="modal">Cerrar</button>'+
       '<button class="btn btn-sm btn-outline-success d-none" id="aym-close-selected" type="button">Cerrar seleccionados</button>'+
-      '<button class="btn btn-sm btn-success d-none" id="aym-close-ready" type="button">Cerrar todos los listos</button>'+
+      '<button class="btn btn-sm btn-success d-none" id="aym-close-ready" type="button">Cerrar los listos del bimestre</button>'+
       '<button class="btn btn-sm btn-primary d-none" id="aym-commit" type="button">Confirmar cierre</button>'+
     '</div></div></div></div></div>'
   );
@@ -78,7 +78,7 @@ function options(values){
 function rowHtml(x){
   var id=num(x.teacher_course_id),m=meta[String(id)]||{},pct=Math.min(100,Math.max(0,num(x.grade_progress))),can=eligible(x);
   var action=x.closed?'Ver cierre':can?'Cerrar':'Ver pendientes';
-  var btn='<button type="button" class="btn btn-sm btn-outline-'+(can?'success':'primary')+' aym-open-detail" data-id="'+id+'">'+esc(action)+'</button>';
+  var btn='<button type="button" class="btn btn-sm btn-outline-'+(can?'success':'primary')+' '+(can?'aym-ask-single':'aym-open-detail')+'" data-id="'+id+'">'+esc(action)+'</button>';
   return '<tr><td><input type="checkbox" class="aym-check" value="'+id+'" aria-label="Seleccionar asignación"'+
     (selected.has(id)?' checked':'')+(can?'':' disabled')+'></td>'+
     '<td><div class="aym-cell-title">'+esc(x.course_name)+'</div><div class="aym-cell-sub">'+esc(x.level)+' · '+grade(x.grado)+' '+esc(x.seccion)+'</div></td>'+
@@ -370,6 +370,7 @@ $(document).on('change','#aym-check-all',function(){
   syncSelected();
 });
 $(document).on('click','#aym-grid .aym-open-detail',function(){viewDetail(num($(this).data('id')));});
+$(document).on('click','#aym-grid .aym-ask-single',function(){beginConfirm('single',[num($(this).data('id'))]);});
 $(document).on('click','.aym-confirm-single',function(){beginConfirm('single',[num($(this).data('id'))]);});
 $(document).on('click','.aym-confirm-exceptional',function(){beginConfirm('exceptional',[num($(this).data('id'))]);});
 $(document).on('click','#aym-close-selected',function(){beginConfirm('bulk',Array.from(selected));});
