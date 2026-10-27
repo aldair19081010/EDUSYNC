@@ -7,6 +7,7 @@ if(!$('#teacher-followup-root').length) return;
 var years=Array.isArray(cfg.years)?cfg.years:[];
 var yearId=Number(cfg.yearId||0),state=null,table=null,requestNumber=0,periodNumber=0;
 var gradeRequest=null,gradesLoaded=false,historyKey='',historyData=null;
+var gradeMatrix=null,matrixRequest=null,matrixLoading=false,detailTeacherId=0;
 
 function esc(value){return $('<span>').text(value==null?'':String(value)).html();}
 function num(value){return Number(value||0).toLocaleString('es-PE');}
@@ -34,48 +35,56 @@ function api(data,post){
   if(post){args.csrf_token=cfg.csrf;return $.ajax({url:endpoint,type:'POST',data:args,dataType:'json'});}
   return $.getJSON(endpoint,args);
 }
+function complianceState(t){
+  var total=Number(t.total||0),closed=Number(t.closed||0),pending=Math.max(0,total-closed);
+  if(total>0&&pending===0)return 'Cumplió';
+  if(gradesLoaded&&Number(t.incomplete_courses)>0)return 'Notas incompletas';
+  if(closed>0)return 'En proceso';
+  return 'Sin cierres';
+}
 function badge(t){
-  if(Number(t.pending)===0)return '<span class="badge badge-success">Al día</span>';
-  if(canEdit()&&gradesLoaded&&Number(t.incomplete_courses)>0)
-    return '<span class="badge badge-danger">Incompleto</span>';
-  return '<span class="badge badge-warning">Pendiente</span>';
+  var x=complianceState(t),colors={'Cumplió':'success','Notas incompletas':'danger','En proceso':'info','Sin cierres':'warning'};
+  return '<span class="badge badge-'+(colors[x]||'secondary')+'">'+esc(x)+'</span>';
 }
 function stats(){
   if(!state)return;
-  var s=state.totals||{},missing=(!canEdit()?'—':gradesLoaded?num(s.incomplete):'…');
-  var data=[
-    {label:'Cerrados',value:num(s.closed),icon:'check-circle',color:'success'},
-    {label:'Pendientes',value:num(s.pending),icon:'clock',color:'warning'},
-    {label:'Incompletos',value:missing,icon:'exclamation-circle',color:'danger'}
+  var teachers=state.teachers||[],s=state.totals||{},total=Number(s.assignments||0),closed=Number(s.closed||0),
+      pct=total?Math.min(100,Math.round(100*closed/total)):0;
+  var cards=[
+    {label:'Docentes',value:teachers.length,icon:'users',color:'primary'},
+    {label:'Cumplieron',value:teachers.filter(function(t){return Number(t.total)>0&&Number(t.pending)===0;}).length,icon:'check-circle',color:'success'},
+    {label:'En proceso',value:teachers.filter(function(t){return Number(t.closed)>0&&Number(t.pending)>0;}).length,icon:'clock',color:'info'},
+    {label:'Sin cierres',value:teachers.filter(function(t){return Number(t.total)>0&&Number(t.closed)===0;}).length,icon:'exclamation-circle',color:'warning'}
   ];
-  $('#taca-stats').html(data.map(function(x){
-    return '<div class="col-4 mb-2"><div class="tf-stat tf-stat-'+x.color+'">'+
+  $('#taca-stats').html(cards.map(function(x){
+    return '<div class="col-6 col-lg-3 mb-2"><div class="tf-stat tf-stat-'+x.color+'">'+
       '<i class="fas fa-'+x.icon+' tf-stat-icon text-'+x.color+'"></i>'+
-      '<div><strong class="tf-stat-value">'+x.value+'</strong>'+
+      '<div><strong class="tf-stat-value">'+Number(x.value).toLocaleString('es-PE')+'</strong>'+
       '<div class="tf-stat-caption">'+esc(x.label)+'</div></div></div></div>';
   }).join(''));
+  $('#taca-compliance-value').text(pct+'%');
+  $('#taca-compliance-caption').text(closed+' de '+total+' asignaciones cerradas formalmente');
+  $('#taca-compliance-bar').css('width',pct+'%').attr('aria-valuenow',pct);
 }
 function rowCells(t){
   var total=Number(t.total),closed=Number(t.closed),pending=Number(t.pending);
-  var complete=total>0?Math.max(0,Math.min(100,Math.round(100*closed/total))):0;
-  var courseText=(t.pending_courses||[]).join(' | ');
+  var pct=total>0?Math.max(0,Math.min(100,Math.round(100*closed/total))):0;
+  var details='<button type="button" class="btn btn-sm btn-outline-primary taca-detail" data-teacher="'+Number(t.teacher_id)+'">'+
+    '<i class="fas fa-list mr-1"></i>Detalle</button>';
+  var notify=canEdit()&&alertsReady()&&state&&state.period&&
+    Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0&&Number(t.recipient_user_id)>0?
+    '<button type="button" class="btn btn-sm btn-outline-secondary taca-send" data-user="'+Number(t.recipient_user_id)+'">'+
+      '<i class="fas fa-paper-plane mr-1"></i>Avisar</button>':'';
   return [
-    '<strong class="tf-person">'+esc(t.teacher_name)+'</strong>'+
-      (courseText?'<div class="small text-muted text-truncate tf-course" title="'+esc(courseText)+'">'+esc(courseText)+'</div>':''),
+    '<strong class="tf-person">'+esc(t.teacher_name)+'</strong>',
     '<div class="text-nowrap"><strong>'+closed+'</strong> / '+total+'</div>'+
-      '<div class="progress tf-mini-progress"><div class="progress-bar bg-success" style="width:'+complete+'%"></div></div>',
+      '<div class="progress tf-mini-progress"><div class="progress-bar bg-success" style="width:'+pct+'%"></div></div>',
     '<span class="'+(pending>0?'font-weight-bold text-warning':'text-success')+'">'+pending+'</span>',
-    !canEdit()?'<span class="text-muted">—</span>':
+    !canEdit()?'<span class="text-muted" title="No se recalculan calificaciones de años históricos">—</span>':
       !gradesLoaded?'<span class="small text-muted">Calculando…</span>':
-      Number(t.missing_cells)>0?'<span class="font-weight-bold text-danger">'+num(t.missing_cells)+'</span>':
-      '<span class="text-success">0</span>',
+      Number(t.missing_cells)>0?'<strong class="text-danger">'+num(t.missing_cells)+'</strong>':'<span class="text-success">0</span>',
     badge(t),
-    canEdit()&&alertsReady()&&state&&state.period&&
-      Number(state.period.is_locked)!==1&&Number(state.period.global_locked||0)!==1&&pending>0&&Number(t.recipient_user_id)>0?
-      '<button type="button" class="btn btn-sm btn-outline-primary taca-send" data-user="'+Number(t.recipient_user_id)+'"><i class="fas fa-paper-plane mr-1"></i>Avisar</button>':
-      Number(t.recipient_user_id)===0?
-      '<span class="badge badge-light border text-muted" title="El docente aún no tiene una cuenta de usuario docente activa">Sin cuenta</span>':
-      '<button type="button" class="btn btn-sm btn-light border" disabled>—</button>'
+    '<div class="tf-row-actions">'+details+notify+'</div>'
   ];
 }
 function drawTable(){
@@ -96,7 +105,7 @@ function drawTable(){
             return type==='display'?rowCells(t)[3]:Number(v||0);
           }},
           {data:null,render:function(v,type,t){
-            if(type!=='display')return Number(t.pending)===0?'Al día':gradesLoaded&&Number(t.incomplete_courses)>0?'Incompleto':'Pendiente';
+            if(type!=='display')return complianceState(t);
             return rowCells(t)[4];
           }},
           {data:null,orderable:false,searchable:false,render:function(v,type,t){
@@ -127,7 +136,9 @@ function drawTable(){
           if(!t)return true;
           var f=$('#taca-filter').val();
           if(f==='pending')return Number(t.pending)>0;
-          if(f==='done')return Number(t.pending)===0;
+          if(f==='progress')return Number(t.closed)>0&&Number(t.pending)>0;
+          if(f==='not_started')return Number(t.closed)===0&&Number(t.total)>0;
+          if(f==='done')return Number(t.total)>0&&Number(t.pending)===0;
           if(f==='incomplete')return gradesLoaded&&Number(t.incomplete_courses)>0;
           return true;
         });
@@ -150,6 +161,7 @@ function redrawRows(){
   stats();
   if(table)table.rows().invalidate().draw(false);
   else drawTable();
+  if(detailTeacherId)renderTeacherDetail();
 }
 function fillSettings(){
   if(!state)return;
@@ -164,6 +176,159 @@ function fillSettings(){
     ' · Límite para avisos: '+(state.effective_deadline||'sin definir'));
   $('#taca-settings-form').find('input,select,textarea').prop('disabled',!editable);
   $('#taca-save').prop('disabled',!editable).toggleClass('d-none',!editable);
+}
+function periodAssignments(){
+  return Array.isArray(gradeMatrix)?gradeMatrix:[];
+}
+function teacherAssignments(t){
+  return periodAssignments().filter(function(x){return Number(x.teacher_id)===Number(t.teacher_id);});
+}
+function teacherForDetail(){
+  return state&&Array.isArray(state.teachers)?state.teachers.find(function(t){return Number(t.teacher_id)===detailTeacherId;}):null;
+}
+function closeDetail(){
+  detailTeacherId=0;
+  var detail=$('#taca-teacher-detail');
+  if(detail.hasClass('show'))detail.modal('hide');
+  $('#taca-detail-body').empty();
+}
+function renderTeacherDetail(){
+  if(!detailTeacherId)return;
+  var t=teacherForDetail();if(!t){closeDetail();return;}
+  var total=Number(t.total||0),closed=Number(t.closed||0),pending=Number(t.pending||0),
+    pct=total?Math.round(100*closed/total):0;
+  var subtitle=(currentYear()?currentYear().year:'')+' · '+periodLabel()+' · '+closed+'/'+total+' asignaciones cerradas';
+  $('#taca-detail-heading').text(t.teacher_name||'Docente');
+  $('#taca-detail-subtitle').text(subtitle);
+  var html='<div class="d-flex align-items-center justify-content-between flex-wrap mb-2">'+
+    '<div><strong>'+pct+'% de cierres</strong><div class="small text-muted">'+pending+' asignación(es) sin cerrar</div></div>'+badge(t)+'</div>'+
+    '<div class="progress tf-compliance-bar mb-3"><div class="progress-bar bg-success" style="width:'+pct+'%"></div></div>';
+  var items=teacherAssignments(t);
+  if(matrixLoading && gradeMatrix===null){
+    html+='<div class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin mr-1"></i>Cargando asignaciones del docente...</div>';
+  }else if(gradeMatrix===null){
+    html+='<div class="alert alert-light border small">No se pudo recuperar el detalle académico por curso; el resumen de cierres sigue disponible.</div>';
+    if((t.pending_courses||[]).length)html+='<strong class="small">Cursos sin cierre</strong><ul class="small mt-2">'+
+      t.pending_courses.map(function(name){return '<li>'+esc(name)+'</li>';}).join('')+'</ul>';
+  }else if(!items.length){
+    html+='<div class="alert alert-light border small">No se encontraron asignaciones académicas para este docente en el periodo.</div>';
+  }else{
+    html+='<div class="table-responsive"><table class="table table-sm table-hover mb-0 tf-detail-table"><thead class="thead-light">'+
+      '<tr><th>Curso y aula</th><th>Notas</th><th>Estado del cierre</th><th>Fecha</th></tr></thead><tbody>';
+    items.forEach(function(x){
+      html+='<tr><td><strong>'+esc(x.course_name)+'</strong><div class="small text-muted">'+esc(x.level)+' · '+
+        esc(gradeLabel(x.grado))+' '+esc(x.seccion)+'</div></td>'+
+        '<td>'+Number(x.grade_progress||0).toFixed(1)+'%</td>'+
+        '<td>'+badgeForAssignment(x.state)+'</td><td class="small">'+(x.closed?dateOf(x.closed_at):'—')+'</td></tr>';
+    });
+    html+='</tbody></table></div><p class="small text-muted mt-2 mb-0">«Listo» significa que las notas están completas, pero la asignación aún no ha sido cerrada.</p>';
+  }
+  $('#taca-detail-body').html(html);
+}
+function badgeForAssignment(x){
+  var colors={'Cerrado':'success','Listo':'primary','Incompleto':'warning',
+    'Reabierto':'info','Reapertura pendiente':'danger'};
+  return '<span class="badge badge-'+(colors[x]||'secondary')+'">'+esc(x||'Pendiente')+'</span>';
+}
+// Normaliza grados recibidos con o sin símbolo ordinal (p. ej. 3, 3° o 3°°).
+function gradeLabel(v){
+  var value=String(v==null?'':v).trim().replace(/[°º]+\s*$/g,'').trim();
+  return value?value+'°':'';
+}
+function dateOf(v){
+  if(!v)return '—';
+  var d=String(v).match(/^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d))?/);
+  return d?d[3]+'/'+d[2]+'/'+d[1]+(d[4]?' '+d[4]+':'+d[5]:''):esc(v);
+}
+function loadGradeMatrix(token,yearKey,periodKey){
+  if(matrixRequest&&matrixRequest.readyState!==4)matrixRequest.abort();
+  gradeMatrix=null;matrixLoading=true;
+  matrixRequest=$.getJSON('academic_year_grade_control_api.php',
+    {action:'progress',academic_year_id:yearKey})
+    .done(function(result){
+      if(token!==requestNumber||yearKey!==yearId||periodKey!==bimester())return;
+      if(Number(result.status)===1){
+        var p=result.periods||{},record=p[periodKey]||p[String(periodKey)]||{};
+        gradeMatrix=Array.isArray(record.items)?record.items:null;
+      }
+    }).always(function(){
+      if(token!==requestNumber||yearKey!==yearId||periodKey!==bimester())return;
+      matrixLoading=false;
+      if(detailTeacherId)renderTeacherDetail();
+    });
+}
+function reportRows(){
+  if(!state||!Array.isArray(state.teachers))return [];
+  return state.teachers.map(function(t){
+    var total=Number(t.total||0),closed=Number(t.closed||0),pending=Math.max(0,total-closed);
+    return {id:Number(t.teacher_id),name:String(t.teacher_name||''),total:total,closed:closed,
+      pending:pending,pct:total?Math.round(100*closed/total):0,state:complianceState(t),
+      missing:!canEdit()?'No calculado':gradesLoaded?Number(t.missing_cells||0):'Pendiente cálculo',
+      courses:teacherAssignments(t)};
+  });
+}
+function safeCsv(v){
+  var text=String(v==null?'':v);
+  if(/^[ \t\r\n]*[=+@-]/.test(text))text="'"+text;
+  return '"'+text.replace(/"/g,'""')+'"';
+}
+function exportComplianceCsv(){
+  var rows=reportRows();if(!rows.length)return;
+  var yr=(currentYear()||{}).year||'',cells=[
+    ['EduSync · Cumplimiento docente'],
+    ['Año académico',yr,'Periodo',periodLabel()],
+    ['Alcance','Docentes activos del año y bimestre seleccionados'],
+    ['Criterio','Cierres formales de asignaciones; la fecha de avisos no implica un plazo oficial de cumplimiento'],[],
+    ['Docente','ID docente','Asignaciones','Cerradas','Pendientes','Cumplimiento','Estado','Notas faltantes']
+  ];
+  rows.forEach(function(r){cells.push([r.name,r.id,r.total,r.closed,r.pending,r.pct+'%',r.state,r.missing]);});
+  if(gradeMatrix!==null){
+    cells.push([],['Detalle de asignaciones'],['Docente','Curso','Nivel','Grado','Sección','Avance notas','Estado cierre','Fecha cierre','Responsable']);
+    rows.forEach(function(r){
+      r.courses.forEach(function(x){cells.push([r.name,x.course_name,x.level,gradeLabel(x.grado),x.seccion,
+        Number(x.grade_progress||0).toFixed(1)+'%',x.state,x.closed_at||'',x.closed_by_name||'']);});
+    });
+  }else cells.push([],['Detalle por curso','No disponible en esta consulta']);
+  var content='\ufeff'+cells.map(function(row){return row.map(safeCsv).join(';');}).join('\r\n');
+  var blob=new Blob([content],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),
+    link=document.createElement('a');
+  link.href=url;link.download='EduSync_cumplimiento_'+String(yr)+'_bim'+bimester()+'.csv';
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+function printCompliance(){
+  var rows=reportRows();if(!rows.length)return;
+  var frame=document.getElementById('taca-report-preview');
+  if(!frame){toast('No se encontró la vista previa del reporte. Recarga la página.','warning');return;}
+  var year=(currentYear()||{}).year||'';
+  var tableRows=rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+r.total+'</td><td>'+r.closed+'</td>'+
+    '<td>'+r.pending+'</td><td>'+r.pct+'%</td><td>'+esc(r.state)+'</td><td>'+esc(r.missing)+'</td></tr>';}).join('');
+  var detail='';
+  if(gradeMatrix!==null){
+    detail='<h2>Detalle de asignaciones</h2><table><thead><tr><th>Docente</th><th>Curso</th><th>Aula</th><th>Avance de notas</th><th>Estado</th><th>Fecha de cierre</th></tr></thead><tbody>';
+    rows.forEach(function(r){r.courses.forEach(function(x){detail+='<tr><td>'+esc(r.name)+'</td><td>'+esc(x.course_name)+'</td>'+
+      '<td>'+esc(x.level)+' · '+esc(gradeLabel(x.grado))+' '+esc(x.seccion)+'</td><td>'+Number(x.grade_progress||0).toFixed(1)+'%</td>'+
+      '<td>'+esc(x.state)+'</td><td>'+dateOf(x.closed_at)+'</td></tr>';});});
+    detail+='</tbody></table>';
+  }else detail='<p>El detalle por asignación no estuvo disponible en esta consulta.</p>';
+  var html='<!doctype html><html lang="es"><head><meta charset="utf-8"><title>EduSync · Cumplimiento docente</title>'+
+    '<style>body{font:12px Arial,sans-serif;color:#2d3952;padding:24px}h1{font-size:22px;margin-bottom:5px}h2{font-size:16px;margin-top:24px}'+
+    'p{color:#657187}table{width:100%;border-collapse:collapse;margin:12px 0}th,td{padding:7px;text-align:left;border:1px solid #cbd5e1}th{background:#edf2ff}'+
+    '@page{size:A4 landscape;margin:13mm}</style></head><body>'+
+    '<h1>EduSync · Reporte de cumplimiento docente</h1>'+
+    '<p>Año académico '+esc(year)+' · '+esc(periodLabel())+' · Consulta '+esc(new Date().toLocaleString('es-PE'))+'</p>'+
+    '<p>Docentes activos. Cumplimiento = asignaciones formalmente cerradas / asignaciones asignadas. No se califica atraso sin fecha oficial.</p>'+
+    '<h2>Resumen por docente</h2><table><thead><tr><th>Docente</th><th>Asignadas</th><th>Cerradas</th><th>Pendientes</th><th>Cumplimiento</th><th>Estado</th><th>Notas faltantes</th></tr></thead><tbody>'+
+    tableRows+'</tbody></table>'+detail+'</body></html>';
+  // El reporte queda dentro del modal. El botón inferior imprime únicamente
+  // el iframe, sin crear pestañas ni navegar fuera del sistema.
+  $('#taca-report-print').prop('disabled',true);
+  $('#taca-report-subtitle').text('Año '+year+' · '+periodLabel()+' · '+rows.length+' docente(s)');
+  frame.onload=function(){
+    $('#taca-report-print').prop('disabled',false);
+  };
+  frame.srcdoc=html;
+  $('#taca-report-modal').modal('show');
 }
 function renderHistory(items){
   if(!items||!items.length){
@@ -217,6 +382,9 @@ function load(){
   var token=++requestNumber,yearKey=yearId,periodKey=bimester();
   if(gradeRequest&&gradeRequest.readyState!==4)gradeRequest.abort();
   state=null;gradesLoaded=false;historyKey='';historyData=null;
+  gradeMatrix=null;matrixLoading=false;closeDetail();
+  if(matrixRequest&&matrixRequest.readyState!==4)matrixRequest.abort();
+  $('#taca-export-csv,#taca-print-report').prop('disabled',true);
   $('#taca-data').addClass('d-none');
   $('#taca-error').empty();
   if(!yearId)return;
@@ -228,6 +396,7 @@ function load(){
       return;
     }
     state=response;
+    $('#taca-export-csv,#taca-print-report').prop('disabled',!Array.isArray(response.teachers)||response.teachers.length===0);
     if(!alertsReady()){
       $('#taca-error').html('<div class="alert alert-warning" role="alert">'+
         '<strong>Seguimiento en modo consulta.</strong> Puedes revisar los cierres, pero los avisos y su configuración están desactivados porque faltan tablas de notificaciones. '+
@@ -238,6 +407,7 @@ function load(){
     $('#taca-grades-status').text(canEdit()?'Revisando notas…':'Año histórico · cierres únicamente');
     stats();drawTable();fillSettings();
     loadMissing(token,yearKey,periodKey);
+    loadGradeMatrix(token,yearKey,periodKey);
   }).fail(function(xhr){
     if(token!==requestNumber)return;
     var r=xhr.responseJSON||{},http=xhr.status||0;
@@ -259,7 +429,8 @@ function selectYearAndLoad(){
   var pToken=++periodNumber;
   ++requestNumber;
   if(gradeRequest&&gradeRequest.readyState!==4)gradeRequest.abort();
-  state=null;
+  state=null;closeDetail();gradeMatrix=null;
+  $('#taca-export-csv,#taca-print-report').prop('disabled',true);
   $('#taca-data').addClass('d-none');
   $('#taca-loading').removeClass('d-none');
   if(!yearId){$('#taca-loading').addClass('d-none');return;}
@@ -283,13 +454,13 @@ function selectYearAndLoad(){
 }
 $('#taca-year').on('change',function(){
   yearId=Number(this.value||0);
-  $('#taca-filter').val('pending');
+  $('#taca-filter').val('all');
   if(table)table.search('');
   selectYearAndLoad();
 });
 $('#taca-bim').on('change',function(){
   ++periodNumber;
-  $('#taca-filter').val('pending');
+  $('#taca-filter').val('all');
   if(table)table.search('');
   load();
 });
@@ -346,6 +517,34 @@ $('#taca-settings-form').on('submit',function(e){
       .text(message).insertBefore('#taca-settings-context');
     toast('No se pudo guardar. Revisa el detalle en la ventana.','danger');
   }).always(function(){btn.prop('disabled',false);});
+});
+$('#taca-teachers-table').on('click','.taca-detail',function(){
+  if(!state)return;
+  detailTeacherId=Number($(this).attr('data-teacher')||0);
+  renderTeacherDetail();
+  $('#taca-teacher-detail').modal('show');
+});
+$('#taca-teacher-detail').on('hidden.bs.modal',function(){
+  detailTeacherId=0;
+  $('#taca-detail-body').empty();
+});
+$('#taca-export-csv').on('click',exportComplianceCsv);
+$('#taca-print-report').on('click',printCompliance);
+$('#taca-report-print').on('click',function(){
+  var frame=document.getElementById('taca-report-preview');
+  var doc=frame&&frame.contentWindow;
+  if(!doc||!frame.srcdoc){toast('La vista previa todavía no está disponible.','warning');return;}
+  try{
+    doc.focus();
+    doc.print();
+  }catch(err){
+    toast('No se pudo abrir la impresión del reporte desde la vista previa. Comprueba los permisos del navegador.','warning');
+  }
+});
+$('#taca-report-modal').on('hidden.bs.modal',function(){
+  var frame=document.getElementById('taca-report-preview');
+  if(frame){frame.onload=null;frame.removeAttribute('srcdoc');}
+  $('#taca-report-print').prop('disabled',true);
 });
 $('#taca-teachers-table').on('click','.taca-send',function(){
   if(!state)return;

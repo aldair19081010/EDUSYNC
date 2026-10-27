@@ -270,6 +270,7 @@ function agc_matrix(mysqli $db, int $schoolId, int $yearId): array {
             $state = $closed ? ($pending ? 'Reapertura pendiente' : 'Cerrado') : ($reopened ? 'Reabierto' : ($ready ? 'Listo' : 'Incompleto'));
             $items[] = [
                 'teacher_course_id'=>$tc,
+                'teacher_id'=>(int)$assignment['teacher_id'],
                 'course_name'=>$assignment['course_name'],
                 'level'=>$assignment['level'],
                 'grado'=>$assignment['grado'],

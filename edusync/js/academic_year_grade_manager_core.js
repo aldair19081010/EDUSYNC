@@ -1,217 +1,398 @@
+/* EduSync · Control de cierre administrativo.
+ * Modal exclusivo de la pestaña Cierre de notas. No modifica el flujo docente.
+ * Reutiliza las API de validación, cierre normal y cierre excepcional.
+ */
 (function($){
 'use strict';
-if(!$) return;
+if(!$)return;
+var qs=new URLSearchParams(location.search);
+if(qs.get('page')!=='academic_year'||qs.get('manage')!=='1')return;
+var yearId=Number(qs.get('id')||0);if(!yearId)return;
 
-var params = new URLSearchParams(window.location.search);
-if(params.get('page') !== 'academic_year' || params.get('manage') !== '1') return;
-var yearId = Number(params.get('id') || 0);
-if(!yearId) return;
+var bimester=1,yearStatus='',matrix=null,meta={},items=[],table=null;
+var selected=new Set(),mode='list',detailId=0,confirmData=null,requestSerial=0,activeRequest=false;
+var selectors=['aym-level','aym-teacher','aym-state','aym-course','aym-grade','aym-section'];
+var filterState={level:'',teacher:'',state:'',course:'',grade:'',section:''};
+var extFilter=null;
 
-var currentBimester = 1;
-var gradeData = null;
-var closureMeta = {};
-var currentItems = [];
-var yearStatus = '';
-var csrf = '';
-
-function esc(v){ return $('<div>').text(v == null ? '' : v).html(); }
-function toast(msg,type){ if(typeof window.alert_toast === 'function') window.alert_toast(msg,type||'success'); else alert(msg); }
-function getCsrf(){
-    if(csrf) return csrf;
-    csrf = $('#edu-chat-form input[name="csrf_token"]').val() || $('input[name="csrf_token"]').first().val() || '';
-    return csrf;
+function esc(v){return $('<span>').text(v==null?'':String(v)).html();}
+function num(v){return Number(v||0);}
+function roman(v){return ['','I','II','III','IV'][Number(v)]||String(v);}
+function grade(v){var text=String(v==null?'':v).replace(/[º°]+$/,'').trim();return text?esc(text)+'°':'';}
+function fmt(v){if(!v)return '—';var m=String(v).match(/^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d):(\d\d))?/);return m?m[3]+'/'+m[2]+'/'+m[1]+(m[4]?' '+m[4]+':'+m[5]:''):esc(v);}
+function toast(t,type){if(typeof window.alert_toast==='function')window.alert_toast(t,type||'success');else window.alert(t);}
+function csrf(){return window.EDUSYNC_CSRF||$('#edusync-global-csrf').val()||$('input[name="csrf_token"]').first().val()||'';}
+function get(file,action,extra){return $.getJSON(file,$.extend({action:action,academic_year_id:yearId,bimester:bimester},extra||{}));}
+function post(action,extra){return $.ajax({url:'admin_grade_closure_api.php',method:'POST',dataType:'json',
+  data:$.extend({action:action,academic_year_id:yearId,bimester:bimester,csrf_token:csrf()},extra||{})});}
+function apiError(xhr,defaultMsg){var r=xhr&&xhr.responseJSON||{};return r.message||defaultMsg||'Error al procesar la solicitud.';}
+function current(){var p=matrix&&matrix.periods||{};return p[bimester]||p[String(bimester)]||{summary:{},items:[]};}
+function summary(){return current().summary||{};}
+function locked(){return !!num(summary().locked);}
+function editable(){return yearStatus==='Activo'&&!locked()&&!activeRequest;}
+function eligible(x){return x&&x.ready&&!x.closed&&!x.pending_reopen&&yearStatus==='Activo'&&!locked();}
+function lookup(id){return items.find(function(x){return num(x.teacher_course_id)===num(id);})||null;}
+function stateBadge(v){var t={'Cerrado':'success','Listo':'primary','Incompleto':'warning','Reabierto':'info','Reapertura pendiente':'danger'};
+  return '<span class="badge badge-'+(t[v]||'secondary')+'">'+esc(v||'Sin estado')+'</span>';}
+function modal(){return $('#aym-control-modal');}
+function resetBodyScroll(){modal().find('.modal-body').scrollTop(0);}
+function kpi(label,value,icon,tone){
+  return '<div class="col-sm-6 col-lg-3 mb-2"><div class="aym-stat"><div class="aym-stat-icon '+(tone||'')+'"><i class="fas fa-'+icon+'"></i></div><div><small>'+esc(label)+'</small><strong>'+num(value).toLocaleString('es-PE')+'</strong></div></div></div>';
 }
-function roman(b){ return ['', 'I','II','III','IV'][Number(b)] || String(b); }
-function gradeLabel(v){
-    var grade=String(v == null ? '' : v).trim().replace(/[°º]+$/u,'').trim();
-    return grade ? esc(grade)+'°' : '';
+function modalTemplate(){
+  if(modal().length)return;
+  $('body').append(
+    '<div class="modal fade" id="aym-control-modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="aym-modal-title" data-backdrop="static" data-keyboard="false">'+
+    '<div class="modal-dialog modal-xl modal-dialog-centered" role="document"><div class="modal-content">'+
+    '<div class="modal-header"><div class="flex-grow-1"><div class="aym-kicker">EDUSYNC · GESTIÓN ACADÉMICA</div>'+
+    '<h5 class="modal-title" id="aym-modal-title">Control de cierre de notas</h5>'+
+    '<div class="aym-subtitle" id="aym-modal-subtitle">Cargando bimestre...</div></div>'+
+    '<button class="close" type="button" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button></div>'+
+    '<div class="modal-body" id="aym-modal-body"></div>'+
+    '<div class="modal-footer"><span class="small text-muted" id="aym-modal-footnote"></span>'+
+    '<div class="aym-modal-actions">'+
+      '<button class="btn btn-sm btn-light border d-none" id="aym-back" type="button"><i class="fas fa-arrow-left mr-1"></i>Volver</button>'+
+      '<button class="btn btn-sm btn-light border" id="aym-dismiss" type="button" data-dismiss="modal">Cerrar</button>'+
+      '<button class="btn btn-sm btn-success d-none" id="aym-close-selected" type="button" disabled><i class="fas fa-lock mr-1"></i>Cerrar seleccionados</button>'+
+      '<button class="btn btn-sm btn-primary d-none" id="aym-commit" type="button">Confirmar cierre</button>'+
+    '</div></div></div></div></div>'
+  );
 }
-function aulaLabel(x){ return gradeLabel(x.grado)+' '+esc(x.seccion); }
-function fmtDate(v){
-    if(!v) return '—';
-    var m=String(v).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
-    if(!m) return esc(v);
-    var h=Number(m[4]), suffix=h>=12?'p. m.':'a. m.'; h=h%12||12;
-    return m[3]+'/'+m[2]+'/'+m[1]+' '+String(h).padStart(2,'0')+':'+m[5]+' '+suffix;
+function destroyWidgets(){
+  selectors.forEach(function(id){var $el=$('#'+id);if($el.length&&$el.hasClass('select2-hidden-accessible')&&$.fn.select2)$el.select2('destroy');});
+  if(table){table.destroy();table=null;}
+  if(extFilter&&$.fn.dataTable&&$.fn.dataTable.ext){
+    var f=$.fn.dataTable.ext.search,i=f.indexOf(extFilter);
+    if(i>=0)f.splice(i,1);extFilter=null;
+  }
 }
-function stateBadge(state){
-    var map={'Cerrado':'success','Listo':'primary','Incompleto':'warning','Reabierto':'info','Reapertura pendiente':'danger'};
-    return '<span class="badge badge-'+(map[state]||'secondary')+'">'+esc(state)+'</span>';
+function statusesText(){return locked()?'Bloqueo institucional activo':yearStatus==='Activo'?'Bimestre abierto':'Periodo de consulta histórica';}
+function unique(key){
+  return Array.from(new Set(items.map(function(x){return String(x[key]||'').trim();}).filter(Boolean)))
+    .sort(function(a,b){return a.localeCompare(b,'es',{numeric:true});});
 }
-function unique(items,key){
-    return Array.from(new Set(items.map(function(x){return String(x[key] == null ? '' : x[key]);}).filter(Boolean)))
-        .sort(function(a,b){return a.localeCompare(b,'es',{numeric:true});});
+function options(values){
+  return '<option value="">Todos</option>'+values.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');
 }
-function options(values,label){
-    return '<option value="">'+esc(label)+'</option>'+values.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+function rowHtml(x){
+  var id=num(x.teacher_course_id),m=meta[String(id)]||{},pct=Math.min(100,Math.max(0,num(x.grade_progress))),can=eligible(x);
+  var action=x.closed?'Ver cierre':can?'Cerrar':'Ver pendientes';
+  var btn='<button type="button" class="btn btn-sm btn-outline-'+(can?'success':'primary')+' '+(can?'aym-ask-single':'aym-open-detail')+'" data-id="'+id+'">'+esc(action)+'</button>';
+  return '<tr><td><input type="checkbox" class="aym-check" value="'+id+'" aria-label="Seleccionar asignación"'+
+    (selected.has(id)?' checked':'')+(can?'':' disabled')+'></td>'+
+    '<td><div class="aym-cell-title">'+esc(x.course_name)+'</div><div class="aym-cell-sub">'+esc(x.level)+' · '+grade(x.grado)+' '+esc(x.seccion)+'</div></td>'+
+    '<td><span class="font-weight-semibold">'+esc(x.teacher_name)+'</span></td>'+
+    '<td data-order="'+pct+'"><strong>'+pct.toFixed(1)+'%</strong><div class="progress aym-table-mini-progress"><div class="progress-bar '+(pct>=100?'bg-success':'bg-warning')+'" style="width:'+pct+'%"></div></div></td>'+
+    '<td>'+stateBadge(x.state)+'</td>'+
+    '<td><div class="small">'+(x.closed?'<strong>'+esc(m.mode||'Cerrado')+'</strong><div class="text-muted">'+fmt(m.closed_at||x.closed_at)+'</div>':'—')+'</div></td>'+
+    '<td>'+btn+'</td></tr>';
 }
-function adminPost(action,data){
-    data=data||{}; data.action=action; data.csrf_token=getCsrf();
-    return $.ajax({url:'admin_grade_closure_api.php',method:'POST',data:data,dataType:'json'});
+function tableFilter(settings,data,index){
+  if(!settings||!settings.nTable||settings.nTable.id!=='aym-grid')return true;
+  if(!table)return true;
+  var node=table.row(index).node();if(!node)return true;
+  var id=num($(node).find('.aym-check').val()),x=lookup(id);if(!x)return false;
+  return (!filterState.level||String(x.level||'')===filterState.level)
+    &&(!filterState.teacher||String(x.teacher_name||'')===filterState.teacher)
+    &&(!filterState.state||String(x.state||'')===filterState.state)
+    &&(!filterState.course||String(x.course_name||'')===filterState.course)
+    &&(!filterState.grade||String(x.grado||'')===filterState.grade)
+    &&(!filterState.section||String(x.seccion||'')===filterState.section);
 }
-function adminGet(action,data){ data=data||{}; data.action=action; return $.getJSON('admin_grade_closure_api.php',data); }
-function gradeGet(action,data){ data=data||{}; data.action=action; return $.getJSON('academic_year_grade_control_api.php',data); }
-
-// El panel viejo queda fuera de uso: toda la gestión individual vive en el modal.
-$('<style id="aym-style">'+
-  '#ay-admin-close-panel{display:none!important}'+
-  '#info-modal.aym-manager .modal-dialog{max-width:1280px;width:calc(100% - 32px)}'+
-  '#info-modal.aym-manager .modal-body{padding:1rem}'+
-  '#admin-close-modal.aym-pending-fixed{overflow:hidden!important;z-index:1070}'+
-  '#admin-close-modal.aym-pending-fixed .modal-dialog{position:fixed;top:50%;left:50%;margin:0!important;width:calc(100% - 24px);max-width:560px;transform:translate(-50%,-50%)!important}'+
-  '#admin-close-modal.aym-pending-fixed .modal-content{max-height:calc(100vh - 32px);overflow:hidden}'+
-  '#admin-close-modal.aym-pending-fixed .modal-body{overflow-y:auto;overscroll-behavior:contain}'+
-  '.aym-toolbar{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:10px;padding:12px}'+
-  '.aym-toolbar label{font-size:.7rem;font-weight:700;color:#5a5c69;text-transform:uppercase;margin-bottom:4px}'+
-  '.aym-actions{display:flex;gap:6px;flex-wrap:wrap}'+
-  '.aym-table td,.aym-table th{vertical-align:middle}'+
-  '.aym-row-closed{background:#f8fff9}.aym-row-incomplete{background:#fffdf7}'+
-  '.aym-note{font-size:.72rem;color:#858796}.aym-mobile-list{display:none}'+
-  '@media(max-width:767.98px){#info-modal.aym-manager .modal-dialog{width:calc(100% - 16px);margin:.5rem auto}.aym-toolbar .form-group{margin-bottom:.55rem}.aym-actions .btn{flex:1 1 100%}.aym-table-wrap{display:none}.aym-mobile-list{display:block}.aym-card{border:1px solid #e3e6f0;border-radius:10px;padding:12px;margin-bottom:10px;background:#fff}.aym-card.closed{border-left:4px solid #1cc88a}.aym-card.ready{border-left:4px solid #4e73df}.aym-card.incomplete{border-left:4px solid #f6c23e}.aym-card-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.aym-card-actions .btn{flex:1 1 auto}}'+
-  '</style>').appendTo('head');
-
-function getPeriod(){ return gradeData && gradeData.periods ? (gradeData.periods[currentBimester] || gradeData.periods[String(currentBimester)]) : null; }
-function findItem(id){ return currentItems.find(function(x){return Number(x.teacher_course_id)===Number(id);}); }
-function filteredItems(){
-    var lv=$('#aym-level').val()||'', teacher=$('#aym-teacher').val()||'', course=$('#aym-course').val()||'', grade=$('#aym-grade').val()||'', section=$('#aym-section').val()||'', state=$('#aym-state').val()||'';
-    return currentItems.filter(function(x){
-        return (!lv||String(x.level)===lv)&&(!teacher||String(x.teacher_name)===teacher)&&(!course||String(x.course_name)===course)&&(!grade||String(x.grado)===grade)&&(!section||String(x.seccion)===section)&&(!state||String(x.state)===state);
+function visibleChecks(){
+  var visible=[];
+  if(table){
+    table.rows({page:'current',search:'applied'}).every(function(){
+      var input=$(this.node()).find('.aym-check');
+      if(input.length&&!input.prop('disabled'))visible.push(input[0]);
+    });
+  }else $('#aym-grid .aym-check:visible:not(:disabled)').each(function(){visible.push(this);});
+  return visible;
+}
+function syncSelected(){
+  var candidates=new Set(items.filter(eligible).map(function(x){return num(x.teacher_course_id);}));
+  selected.forEach(function(id){if(!candidates.has(id))selected.delete(id);});
+  $('#aym-grid .aym-check').each(function(){this.checked=selected.has(num(this.value));});
+  var visible=visibleChecks();
+  $('#aym-check-all').prop('disabled',!visible.length).prop('checked',!!visible.length&&visible.every(function(x){return selected.has(num(x.value));}));
+  $('#aym-close-selected').prop('disabled',!selected.size||activeRequest)
+    .html('<i class="fas fa-lock mr-1"></i>Cerrar seleccionados'+(selected.size?' ('+selected.size+')':''));
+  var readyCount=items.filter(eligible).length;
+  $('#aym-select-ready').prop('disabled',!readyCount||activeRequest)
+    .text('Seleccionar los '+readyCount+' listos del bimestre');
+  $('#aym-clear-selection').toggleClass('d-none',!selected.size);
+  $('#aym-modal-footnote').text(selected.size?
+    selected.size+' asignación(es) seleccionada(s) · incluso de otras páginas':
+    'Marca las asignaciones listas que deseas cerrar');
+}
+function applyFilters(){
+  if(!table)return;
+  selectors.forEach(function(id){
+    var field=id.replace(/^aym-/,'');
+    filterState[field]=String($('#'+id).val()||'');
+  });
+  table.draw();
+  syncSelected();
+}
+function activateSelect2(){
+  if(typeof $.fn.select2!=='function')return;
+  selectors.forEach(function(id){
+    var $el=$('#'+id);
+    // Los valores cortos se mantienen como select nativo.
+    if($el.length&&$el.find('option').length>9){
+      $el.select2({theme:'bootstrap',width:'100%',dropdownParent:modal(),minimumResultsForSearch:0,
+        placeholder:'Todos',language:{noResults:function(){return 'Sin resultados';},searching:function(){return 'Buscando...';}}});
+    }
+  });
+}
+function listView(){
+  destroyWidgets();mode='list';detailId=0;confirmData=null;
+  var s=summary(),count=num(s.total),closed=num(s.closed),pending=Math.max(0,count-closed);
+  var pct=count?Math.round(closed/count*100):0;
+  var editing=yearStatus==='Activo'&&!locked();
+  $('#aym-modal-title').text('Control de cierre de notas');
+  $('#aym-modal-subtitle').text(roman(bimester)+' Bimestre · Año '+String((matrix.year||{}).year||'')+' · '+statusesText());
+  var top='<div class="row mb-1">'+kpi('Asignaciones',count,'layer-group')+
+    kpi('Cerradas',closed,'check-circle','success')+kpi('Listas para cerrar',s.ready,'clipboard-check','info')+
+    kpi('Incompletas',s.incomplete,'exclamation-triangle','warning')+'</div>'+
+    '<div class="small d-flex justify-content-between mb-2"><span class="text-muted">Cumplimiento del cierre</span><strong>'+pct+'%</strong></div>'+
+    '<div class="progress aym-progress mb-2"><div class="progress-bar bg-success" style="width:'+pct+'%"></div></div>'+
+    '<div class="small text-muted mb-3">Listo = notas completas, pero sin cerrar · Cerrado = registro de cierre efectuado.</div>';
+  var fields='<div class="aym-filter-bar"><div class="form-row">'+
+    '<div class="col-md-3 form-group mb-2"><label for="aym-level">Nivel</label><select class="form-control form-control-sm aym-select-wide" id="aym-level">'+options(unique('level'))+'</select></div>'+
+    '<div class="col-md-5 form-group mb-2"><label for="aym-teacher">Docente</label><select class="form-control form-control-sm aym-select-wide" id="aym-teacher">'+options(unique('teacher_name'))+'</select></div>'+
+    '<div class="col-md-4 form-group mb-2"><label for="aym-state">Estado</label><select class="form-control form-control-sm aym-select-wide" id="aym-state">'+options(['Cerrado','Listo','Incompleto','Reabierto','Reapertura pendiente'])+'</select></div>'+
+    '</div><div class="d-flex align-items-center justify-content-between">'+
+    '<button type="button" class="btn btn-link btn-sm p-0 aym-more" id="aym-toggle-extra" aria-expanded="false"><i class="fas fa-sliders-h mr-1"></i>Más filtros</button>'+
+    '<button type="button" class="btn btn-sm btn-light border" id="aym-clear"><i class="fas fa-eraser mr-1"></i>Limpiar</button>'+
+    '</div><div id="aym-extra-filters" class="d-none"><div class="form-row">'+
+    '<div class="col-md-5 form-group mb-2"><label for="aym-course">Curso</label><select class="form-control form-control-sm aym-select-wide" id="aym-course">'+options(unique('course_name'))+'</select></div>'+
+    '<div class="col-md-4 form-group mb-2"><label for="aym-grade">Grado</label><select class="form-control form-control-sm aym-select-wide" id="aym-grade">'+options(unique('grado'))+'</select></div>'+
+    '<div class="col-md-3 form-group mb-2"><label for="aym-section">Sección</label><select class="form-control form-control-sm aym-select-wide" id="aym-section">'+options(unique('seccion'))+'</select></div>'+
+    '</div></div></div>';
+  var gridHtml='<div class="aym-panel">'+fields+
+    '<div class="aym-table-head"><div><strong>Asignaciones docentes</strong><div class="small text-muted">Puedes seleccionar asignaciones en distintas páginas de la tabla.</div></div>'+
+    '<div class="d-flex align-items-center flex-wrap" style="gap:10px">'+
+    '<span class="badge badge-light border">'+items.length+' registros</span>'+
+    (editing?'<button type="button" class="btn btn-link btn-sm p-0" id="aym-select-ready">Seleccionar los listos del bimestre</button>'+
+    '<button type="button" class="btn btn-link btn-sm text-secondary p-0 d-none" id="aym-clear-selection">Quitar selección</button>':'')+
+    '</div></div>'+
+    '<div class="table-responsive"><table class="table table-sm table-hover ed-table" id="aym-grid">'+
+    '<thead class="thead-light"><tr><th><input type="checkbox" id="aym-check-all" aria-label="Seleccionar asignaciones visibles"></th>'+
+    '<th>Curso y aula</th><th>Docente</th><th>Notas</th><th>Estado</th><th>Cierre</th><th>Acción</th></tr></thead>'+
+    '<tbody>'+items.map(rowHtml).join('')+'</tbody></table></div></div>';
+  $('#aym-modal-body').html(top+gridHtml);
+  showFooter();
+  // Select2 usa este modal como dropdownParent, para no quedar detrás del backdrop.
+  activateSelect2();
+  if($.fn.DataTable && items.length){
+    extFilter=tableFilter;
+    $.fn.dataTable.ext.search.push(extFilter);
+    table=$('#aym-grid').DataTable({autoWidth:false,pageLength:10,lengthMenu:[[10,25,50],[10,25,50]],
+      order:[[1,'asc']],columnDefs:[{targets:[0,6],orderable:false}],
+      language:{search:'Buscar:',lengthMenu:'Mostrar _MENU_',info:'_START_–_END_ de _TOTAL_ asignaciones',
+        infoEmpty:'Sin asignaciones',zeroRecords:'No hay registros con estos filtros',
+        paginate:{previous:'Anterior',next:'Siguiente'}}
+    });
+    table.on('draw.dt',syncSelected);
+  }
+  syncSelected();
+  resetBodyScroll();
+  if(table)window.setTimeout(function(){if(table)table.columns.adjust();},0);
+}
+function showFooter(){
+  var main=mode==='list',confirmation=mode==='confirm',view=mode==='detail',can=yearStatus==='Activo'&&!locked();
+  $('#aym-back').toggleClass('d-none',main).prop('disabled',activeRequest);
+  $('#aym-dismiss').toggleClass('d-none',!main);
+  $('#aym-close-selected').toggleClass('d-none',!main||!can);
+  $('#aym-commit').toggleClass('d-none',!confirmation);
+  if(view)$('#aym-modal-footnote').text('Solo consulta: no se modifican las calificaciones.');
+  if(confirmation)$('#aym-modal-footnote').text('Esta acción quedará registrada en el historial.');
+}
+function viewDetail(id){
+  var x=lookup(id);if(!x)return;
+  // Desmontar Select2 y DataTables antes de sustituir la vista del listado.
+  destroyWidgets();
+  mode='detail';detailId=id;confirmData=null;
+  $('#aym-modal-title').text(x.closed?'Detalle del cierre':'Detalle de pendientes');
+  $('#aym-modal-subtitle').text(roman(bimester)+' Bimestre · '+String((matrix.year||{}).year||''));
+  var m=meta[String(id)]||{},problems=Array.isArray(x.issues)?x.issues:[];
+  var title='<div class="aym-detail-panel mb-3"><div class="d-flex justify-content-between align-items-center flex-wrap mb-2">'+
+    '<h6 class="aym-detail-heading mb-0">'+esc(x.course_name)+' · '+grade(x.grado)+' '+esc(x.seccion)+'</h6>'+stateBadge(x.state)+'</div>'+
+    '<div class="text-muted small">'+esc(x.level)+' · '+esc(x.teacher_name)+'</div>'+
+    '<div class="aym-action-separator"></div>'+
+    '<div class="d-flex justify-content-between small"><span>Avance de calificaciones</span><strong>'+num(x.grade_progress).toFixed(1)+'%</strong></div>'+
+    '<div class="progress aym-progress mt-2"><div class="progress-bar '+(num(x.grade_progress)>=100?'bg-success':'bg-warning')+'" style="width:'+Math.max(0,Math.min(100,num(x.grade_progress)))+'%"></div></div></div>';
+  if(x.closed){
+    title+='<div class="aym-detail-panel">'+
+      '<div class="aym-detail-item"><strong>Tipo de cierre:</strong> '+esc(m.mode||'Cerrado')+'</div>'+
+      '<div class="aym-detail-item"><strong>Responsable:</strong> '+esc(m.closed_by_name||x.closed_by_name||'—')+'</div>'+
+      '<div class="aym-detail-item"><strong>Fecha de cierre:</strong> '+fmt(m.closed_at||x.closed_at)+'</div>'+
+      '<div class="aym-detail-item"><strong>Versión:</strong> #'+num(m.closure_version||1)+'</div>'+
+      '<div class="aym-detail-item"><strong>Observación:</strong> '+esc(m.reason||'Sin observación')+'</div></div>';
+  }else{
+    title+='<div class="aym-detail-panel">'+
+      '<h6 class="font-weight-bold mb-2">Validaciones de la asignación</h6>'+
+      (problems.length?'<ul class="small mb-2 pl-3">'+problems.map(function(p){return '<li class="mb-2">'+esc(p)+'</li>';}).join('')+'</ul>':
+        '<p class="small text-success mb-2">No se registran calificaciones pendientes.</p>')+
+      (x.pending_reopen?'<div class="alert alert-warning small">Existe una solicitud de reapertura pendiente. Resuélvela antes de gestionar el cierre.</div>':'')+
+      (eligible(x)?'<button class="btn btn-sm btn-outline-success mt-2 aym-confirm-single" data-id="'+id+'"><i class="fas fa-lock mr-1"></i>Cerrar asignación lista</button>':'')+
+      (!x.ready && yearStatus==='Activo'&&!locked()&&!x.pending_reopen?
+        '<div class="aym-action-separator"></div><details><summary class="small text-muted" style="cursor:pointer">Acción extraordinaria de Administración</summary>'+
+        '<div class="alert alert-warning small mt-2">Un cierre excepcional bloquea la asignación con información pendiente y exige motivo y autorización.</div>'+
+        '<button class="btn btn-sm btn-outline-danger aym-confirm-exceptional" data-id="'+id+'">Evaluar cierre excepcional</button></details>':'')+
+      '</div>';
+  }
+  $('#aym-modal-body').html(title);
+  showFooter();resetBodyScroll();
+}
+function beginConfirm(kind,ids){
+  if(yearStatus!=='Activo'||locked()||activeRequest)return;
+  ids=Array.from(new Set((ids||[]).map(Number))).filter(function(id){var x=lookup(id);return kind==='exceptional'?
+    (x&&!x.closed&&!x.ready&&!x.pending_reopen):eligible(x);});
+  if(!ids.length){toast('No hay asignaciones válidas para cerrar.','warning');return;}
+  var force=kind==='exceptional',bulk=ids.length>1||kind==='bulk';
+  if(force&&!lookup(ids[0]))return;
+  confirmData={kind:force?'exceptional':bulk?'bulk':'single',ids:ids,bimester:bimester};
+  // Evitar tablas huérfanas y dropdowns Select2 residuales al confirmar.
+  destroyWidgets();
+  mode='confirm';
+  $('#aym-modal-title').text(force?'Cierre administrativo excepcional':bulk?'Confirmar cierre de asignaciones':'Confirmar cierre de notas');
+  $('#aym-modal-subtitle').text(roman(bimester)+' Bimestre · Año '+String((matrix.year||{}).year||''));
+  var first=lookup(ids[0]),head=bulk?
+    '<strong>'+ids.length+' asignaciones listas</strong> serán verificadas de nuevo por el servidor antes de registrar sus cierres.':
+    '<strong>'+esc(first.course_name)+' · '+grade(first.grado)+' '+esc(first.seccion)+'</strong>'+
+      '<div class="small text-muted">'+esc(first.teacher_name)+'</div>';
+  var html='<div class="aym-detail-panel '+(force?'aym-danger':'')+' mb-3"><h6 class="aym-detail-heading mb-2">'+
+    (force?'Cierre con pendientes':bulk?'Cierre masivo de asignaciones listas':'Cierre de asignación lista')+'</h6>'+
+    '<div class="small">'+head+'</div></div>'+
+    '<div class="alert '+(force?'alert-warning':'alert-light border')+' small">'+
+    (force?'La información de esta asignación aún está incompleta. El cierre excepcional requiere una justificación y autorización explícita.':
+      'Después del cierre, las notas quedan en modo lectura. Para corregirlas posteriormente se debe solicitar una reapertura.')+
+    '</div>';
+  if(force){
+    var issueList=first.issues||[];
+    html+='<div class="aym-detail-panel mb-3"><strong class="small">Pendientes detectados</strong><ul class="small pl-3 mb-0 mt-2">'+
+      issueList.map(function(t){return '<li>'+esc(t)+'</li>';}).join('')+'</ul></div>'+
+      '<div class="form-group"><label for="aym-confirm-reason" class="font-weight-bold small">Motivo obligatorio (mínimo 5 caracteres)</label>'+
+      '<textarea class="form-control" id="aym-confirm-reason" maxlength="500" rows="3" placeholder="Explica por qué debe realizarse este cierre..."></textarea></div>'+
+      '<div class="custom-control custom-checkbox"><input type="checkbox" class="custom-control-input" id="aym-confirm-check">'+
+      '<label class="custom-control-label small" for="aym-confirm-check">Autorizo el cierre excepcional con las observaciones indicadas.</label></div>';
+  }
+  if(bulk)html+='<p class="small text-muted">Se procesarán grupos de hasta 500 asignaciones. Se omitirán aquellas que dejen de cumplir los requisitos.</p>';
+  $('#aym-modal-body').html(html+'<div id="aym-submit-status" class="small text-muted mt-3" role="status"></div>');
+  $('#aym-commit').text(force?'Cerrar excepcionalmente':bulk?'Cerrar asignaciones':'Confirmar cierre')
+    .removeClass('btn-primary btn-danger btn-success').addClass(force?'btn-danger':'btn-success').prop('disabled',false);
+  showFooter();resetBodyScroll();
+}
+function finalizeClose(message,kind){
+  toast(message,kind||'success');
+  load(bimester,false);
+  $('#ay-refresh-grade-control').trigger('click');
+}
+function submit(){
+  if(!confirmData||activeRequest||confirmData.bimester!==bimester||yearStatus!=='Activo'||locked())return;
+  var cd=confirmData,force=cd.kind==='exceptional',reason=String($('#aym-confirm-reason').val()||'').trim();
+  if(force&&(reason.length<5||!$('#aym-confirm-check').is(':checked'))){toast('Indica el motivo y confirma expresamente el cierre excepcional.','warning');return;}
+  if(!csrf()){toast('La sesión de seguridad no está disponible. Recarga EduSync.','warning');return;}
+  activeRequest=true;
+  $('#aym-commit,#aym-back,#aym-control-modal .close,#aym-dismiss').prop('disabled',true);
+  var ended=false;
+  function release(){activeRequest=false;$('#aym-commit,#aym-back,#aym-control-modal .close,#aym-dismiss').prop('disabled',false);}
+  if(cd.kind!=='bulk'){
+    post('close_assignment',{teacher_course_id:cd.ids[0],force:force?1:0,reason:force?reason:''})
+      .done(function(r){
+        if(num(r.status)===1){ended=true;release();finalizeClose(r.message||'Asignación cerrada.');}
+        else if(num(r.status)===2)toast('La asignación ya no está lista. Revisa sus pendientes antes de cerrar.','warning');
+        else toast(r.message||'No se pudo registrar el cierre.','danger');
+      }).fail(function(xhr){toast(apiError(xhr,'No se pudo registrar el cierre.'),'danger');})
+      .always(function(){if(!ended)release();});
+    return;
+  }
+  var batches=[];for(var i=0;i<cd.ids.length;i+=500)batches.push(cd.ids.slice(i,i+500));
+  var closed=0,skipped=0;
+  function process(i){
+    if(i>=batches.length){release();finalizeClose(closed+' asignaciones cerradas; '+skipped+' omitidas.',skipped?'warning':'success');return;}
+    $('#aym-submit-status').text('Procesando grupo '+(i+1)+' de '+batches.length+'...');
+    post('close_bulk',{teacher_course_ids:JSON.stringify(batches[i])}).done(function(r){
+      if(num(r.status)!==1){release();toast(r.message||'No se pudo procesar el grupo '+(i+1)+'.','danger');load(bimester,false);return;}
+      closed+=num(r.closed_count);skipped+=num(r.skipped_count);process(i+1);
+    }).fail(function(xhr){release();toast(apiError(xhr,'Error en grupo '+(i+1))+'. Cierres anteriores: '+closed,'danger');load(bimester,false);});
+  }
+  process(0);
+}
+function back(){
+  if(activeRequest)return;
+  if(mode==='confirm' && confirmData && confirmData.ids.length===1 && confirmData.kind!=='bulk')viewDetail(confirmData.ids[0]);
+  else listView();
+}
+function load(b,open){
+  if(activeRequest)return;
+  var next=Number(b)||1;if(next<1||next>4)return;
+  var token=++requestSerial;bimester=next;selected.clear();detailId=0;confirmData=null;mode='list';
+  destroyWidgets();
+  $('#aym-modal-title').text('Control de cierre de notas');
+  $('#aym-modal-subtitle').text(roman(next)+' Bimestre · Consultando asignaciones...');
+  $('#aym-modal-body').html('<div class="py-5 text-center text-muted"><i class="fas fa-circle-notch fa-spin mr-2"></i>Consultando cierres del bimestre...</div>');
+  $('#aym-close-selected,#aym-commit,#aym-back').addClass('d-none');
+  $('#aym-dismiss').removeClass('d-none');
+  $('#aym-modal-footnote').empty();
+  if(open)modal().modal('show');
+  $.when(get('academic_year_grade_control_api.php','progress'),get('admin_grade_closure_api.php','closure_info'))
+    .done(function(a,c){
+      if(token!==requestSerial)return;
+      var progress=a&&a[0]||{},closures=c&&c[0]||{};
+      if(num(progress.status)!==1||num(closures.status)!==1){
+        $('#aym-modal-body').html('<div class="alert alert-warning">'+esc(progress.message||closures.message||'No se pudo cargar el control de cierres.')+'</div>');return;
+      }
+      matrix=progress;yearStatus=String((progress.year||{}).status||'');meta=closures.items||{};
+      items=(current().items||[]);
+      listView();
+    }).fail(function(xhr){
+      if(token!==requestSerial)return;
+      $('#aym-modal-body').html('<div class="alert alert-warning">'+esc(apiError(xhr,'No se pudo consultar el control de cierre.'))+'</div>'+
+        '<button type="button" class="btn btn-sm btn-outline-primary aym-retry">Reintentar</button>');
     });
 }
-function closureText(x){
-    var m=closureMeta[String(x.teacher_course_id)]||{};
-    if(!x.closed) return '<span class="text-muted">—</span>';
-    return '<strong>'+esc(m.mode||'Cerrado')+'</strong><div class="aym-note">'+esc(m.closed_by_name||x.closed_by_name||'')+(m.closed_at?' · '+fmtDate(m.closed_at):'')+'</div>';
-}
-function actionButtons(x){
-    if(yearStatus!=='Activo') return '<button class="btn btn-sm btn-outline-info aym-view" data-id="'+x.teacher_course_id+'"><i class="fas fa-eye mr-1"></i>Ver</button>';
-    if(x.closed) return '<button class="btn btn-sm btn-outline-info aym-view-closure" data-id="'+x.teacher_course_id+'"><i class="fas fa-eye mr-1"></i>Ver cierre</button>';
-    if(x.ready) return '<button class="btn btn-sm btn-outline-success aym-close-one" data-id="'+x.teacher_course_id+'"><i class="fas fa-lock mr-1"></i>Cerrar</button>';
-    return '<button class="btn btn-sm btn-outline-secondary aym-view mr-1" data-id="'+x.teacher_course_id+'"><i class="fas fa-list mr-1"></i>Pendientes</button><button class="btn btn-sm btn-outline-danger aym-close-exceptional" data-id="'+x.teacher_course_id+'"><i class="fas fa-exclamation-triangle mr-1"></i>Excepcional</button>';
-}
-function renderRows(){
-    var items=filteredItems(), rows='', cards='';
-    $('#aym-count').text(items.length);
-    items.forEach(function(x){
-        var cls=x.closed?'aym-row-closed':(!x.ready?'aym-row-incomplete':'');
-        rows+='<tr class="'+cls+'"><td><input type="checkbox" class="aym-check" value="'+x.teacher_course_id+'" '+(x.closed?'disabled':'')+'></td><td><strong>'+esc(x.teacher_name)+'</strong></td><td>'+esc(x.course_name)+'</td><td>'+esc(x.level)+'</td><td>'+aulaLabel(x)+'</td><td>'+Number(x.grade_progress||0).toFixed(1)+'%</td><td>'+stateBadge(x.state)+'</td><td>'+closureText(x)+'</td><td class="text-right">'+actionButtons(x)+'</td></tr>';
-        var c=x.closed?'closed':(x.ready?'ready':'incomplete');
-        cards+='<div class="aym-card '+c+'"><div class="d-flex justify-content-between align-items-start"><div><strong>'+esc(x.course_name)+'</strong><div class="small text-muted">'+esc(x.teacher_name)+'</div></div><input type="checkbox" class="aym-check" value="'+x.teacher_course_id+'" '+(x.closed?'disabled':'')+'></div><div class="small mt-2"><strong>'+esc(x.level)+' · '+aulaLabel(x)+'</strong> · '+Number(x.grade_progress||0).toFixed(1)+'%</div><div class="mt-1">'+stateBadge(x.state)+'</div><div class="mt-1">'+closureText(x)+'</div><div class="aym-card-actions">'+actionButtons(x)+'</div></div>';
-    });
-    if(!rows) rows='<tr><td colspan="9" class="text-center text-muted py-4">No hay asignaciones con los filtros seleccionados.</td></tr>';
-    if(!cards) cards='<div class="alert alert-light border">No hay asignaciones con los filtros seleccionados.</div>';
-    $('#aym-tbody').html(rows); $('#aym-mobile').html(cards); $('#aym-select-all').prop('checked',false);
-}
-function renderManager(){
-    var p=getPeriod()||{}, s=p.summary||{}, locked=!!s.locked;
-    currentItems=p.items||[];
-    var summary='<div class="d-flex justify-content-between align-items-center flex-wrap mb-3"><div><div class="small text-muted">Año académico '+esc((gradeData.year||{}).year||'')+'</div><strong>'+roman(currentBimester)+' Bimestre</strong></div><div class="mt-2 mt-md-0"><span class="badge badge-'+(locked?'info':'warning')+'">'+(locked?'🔒 Bloqueo institucional activo':'🔓 Bimestre abierto')+'</span></div></div>'+
-      '<div class="row mb-3"><div class="col-6 col-md-3"><div class="ay-stat"><small class="text-muted">Cerrados</small><br><strong>'+Number(s.closed||0)+'</strong></div></div><div class="col-6 col-md-3"><div class="ay-stat"><small class="text-muted">Listos</small><br><strong>'+Number(s.ready||0)+'</strong></div></div><div class="col-6 col-md-3 mt-2 mt-md-0"><div class="ay-stat"><small class="text-muted">Incompletos</small><br><strong>'+Number(s.incomplete||0)+'</strong></div></div><div class="col-6 col-md-3 mt-2 mt-md-0"><div class="ay-stat"><small class="text-muted">Avance</small><br><strong>'+Number(s.progress||0).toFixed(1)+'%</strong></div></div></div>';
-    var toolbar='<div class="aym-toolbar mb-3"><div class="form-row">'+
-      '<div class="form-group col-lg-2 col-6"><label>Nivel</label><select class="form-control form-control-sm" id="aym-level">'+options(unique(currentItems,'level'),'Todos')+'</select></div>'+
-      '<div class="form-group col-lg-2 col-6"><label>Docente</label><select class="form-control form-control-sm" id="aym-teacher">'+options(unique(currentItems,'teacher_name'),'Todos')+'</select></div>'+
-      '<div class="form-group col-lg-2 col-6"><label>Curso</label><select class="form-control form-control-sm" id="aym-course">'+options(unique(currentItems,'course_name'),'Todos')+'</select></div>'+
-      '<div class="form-group col-lg-2 col-6"><label>Grado</label><select class="form-control form-control-sm" id="aym-grade">'+options(unique(currentItems,'grado'),'Todos')+'</select></div>'+
-      '<div class="form-group col-lg-2 col-6"><label>Sección</label><select class="form-control form-control-sm" id="aym-section">'+options(unique(currentItems,'seccion'),'Todas')+'</select></div>'+
-      '<div class="form-group col-lg-2 col-6"><label>Estado</label><select class="form-control form-control-sm" id="aym-state">'+options(['Cerrado','Listo','Incompleto','Reabierto','Reapertura pendiente'],'Todos')+'</select></div></div>'+
-      '<div class="d-flex justify-content-between align-items-center flex-wrap"><div class="small text-muted mb-2 mb-md-0"><span id="aym-count">0</span> asignación(es) visibles.</div><div class="aym-actions"><button class="btn btn-sm btn-light border" id="aym-clear"><i class="fas fa-eraser mr-1"></i>Limpiar</button>'+(yearStatus==='Activo'&&!locked?'<button class="btn btn-sm btn-outline-success" id="aym-close-selected"><i class="fas fa-check-square mr-1"></i>Cerrar seleccionados</button><button class="btn btn-sm btn-success" id="aym-close-ready"><i class="fas fa-lock mr-1"></i>Cerrar todos los listos</button>':'')+'</div></div></div>';
-    var table='<div class="aym-table-wrap table-responsive"><table class="table table-sm table-hover aym-table"><thead class="thead-light"><tr><th style="width:34px"><input type="checkbox" id="aym-select-all"></th><th>Docente</th><th>Curso</th><th>Nivel</th><th>Aula</th><th>Avance</th><th>Estado</th><th>Cierre</th><th class="text-right">Acción</th></tr></thead><tbody id="aym-tbody"></tbody></table></div><div class="aym-mobile-list" id="aym-mobile"></div>';
-    $('#info-body').html(summary+toolbar+table);
-    renderRows();
-}
-function loadManager(bim){
-    currentBimester=Number(bim);
-    $('#info-modal').addClass('aym-manager');
-    $('#info-modal .modal-dialog').removeClass('modal-sm modal-lg mid-large').addClass('modal-xl');
-    $('#info-title').text('Control de cierre · '+roman(currentBimester)+' Bimestre');
-    $('#info-body').html('<div class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando asignaciones...</div>');
-    $('#info-modal').modal('show');
-    $.when(
-      gradeGet('progress',{academic_year_id:yearId}),
-      adminGet('closure_info',{academic_year_id:yearId,bimester:currentBimester})
-    ).done(function(a,b){
-        var gr=a[0]||{}, cm=b[0]||{};
-        if(Number(gr.status)!==1){ $('#info-body').html('<div class="alert alert-warning">'+esc(gr.message||'No se pudo cargar el control de cierres.')+'</div>'); return; }
-        gradeData=gr; yearStatus=String((gr.year||{}).status||''); closureMeta=Number(cm.status)===1?(cm.items||{}):{};
-        renderManager();
-    }).fail(function(xhr){ $('#info-body').html('<div class="alert alert-danger">'+esc((xhr.responseJSON||{}).message||'No se pudo cargar el control de cierres.')+'</div>'); });
-}
-function refreshManager(){
-    $.when(gradeGet('progress',{academic_year_id:yearId}),adminGet('closure_info',{academic_year_id:yearId,bimester:currentBimester})).done(function(a,b){
-        var gr=a[0]||{},cm=b[0]||{}; if(Number(gr.status)!==1)return;
-        gradeData=gr;yearStatus=String((gr.year||{}).status||'');closureMeta=Number(cm.status)===1?(cm.items||{}):{};renderManager();
-        $('#ay-refresh-grade-control').trigger('click');
-    });
-}
-function showDetails(x,closure){
-    var modal=$('#admin-close-modal');
-    modal.attr('data-aym-mode','view').toggleClass('aym-pending-fixed',!closure);
-    $('#admin-close-title').text(closure?'Información del cierre':'Detalle de pendientes');
-    var m=closureMeta[String(x.teacher_course_id)]||{};
-    var html='<strong>'+esc(x.course_name)+' · '+aulaLabel(x)+'</strong><br><span class="small text-muted">'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre</span>';
-    if(closure) html+='<hr class="my-2"><div class="small"><strong>Tipo:</strong> '+esc(m.mode||'Cerrado')+'<br><strong>Realizado por:</strong> '+esc(m.closed_by_name||x.closed_by_name||'—')+'<br><strong>Fecha:</strong> '+fmtDate(m.closed_at||x.closed_at)+'<br><strong>Versión:</strong> #'+Number(m.closure_version||1)+'<br><strong>Motivo:</strong> '+esc(m.reason||'Sin observación adicional')+'</div>';
-    $('#admin-close-summary').attr('class','alert alert-light border').html(html);
-    var issues=x.issues||[];
-    $('#admin-close-issues').html(!closure&&issues.length?'<div class="mb-3"><strong>Pendientes detectados</strong><ul class="small mt-2 mb-0">'+issues.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul></div>':'');
-    $('#admin-close-reason').closest('.form-group').hide(); $('#admin-close-confirm-wrap').hide(); $('#admin-close-confirm').hide();
-    modal.modal('show');
-}
-function openClose(x,force){
-    $('#admin-close-modal').removeClass('aym-pending-fixed').attr('data-aym-mode','close'); $('#admin-close-modal').data('aym-item',x).data('aym-force',force?1:0);
-    $('#admin-close-title').text(force?'Cierre administrativo excepcional':'Cierre administrativo');
-    $('#admin-close-summary').attr('class','alert '+(force?'alert-warning':'alert-info')).html('<strong>'+esc(x.course_name)+' · '+aulaLabel(x)+'</strong><br>'+esc(x.teacher_name)+' · '+roman(currentBimester)+' Bimestre · '+Number(x.grade_progress||0).toFixed(1)+'% completo');
-    var issues=x.issues||[];
-    $('#admin-close-issues').html(force&&issues.length?'<div class="small mb-3"><strong>Pendientes:</strong><ul class="mb-0 mt-1">'+issues.map(function(i){return '<li>'+esc(i)+'</li>';}).join('')+'</ul></div>':'');
-    $('#admin-close-reason').val('').closest('.form-group').show(); $('#admin-close-confirm-check').prop('checked',false); $('#admin-close-confirm-wrap').toggle(!!force); $('#admin-close-confirm').show().prop('disabled',false).attr('class','btn '+(force?'btn-danger':'btn-success')).html('<i class="fas fa-lock mr-1"></i>'+(force?'Cerrar excepcionalmente':'Cerrar asignación'));
-    $('#admin-close-modal').modal('show');
-}
-function submitClose(){
-    var modal=$('#admin-close-modal'), x=modal.data('aym-item'), force=Number(modal.data('aym-force')||0), reason=$.trim($('#admin-close-reason').val());
-    if(!x)return;
-    if(force&&reason.length<5){toast('Indique un motivo de al menos 5 caracteres.','warning');return;}
-    if(force&&!$('#admin-close-confirm-check').is(':checked')){toast('Confirme que autoriza el cierre excepcional.','warning');return;}
-    var btn=$('#admin-close-confirm').prop('disabled',true);
-    adminPost('close_assignment',{academic_year_id:yearId,teacher_course_id:x.teacher_course_id,bimester:currentBimester,force:force,reason:reason}).done(function(r){
-        if(Number(r.status)===1){modal.modal('hide');toast(r.message,'success');refreshManager();return;}
-        if(Number(r.status)===2){x.issues=(r.validation&&r.validation.issues)||x.issues;openClose(x,true);toast(r.message,'warning');return;}
-        toast(r.message||'No se pudo realizar el cierre.','danger');
-    }).fail(function(xhr){toast((xhr.responseJSON||{}).message||'No se pudo realizar el cierre.','danger');}).always(function(){btn.prop('disabled',false);});
-}
-function selectedIds(){ return Array.from(new Set($('#info-modal .aym-check:checked').map(function(){return Number(this.value);}).get())); }
-function bulk(ids,label){
-    if(!ids.length){toast('No hay asignaciones para cerrar.','warning');return;}
-    if(!confirm('¿Cerrar '+ids.length+' asignación(es) '+label+'? Las incompletas serán omitidas.'))return;
-    adminPost('close_bulk',{academic_year_id:yearId,bimester:currentBimester,teacher_course_ids:JSON.stringify(ids)}).done(function(r){
-        if(Number(r.status)===1){toast(r.message,r.skipped_count?'warning':'success');refreshManager();}else toast(r.message||'No se pudo completar el cierre masivo.','danger');
-    }).fail(function(xhr){toast((xhr.responseJSON||{}).message||'No se pudo completar el cierre masivo.','danger');});
-}
-
-// Captura: evita que el handler antiguo despliegue el panel debajo de las tarjetas.
+// Captura antes del controlador antiguo incrustado en academic_year.php.
 document.addEventListener('click',function(e){
-    var manage=e.target.closest&&e.target.closest('.ay-manage-bim');
-    if(manage){e.preventDefault();e.stopImmediatePropagation();loadManager(Number(manage.getAttribute('data-bim'))||1);return;}
-    var confirmBtn=e.target.closest&&e.target.closest('#admin-close-confirm');
-    if(confirmBtn&&$('#admin-close-modal').attr('data-aym-mode')==='close'){e.preventDefault();e.stopImmediatePropagation();submitClose();}
+  var manage=e.target.closest&&e.target.closest('.ay-manage-bim');
+  if(!manage)return;
+  e.preventDefault();e.stopImmediatePropagation();
+  modalTemplate();load(num(manage.getAttribute('data-bim'))||1,true);
 },true);
-
-$(document).on('change','#aym-level,#aym-teacher,#aym-course,#aym-grade,#aym-section,#aym-state',renderRows);
-$(document).on('click','#aym-clear',function(){$('#aym-level,#aym-teacher,#aym-course,#aym-grade,#aym-section,#aym-state').val('');renderRows();});
-$(document).on('change','#aym-select-all',function(){var checked=this.checked;$('#info-modal .aym-check:not(:disabled)').prop('checked',checked);});
-$(document).on('click','.aym-view',function(){var x=findItem($(this).data('id'));if(x)showDetails(x,false);});
-$(document).on('click','.aym-view-closure',function(){var x=findItem($(this).data('id'));if(x)showDetails(x,true);});
-$(document).on('click','.aym-close-one',function(){var x=findItem($(this).data('id'));if(x)openClose(x,false);});
-$(document).on('click','.aym-close-exceptional',function(){var x=findItem($(this).data('id'));if(x)openClose(x,true);});
-$(document).on('click','#aym-close-selected',function(){bulk(selectedIds(),'seleccionadas');});
-$(document).on('click','#aym-close-ready',function(){var ids=filteredItems().filter(function(x){return x.ready&&!x.closed;}).map(function(x){return Number(x.teacher_course_id);});bulk(ids,'que están listas');});
-
-$('#admin-close-modal').on('hidden.bs.modal',function(){
-    var managerStillOpen=$('#info-modal').hasClass('show');
-    $(this).removeClass('aym-pending-fixed').removeAttr('data-aym-mode').removeData('aym-item').removeData('aym-force');
-    $('#admin-close-reason').closest('.form-group').show();$('#admin-close-confirm').show();$('#admin-close-confirm-wrap').hide();
-    if(managerStillOpen) $('body').addClass('modal-open');
+$(document).on('change','#aym-level,#aym-teacher,#aym-state,#aym-course,#aym-grade,#aym-section',applyFilters);
+$(document).on('click','#aym-toggle-extra',function(){
+  var extra=$('#aym-extra-filters'),open=extra.hasClass('d-none');
+  extra.toggleClass('d-none',!open);$(this).attr('aria-expanded',open?'true':'false').html('<i class="fas fa-sliders-h mr-1"></i>'+(open?'Menos filtros':'Más filtros'));
 });
-$('#info-modal').on('hidden.bs.modal',function(){
-    if($(this).hasClass('aym-manager')){$(this).removeClass('aym-manager');$(this).find('.modal-dialog').removeClass('modal-xl').addClass('modal-lg');}
+$(document).on('click','#aym-clear',function(){
+  selectors.forEach(function(id){$('#'+id).val('').trigger('change.select2');});
+  applyFilters();
 });
-
+$(document).on('change','#aym-grid .aym-check',function(){
+  var id=num(this.value);if(this.checked)selected.add(id);else selected.delete(id);syncSelected();
+});
+$(document).on('change','#aym-check-all',function(){
+  var enable=this.checked;
+  visibleChecks().forEach(function(box){box.checked=enable;if(enable)selected.add(num(box.value));else selected.delete(num(box.value));});
+  syncSelected();
+});
+$(document).on('click','#aym-grid .aym-open-detail',function(){viewDetail(num($(this).data('id')));});
+$(document).on('click','#aym-grid .aym-ask-single',function(){beginConfirm('single',[num($(this).data('id'))]);});
+$(document).on('click','.aym-confirm-single',function(){beginConfirm('single',[num($(this).data('id'))]);});
+$(document).on('click','.aym-confirm-exceptional',function(){beginConfirm('exceptional',[num($(this).data('id'))]);});
+$(document).on('click','#aym-close-selected',function(){beginConfirm('bulk',Array.from(selected));});
+$(document).on('click','#aym-select-ready',function(){
+  items.filter(eligible).forEach(function(x){selected.add(num(x.teacher_course_id));});
+  syncSelected();
+});
+$(document).on('click','#aym-clear-selection',function(){selected.clear();syncSelected();});
+$(document).on('click','#aym-back',back);
+$(document).on('click','#aym-commit',submit);
+$(document).on('click','.aym-retry',function(){load(bimester,false);});
+$(document).on('hidden.bs.modal','#aym-control-modal',function(){
+  ++requestSerial;destroyWidgets();selected.clear();confirmData=null;mode='list';activeRequest=false;
+});
+$(document).on('shown.bs.modal','#aym-control-modal',function(){if(table)table.columns.adjust();});
 })(window.jQuery);

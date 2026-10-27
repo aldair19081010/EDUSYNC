@@ -56,15 +56,18 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
   <div class="d-sm-flex justify-content-between align-items-center mb-3 tf-page-header">
     <div>
       <h1 class="h4 mb-1 text-gray-800"><i class="fas fa-clipboard-check text-primary mr-2"></i>Seguimiento docente</h1>
-      <p class="text-muted small mb-0">Control de cierres de notas y avisos a docentes por bimestre.</p>
+      <p class="text-muted small mb-0">Consulta quién cumplió, revisa pendientes y obtén reportes por bimestre.</p>
     </div>
     <div class="d-flex flex-wrap mt-2 mt-sm-0 tf-top-actions">
-      <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-1" id="taca-history-open">
-        <i class="fas fa-history mr-1"></i>Historial
-      </button>
-      <button type="button" class="btn btn-sm btn-outline-primary mr-2 mb-1" id="taca-settings-open">
-        <i class="fas fa-sliders-h mr-1"></i>Configuración
-      </button>
+      <div class="dropdown tf-alert-menu">
+        <button type="button" class="btn btn-sm btn-light border dropdown-toggle mb-1" id="taca-alert-options" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+          <i class="fas fa-bell mr-1"></i>Avisos docentes
+        </button>
+        <div class="dropdown-menu dropdown-menu-right" aria-labelledby="taca-alert-options">
+          <button type="button" class="dropdown-item" id="taca-settings-open"><i class="fas fa-sliders-h mr-2"></i>Configurar avisos</button>
+          <button type="button" class="dropdown-item" id="taca-history-open"><i class="fas fa-history mr-2"></i>Historial de avisos</button>
+        </div>
+      </div>
       <button type="button" class="btn btn-sm btn-primary mb-1" id="taca-reload">
         <i class="fas fa-sync-alt mr-1"></i>Actualizar
       </button>
@@ -97,10 +100,12 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
         <div class="form-group col-md-4 col-lg-5 mb-2">
           <label class="small font-weight-bold text-gray-700 mb-1" for="taca-filter">Estado</label>
           <select id="taca-filter" class="form-control form-control-sm">
-            <option value="pending" selected>Pendientes</option>
-            <option value="all">Todos</option>
+            <option value="all" selected>Todos</option>
+            <option value="pending">Con cierres pendientes</option>
+            <option value="progress">En proceso</option>
+            <option value="not_started">Sin cierres</option>
             <option value="incomplete">Notas incompletas</option>
-            <option value="done">Al día</option>
+            <option value="done">Cumplieron</option>
           </select>
         </div>
       </div>
@@ -113,12 +118,21 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
   </div>
   <div id="taca-data" class="d-none">
     <div class="row mb-2" id="taca-stats"></div>
+    <div class="tf-compliance-progress card shadow-sm border-0 mb-3"><div class="card-body py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <div><strong class="small text-gray-800">Cierres registrados del bimestre</strong><div class="small text-muted" id="taca-compliance-caption"></div></div>
+        <strong id="taca-compliance-value" class="small text-gray-800">0%</strong>
+      </div>
+      <div class="progress tf-compliance-bar"><div class="progress-bar bg-success" id="taca-compliance-bar" style="width:0%"></div></div>
+    </div></div>
     <div class="card shadow-sm border-0 mb-3 tf-table-card">
       <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap py-3 tf-table-header">
         <div>
-          <strong class="text-gray-800">Estado de docentes</strong>
+          <div><strong class="text-gray-800">Cumplimiento por docente</strong><div class="small text-muted">Los avisos no se consideran cierres realizados.</div></div>
         </div>
-        <div class="d-flex align-items-center flex-wrap">
+        <div class="d-flex align-items-center flex-wrap tf-report-actions">
+          <button type="button" class="btn btn-sm btn-outline-success mr-2 mb-1" id="taca-export-csv" disabled title="Exportar reporte para Excel"><i class="fas fa-file-excel mr-1"></i>Excel (CSV)</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary mr-2 mb-1" id="taca-print-report" disabled title="Abrir vista previa dentro de EduSync"><i class="fas fa-print mr-1"></i>PDF / Imprimir</button>
           <small class="text-muted mr-2" id="taca-grades-status" aria-live="polite"></small>
           <span id="taca-teacher-count" class="badge badge-light border mt-2 mt-sm-0"></span>
         </div>
@@ -133,11 +147,60 @@ $tfJsVersion=@filemtime(__DIR__.'/../js/teacher_notifications_admin.js')?:1;
         </div>
       </div>
     </div>
-    <p class="small text-muted mb-3"><i class="fas fa-info-circle mr-1"></i>Los recordatorios se registran en la bandeja del docente. Máximo un envío manual cada 24 horas.</p>
+    <p class="small text-muted mb-3"><i class="fas fa-info-circle mr-1"></i>El cumplimiento se mide por asignaciones cerradas, no por avisos enviados ni solo por notas completas. El reporte comprende docentes activos; los recordatorios tienen un máximo de un envío manual por docente cada 24 horas.</p>
   </div>
   <?php if(!$tfYears): ?>
     <div class="alert alert-light border">No hay años académicos configurados para esta institución.</div>
   <?php endif; ?>
+</div>
+
+<!-- Detalle por docente: modal único, sin expandir el contenido debajo de la tabla -->
+<div class="modal fade tf-work-modal" id="taca-teacher-detail" tabindex="-1" role="dialog" aria-labelledby="taca-detail-heading" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <div class="tf-modal-kicker">EDUSYNC · SEGUIMIENTO DOCENTE</div>
+          <h5 class="modal-title mb-1" id="taca-detail-heading">Detalle del docente</h5>
+          <div class="small text-muted" id="taca-detail-subtitle"></div>
+        </div>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body" id="taca-detail-body">
+        <div class="text-center text-muted py-4">Consultando asignaciones...</div>
+      </div>
+      <div class="modal-footer">
+        <span class="small text-muted">Información del año académico y bimestre seleccionados</span>
+        <button type="button" class="btn btn-sm btn-light border" id="taca-detail-close" data-dismiss="modal">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Vista previa del reporte sin abrir otra pestaña ni navegar fuera de EduSync -->
+<div class="modal fade tf-work-modal" id="taca-report-modal" tabindex="-1" role="dialog" aria-labelledby="taca-report-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <div class="tf-modal-kicker">EDUSYNC · REPORTES ACADÉMICOS</div>
+          <h5 class="modal-title mb-1" id="taca-report-title">Vista previa del reporte de cumplimiento</h5>
+          <div class="small text-muted" id="taca-report-subtitle">Revisa el reporte antes de imprimirlo o guardarlo como PDF.</div>
+        </div>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body tf-report-modal-body">
+        <iframe id="taca-report-preview" title="Vista previa imprimible del reporte de cumplimiento docente" loading="eager"></iframe>
+      </div>
+      <div class="modal-footer">
+        <span class="small text-muted">En el diálogo de impresión puedes elegir «Guardar como PDF».</span>
+        <div class="tf-modal-footer-actions">
+          <button type="button" class="btn btn-sm btn-light border" data-dismiss="modal">Cerrar</button>
+          <button type="button" class="btn btn-sm btn-primary" id="taca-report-print" disabled><i class="fas fa-print mr-1"></i>Imprimir / Guardar PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="taca-settings-modal" tabindex="-1" role="dialog" aria-labelledby="taca-settings-title" aria-hidden="true">

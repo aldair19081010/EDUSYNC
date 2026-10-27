@@ -11,6 +11,8 @@ function exposeToken(token){
     if(!input){input=document.createElement('input');input.type='hidden';input.id='edusync-global-csrf';input.name='csrf_token';document.body.appendChild(input);}
     input.value=token;
 }
+// Al actualizar este cargador cambia su filemtime y se invalida la caché del
+// controlador del modal. El asistente institucional conserva su carga habitual.
 function boot(){load('js/academic_year_grade_manager_core.js',function(){load('js/institutional_bimester_close.js');});}
 function loadCsrf(){
     if(typeof fetch!=='function'){boot();return;}
