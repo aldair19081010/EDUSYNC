@@ -187,7 +187,10 @@ function teacherForDetail(){
   return state&&Array.isArray(state.teachers)?state.teachers.find(function(t){return Number(t.teacher_id)===detailTeacherId;}):null;
 }
 function closeDetail(){
-  detailTeacherId=0;$('#taca-teacher-detail').addClass('d-none');$('#taca-detail-body').empty();
+  detailTeacherId=0;
+  var detail=$('#taca-teacher-detail');
+  if(detail.hasClass('show'))detail.modal('hide');
+  $('#taca-detail-body').empty();
 }
 function renderTeacherDetail(){
   if(!detailTeacherId)return;
@@ -290,7 +293,8 @@ function exportComplianceCsv(){
 }
 function printCompliance(){
   var rows=reportRows();if(!rows.length)return;
-  var win=window.open('','_blank');if(!win){toast('Permite abrir ventanas emergentes para guardar el reporte como PDF.','warning');return;}
+  var frame=document.getElementById('taca-report-preview');
+  if(!frame){toast('No se encontró la vista previa del reporte. Recarga la página.','warning');return;}
   var year=(currentYear()||{}).year||'';
   var tableRows=rows.map(function(r){return '<tr><td>'+esc(r.name)+'</td><td>'+r.total+'</td><td>'+r.closed+'</td>'+
     '<td>'+r.pending+'</td><td>'+r.pct+'%</td><td>'+esc(r.state)+'</td><td>'+esc(r.missing)+'</td></tr>';}).join('');
@@ -311,8 +315,15 @@ function printCompliance(){
     '<p>Docentes activos. Cumplimiento = asignaciones formalmente cerradas / asignaciones asignadas. No se califica atraso sin fecha oficial.</p>'+
     '<h2>Resumen por docente</h2><table><thead><tr><th>Docente</th><th>Asignadas</th><th>Cerradas</th><th>Pendientes</th><th>Cumplimiento</th><th>Estado</th><th>Notas faltantes</th></tr></thead><tbody>'+
     tableRows+'</tbody></table>'+detail+'</body></html>';
-  win.document.open();win.document.write(html);win.document.close();
-  win.focus();win.print();
+  // El reporte queda dentro del modal. El botón inferior imprime únicamente
+  // el iframe, sin crear pestañas ni navegar fuera del sistema.
+  $('#taca-report-print').prop('disabled',true);
+  $('#taca-report-subtitle').text('Año '+year+' · '+periodLabel()+' · '+rows.length+' docente(s)');
+  frame.onload=function(){
+    $('#taca-report-print').prop('disabled',false);
+  };
+  frame.srcdoc=html;
+  $('#taca-report-modal').modal('show');
 }
 function renderHistory(items){
   if(!items||!items.length){
@@ -506,12 +517,30 @@ $('#taca-teachers-table').on('click','.taca-detail',function(){
   if(!state)return;
   detailTeacherId=Number($(this).attr('data-teacher')||0);
   renderTeacherDetail();
-  var card=document.getElementById('taca-teacher-detail');
-  if(card){card.classList.remove('d-none');card.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  $('#taca-teacher-detail').modal('show');
 });
-$('#taca-detail-close').on('click',closeDetail);
+$('#taca-teacher-detail').on('hidden.bs.modal',function(){
+  detailTeacherId=0;
+  $('#taca-detail-body').empty();
+});
 $('#taca-export-csv').on('click',exportComplianceCsv);
 $('#taca-print-report').on('click',printCompliance);
+$('#taca-report-print').on('click',function(){
+  var frame=document.getElementById('taca-report-preview');
+  var doc=frame&&frame.contentWindow;
+  if(!doc||!frame.srcdoc){toast('La vista previa todavía no está disponible.','warning');return;}
+  try{
+    doc.focus();
+    doc.print();
+  }catch(err){
+    toast('No se pudo abrir la impresión del reporte desde la vista previa. Comprueba los permisos del navegador.','warning');
+  }
+});
+$('#taca-report-modal').on('hidden.bs.modal',function(){
+  var frame=document.getElementById('taca-report-preview');
+  if(frame){frame.onload=null;frame.removeAttribute('srcdoc');}
+  $('#taca-report-print').prop('disabled',true);
+});
 $('#taca-teachers-table').on('click','.taca-send',function(){
   if(!state)return;
   var id=Number($(this).data('user'));
