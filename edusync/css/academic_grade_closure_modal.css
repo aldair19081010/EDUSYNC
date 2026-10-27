@@ -78,3 +78,27 @@
  #aym-control-modal .dataTables_paginate,#aym-control-modal .dataTables_info{text-align:center!important}
  #aym-control-modal #aym-grid{min-width:650px}
 }
+
+/* Cierre de notas · tarjetas bimestrales simplificadas y acciones institucionales */
+#ay-cierre-notas .ay-close-simple{min-height:194px;display:flex;flex-direction:column;padding:16px;border:1px solid #e4e9f2;border-radius:11px;border-left:1px solid #e4e9f2;box-shadow:0 .12rem .5rem rgba(58,59,69,.04)}
+#ay-cierre-notas .ay-close-simple.locked{border-left:3px solid #36b9cc}
+#ay-cierre-notas .ay-close-simple-head{gap:8px;color:#34435b;font-size:.94rem}
+#ay-cierre-notas .ay-close-simple-head .badge{font-size:.68rem;font-weight:700;padding:.4em .62em;white-space:normal;text-align:center}
+#ay-cierre-notas .ay-close-simple-count{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-top:17px;margin-bottom:6px}
+#ay-cierre-notas .ay-close-simple-count strong{font-size:1.55rem;font-weight:800;color:#34415b;line-height:1.1;font-variant-numeric:tabular-nums}
+#ay-cierre-notas .ay-close-simple-count span{font-size:.8rem;font-weight:700;color:#536784}
+#ay-cierre-notas .ay-close-simple .ay-close-progress{height:7px;background:#ecf1f8;border-radius:9px;overflow:hidden}
+#ay-cierre-notas .ay-close-simple>.btn{margin-top:auto;align-self:flex-start;min-width:104px}
+#ay-cierre-notas .ay-close-institutional{border:1px solid #e4e9f2;border-radius:11px;overflow:hidden}
+#ay-cierre-notas .ay-close-institutional .card-header{padding:13px 16px;border-bottom:1px solid #edf0f5;gap:8px}
+#ay-cierre-notas .ay-close-institutional-row{gap:8px;padding:10px 3px;border-bottom:1px solid #edf0f5}
+#ay-cierre-notas .ay-close-institutional-row:last-child{border-bottom:0}
+#ay-cierre-notas .ay-close-institutional-row strong{color:#34415b;font-size:.83rem}
+#ay-cierre-notas .ay-close-institutional-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+#ay-cierre-notas .ay-close-institutional-actions .btn{font-size:.76rem;white-space:nowrap}
+#ay-cierre-notas .ay-control-intro{font-size:.79rem}
+@media(max-width:575.98px){
+ #ay-cierre-notas .ay-close-simple{min-height:184px}
+ #ay-cierre-notas .ay-close-simple-count{margin-top:11px}
+ #ay-cierre-notas .ay-close-institutional-actions{width:100%;justify-content:flex-start}
+}
