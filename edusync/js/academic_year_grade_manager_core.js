@@ -53,8 +53,7 @@ function modalTemplate(){
     '<div class="aym-modal-actions">'+
       '<button class="btn btn-sm btn-light border d-none" id="aym-back" type="button"><i class="fas fa-arrow-left mr-1"></i>Volver</button>'+
       '<button class="btn btn-sm btn-light border" id="aym-dismiss" type="button" data-dismiss="modal">Cerrar</button>'+
-      '<button class="btn btn-sm btn-outline-success d-none" id="aym-close-selected" type="button">Cerrar seleccionados</button>'+
-      '<button class="btn btn-sm btn-success d-none" id="aym-close-ready" type="button">Cerrar los listos del bimestre</button>'+
+      '<button class="btn btn-sm btn-success d-none" id="aym-close-selected" type="button" disabled><i class="fas fa-lock mr-1"></i>Cerrar seleccionados</button>'+
       '<button class="btn btn-sm btn-primary d-none" id="aym-commit" type="button">Confirmar cierre</button>'+
     '</div></div></div></div></div>'
   );
@@ -116,9 +115,15 @@ function syncSelected(){
   $('#aym-grid .aym-check').each(function(){this.checked=selected.has(num(this.value));});
   var visible=visibleChecks();
   $('#aym-check-all').prop('disabled',!visible.length).prop('checked',!!visible.length&&visible.every(function(x){return selected.has(num(x.value));}));
-  $('#aym-close-selected').prop('disabled',!selected.size||activeRequest).text('Cerrar seleccionados'+(selected.size?' ('+selected.size+')':''));
-  $('#aym-close-ready').prop('disabled',!items.some(eligible)||activeRequest);
-  $('#aym-modal-footnote').text(selected.size?selected.size+' asignación(es) seleccionada(s)':'Selecciona únicamente asignaciones listas');
+  $('#aym-close-selected').prop('disabled',!selected.size||activeRequest)
+    .html('<i class="fas fa-lock mr-1"></i>Cerrar seleccionados'+(selected.size?' ('+selected.size+')':''));
+  var readyCount=items.filter(eligible).length;
+  $('#aym-select-ready').prop('disabled',!readyCount||activeRequest)
+    .text('Seleccionar los '+readyCount+' listos del bimestre');
+  $('#aym-clear-selection').toggleClass('d-none',!selected.size);
+  $('#aym-modal-footnote').text(selected.size?
+    selected.size+' asignación(es) seleccionada(s) · incluso de otras páginas':
+    'Marca las asignaciones listas que deseas cerrar');
 }
 function applyFilters(){
   if(!table)return;
@@ -166,8 +171,12 @@ function listView(){
     '<div class="col-md-3 form-group mb-2"><label for="aym-section">Sección</label><select class="form-control form-control-sm aym-select-wide" id="aym-section">'+options(unique('seccion'))+'</select></div>'+
     '</div></div></div>';
   var gridHtml='<div class="aym-panel">'+fields+
-    '<div class="aym-table-head"><div><strong>Asignaciones docentes</strong><div class="small text-muted">Usa el buscador de la tabla para localizar cursos o docentes.</div></div>'+
-    '<span class="badge badge-light border">'+items.length+' registros</span></div>'+
+    '<div class="aym-table-head"><div><strong>Asignaciones docentes</strong><div class="small text-muted">Puedes seleccionar asignaciones en distintas páginas de la tabla.</div></div>'+
+    '<div class="d-flex align-items-center flex-wrap" style="gap:10px">'+
+    '<span class="badge badge-light border">'+items.length+' registros</span>'+
+    (editing?'<button type="button" class="btn btn-link btn-sm p-0" id="aym-select-ready">Seleccionar los listos del bimestre</button>'+
+    '<button type="button" class="btn btn-link btn-sm text-secondary p-0 d-none" id="aym-clear-selection">Quitar selección</button>':'')+
+    '</div></div>'+
     '<div class="table-responsive"><table class="table table-sm table-hover ed-table" id="aym-grid">'+
     '<thead class="thead-light"><tr><th><input type="checkbox" id="aym-check-all" aria-label="Seleccionar asignaciones visibles"></th>'+
     '<th>Curso y aula</th><th>Docente</th><th>Notas</th><th>Estado</th><th>Cierre</th><th>Acción</th></tr></thead>'+
@@ -195,7 +204,7 @@ function showFooter(){
   var main=mode==='list',confirmation=mode==='confirm',view=mode==='detail',can=yearStatus==='Activo'&&!locked();
   $('#aym-back').toggleClass('d-none',main).prop('disabled',activeRequest);
   $('#aym-dismiss').toggleClass('d-none',!main);
-  $('#aym-close-selected,#aym-close-ready').toggleClass('d-none',!main||!can);
+  $('#aym-close-selected').toggleClass('d-none',!main||!can);
   $('#aym-commit').toggleClass('d-none',!confirmation);
   if(view)$('#aym-modal-footnote').text('Solo consulta: no se modifican las calificaciones.');
   if(confirmation)$('#aym-modal-footnote').text('Esta acción quedará registrada en el historial.');
@@ -325,7 +334,7 @@ function load(b,open){
   $('#aym-modal-title').text('Control de cierre de notas');
   $('#aym-modal-subtitle').text(roman(next)+' Bimestre · Consultando asignaciones...');
   $('#aym-modal-body').html('<div class="py-5 text-center text-muted"><i class="fas fa-circle-notch fa-spin mr-2"></i>Consultando cierres del bimestre...</div>');
-  $('#aym-close-ready,#aym-close-selected,#aym-commit,#aym-back').addClass('d-none');
+  $('#aym-close-selected,#aym-commit,#aym-back').addClass('d-none');
   $('#aym-dismiss').removeClass('d-none');
   $('#aym-modal-footnote').empty();
   if(open)modal().modal('show');
@@ -374,7 +383,11 @@ $(document).on('click','#aym-grid .aym-ask-single',function(){beginConfirm('sing
 $(document).on('click','.aym-confirm-single',function(){beginConfirm('single',[num($(this).data('id'))]);});
 $(document).on('click','.aym-confirm-exceptional',function(){beginConfirm('exceptional',[num($(this).data('id'))]);});
 $(document).on('click','#aym-close-selected',function(){beginConfirm('bulk',Array.from(selected));});
-$(document).on('click','#aym-close-ready',function(){beginConfirm('bulk',items.filter(eligible).map(function(x){return num(x.teacher_course_id);}));});
+$(document).on('click','#aym-select-ready',function(){
+  items.filter(eligible).forEach(function(x){selected.add(num(x.teacher_course_id));});
+  syncSelected();
+});
+$(document).on('click','#aym-clear-selection',function(){selected.clear();syncSelected();});
 $(document).on('click','#aym-back',back);
 $(document).on('click','#aym-commit',submit);
 $(document).on('click','.aym-retry',function(){load(bimester,false);});
