@@ -177,6 +177,10 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <?php if ($page === 'student_attendances'): ?>
     <link data-edusync-student-attendance="1" href="css/student_attendance.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/student_attendance.css') ?: 1)); ?>" rel="stylesheet">
     <?php endif; ?>
+
+    <!-- La barra superior comparte el mismo ciclo de carga de estilos que el navbar.
+         Así no aparece momentáneamente la versión SB Admin al cambiar de página. -->
+    <link data-edusync-topbar="1" href="css/topbar-modern.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/topbar-modern.css') ?: 1)); ?>" rel="stylesheet">
 <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <!-- Select2 global -->
