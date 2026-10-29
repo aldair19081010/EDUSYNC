@@ -43,10 +43,10 @@ if ($login_type === 1) {
                 ['page' => 'academic_year', 'label' => 'Años Académicos', 'icon' => 'fa-calendar-alt'],
                 ['page' => 'teacher_followup', 'label' => 'Seguimiento Docente', 'icon' => 'fa-clipboard-check'],
                 ['page' => 'competencias', 'label' => 'Competencias por Nivel', 'icon' => 'fa-tasks'],
-                ['page' => 'grades', 'label' => 'Libro de Notas', 'icon' => 'fa-clipboard-list'],
+                ['page' => 'grades', 'label' => 'Libro de Notas', 'icon' => 'fa-clipboard-list', 'separator_before' => true],
                 ['page' => 'grades_report', 'label' => 'Reporte de Notas', 'icon' => 'fa-chart-bar'],
                 ['page' => 'fichas_reportes', 'label' => 'Fichas y Reportes', 'icon' => 'fa-file-alt'],
-                ['page' => 'risk_dashboard', 'label' => 'Alerta Temprana IA', 'icon' => 'fa-brain'],
+                ['page' => 'risk_dashboard', 'label' => 'Alerta Temprana IA', 'icon' => 'fa-brain', 'separator_before' => true],
             ],
         ],
         [
@@ -153,7 +153,7 @@ $render_direct_item = function ($item) use ($current_page) {
     $label = htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8');
     $icon = htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8');
     ?>
-    <li class="nav-item <?php echo $active ? 'active' : ''; ?>">
+    <li class="nav-item <?php echo $active ? 'active' : ''; ?><?php echo !empty($item['separator_before']) ? ' sidebar-nav-break' : ''; ?>">
         <a class="nav-link" href="index.php?page=<?php echo $page; ?>"
            <?php if ($active): ?>aria-current="page"<?php endif; ?>
            title="<?php echo $label; ?>">
