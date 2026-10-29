@@ -1,9 +1,10 @@
 <div class="hd"><div id="hd-error" class="alert alert-danger d-none"></div><div id="hd-loading" class="hd-loading"><div class="spinner-border text-primary mb-2"></div><div>Preparando tu panel...</div></div><main id="hd-content" class="d-none">
  <section class="hd-box hd-hero mb-3"><div class="hd-school"><div id="hd-logo"></div><div><h1 id="hd-name" class="hd-title"></h1><div id="hd-welcome" class="hd-muted"></div></div></div><div class="hd-year"><small class="text-muted">Año académico</small><strong id="hd-year"></strong><small id="hd-updated" class="text-muted"></small></div></section>
  <div id="hd-metrics" class="row"></div>
+ <section id="hd-tools" class="hd-box"><div class="hd-head"><h5 id="hd-tools-title"><i class="fas fa-bolt text-primary mr-2"></i>Acciones rápidas</h5></div><div id="hd-actions" class="p-3 hd-actions"></div></section>
  <div id="hd-overview" class="row"><div id="hd-pending-section" class="col-xl-6 mb-3"><section class="hd-box h-100"><div class="hd-head"><h5><i class="fas fa-tasks text-primary mr-2"></i>Pendientes y alertas</h5><a class="small" href="index.php?page=notifications">Notificaciones</a></div><div id="hd-pending" class="hd-list"></div></section></div><div id="hd-activity-section" class="col-xl-6 mb-3"><section class="hd-box h-100"><div class="hd-head"><h5><i class="fas fa-history text-primary mr-2"></i>Actividad reciente</h5></div><div id="hd-activity" class="hd-list"></div></section></div></div>
  <section id="hd-analysis" class="hd-box mb-3 d-none"><div class="hd-head"><h5><i class="fas fa-chart-pie text-primary mr-2"></i>Análisis institucional</h5><small class="text-muted">Solo administración y dirección</small></div><ul class="nav hd-tabs px-3 pt-2"><li><a class="nav-link active" data-toggle="tab" href="#hda-m">Matrícula</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-d">Docentes</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-f">Finanzas</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-a">Asistencia</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-c">Académico</a></li></ul><div class="tab-content hd-analysis"><div id="hda-m" class="tab-pane fade show active"></div><div id="hda-d" class="tab-pane fade"></div><div id="hda-f" class="tab-pane fade"></div><div id="hda-a" class="tab-pane fade"></div><div id="hda-c" class="tab-pane fade"></div></div></section>
- <section id="hd-tools" class="hd-box"><div class="hd-head"><h5 id="hd-tools-title"><i class="fas fa-bolt text-primary mr-2"></i>Acciones rápidas</h5></div><div id="hd-actions" class="p-3 hd-actions"></div></section>
+ 
 </main></div>
 <script>
 (function($){
@@ -44,7 +45,10 @@
   let cards='',headers={0:'Comunidad educativa',2:'Finanzas',6:'Asistencia'};
   metrics.forEach((m,i)=>{
     if(admin&&Object.prototype.hasOwnProperty.call(headers,i))cards+='<div class="col-12 hd-metric-section">'+e(headers[i])+'</div>';
-    const cols=admin?((i<2||i>=6)?'col-xl-6 col-md-6 col-6':'col-xl-3 col-md-6 col-6'):aux?'col-xl col-lg-4 col-md-6 col-6':'col-xl-4 col-lg-4 col-md-6 col-6';
+    const cols=admin?((i<2||i>=6)?'col-xl-6 col-md-6 col-6':'col-xl-3 col-md-6 col-6')
+      :aux?'col-xl col-lg-4 col-md-6 col-6'
+      :student?'col-xl-3 col-lg-6 col-md-6 col-6'
+      :'col-xl-4 col-lg-4 col-md-6 col-6';
     const numeric=Number(String(m.value==null?'':m.value).replace(/[^0-9.-]/g,'')||0);
     const zeroDebt=student&&i<2&&numeric===0;
     cards+='<div class="'+cols+' mb-3"><a class="hd-card'+(zeroDebt?' hd-neutral':'')+'" href="'+e(m.url)+'"><div class="hd-card-head"><span class="hd-label">'+e(m.label)+'</span><span class="hd-icon hd-'+(zeroDebt?'primary':tone(m.tone))+'"><i class="fas '+e(m.icon)+'"></i></span></div><div class="hd-value">'+e(m.value)+'</div></a></div>';
@@ -64,9 +68,9 @@
   $('#hd-actions').html(actions||'<div class="hd-empty hd-no-tools">No hay herramientas asignadas a esta sesión.</div>');
   $('#hd-tools').toggleClass('hd-profile-tools',!admin);
   $('#hd-tools-title').html('<i class="fas '+(admin?'fa-bolt':'fa-th-large')+' text-primary mr-2"></i>'+e(cfg.tools));
+  // Orden compartido: encabezado, indicadores, herramientas.
+  // Admin mantiene además pendientes/actividad antes de las acciones.
   if(admin)$('#hd-tools').insertBefore('#hd-analysis');
-  else if(director||aux||student)$('#hd-tools').insertBefore('#hd-metrics');
-  else $('#hd-tools').insertAfter('#hd-metrics');
   $('#hd-analysis').addClass('d-none');
   if(admin)renderAnalysis(d.analysis,d.charts);
   $('#hd-loading').addClass('d-none');
