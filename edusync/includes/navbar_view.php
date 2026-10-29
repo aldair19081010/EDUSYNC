@@ -235,14 +235,16 @@ $render_collapse = function ($group) use ($current_page) {
 ?>
 
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion edusync-sidebar" id="accordionSidebar">
-    <a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.php?page=home">
-        <div class="sidebar-brand-icon rotate-n-15">
-            <i class="fas fa-graduation-cap"></i>
-        </div>
-        <div class="sidebar-brand-text mx-3 text-left">
-            <span class="d-block">EduSync</span>
+    <a class="sidebar-brand d-flex align-items-center justify-content-center"
+       href="index.php?page=home" aria-label="EduSync - Ir al inicio">
+        <span class="sidebar-brand-icon edusync-brand-icon" aria-hidden="true">
+            <img class="edusync-brand-logo" src="assets/uploads/favicon.png"
+                 alt="" width="76" height="76" decoding="async">
+        </span>
+        <span class="sidebar-brand-text edusync-brand-text text-left">
+            <span class="d-block"><span class="edusync-brand-edu">Edu</span><span class="edusync-brand-sync">Sync</span></span>
             <small class="sidebar-brand-role"><?php echo htmlspecialchars($role_label, ENT_QUOTES, 'UTF-8'); ?></small>
-        </div>
+        </span>
     </a>
 
     <hr class="sidebar-divider my-0">
