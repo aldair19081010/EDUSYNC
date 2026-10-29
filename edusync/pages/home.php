@@ -1,7 +1,7 @@
 <div class="hd"><div id="hd-error" class="alert alert-danger d-none"></div><div id="hd-loading" class="hd-loading"><div class="spinner-border text-primary mb-2"></div><div>Preparando tu panel...</div></div><main id="hd-content" class="d-none">
  <section class="hd-box hd-hero mb-3"><div class="hd-school"><div id="hd-logo"></div><div><h1 id="hd-name" class="hd-title"></h1><div id="hd-welcome" class="hd-muted"></div></div></div><div class="hd-year"><small class="text-muted">Año académico</small><strong id="hd-year"></strong><small id="hd-updated" class="text-muted"></small></div></section>
  <div id="hd-metrics" class="row"></div>
- <div class="row"><div class="col-xl-6 mb-3"><section class="hd-box h-100"><div class="hd-head"><h5><i class="fas fa-tasks text-primary mr-2"></i>Pendientes y alertas</h5><a class="small" href="index.php?page=notifications">Notificaciones</a></div><div id="hd-pending" class="hd-list"></div></section></div><div class="col-xl-6 mb-3"><section class="hd-box h-100"><div class="hd-head"><h5><i class="fas fa-history text-primary mr-2"></i>Actividad reciente</h5></div><div id="hd-activity" class="hd-list"></div></section></div></div>
+ <div id="hd-overview" class="row"><div id="hd-pending-section" class="col-xl-6 mb-3"><section class="hd-box h-100"><div class="hd-head"><h5><i class="fas fa-tasks text-primary mr-2"></i>Pendientes y alertas</h5><a class="small" href="index.php?page=notifications">Notificaciones</a></div><div id="hd-pending" class="hd-list"></div></section></div><div id="hd-activity-section" class="col-xl-6 mb-3"><section class="hd-box h-100"><div class="hd-head"><h5><i class="fas fa-history text-primary mr-2"></i>Actividad reciente</h5></div><div id="hd-activity" class="hd-list"></div></section></div></div>
  <section id="hd-analysis" class="hd-box mb-3 d-none"><div class="hd-head"><h5><i class="fas fa-chart-pie text-primary mr-2"></i>Análisis institucional</h5><small class="text-muted">Solo administración y dirección</small></div><ul class="nav hd-tabs px-3 pt-2"><li><a class="nav-link active" data-toggle="tab" href="#hda-m">Matrícula</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-d">Docentes</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-f">Finanzas</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-a">Asistencia</a></li><li><a class="nav-link" data-toggle="tab" href="#hda-c">Académico</a></li></ul><div class="tab-content hd-analysis"><div id="hda-m" class="tab-pane fade show active"></div><div id="hda-d" class="tab-pane fade"></div><div id="hda-f" class="tab-pane fade"></div><div id="hda-a" class="tab-pane fade"></div><div id="hda-c" class="tab-pane fade"></div></div></section>
  <section id="hd-tools" class="hd-box"><div class="hd-head"><h5 id="hd-tools-title"><i class="fas fa-bolt text-primary mr-2"></i>Acciones rápidas</h5></div><div id="hd-actions" class="p-3 hd-actions"></div></section>
 </main></div>
@@ -16,44 +16,62 @@
  let f=a.finance||{},methods=f.methods||[],financeTrend=(charts&&Array.isArray(charts.payments))?charts.payments:[];$('#hda-f').html('<div class="row mb-3"><div class="col-md-4 mb-2"><div class="hd-mini"><small>Recaudado este mes</small><strong>'+money(f.month)+'</strong></div></div><div class="col-md-4 mb-2"><div class="hd-mini"><small>Saldo pendiente</small><strong>'+money(f.pending)+'</strong></div></div><div class="col-md-4 mb-2"><div class="hd-mini"><small>Saldo vencido</small><strong>'+money(f.overdue)+'</strong></div></div></div><div class="hd-chart-title">Recaudación del mes por medio de pago</div>'+bars(methods,'label','value',true)+(financeTrend.length?'<div class="mt-3"><div class="hd-chart-title">Recaudación · últimos seis meses</div>'+bars(financeTrend,'label','value',true,6)+'</div>':''));
  let at=a.attendance||[],totalMax=Math.max(...at.map(v=>Number(v.present||0)+Number(v.late||0)+Number(v.absent||0)),1),ah='<div class="hd-legend mb-3"><span><i class="hd-dot bg-success"></i>Presentes</span><span><i class="hd-dot bg-warning"></i>Tardanzas</span><span><i class="hd-dot bg-danger"></i>Ausencias</span></div>';at.forEach(v=>{let p=Number(v.present||0),l=Number(v.late||0),ab=Number(v.absent||0);ah+='<div class="hd-bar"><span>'+e(v.label)+'</span><div class="hd-stack"><span class="bg-success" style="width:'+p/totalMax*100+'%"></span><span class="bg-warning" style="width:'+l/totalMax*100+'%"></span><span class="bg-danger" style="width:'+ab/totalMax*100+'%"></span></div><strong class="text-right">'+(p+l+ab)+'</strong></div>'});$('#hda-a').html('<div class="row"><div class="col-lg-7"><div class="hd-chart-title">Tendencia de los últimos siete días</div><div class="hd-chart">'+ah+'</div></div><div class="col-lg-5">'+table([{label:'Fecha',key:'label'},{label:'P',key:'present',right:true},{label:'T',key:'late',right:true},{label:'A',key:'absent',right:true}],at)+'</div></div>');
  let ac=a.academic||{};$('#hda-c').html('<div class="row"><div class="col-md-4 mb-2"><div class="hd-mini"><small>Asignaciones académicas</small><strong>'+e(ac.courses)+'</strong></div></div><div class="col-md-4 mb-2"><div class="hd-mini"><small>Evaluaciones del año activo</small><strong>'+e(ac.evaluations)+'</strong></div></div><div class="col-md-4 mb-2"><div class="hd-mini"><small>Alertas académicas</small><strong>'+e(ac.alerts)+'</strong></div></div></div>')}
+
+ const roleConfig={
+  Administrador:{css:'hd-admin',title:'Panel de control',icon:'fa-chart-line',subtitle:'Resumen institucional',tools:'Acciones rápidas'},
+  Director:{css:'hd-director',title:'Panel de dirección',icon:'fa-user-tie',subtitle:'Gestión académica y herramientas asignadas',tools:'Herramientas de dirección'},
+  Docente:{css:'hd-docente',title:'Mi espacio académico',icon:'fa-chalkboard-teacher',subtitle:'Cursos, evaluaciones y seguimiento',tools:'Mis herramientas'},
+  Auxiliar:{css:'hd-auxiliar',title:'Control de asistencia',icon:'fa-clipboard-check',subtitle:'Resumen de asistencia del día',tools:'Accesos de asistencia'},
+  Estudiante:{css:'hd-estudiante',title:'Mi información',icon:'fa-user-graduate',subtitle:'Notas, asistencia y pagos',tools:'Mis accesos'}
+ };
+ const description={
+  Director:{'Mis cursos':'Cursos y secciones a cargo','Registrar notas':'Registra calificaciones','Competencias':'Competencias asignadas','Reporte de notas':'Consulta y exporta notas'},
+  Docente:{'Mis cursos':'Cursos y secciones asignados','Registrar notas':'Evaluaciones y calificaciones','Competencias':'Competencias de tus cursos','Reporte de notas':'Resultados académicos'},
+  Auxiliar:{'Tomar asistencia':'Registra la asistencia del día','Reglas':'Consulta horarios y reglas','Reporte':'Presentes, tardanzas y ausencias','Notificaciones':'Solicitudes y resultados'},
+  Estudiante:{'Mis notas':'Calificaciones por curso','Mi asistencia':'Consulta tu asistencia','Mis pagos':'Pagos realizados','Mis deudas':'Saldos y vencimientos'}
+ };
  function render(d){
-  // Sólo administración emplea el nuevo panel; los demás perfiles conservan
-  // su encabezado y sus acciones tal como estaban.
-  const isAdmin = d.user && d.user.role === 'Administrador';
-  $('.hd').toggleClass('hd-admin', !!isAdmin);
-  if (isAdmin) {
-    $('#hd-logo').html('<span class="hd-dashboard-icon" aria-hidden="true"><i class="fas fa-chart-line"></i></span>');
-    $('#hd-name').text('Panel de control');
-    $('#hd-welcome').text('Hola, '+(d.user.name||'Usuario')+' · Resumen institucional');
-    $('#hd-year').text('Última actualización');
-    $('#hd-updated').text(d.updated_at||'—');
-    $('#hd-year').closest('.hd-year').addClass('hd-updated-box');
-  } else {
-    $('#hd-logo').html(d.school.logo_path?'<img class="hd-logo" src="'+e(d.school.logo_path)+'">':'<div class="hd-logo hd-logo-fallback"><i class="fas fa-school"></i></div>');
-    $('#hd-name').text(d.school.name||'Institución educativa');
-    $('#hd-welcome').text('Hola, '+(d.user.name||'Usuario')+' · '+d.user.role);
-    $('#hd-year').text(d.year?d.year.year+' · '+(d.year.status||'Activo'):'Sin año activo');
-    $('#hd-updated').text('Actualizado '+d.updated_at);
-  }
- let cards='';
-  const metricHeaders={0:'Comunidad educativa',2:'Finanzas',6:'Asistencia'};
-  (d.metrics||[]).forEach((m,i)=>{
-    if(isAdmin && Object.prototype.hasOwnProperty.call(metricHeaders,i)) {
-      cards+='<div class="col-12 hd-metric-section">'+e(metricHeaders[i])+'</div>';
-    }
-    const cardCols=isAdmin
-      ? ((i<2||i>=6)?'col-xl-6 col-md-6 col-6':'col-xl-3 col-md-6 col-6')
-      : 'col-xl-3 col-md-4 col-6';
-    cards+='<div class="'+cardCols+' mb-3"><a class="hd-card" href="'+e(m.url)+'"><div class="hd-card-head"><span class="hd-label">'+e(m.label)+'</span><span class="hd-icon hd-'+tone(m.tone)+'"><i class="fas '+e(m.icon)+'"></i></span></div><div class="hd-value">'+e(m.value)+'</div></a></div>';
+  const role=d.user&&d.user.role||'',cfg=roleConfig[role]||roleConfig.Estudiante;
+  const admin=role==='Administrador',director=role==='Director',aux=role==='Auxiliar',student=role==='Estudiante';
+  const metrics=Array.isArray(d.metrics)?d.metrics:[],pendings=Array.isArray(d.pending)?d.pending:[],activity=Array.isArray(d.activity)?d.activity:[],links=Array.isArray(d.actions)?d.actions:[];
+  $('.hd').removeClass('hd-admin hd-director hd-docente hd-auxiliar hd-estudiante').addClass('hd-role '+cfg.css);
+  $('#hd-logo').html('<span class="hd-dashboard-icon" aria-hidden="true"><i class="fas '+e(cfg.icon)+'"></i></span>');
+  $('#hd-name').text(cfg.title);
+  $('#hd-welcome').text('Hola, '+(d.user&&d.user.name||'Usuario')+' · '+cfg.subtitle);
+  $('#hd-year').text('Última actualización');
+  $('#hd-updated').text(d.updated_at||'—');
+  $('#hd-year').closest('.hd-year').addClass('hd-updated-box');
+  let cards='',headers={0:'Comunidad educativa',2:'Finanzas',6:'Asistencia'};
+  metrics.forEach((m,i)=>{
+    if(admin&&Object.prototype.hasOwnProperty.call(headers,i))cards+='<div class="col-12 hd-metric-section">'+e(headers[i])+'</div>';
+    const cols=admin?((i<2||i>=6)?'col-xl-6 col-md-6 col-6':'col-xl-3 col-md-6 col-6'):aux?'col-xl col-lg-4 col-md-6 col-6':'col-xl-4 col-lg-4 col-md-6 col-6';
+    const numeric=Number(String(m.value==null?'':m.value).replace(/[^0-9.-]/g,'')||0);
+    const zeroDebt=student&&i<2&&numeric===0;
+    cards+='<div class="'+cols+' mb-3"><a class="hd-card'+(zeroDebt?' hd-neutral':'')+'" href="'+e(m.url)+'"><div class="hd-card-head"><span class="hd-label">'+e(m.label)+'</span><span class="hd-icon hd-'+(zeroDebt?'primary':tone(m.tone))+'"><i class="fas '+e(m.icon)+'"></i></span></div><div class="hd-value">'+e(m.value)+'</div></a></div>';
   });
-  $('#hd-metrics').html(cards);
-  let p='';(d.pending||[]).forEach(v=>p+='<a class="hd-item text-decoration-none" href="'+e(v.u)+'"><span class="hd-list-icon hd-'+tone(v.tone)+'"><i class="fas fa-exclamation"></i></span><span class="hd-main"><span class="hd-item-title d-block">'+e(v.t)+'</span><span class="hd-muted">'+e(v.d)+'</span></span><span class="hd-count text-'+tone(v.tone)+'">'+e(v.c)+'</span></a>');$('#hd-pending').html(p||empty('No hay pendientes importantes.'));let act='';(d.activity||[]).forEach(v=>act+='<div class="hd-item"><span class="hd-list-icon hd-primary"><i class="fas '+(v.kind==='payment'?'fa-receipt':'fa-user-check')+'"></i></span><span class="hd-main"><span class="hd-item-title d-block">'+e(v.title)+'</span><span class="hd-muted">'+e(v.detail)+' · '+e(v.event_date)+'</span></span></div>');$('#hd-activity').html(act||empty('Aún no hay actividad reciente.'));let actions='';(d.actions||[]).forEach(v=>actions+='<a class="hd-action" href="'+e(v.url)+'"><i class="fas '+e(v.icon)+' mr-1 text-primary"></i>'+e(v.label)+'</a>');$('#hd-actions').html(actions);if(isAdmin){$('#hd-tools').insertBefore('#hd-analysis');}renderAnalysis(d.analysis,d.charts);$('#hd-loading').addClass('d-none');$('#hd-content').removeClass('d-none')}
+  $('#hd-metrics').html(cards).toggleClass('d-none',director||!metrics.length);
+  let p='';pendings.forEach(v=>p+='<a class="hd-item text-decoration-none" href="'+e(v.u)+'"><span class="hd-list-icon hd-'+tone(v.tone)+'"><i class="fas fa-exclamation"></i></span><span class="hd-main"><span class="hd-item-title d-block">'+e(v.t)+'</span><span class="hd-muted">'+e(v.d)+'</span></span><span class="hd-count text-'+tone(v.tone)+'">'+e(v.c)+'</span></a>');
+  $('#hd-pending').html(p||empty('No hay pendientes importantes.'));
+  let act='';activity.forEach(v=>act+='<div class="hd-item"><span class="hd-list-icon hd-primary"><i class="fas '+(v.kind==='payment'?'fa-receipt':'fa-user-check')+'"></i></span><span class="hd-main"><span class="hd-item-title d-block">'+e(v.title)+'</span><span class="hd-muted">'+e(v.detail)+' · '+e(v.event_date)+'</span></span></div>');
+  $('#hd-activity').html(act||empty('Aún no hay actividad reciente.'));
+  // En sesiones no administrativas las alertas ya están enlazadas desde sus métricas.
+  $('#hd-overview,#hd-pending-section,#hd-activity-section').toggleClass('d-none',!admin);
+  let actions='',desc=description[role]||{};
+  links.forEach((v,i)=>{
+    if(admin)actions+='<a class="hd-action" href="'+e(v.url)+'"><i class="fas '+e(v.icon)+' mr-1 text-primary"></i>'+e(v.label)+'</a>';
+    else actions+='<a class="hd-action'+(aux&&i===0?' hd-action-primary':'')+'" href="'+e(v.url)+'"><span class="hd-tool-icon"><i class="fas '+e(v.icon)+'"></i></span><span class="hd-tool-text"><strong>'+e(v.label)+'</strong><small>'+e(desc[v.label]||'Abrir herramienta')+'</small></span><i class="fas fa-chevron-right hd-tool-arrow" aria-hidden="true"></i></a>';
+  });
+  $('#hd-actions').html(actions||'<div class="hd-empty hd-no-tools">No hay herramientas asignadas a esta sesión.</div>');
+  $('#hd-tools').toggleClass('hd-profile-tools',!admin);
+  $('#hd-tools-title').html('<i class="fas '+(admin?'fa-bolt':'fa-th-large')+' text-primary mr-2"></i>'+e(cfg.tools));
+  if(admin)$('#hd-tools').insertBefore('#hd-analysis');
+  else if(director||aux||student)$('#hd-tools').insertBefore('#hd-metrics');
+  else $('#hd-tools').insertAfter('#hd-metrics');
+  $('#hd-analysis').addClass('d-none');
+  if(admin)renderAnalysis(d.analysis,d.charts);
+  $('#hd-loading').addClass('d-none');
+  $('#hd-content').removeClass('d-none');
+ }
  $.ajax({url:'home_dashboard_api.php',data:{action:'dashboard',_t:Date.now()},dataType:'json',cache:false}).done(r=>{if(r&&Number(r.status)===1)render(r);else{$('#hd-loading').addClass('d-none');$('#hd-error').removeClass('d-none').text((r&&r.message)||'No se pudo cargar el panel.')}}).fail(x=>{let m='No se pudo cargar el panel de inicio.';try{m=JSON.parse(x.responseText).message||m}catch(z){}$('#hd-loading').addClass('d-none');$('#hd-error').removeClass('d-none').text(m)})
 })(jQuery);
-</script>
-<script>
-(function($){$(document).ajaxSuccess(function(_,xhr,settings,data){if(!settings.url||settings.url.indexOf('home_dashboard_api.php')<0||!data||!data.user||data.user.role==='Administrador')return;$('#hd-metrics').addClass('d-none');$('#hd-pending').closest('.row').addClass('d-none');$('#hd-analysis').addClass('d-none');if(data.user.role!=='Director')return;let descriptions={'Estudiantes':'Gestiona estudiantes activos y su información.','Docentes':'Administra docentes y sus estados.','Gestión académica':'Organiza áreas, cursos y asignaciones.','Años académicos':'Consulta y administra periodos escolares.','Pagos y caja':'Registra pagos y revisa operaciones.','Asistencia':'Gestiona la asistencia institucional.','Reportes':'Consulta los reportes disponibles.','Notificaciones':'Revisa solicitudes y alertas.','Mis cursos':'Consulta los cursos, grados y secciones que tiene asignados.','Registrar notas':'Crea evaluaciones y registra calificaciones como docente.','Competencias':'Administra las competencias de sus cursos.','Reporte de notas':'Consulta y exporta resultados académicos.'},html='';(data.actions||[]).forEach(a=>{let safe=v=>$('<div>').text(v).html();html+='<a class="hd-action" href="'+safe(a.url)+'"><span class="hd-tool-icon"><i class="fas '+safe(a.icon)+'"></i></span><span class="hd-tool-text"><strong>'+safe(a.label)+'</strong><small>'+safe(descriptions[a.label]||'Abrir esta herramienta.')+'</small></span></a>'});$('#hd-tools').addClass('hd-profile-tools mb-3').insertAfter('#hd-metrics');$('#hd-tools-title').html('<i class="fas fa-th-large text-primary mr-2"></i>Herramientas de Director');$('#hd-actions').html(html)})})(jQuery);
-</script>
-<script>
-(function($){$(document).ajaxSuccess(function(_,xhr,settings,data){if(!settings.url||settings.url.indexOf('home_dashboard_api.php')<0||!data||!data.user)return;let role=data.user.role||'',isInstitutional=role==='Administrador'||role==='Director';if(isInstitutional)return;let descriptions={Docente:{'Mis cursos':'Consulta cursos, grados y secciones asignados.','Registrar notas':'Crea evaluaciones y registra calificaciones.','Competencias':'Administra competencias de tus cursos.','Reporte de notas':'Consulta y exporta resultados académicos.'},Auxiliar:{'Tomar asistencia':'Registra y revisa la asistencia del día.','Reglas':'Consulta horarios y reglas de asistencia.','Reporte':'Analiza asistencias, tardanzas y ausencias.','Notificaciones':'Revisa el resultado de tus solicitudes.'},Estudiante:{'Mis notas':'Consulta tus calificaciones y competencias.','Mi asistencia':'Revisa tu historial de asistencia.','Mis pagos':'Consulta los pagos realizados.','Mis deudas':'Revisa saldos y fechas de vencimiento.'}};let html='';(data.actions||[]).forEach(a=>{let detail=(descriptions[role]||{})[a.label]||'Abrir esta herramienta.';html+='<a class="hd-action" href="'+$('<div>').text(a.url).html()+'"><span class="hd-tool-icon"><i class="fas '+$('<div>').text(a.icon).html()+'"></i></span><span class="hd-tool-text"><strong>'+$('<div>').text(a.label).html()+'</strong><small>'+$('<div>').text(detail).html()+'</small></span></a>'});$('#hd-tools').addClass('hd-profile-tools mb-3').insertAfter('#hd-metrics');$('#hd-tools-title').html('<i class="fas fa-th-large text-primary mr-2"></i>Herramientas de '+$('<div>').text(role).html());$('#hd-actions').html(html)})})(jQuery);
 </script>
