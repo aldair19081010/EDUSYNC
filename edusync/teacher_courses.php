@@ -362,6 +362,7 @@ if (($_GET['partial'] ?? '') === 'course_data') {
     .ed-assignments-page .ed-assignments-list-card > .card-body{padding:.5rem}
 }
 
+.ed-assignments-page{padding-left:0!important;padding-right:0!important}
 /* Asignación de cursos: control visual y responsive sin cambiar filtros ni acciones. */
 .ed-assignments-page .ed-assignments-header{
   border-left:4px solid var(--edu-primary,#4285f4);
