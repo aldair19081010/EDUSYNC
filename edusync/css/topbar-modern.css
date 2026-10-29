@@ -412,8 +412,8 @@ body[data-edusync-ui="standard-v2"] .edusync-topbar .edusync-profile-menu {
     flex: 0 0 auto;
     gap: .1rem;
 }
-.edusync-topbar .edusync-alert-toggle,
-.edusync-topbar .edusync-user-toggle {
+.edusync-topbar .nav-item .edusync-alert-toggle,
+.edusync-topbar .nav-item .edusync-user-toggle {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
@@ -423,25 +423,25 @@ body[data-edusync-ui="standard-v2"] .edusync-topbar .edusync-profile-menu {
     color: #627389;
     transition: color .14s ease, background-color .14s ease;
 }
-.edusync-topbar .edusync-alert-toggle {
+.edusync-topbar .nav-item .edusync-alert-toggle {
     width: 2.7rem;
     padding: .2rem !important;
 }
-.edusync-topbar .edusync-user-toggle {
+.edusync-topbar .nav-item .edusync-user-toggle {
     padding: .22rem .55rem !important;
     gap: .15rem;
 }
-.edusync-topbar .edusync-alert-toggle:hover,
-.edusync-topbar .edusync-alert-toggle[aria-expanded="true"],
-.edusync-topbar .edusync-user-toggle:hover,
-.edusync-topbar .edusync-user-toggle[aria-expanded="true"] {
+.edusync-topbar .nav-item .edusync-alert-toggle:hover,
+.edusync-topbar .nav-item .edusync-alert-toggle[aria-expanded="true"],
+.edusync-topbar .nav-item .edusync-user-toggle:hover,
+.edusync-topbar .nav-item .edusync-user-toggle[aria-expanded="true"] {
     background: #eef4ff;
     color: #2863a0;
 }
-.edusync-topbar .edusync-alert-toggle .fa-bell {
+.edusync-topbar .nav-item .edusync-alert-toggle .fa-bell {
     font-size: 1.05rem;
 }
-.edusync-topbar .edusync-alert-toggle .badge-counter {
+.edusync-topbar .nav-item .edusync-alert-toggle .badge-counter {
     position: absolute;
     top: -.15rem;
     right: -.14rem;
@@ -558,16 +558,16 @@ body[data-edusync-ui="standard-v2"] .edusync-topbar .edusync-profile-menu {
         margin-right: .25rem !important;
         padding: .28rem .42rem;
     }
-    .edusync-topbar .edusync-alert-toggle,
-    .edusync-topbar .edusync-user-toggle {
+    .edusync-topbar .nav-item .edusync-alert-toggle,
+    .edusync-topbar .nav-item .edusync-user-toggle {
         min-height: 2.45rem;
         height: 2.45rem;
     }
-    .edusync-topbar .edusync-alert-toggle {
+    .edusync-topbar .nav-item .edusync-alert-toggle {
         width: 2.3rem;
         padding: .1rem !important;
     }
-    .edusync-topbar .edusync-user-toggle {
+    .edusync-topbar .nav-item .edusync-user-toggle {
         padding: .1rem .22rem !important;
     }
     .edusync-topbar .edusync-account-item {
@@ -591,8 +591,8 @@ body[data-edusync-ui="standard-v2"] .edusync-topbar .edusync-profile-menu {
     }
 }
 @media (prefers-reduced-motion: reduce) {
-    .edusync-topbar .edusync-alert-toggle,
-    .edusync-topbar .edusync-user-toggle {
+    .edusync-topbar .nav-item .edusync-alert-toggle,
+    .edusync-topbar .nav-item .edusync-user-toggle {
         transition: none;
     }
 }
