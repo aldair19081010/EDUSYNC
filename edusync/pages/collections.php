@@ -101,9 +101,35 @@ foreach (['student_collection_campaigns','student_collection_recipients'] as $ta
     .cn-audience-option{min-height:68px}
     .cn-history-actions{white-space:normal!important}
 }
+
+/* Cobranza: mejoras acotadas, no modificar reglas responsive ni buscador nativo. */
+.ed-collections-page .ed-page-header{margin-bottom:.72rem!important;border-left-color:#4285f4}
+.ed-collections-page .ed-page-title{color:#233b52}
+.ed-collections-page .ed-page-subtitle{color:#6e7891;line-height:1.4}
+.ed-collections-page .ed-page-actions .btn{min-height:34px;font-size:.78rem;box-shadow:none}
+.ed-collections-page .ed-stat-card{border:1px solid #e3e6f0;border-radius:.5rem;box-shadow:none}
+.ed-collections-page .ed-stat-label{color:#526274;font-size:.74rem;line-height:1.3}
+.ed-collections-page .ed-stat-value{font-variant-numeric:tabular-nums}
+.ed-collections-page .ed-stat-meta{font-size:.71rem;line-height:1.4}
+.ed-collections-page .cn-history-card{border:1px solid #e3e6f0;border-radius:.55rem}
+.ed-collections-page .cn-history-header{padding:.62rem .8rem!important}
+.ed-collections-page .cn-history-heading strong{font-size:.85rem;color:#233b52}
+.ed-collections-page #cn-history-table thead th{background:#f8fafd;font-size:.74rem;color:#526274;white-space:nowrap}
+.ed-collections-page #cn-history-table tbody td{font-size:.79rem;vertical-align:middle}
+.ed-collections-page #cn-history-table_wrapper :is(.dataTables_filter,.dataTables_length,.dataTables_info,.dataTables_paginate){font-size:.76rem}
+#cn-compose-modal .modal-header{padding:.72rem .87rem!important}
+#cn-compose-modal .modal-title{font-size:.91rem!important;line-height:1.32}
+#cn-compose-modal .modal-header .small{font-size:.73rem;line-height:1.36}
+#cn-compose-modal .modal-body{padding:.74rem .88rem!important}
+#cn-compose-modal .ed-modal-section{border:1px solid #e3e6f0;border-radius:.48rem;padding:.7rem .78rem;box-shadow:none}
+#cn-compose-modal .ed-modal-section-title{font-size:.83rem;color:#233b52}
+#cn-compose-modal .cn-audience-option{font-size:.77rem;line-height:1.33;box-shadow:none}
+#cn-compose-modal .form-control{border:1px solid #d8deea;border-radius:.4rem;font-size:.8rem;box-shadow:none}
+#cn-compose-modal .modal-footer{padding:.66rem .84rem!important;gap:.44rem}
+#cn-compose-modal .modal-footer .btn{min-height:34px;font-size:.79rem;margin:0!important}
 </style>
 
-<div class="container-fluid py-3">
+<div class="container-fluid py-3 ed-collections-page">
     <div class="ed-page-header">
         <div class="ed-page-heading">
             <div class="ed-page-icon"><i class="fas fa-hand-holding-usd"></i></div>
