@@ -165,6 +165,7 @@ while ($row = $q_comp->fetch_assoc()) {
 }
 .meg-page .meg-table tbody td{padding:.45rem .53rem;vertical-align:middle}
 .meg-page .meg-table tbody td:nth-child(2){min-width:210px}
+.meg-page .meg-mobile-dni{display:none}
 .meg-page .meg-table input,.meg-page .meg-table select{max-width:100%;min-height:32px}
 .meg-page .alert{font-size:.79rem;padding:.67rem .75rem;margin-bottom:.75rem!important}
 /* Un solo scroll vertical: el modal contiene el contenido y la planilla
@@ -186,8 +187,23 @@ while ($row = $q_comp->fetch_assoc()) {
 }
 @media(max-width:767.98px){
   .meg-page>.card>.card-body{padding:.6rem .66rem!important}
-  .meg-page .meg-table{min-width:440px}
-  .meg-page .meg-table tbody td:nth-child(2){min-width:155px}
+  /* En celular la nota debe permanecer visible sin desplazar toda la
+     tabla: DNI se muestra debajo del estudiante en vez de otra columna. */
+  .meg-page .meg-table{
+    width:100%!important;min-width:0!important;
+    table-layout:fixed
+  }
+  .meg-page .meg-table :is(th,td):nth-child(3){display:none!important}
+  .meg-page .meg-table :is(th,td):first-child{width:34px!important;min-width:34px}
+  .meg-page .meg-table :is(th,td):nth-child(2){
+    width:auto!important;min-width:0!important;
+    overflow-wrap:anywhere
+  }
+  .meg-page .meg-table :is(th,td):nth-child(4){width:98px!important;min-width:0}
+  .meg-page .meg-mobile-dni{
+    display:block;color:#778397;font-size:.66rem;
+    line-height:1.25;margin-top:.12rem
+  }
   .meg-page .meg-table :is(th,td){padding:.4rem .42rem}
   .meg-page .meg-counter{padding:.52rem .6rem;margin-bottom:.55rem!important}
   .meg-page>.card,.meg-page #manage-evaluation-grades>.card{margin-bottom:.55rem!important}
@@ -316,7 +332,7 @@ while ($row = $q_comp->fetch_assoc()) {
 								?>
 								<tr>
 									<td><?php echo $i++ ?></td>
-									<td><?php echo ucwords($stu['name']) ?></td>
+									<td><?php echo ucwords($stu['name']) ?><small class="meg-mobile-dni">DNI: <?php echo htmlspecialchars($stu['id_no'], ENT_QUOTES, 'UTF-8'); ?></small></td>
 									<td><?php echo $stu['id_no'] ?></td>
 									<td>
 										<?php if ($readonly_mode): ?>
