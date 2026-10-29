@@ -590,6 +590,15 @@
 @media(min-width:1200px){
   .hd.hd-docente #hd-metrics .hd-card{min-height:110px}
 }
+/* Cuando los indicadores son impares, la última tarjeta completa
+   la fila en tablet y móvil. Estudiante mantiene dos pares equilibrados. */
+@media(max-width:991.98px){
+  .hd.hd-auxiliar #hd-metrics > div:last-child,
+  .hd.hd-docente #hd-metrics > div:last-child{
+    flex:0 0 100%;
+    max-width:100%;
+  }
+}
 @media(max-width:767.98px){
   .hd.hd-role:not(.hd-admin) .hd-hero{
     flex-wrap:wrap;
