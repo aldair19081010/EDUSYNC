@@ -374,10 +374,15 @@ $render_collapse = function ($group) use ($current_page) {
 
         var sidebarRect = sidebar.getBoundingClientRect();
         var activeRect = activeItem.getBoundingClientRect();
-        var activeInsideView = activeRect.top >= sidebarRect.top && activeRect.bottom <= sidebarRect.bottom;
+        var brand = sidebar.querySelector('.sidebar-brand');
+        var brandHeight = brand ? brand.getBoundingClientRect().height : 0;
+        var visibleTop = sidebarRect.top + brandHeight;
+        var visibleHeight = Math.max(0, sidebar.clientHeight - brandHeight);
+        var activeInsideView = activeRect.top >= visibleTop && activeRect.bottom <= sidebarRect.bottom;
         if (activeInsideView) return;
 
-        var targetTop = sidebar.scrollTop + (activeRect.top - sidebarRect.top) - ((sidebar.clientHeight - activeRect.height) / 2);
+        // La marca fija no debe ocultar la opción actual al restaurar el scroll.
+        var targetTop = sidebar.scrollTop + (activeRect.top - visibleTop) - ((visibleHeight - activeRect.height) / 2);
         sidebar.scrollTop = Math.max(0, targetTop);
         saveSidebarScroll();
     }
