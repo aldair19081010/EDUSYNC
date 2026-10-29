@@ -1000,3 +1000,287 @@ a.text-primary:focus {
         padding: .9rem 1rem !important;
     }
 }
+
+
+/* ============================================
+   EduSync | Sidebar compacto v1 (2026-10)
+   Solo afecta al menú lateral: otras pantallas conservan sus estilos.
+   ============================================ */
+.edusync-sidebar.bg-gradient-primary {
+    --edusync-nav-blue: var(--edu-primary, #4285f4);
+    --edusync-nav-accent: #ff9b21;
+    background-color: #1c568e !important;
+    background-image: linear-gradient(180deg, #26679e 0%, #174a7b 62%, #123d69 100%) !important;
+    color: #f5f9ff;
+}
+
+/* Identidad estable con logo sin recuadros, flecha blanca y marca original. */
+.edusync-sidebar > .sidebar-brand {
+    justify-content: flex-start !important;
+    min-height: 4.35rem;
+    padding: .52rem .75rem;
+    letter-spacing: .015rem;
+    border-bottom: 1px solid rgba(255, 255, 255, .13);
+}
+.edusync-sidebar .sidebar-brand .edusync-brand-icon {
+    width: 3.55rem;
+    height: 3rem;
+    flex-basis: 3.55rem;
+}
+.edusync-sidebar .sidebar-brand .edusync-brand-logo {
+    width: 3.55rem;
+    height: auto;
+    /* El azul de la nube coincide con el fondo: recuperamos el contorno sin
+       añadir un cuadro ni modificar las flechas blanca y naranja. */
+    filter: brightness(1.06)
+            drop-shadow(0 0 1px rgba(255, 255, 255, .84))
+            drop-shadow(0 1px 2px rgba(9, 30, 60, .24));
+}
+.edusync-sidebar .sidebar-brand .edusync-brand-text {
+    font-size: 1.02rem;
+    font-weight: 800;
+    line-height: 1.04;
+    text-transform: none;
+    margin-left: .48rem;
+}
+.edusync-sidebar .sidebar-brand-role {
+    color: #d4e7fb;
+    opacity: 1;
+    font-size: .61rem;
+    margin-top: .3rem;
+    letter-spacing: .08em;
+}
+
+/* Los títulos bastan como separadores; evitamos rayas entre cada grupo. */
+.edusync-sidebar .sidebar-divider {
+    border-color: rgba(255, 255, 255, .12);
+    margin: .3rem .8rem;
+}
+.edusync-sidebar .sidebar-heading {
+    color: #bcd8f2;
+    font-size: .61rem;
+    letter-spacing: .09em;
+    font-weight: 800;
+    padding: .85rem .9rem .25rem;
+    margin: 0;
+}
+/* Separaciones internas de Académico sin crear otros títulos o desplegables. */
+.edusync-sidebar:not(.toggled) .sidebar-nav-break::before {
+    content: "";
+    display: block;
+    border-top: 1px solid rgba(255, 255, 255, .14);
+    margin: .38rem .92rem .28rem;
+}
+.edusync-sidebar .nav-item > .nav-link {
+    position: relative;
+    border-radius: .58rem;
+    color: rgba(246, 251, 255, .87);
+    transition: color .14s ease, background-color .14s ease;
+}
+.edusync-sidebar .nav-item > .nav-link i {
+    color: rgba(233, 245, 255, .72);
+    transition: color .14s ease;
+}
+.edusync-sidebar .nav-item > .nav-link:hover,
+.edusync-sidebar .nav-item > .nav-link:focus-visible {
+    background: rgba(255, 255, 255, .10);
+    color: #fff;
+}
+.edusync-sidebar .nav-item > .nav-link:hover i,
+.edusync-sidebar .nav-item > .nav-link:focus-visible i {
+    color: #fff;
+}
+.edusync-sidebar .nav-item > .nav-link:focus-visible,
+.edusync-sidebar .sidebar-subitem:focus-visible,
+.edusync-sidebar #sidebarToggle:focus-visible {
+    outline: 2px solid #ffb54d;
+    outline-offset: 2px;
+}
+.edusync-sidebar .nav-item.active > .nav-link {
+    background: rgba(255, 255, 255, .16);
+    color: #fff;
+    font-weight: 800;
+}
+.edusync-sidebar .nav-item.active > .nav-link i {
+    color: #fff;
+}
+.edusync-sidebar .nav-item.active > .nav-link::before {
+    content: "";
+    position: absolute;
+    width: 3px;
+    height: 54%;
+    left: 0;
+    top: 23%;
+    background: var(--edusync-nav-accent);
+    border-radius: 0 4px 4px 0;
+}
+
+/* Submenús integrados con el azul. Sin tarjetas blancas en modo expandido. */
+.edusync-sidebar .sidebar-group-inner {
+    background: rgba(2, 27, 58, .19) !important;
+    border: 1px solid rgba(255, 255, 255, .10);
+    border-radius: .65rem !important;
+    box-shadow: none;
+    margin: 0 .52rem;
+    padding: .32rem !important;
+}
+.edusync-sidebar .sidebar-group .collapse-header {
+    padding: .35rem .65rem .25rem;
+    color: rgba(239, 248, 255, .64);
+    font-size: .61rem;
+}
+.edusync-sidebar .sidebar-subitem {
+    margin: .08rem 0;
+    padding: .55rem .58rem;
+    font-size: .8rem;
+    color: rgba(249, 252, 255, .88) !important;
+}
+.edusync-sidebar .sidebar-subitem-icon {
+    color: rgba(240, 248, 255, .66);
+}
+.edusync-sidebar .sidebar-subitem:hover,
+.edusync-sidebar .sidebar-subitem:focus-visible,
+.edusync-sidebar .sidebar-subitem.active {
+    background: rgba(255, 255, 255, .14) !important;
+    color: #fff !important;
+}
+.edusync-sidebar .sidebar-subitem:hover .sidebar-subitem-icon,
+.edusync-sidebar .sidebar-subitem:focus-visible .sidebar-subitem-icon,
+.edusync-sidebar .sidebar-subitem.active .sidebar-subitem-icon {
+    color: #fff;
+}
+.edusync-sidebar .sidebar-subitem.active {
+    box-shadow: inset 3px 0 0 var(--edusync-nav-accent);
+}
+.edusync-sidebar .sidebar-group > .sidebar-group-toggle::after {
+    color: rgba(240, 247, 255, .77);
+}
+
+@media (min-width: 768px) {
+    /* El logo permanece visible mientras se desplaza la lista de módulos. */
+    .edusync-sidebar > .sidebar-brand {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: #174a7b;
+        box-shadow: 0 4px 12px rgba(7, 38, 72, .15);
+    }
+    .edusync-sidebar:not(.toggled) .nav-item > .nav-link {
+        display: flex;
+        align-items: center;
+        gap: .58rem;
+        width: auto;
+        min-height: 2.55rem;
+        margin: .08rem .52rem;
+        padding: .63rem .7rem;
+        line-height: 1.22;
+    }
+    .edusync-sidebar:not(.toggled) .nav-item > .nav-link i {
+        width: 1.15rem;
+        margin: 0;
+        flex: 0 0 1.15rem;
+        text-align: center;
+    }
+    .edusync-sidebar:not(.toggled) .nav-item > .nav-link span {
+        min-width: 0;
+        flex: 1;
+        font-size: .79rem;
+    }
+    .edusync-sidebar:not(.toggled) .nav-item > .nav-link[data-toggle="collapse"]::after {
+        float: none;
+        margin: 0;
+        flex: 0 0 .9rem;
+        font-size: .72rem;
+    }
+    .edusync-sidebar .nav-item .collapse {
+        margin: 0 .35rem;
+    }
+    .edusync-sidebar.toggled > .sidebar-brand {
+        justify-content: center !important;
+        padding-left: .4rem;
+        padding-right: .4rem;
+    }
+    .edusync-sidebar.toggled .nav-item > .nav-link {
+        width: auto;
+        margin: .1rem .28rem;
+        padding: .7rem .38rem;
+    }
+    /* Al contraer, el submenú flota sobre la página: allí sí necesita panel claro. */
+    .edusync-sidebar.toggled .sidebar-group-inner {
+        background: #fff !important;
+        border: 1px solid #d8e2ee;
+        box-shadow: 0 .45rem 1.25rem rgba(5, 35, 68, .22);
+        margin: 0;
+        padding: .4rem !important;
+    }
+    .edusync-sidebar.toggled .sidebar-subitem {
+        color: #364c65 !important;
+    }
+    .edusync-sidebar.toggled .sidebar-subitem-icon,
+    .edusync-sidebar.toggled .sidebar-group .collapse-header {
+        color: #71839a;
+    }
+    .edusync-sidebar.toggled .sidebar-subitem:hover,
+    .edusync-sidebar.toggled .sidebar-subitem:focus-visible,
+    .edusync-sidebar.toggled .sidebar-subitem.active {
+        color: #174a7b !important;
+        background: #eaf2fc !important;
+    }
+    .edusync-sidebar.toggled .sidebar-subitem:hover .sidebar-subitem-icon,
+    .edusync-sidebar.toggled .sidebar-subitem.active .sidebar-subitem-icon {
+        color: #1d5d95;
+    }
+    .edusync-sidebar.toggled .sidebar-heading {
+        text-align: center;
+        font-size: .53rem;
+        letter-spacing: .01em;
+        padding: .85rem .2rem .2rem;
+    }
+}
+@media (max-width: 767.98px) {
+    /* Mantener la navegación móvil de SB Admin sin forzar el menú fijo. */
+    .edusync-sidebar .sidebar-heading {
+        padding-left: .2rem;
+        padding-right: .2rem;
+        text-align: center;
+    }
+    .edusync-sidebar > .sidebar-brand {
+        justify-content: center !important;
+    }
+    .edusync-sidebar .nav-item > .nav-link {
+        margin: .08rem .2rem;
+        padding: .66rem .4rem;
+        width: auto;
+    }
+    /* En móvil el submenú sale hacia el contenido: necesita fondo opaco y texto oscuro. */
+    .edusync-sidebar .sidebar-group-inner {
+        margin: .15rem;
+        padding: .4rem !important;
+        background: #fff !important;
+        border-color: #dce6f1;
+        box-shadow: 0 .35rem 1rem rgba(5, 35, 68, .19);
+    }
+    .edusync-sidebar .sidebar-subitem {
+        color: #364c65 !important;
+    }
+    .edusync-sidebar .sidebar-subitem-icon,
+    .edusync-sidebar .sidebar-group .collapse-header {
+        color: #71839a;
+    }
+    .edusync-sidebar .sidebar-subitem:hover,
+    .edusync-sidebar .sidebar-subitem:focus-visible,
+    .edusync-sidebar .sidebar-subitem.active {
+        color: #174a7b !important;
+        background: #eaf2fc !important;
+    }
+    .edusync-sidebar .sidebar-subitem:hover .sidebar-subitem-icon,
+    .edusync-sidebar .sidebar-subitem.active .sidebar-subitem-icon {
+        color: #1d5d95;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .edusync-sidebar .nav-item > .nav-link,
+    .edusync-sidebar .nav-item > .nav-link i {
+        transition: none;
+    }
+}
