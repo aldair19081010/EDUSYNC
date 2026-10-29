@@ -141,6 +141,178 @@ if (!empty($school_id)) {
 .print-header h4 { margin:0; color:#2c4964; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .print-header small { color:#6c757d; }
 .print-footer { margin-top:14px; border-top:1px dashed #dee2e6; padding-top:8px; color:#6c757d; font-size:12px; display:flex; justify-content:space-between; }
+
+/* Ficha de estudiante · refinamiento visual para modal e impresión. */
+.student-profile{
+  padding:.25rem .12rem .45rem;
+  color:#344054;
+  font-size:.81rem;
+}
+.student-profile .print-header{
+  flex-wrap:wrap;
+  gap:.6rem .85rem;
+  border-bottom:1px solid #dce4ef;
+  padding:.35rem 0 .78rem;
+  margin-bottom:.85rem;
+}
+.student-profile .print-header-left{flex:1 1 260px;min-width:0;gap:.2rem}
+.student-profile .print-header .logo{
+  flex:0 0 49px;
+  width:49px;height:49px;
+  background:#f8fafd;
+  border:1px solid #edf0f5;
+  border-radius:.5rem;
+  margin-right:.6rem;
+}
+.student-profile .print-header h4{
+  font-size:.98rem;
+  line-height:1.35;
+  color:#233b52;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.student-profile .print-header small{
+  font-size:.74rem;
+  color:#6e7891;
+}
+.student-profile #btn_print_profile{
+  min-height:33px;
+  border-color:#d8deea!important;
+  border-radius:.4rem;
+  box-shadow:none;
+  font-size:.78rem;
+}
+.student-profile .student-header{
+  align-items:flex-start;
+  gap:.65rem;
+  margin-bottom:.8rem;
+}
+.student-profile .student-header > div:last-child{
+  min-width:0;
+  flex:1 1 auto;
+}
+.student-profile .student-avatar{
+  width:49px;
+  height:49px;
+  flex:0 0 49px;
+  margin-right:0;
+  border-radius:.55rem;
+  background:#eef4ff;
+  color:#4285f4;
+  font-size:1.17rem;
+}
+.student-profile .student-header .badge{
+  margin:.12rem .18rem .12rem 0;
+  box-shadow:none;
+  line-height:1.35;
+}
+.student-profile .badge-soft{
+  font-size:.71rem;
+  padding:.28rem .46rem;
+  border-radius:.35rem;
+  font-weight:650;
+}
+.student-profile .info-grid{
+  gap:.48rem .7rem;
+}
+.student-profile .info-item{
+  background:#f8fafd;
+  border-color:#e3e6f0;
+  border-radius:.45rem;
+  padding:.6rem .72rem;
+  min-width:0;
+  line-height:1.37;
+  overflow-wrap:anywhere;
+}
+.student-profile .info-item small{
+  font-size:.7rem;
+  font-weight:700;
+  margin-bottom:.2rem;
+  color:#69798d;
+}
+.student-profile .profile-summary-grid{
+  margin-top:.75rem;
+  gap:.65rem;
+}
+.student-profile .summary-panel,
+.student-profile .history-panel{
+  background:#fff;
+  border:1px solid #e3e6f0;
+  border-radius:.5rem;
+  padding:.73rem .8rem;
+  min-width:0;
+}
+.student-profile .summary-title{
+  border-bottom:1px solid #edf0f5;
+  color:#233b52;
+  padding-bottom:.42rem;
+  margin-bottom:.55rem;
+  font-size:.83rem;
+}
+.student-profile .summary-values{
+  gap:.45rem;
+}
+.student-profile .summary-values > div{
+  min-width:0;
+}
+.student-profile .summary-values strong{
+  font-size:.93rem;
+  line-height:1.38;
+  overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums;
+}
+.student-profile .summary-values small{
+  font-size:.68rem;
+  line-height:1.3;
+}
+.student-profile .history-panel{
+  margin-top:.75rem;
+}
+.student-profile .history-table th{
+  background:#f8fafd;
+  color:#526274;
+  padding:.46rem .55rem;
+  white-space:nowrap;
+  font-size:.73rem;
+}
+.student-profile .history-table td{
+  padding:.48rem .55rem;
+  font-size:.76rem;
+  vertical-align:middle;
+}
+.student-profile .print-footer{
+  gap:.5rem;
+  flex-wrap:wrap;
+  margin-top:.8rem;
+  padding-top:.55rem;
+  font-size:.72rem;
+}
+@media(max-width:991.98px){
+  .student-profile .financial-values{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:575.98px){
+  .student-profile .print-header{
+    align-items:flex-start;
+  }
+  .student-profile .print-header-left{
+    flex:1 1 100%;
+  }
+  .student-profile .info-grid,
+  .student-profile .profile-summary-grid{
+    grid-template-columns:minmax(0,1fr);
+  }
+  .student-profile .summary-values{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media print{
+  .student-profile .print-header-left{flex-basis:auto}
+  .student-profile .summary-panel,.student-profile .history-panel,
+  .student-profile .info-item{break-inside:avoid;box-shadow:none!important}
+  .student-profile .print-header h4{white-space:normal}
+}
 </style>
 
 <div class="student-profile" id="printable-area">
@@ -321,7 +493,7 @@ if (!empty($school_id)) {
             w.document.write('<html><head><title>Ficha de Estudiante</title>');
             w.document.write('<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">');
             // Copiar estilos locales de esta vista
-            var styleTag = document.querySelector('style');
+            var styleTag = (content && content.previousElementSibling && content.previousElementSibling.tagName === 'STYLE') ? content.previousElementSibling : document.querySelector('#uni_modal .modal-body style');
             if (styleTag) w.document.write('<style>' + styleTag.innerHTML + '</style>');
             w.document.write('</head><body>');
             w.document.write(content.outerHTML);
