@@ -81,28 +81,32 @@ a.text-primary:focus {
     padding: .7rem .65rem;
 }
 
-/* Logotipo oficial EduSync; sustituye el ícono genérico de graduación.
-   El PNG es cuadrado y contiene márgenes transparentes: se amplía sin recortarlo. */
-.edusync-sidebar .edusync-brand-icon {
+/* Logo oficial EduSync (PNG con canal alfa real), sin recuadro ni sombras.
+   Estilo específico para anular el marco heredado del menú lateral. */
+.edusync-sidebar .sidebar-brand .edusync-brand-icon {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 3.25rem;
-    height: 3.25rem;
-    flex: 0 0 3.25rem;
-    overflow: hidden;
-    border-radius: .75rem;
-    background: rgba(255, 255, 255, .96);
-    box-shadow: 0 .12rem .38rem rgba(8, 32, 77, .17);
+    width: 3.5rem;
+    height: 3rem;
+    flex: 0 0 3.5rem;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
-.edusync-sidebar .edusync-brand-logo {
+.edusync-sidebar .sidebar-brand .edusync-brand-logo {
     display: block;
-    width: 4.65rem;
-    height: 4.65rem;
-    max-width: none;
+    width: 3.5rem;
+    height: auto;
+    max-width: 100%;
     flex: 0 0 auto;
     object-fit: contain;
+    background: transparent !important;
+    border: 0;
+    box-shadow: none;
 }
 
 .edusync-sidebar .edusync-brand-text {
