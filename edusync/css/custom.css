@@ -1007,16 +1007,18 @@ a.text-primary:focus {
    Solo afecta al menú lateral: otras pantallas conservan sus estilos.
    ============================================ */
 .edusync-sidebar.bg-gradient-primary {
+    --edusync-nav-blue: var(--edu-primary, #4285f4);
+    --edusync-nav-accent: #ff9b21;
     background-color: #1c568e !important;
-    background-image: linear-gradient(180deg, #276ba7 0%, #174a7b 62%, #123d69 100%) !important;
+    background-image: linear-gradient(180deg, #26679e 0%, #174a7b 62%, #123d69 100%) !important;
     color: #f5f9ff;
 }
 
 /* Identidad estable con logo sin recuadros, flecha blanca y marca original. */
 .edusync-sidebar > .sidebar-brand {
     justify-content: flex-start !important;
-    min-height: 4.6rem;
-    padding: .65rem .75rem;
+    min-height: 4.35rem;
+    padding: .52rem .75rem;
     letter-spacing: .015rem;
     border-bottom: 1px solid rgba(255, 255, 255, .13);
 }
@@ -1030,9 +1032,9 @@ a.text-primary:focus {
     height: auto;
     /* El azul de la nube coincide con el fondo: recuperamos el contorno sin
        añadir un cuadro ni modificar las flechas blanca y naranja. */
-    filter: brightness(1.10)
-            drop-shadow(0 0 1px rgba(255, 255, 255, .98))
-            drop-shadow(0 0 3px rgba(224, 245, 255, .58));
+    filter: brightness(1.06)
+            drop-shadow(0 0 1px rgba(255, 255, 255, .84))
+            drop-shadow(0 1px 2px rgba(9, 30, 60, .24));
 }
 .edusync-sidebar .sidebar-brand .edusync-brand-text {
     font-size: 1.02rem;
@@ -1061,6 +1063,13 @@ a.text-primary:focus {
     font-weight: 800;
     padding: .85rem .9rem .25rem;
     margin: 0;
+}
+/* Separaciones internas de Académico sin crear otros títulos o desplegables. */
+.edusync-sidebar:not(.toggled) .sidebar-nav-break::before {
+    content: "";
+    display: block;
+    border-top: 1px solid rgba(255, 255, 255, .14);
+    margin: .38rem .92rem .28rem;
 }
 .edusync-sidebar .nav-item > .nav-link {
     position: relative;
@@ -1102,7 +1111,7 @@ a.text-primary:focus {
     height: 54%;
     left: 0;
     top: 23%;
-    background: #ffa52b;
+    background: var(--edusync-nav-accent);
     border-radius: 0 4px 4px 0;
 }
 
@@ -1141,7 +1150,7 @@ a.text-primary:focus {
     color: #fff;
 }
 .edusync-sidebar .sidebar-subitem.active {
-    box-shadow: inset 3px 0 0 #ffa52b;
+    box-shadow: inset 3px 0 0 var(--edusync-nav-accent);
 }
 .edusync-sidebar .sidebar-group > .sidebar-group-toggle::after {
     color: rgba(240, 247, 255, .77);
@@ -1153,8 +1162,8 @@ a.text-primary:focus {
         position: sticky;
         top: 0;
         z-index: 3;
-        background: #276ba7;
-        box-shadow: 0 5px 14px rgba(7, 38, 72, .16);
+        background: #174a7b;
+        box-shadow: 0 4px 12px rgba(7, 38, 72, .15);
     }
     .edusync-sidebar:not(.toggled) .nav-item > .nav-link {
         display: flex;
