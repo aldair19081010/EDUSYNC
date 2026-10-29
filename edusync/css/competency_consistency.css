@@ -74,3 +74,62 @@
   .co-page .co-head{flex-direction:column}
   .co-page .co-head .btn{width:100%}
 }
+
+
+/* Competencias: jerarquía y densidad coherentes con Gestión de Notas.
+   Se aplican sólo a las vistas co-page de niveles, cursos y competencias. */
+.co-page{padding-left:0!important;padding-right:0!important}
+.co-page .co-head{
+  align-items:center!important;min-height:59px;padding:.66rem .85rem!important;
+  margin-bottom:.72rem!important;box-shadow:none!important
+}
+.co-page .co-head h1{font-size:1.12rem!important;line-height:1.32}
+.co-page .co-head h1 i{color:#4285f4;margin-right:.3rem}
+.co-page>.card{margin-bottom:.72rem!important;box-shadow:none!important}
+.co-page>.card>.card-header{min-height:40px;padding:.58rem .8rem!important}
+.co-page>.card>.card-body{padding:.73rem .82rem}
+.co-page .card[onclick]{
+  margin-bottom:0!important;min-height:105px;
+  border:1px solid #e3e6f0!important;border-left:3px solid #4285f4!important;
+  box-shadow:none!important;transition:border-color .15s ease!important
+}
+.co-page .card[onclick]:hover,.co-page .card[onclick]:focus-visible{
+  transform:none!important;border-color:#b8cff5!important;box-shadow:none!important
+}
+.co-page .card[onclick]>.card-body{padding:.75rem .8rem}
+.co-page .card[onclick] .mb-3{margin-bottom:.45rem!important}
+.co-page .card[onclick] .text-center.mt-3{margin-top:.42rem!important}
+.co-page .card.bg-light{background:#f8fafd!important;box-shadow:none!important}
+.co-page .card.bg-light>.card-body{padding:.68rem .75rem}
+.co-page :is(.alert-success,.alert-warning,.alert-info){
+  font-size:.8rem;padding:.7rem .82rem;margin-bottom:.72rem!important;
+  border-radius:.45rem
+}
+.co-page .table-responsive{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.co-page .table thead th{
+  background:#f8fafd!important;color:#526274!important;
+  border-bottom:1px solid #dce4ef!important;font-size:.75rem;
+  padding:.54rem .65rem;white-space:nowrap
+}
+.co-page .table tbody td{padding:.53rem .65rem;color:#344054;font-size:.79rem}
+.co-page :is(.form-control,.input-group-text){
+  min-height:34px;border:1px solid #d8deea;border-radius:.4rem;box-shadow:none
+}
+.co-page .card button.btn{box-shadow:none!important;transform:none!important}
+@media(max-width:767.98px){
+  .co-page .co-head{
+    display:flex!important;flex-direction:row!important;
+    justify-content:space-between!important;align-items:center!important;
+    flex-wrap:wrap!important;gap:.4rem!important;
+    padding:.48rem .62rem!important;min-height:49px
+  }
+  .co-page .co-head h1{font-size:.99rem!important;flex:1 1 auto;min-width:0}
+  .co-page .co-head .btn{flex:0 0 auto;width:auto!important;min-height:32px;font-size:.74rem;padding:.28rem .47rem}
+  .co-page>.card>.card-body{padding:.6rem .65rem}
+  .co-page .card[onclick]>.card-body{padding:.64rem .72rem}
+  .co-page .table{min-width:430px}
+}
+@media(max-width:359.98px){
+  .co-page .co-head h1{font-size:.91rem!important}
+  .co-page .co-head .btn{font-size:.7rem}
+}
