@@ -1,5 +1,6 @@
 /* Topbar moderno de EduSync: contexto institucional, notificaciones y perfil. */
 .edusync-topbar {
+    --edusync-topbar-blue: var(--edu-primary, #4285f4);
     min-height: 4.35rem;
     border-bottom: 1px solid #edf0f5;
     box-shadow: 0 .15rem .8rem rgba(31, 45, 61, .08) !important;
@@ -23,7 +24,7 @@
     align-items: center;
     justify-content: center;
     background: #eef4ff;
-    color: #4e73df;
+    color: var(--edu-primary, #4285f4);
     flex: 0 0 2.3rem;
 }
 
@@ -141,7 +142,7 @@
     padding: .12rem .42rem;
     border-radius: 999px;
     background: #eef4ff;
-    color: #4e73df;
+    color: var(--edu-primary, #4285f4);
     font-size: .64rem;
     font-weight: 800;
     letter-spacing: .01em;
@@ -219,7 +220,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #4e73df;
+    background: var(--edu-primary, #4285f4);
     color: #fff;
     font-size: .75rem;
     font-weight: 800;
@@ -333,4 +334,25 @@
             max-height: calc(100dvh - 5rem);
         }
     }
+}
+
+
+/* Consistencia visual: las capas flotantes comparten radios, bordes y foco
+   con los módulos internos, sin alterar las categorías de notificación. */
+body[data-edusync-ui="standard-v2"] .edusync-topbar .edusync-notification-menu,
+body[data-edusync-ui="standard-v2"] .edusync-topbar .edusync-profile-menu {
+    border: 1px solid var(--edu-border-soft, #edf0f5) !important;
+    border-radius: var(--edu-radius, .6rem) !important;
+    box-shadow: var(--edu-shadow-lg, 0 .45rem 1.2rem rgba(31,45,61,.12)) !important;
+}
+.edusync-topbar .edusync-alert-toggle:focus-visible,
+.edusync-topbar .edusync-user-toggle:focus-visible,
+.edusync-topbar #sidebarToggleTop:focus-visible {
+    outline: 2px solid var(--edusync-topbar-blue);
+    outline-offset: 2px;
+    border-radius: .42rem;
+}
+.edusync-topbar .edusync-profile-menu .dropdown-item:hover,
+.edusync-topbar .edusync-profile-menu .dropdown-item:focus-visible {
+    background-color: var(--edu-hover, #f7faff);
 }
