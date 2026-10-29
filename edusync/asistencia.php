@@ -9,6 +9,29 @@ $ready=false;$q=$conn->query("SHOW COLUMNS FROM asistencia LIKE 'school_id'");if
 ?>
 <style>
 .at-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.at-head h1{font-size:1.35rem;font-weight:700;color:#344054;margin:0}.at-sub{font-size:.84rem;color:#667085}.at-kpi{border:1px solid #e4e7ec;border-radius:9px;background:#fff;padding:12px 14px;height:100%}.at-kpi small{color:#667085;display:block}.at-kpi strong{font-size:1.35rem;color:#344054}.at-toolbar{background:#f8fafc;border:1px solid #e4e7ec;border-radius:9px;padding:13px}.at-student{min-width:240px}.at-status{min-width:155px}.at-time{min-width:112px}.at-closed{background:#fffaeb;border-left:4px solid #f79009;padding:10px 12px}.at-row-unmarked{background:#fff9f0}.at-scanner{border:1px solid #b2ccff;background:#f5f8ff;border-radius:9px;padding:13px}@media(max-width:768px){.at-head{display:block}.at-head .btn{margin-top:10px}.at-toolbar .form-group{margin-bottom:10px}}
+
+/* Asistencia: refinamiento local; no modifica media queries existentes. */
+.at-page .at-head{border-left-color:#4285f4;border-radius:.55rem;box-shadow:none;margin-bottom:.72rem!important}
+.at-page .at-head h1{font-size:1.12rem;color:#233b52;line-height:1.33}
+.at-page .at-head .at-sub{font-size:.77rem;line-height:1.42;color:#6e7891}
+.at-page .at-toolbar{padding:.73rem .8rem;border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:none}
+.at-page .at-toolbar label{display:block;color:#526274;font-size:.74rem;font-weight:700;margin-bottom:.26rem}
+.at-page .at-toolbar .form-control{height:35px;min-height:35px;border:1px solid #d8deea;border-radius:.4rem;font-size:.8rem;box-shadow:none}
+.at-page #at-load{min-height:35px;font-size:.8rem;box-shadow:none}
+.at-page .card{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:none!important}
+.at-page .card>.card-header{padding:.64rem .8rem!important;border-bottom:1px solid #edf0f5;gap:.46rem}
+.at-page .card>.card-header strong{color:#233b52;font-size:.85rem}
+.at-page .card>.card-header .btn{min-height:32px;font-size:.77rem;box-shadow:none}
+.at-page .table-responsive{max-width:100%;overflow-x:auto}
+.at-page .table thead th{font-size:.74rem;white-space:nowrap;color:#526274;background:#f8fafd!important;border-bottom:1px solid #dce4ef}
+.at-page .table tbody td{font-size:.78rem;padding:.51rem .58rem;vertical-align:middle;color:#344054}
+.at-page .table .form-control-sm{min-height:32px;border:1px solid #d8deea;border-radius:.38rem;box-shadow:none}
+#justifyModal .modal-title{font-size:.9rem!important;color:#233b52}
+#justifyModal .modal-body{padding:.75rem .83rem!important}
+#justifyModal .modal-body label{font-size:.76rem;color:#526274;font-weight:700;margin-bottom:.26rem}
+#justifyModal .modal-body .form-control{border:1px solid #d8deea;border-radius:.4rem;font-size:.82rem}
+#justifyModal .modal-footer{gap:.45rem;padding:.65rem .83rem!important}
+#justifyModal .modal-footer .btn{min-height:34px;font-size:.79rem;margin:0!important}
 </style>
 <link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/css/operational_consistency.css') ?: 1); ?>">
 <div class="container-fluid py-4 at-page">
@@ -16,16 +39,16 @@ $ready=false;$q=$conn->query("SHOW COLUMNS FROM asistencia LIKE 'school_id'");if
  <?php if(!$ready):?><div class="alert alert-warning"><strong>Actualización pendiente.</strong> Ejecute manualmente <code>sql/attendance_module_upgrade.sql</code>. Los datos anteriores se conservarán.</div><?php else:?>
  <div id="at-message"></div>
  <div class="at-toolbar mb-3"><div class="form-row align-items-end">
-  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Fecha</label><input id="at-date" type="date" class="form-control" value="<?=date('Y-m-d')?>"></div>
-  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Nivel</label><select id="at-level" class="form-control"><option value="">Seleccione</option></select></div>
-  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Grado</label><select id="at-grade" class="form-control" disabled><option value="">Seleccione</option></select></div>
-  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label class="small font-weight-bold">Sección</label><select id="at-section" class="form-control" disabled><option value="">Seleccione</option></select></div>
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label for="at-date" class="small font-weight-bold">Fecha</label><input id="at-date" type="date" class="form-control" value="<?=date('Y-m-d')?>"></div>
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label for="at-level" class="small font-weight-bold">Nivel</label><select id="at-level" class="form-control"><option value="">Seleccione</option></select></div>
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label for="at-grade" class="small font-weight-bold">Grado</label><select id="at-grade" class="form-control" disabled><option value="">Seleccione</option></select></div>
+  <div class="form-group col-lg-2 col-md-4 mb-lg-0"><label for="at-section" class="small font-weight-bold">Sección</label><select id="at-section" class="form-control" disabled><option value="">Seleccione</option></select></div>
   <div class="form-group col-lg-4 col-md-8 mb-0"><button id="at-load" class="btn btn-primary"><i class="fas fa-search mr-1"></i>Cargar nómina</button></div>
  </div></div>
  <div class="row mb-3">
   <div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Esperados</small><strong id="k-expected">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Presentes</small><strong id="k-present">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Tardanzas</small><strong id="k-late">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Ausentes</small><strong id="k-absent">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Justificados</small><strong id="k-justified">0</strong></div></div><div class="col-6 col-lg mb-2"><div class="at-kpi"><small>Sin marcar</small><strong id="k-unmarked">0</strong></div></div>
  </div>
- <div class="at-scanner mb-3"><div class="form-row align-items-end"><div class="form-group col-md-3 mb-md-0"><label class="small font-weight-bold">Marcación</label><select id="scan-type" class="form-control"><option>Entrada</option><option>Salida</option></select></div><div class="form-group col-md-6 mb-md-0"><label class="small font-weight-bold">Escanear DNI</label><input id="scan-dni" class="form-control" placeholder="Escanee o escriba el DNI y presione Enter" autocomplete="off"></div><div class="col-md-3"><small class="text-muted">La hora y el estado se calculan automáticamente.</small></div></div></div>
+ <div class="at-scanner mb-3"><div class="form-row align-items-end"><div class="form-group col-md-3 mb-md-0"><label for="scan-type" class="small font-weight-bold">Marcación</label><select id="scan-type" class="form-control"><option>Entrada</option><option>Salida</option></select></div><div class="form-group col-md-6 mb-md-0"><label for="scan-dni" class="small font-weight-bold">Escanear DNI</label><input id="scan-dni" class="form-control" placeholder="Escanee o escriba el DNI y presione Enter" autocomplete="off"></div><div class="col-md-3"><small class="text-muted">La hora y el estado se calculan automáticamente.</small></div></div></div>
  <div id="at-day-note" class="d-none mb-3"></div>
  <div class="card shadow-sm"><div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center"><div><strong>Nómina del aula</strong><div class="small text-muted" id="at-class-label">Seleccione un aula</div></div><div class="mt-2 mt-md-0"><button id="mark-all" class="btn btn-sm btn-outline-primary" disabled><i class="fas fa-check-double mr-1"></i>Todos presentes</button> <button id="save-roster" class="btn btn-sm btn-primary" disabled><i class="fas fa-save mr-1"></i>Guardar</button> <button id="toggle-close" class="btn btn-sm btn-outline-secondary" disabled><i class="fas fa-lock mr-1"></i>Cerrar día</button></div></div>
   <div class="table-responsive"><table class="table table-hover mb-0"><thead class="thead-light"><tr><th>#</th><th>Estudiante</th><th>Estado</th><th>Hora</th><th>Observación</th><th>Registro</th><th></th></tr></thead><tbody id="at-body"><tr><td colspan="7" class="text-center text-muted py-4">Seleccione nivel, grado y sección.</td></tr></tbody></table></div>
