@@ -452,13 +452,10 @@ $render_collapse = function ($group) use ($current_page) {
     if (isDesktop()) restoreSidebarState();
     else setMobileSidebarHidden(true);
 
-    if (typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(function () {
-            window.requestAnimationFrame(restoreSidebarScroll);
-        });
-    } else {
-        setTimeout(restoreSidebarScroll, 0);
-    }
+    // El menú ya está completamente construido y su CSS se cargó en <head>.
+    // Restauramos el scroll ahora, antes del siguiente fotograma, para evitar
+    // que se vea momentáneamente la posición anterior al navegar.
+    restoreSidebarScroll();
 
     sidebar.addEventListener('scroll', function () {
         scheduleFlyoutPosition();
