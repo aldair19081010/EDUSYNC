@@ -81,8 +81,8 @@ a.text-primary:focus {
     padding: .7rem .65rem;
 }
 
-/* Logotipo oficial EduSync; sustituye el ícono genérico de graduación.
-   El PNG es cuadrado y contiene márgenes transparentes: se amplía sin recortarlo. */
+/* Logotipo oficial EduSync sin recuadro: sólo la nube PNG transparente.
+   El PNG tiene márgenes transparentes; el tamaño amplía la nube sin deformarla. */
 .edusync-sidebar .edusync-brand-icon {
     display: flex;
     align-items: center;
@@ -91,9 +91,9 @@ a.text-primary:focus {
     height: 3.25rem;
     flex: 0 0 3.25rem;
     overflow: hidden;
-    border-radius: .75rem;
-    background: rgba(255, 255, 255, .96);
-    box-shadow: 0 .12rem .38rem rgba(8, 32, 77, .17);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
 }
 
 .edusync-sidebar .edusync-brand-logo {
