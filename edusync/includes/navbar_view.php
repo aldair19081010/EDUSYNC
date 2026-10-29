@@ -25,17 +25,13 @@ if ($is_student || $login_type === 4) {
 $sections = [];
 
 if ($login_type === 1) {
+    // Menú administrativo y director: mismos accesos de siempre, agrupados sin duplicar títulos.
     $sections = [
         [
-            'heading' => 'Estudiantes',
+            'heading' => 'Comunidad educativa',
             'items' => [
                 ['page' => 'students', 'label' => 'Lista de Estudiantes', 'icon' => 'fa-users'],
                 ['page' => 'bulk_student_update', 'label' => 'Actualización Masiva', 'icon' => 'fa-users-cog'],
-            ],
-        ],
-        [
-            'heading' => 'Docentes',
-            'items' => [
                 ['page' => 'teachers', 'label' => 'Lista de Docentes', 'icon' => 'fa-chalkboard-teacher'],
                 ['page' => 'teacher_courses', 'label' => 'Asignar a Cursos', 'icon' => 'fa-user-graduate'],
             ],
@@ -46,43 +42,11 @@ if ($login_type === 1) {
                 ['page' => 'academic_management', 'label' => 'Gestión Académica', 'icon' => 'fa-graduation-cap'],
                 ['page' => 'academic_year', 'label' => 'Años Académicos', 'icon' => 'fa-calendar-alt'],
                 ['page' => 'teacher_followup', 'label' => 'Seguimiento Docente', 'icon' => 'fa-clipboard-check'],
-            ],
-        ],
-        [
-            'heading' => 'Competencias',
-            'items' => [
                 ['page' => 'competencias', 'label' => 'Competencias por Nivel', 'icon' => 'fa-tasks'],
-            ],
-        ],
-        [
-            'heading' => 'Pagos',
-            'collapse' => [
-                'id' => 'collapsePagos',
-                'label' => 'Gestión de Pagos',
-                'icon' => 'fa-dollar-sign',
-                'header' => 'Opciones de Pagos',
-                'items' => [
-                    ['page' => 'concepts', 'label' => 'Conceptos de Pagos', 'icon' => 'fa-list-alt'],
-                    ['page' => 'fees', 'label' => 'Asignar Deudas', 'icon' => 'fa-file-invoice-dollar'],
-                    ['page' => 'payments', 'label' => 'Registrar Pagos', 'icon' => 'fa-cash-register'],
-                    ['page' => 'discounts', 'label' => 'Descuentos / Becas', 'icon' => 'fa-percentage'],
-                    ['page' => 'payments_report', 'label' => 'Reporte de Pagos', 'icon' => 'fa-chart-pie', 'separator_before' => true],
-                    ['page' => 'debt_reports', 'label' => 'Reporte de Deudas', 'icon' => 'fa-exclamation-circle'],
-                ],
-            ],
-        ],
-        [
-            'heading' => 'Facturación Electrónica',
-            'collapse' => [
-                'id' => 'collapseFacturacion',
-                'label' => 'Facturación SUNAT',
-                'icon' => 'fa-file-invoice',
-                'header' => 'Opciones',
-                'items' => [
-                    ['page' => 'comprobantes', 'label' => 'Comprobantes', 'icon' => 'fa-receipt'],
-                    ['page' => 'facturacion_deudas', 'label' => 'Facturación de Deudas', 'icon' => 'fa-file-invoice-dollar'],
-                    ['page' => 'config_facturacion', 'label' => 'Configuración', 'icon' => 'fa-cog'],
-                ],
+                ['page' => 'grades', 'label' => 'Libro de Notas', 'icon' => 'fa-clipboard-list'],
+                ['page' => 'grades_report', 'label' => 'Reporte de Notas', 'icon' => 'fa-chart-bar'],
+                ['page' => 'fichas_reportes', 'label' => 'Fichas y Reportes', 'icon' => 'fa-file-alt'],
+                ['page' => 'risk_dashboard', 'label' => 'Alerta Temprana IA', 'icon' => 'fa-brain'],
             ],
         ],
         [
@@ -94,23 +58,38 @@ if ($login_type === 1) {
             ],
         ],
         [
-            'heading' => 'Notas',
-            'items' => [
-                ['page' => 'grades', 'label' => 'Libro de Notas', 'icon' => 'fa-clipboard-list'],
-                ['page' => 'grades_report', 'label' => 'Reporte de Notas', 'icon' => 'fa-chart-bar'],
-            ],
-        ],
-        [
-            'heading' => 'Fichas y Reportes',
-            'items' => [
-                ['page' => 'fichas_reportes', 'label' => 'Fichas y Reportes', 'icon' => 'fa-file-alt'],
+            'heading' => 'Finanzas',
+            'entries' => [
+                ['collapse' => [
+                    'id' => 'collapsePagos',
+                    'label' => 'Gestión de Pagos',
+                    'icon' => 'fa-dollar-sign',
+                    'items' => [
+                        ['page' => 'concepts', 'label' => 'Conceptos de Pagos', 'icon' => 'fa-list-alt'],
+                        ['page' => 'fees', 'label' => 'Asignar Deudas', 'icon' => 'fa-file-invoice-dollar'],
+                        ['page' => 'payments', 'label' => 'Registrar Pagos', 'icon' => 'fa-cash-register'],
+                        ['page' => 'discounts', 'label' => 'Descuentos / Becas', 'icon' => 'fa-percentage'],
+                        ['page' => 'payments_report', 'label' => 'Reporte de Pagos', 'icon' => 'fa-chart-pie', 'separator_before' => true],
+                        ['page' => 'debt_reports', 'label' => 'Reporte de Deudas', 'icon' => 'fa-exclamation-circle'],
+                    ],
+                ]],
+                ['collapse' => [
+                    'id' => 'collapseFacturacion',
+                    'label' => 'Facturación SUNAT',
+                    'icon' => 'fa-file-invoice',
+                    'items' => [
+                        ['page' => 'comprobantes', 'label' => 'Comprobantes', 'icon' => 'fa-receipt'],
+                        ['page' => 'facturacion_deudas', 'label' => 'Facturación de Deudas', 'icon' => 'fa-file-invoice-dollar'],
+                        ['page' => 'config_facturacion', 'label' => 'Configuración', 'icon' => 'fa-cog'],
+                    ],
+                ]],
+                ['page' => 'collections', 'label' => 'Cobranza', 'icon' => 'fa-hand-holding-usd'],
             ],
         ],
         [
             'heading' => 'Comunicaciones',
             'items' => [
                 ['page' => 'announcements', 'label' => 'Comunicados', 'icon' => 'fa-bullhorn'],
-                ['page' => 'collections', 'label' => 'Cobranza', 'icon' => 'fa-hand-holding-usd'],
                 ['page' => 'notifications', 'label' => 'Notificaciones', 'icon' => 'fa-bell'],
             ],
         ],
@@ -118,12 +97,6 @@ if ($login_type === 1) {
             'heading' => 'Sistema',
             'items' => [
                 ['page' => 'users', 'label' => 'Usuarios y Accesos', 'icon' => 'fa-users-cog'],
-            ],
-        ],
-        [
-            'heading' => 'IA y Alertas',
-            'items' => [
-                ['page' => 'risk_dashboard', 'label' => 'Alerta Temprana IA', 'icon' => 'fa-brain'],
             ],
         ],
     ];
@@ -181,7 +154,9 @@ $render_direct_item = function ($item) use ($current_page) {
     $icon = htmlspecialchars($item['icon'], ENT_QUOTES, 'UTF-8');
     ?>
     <li class="nav-item <?php echo $active ? 'active' : ''; ?>">
-        <a class="nav-link" href="index.php?page=<?php echo $page; ?>">
+        <a class="nav-link" href="index.php?page=<?php echo $page; ?>"
+           <?php if ($active): ?>aria-current="page"<?php endif; ?>
+           title="<?php echo $label; ?>">
             <i class="fas fa-fw <?php echo $icon; ?>"></i>
             <span><?php echo $label; ?></span>
         </a>
@@ -203,7 +178,8 @@ $render_collapse = function ($group) use ($current_page) {
            data-toggle="collapse"
            data-target="#<?php echo $id; ?>"
            aria-expanded="<?php echo $is_open ? 'true' : 'false'; ?>"
-           aria-controls="<?php echo $id; ?>">
+           aria-controls="<?php echo $id; ?>"
+           title="<?php echo $label; ?>">
             <i class="fas fa-fw <?php echo $icon; ?>"></i>
             <span><?php echo $label; ?></span>
         </a>
@@ -222,7 +198,9 @@ $render_collapse = function ($group) use ($current_page) {
                         <div class="dropdown-divider my-1"></div>
                     <?php endif; ?>
                     <a class="collapse-item sidebar-subitem <?php echo $item_active ? 'active' : ''; ?>"
-                       href="index.php?page=<?php echo $item_page; ?>">
+                       href="index.php?page=<?php echo $item_page; ?>"
+                       <?php if ($item_active): ?>aria-current="page"<?php endif; ?>
+                       title="<?php echo $item_label; ?>">
                         <i class="fas fa-fw <?php echo $item_icon; ?> sidebar-subitem-icon"></i>
                         <span><?php echo $item_label; ?></span>
                     </a>
@@ -256,11 +234,18 @@ $render_collapse = function ($group) use ($current_page) {
         </a>
     </li>
 
-    <?php foreach ($sections as $index => $section): ?>
-        <hr class="sidebar-divider<?php echo $index === 0 ? '' : ' my-0'; ?>">
+    <?php foreach ($sections as $section): ?>
         <div class="sidebar-heading"><?php echo htmlspecialchars($section['heading'], ENT_QUOTES, 'UTF-8'); ?></div>
 
-        <?php if (!empty($section['collapse'])): ?>
+        <?php if (!empty($section['entries'])): ?>
+            <?php foreach ($section['entries'] as $entry): ?>
+                <?php if (isset($entry['collapse'])): ?>
+                    <?php $render_collapse($entry['collapse']); ?>
+                <?php else: ?>
+                    <?php $render_direct_item($entry); ?>
+                <?php endif; ?>
+            <?php endforeach; ?>
+        <?php elseif (!empty($section['collapse'])): ?>
             <?php $render_collapse($section['collapse']); ?>
         <?php else: ?>
             <?php foreach ($section['items'] as $item) {
@@ -272,7 +257,8 @@ $render_collapse = function ($group) use ($current_page) {
     <hr class="sidebar-divider d-none d-md-block">
 
     <div class="text-center d-none d-md-inline">
-        <button class="rounded-circle border-0" id="sidebarToggle"></button>
+        <button class="rounded-circle border-0" id="sidebarToggle" type="button"
+                aria-label="Contraer menú lateral" title="Contraer o expandir menú"></button>
     </div>
 </ul>
 
@@ -381,7 +367,9 @@ $render_collapse = function ($group) use ($current_page) {
 
     function keepActiveItemVisible() {
         if (!isDesktop()) return;
-        var activeItem = sidebar.querySelector('.nav-item.active > .nav-link');
+        var activeItem = (!sidebar.classList.contains('toggled')
+            && sidebar.querySelector('.sidebar-subitem.active'))
+            || sidebar.querySelector('.nav-item.active > .nav-link');
         if (!activeItem) return;
 
         var sidebarRect = sidebar.getBoundingClientRect();
@@ -415,6 +403,11 @@ $render_collapse = function ($group) use ($current_page) {
 
         document.body.classList.toggle('sidebar-toggled', collapsed);
         sidebar.classList.toggle('toggled', collapsed);
+        var toggleButton = document.getElementById('sidebarToggle');
+        if (toggleButton) {
+            toggleButton.setAttribute('aria-label', collapsed ? 'Expandir menú lateral' : 'Contraer menú lateral');
+            toggleButton.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        }
 
         if (collapsed) {
             closeAllGroups();
@@ -433,6 +426,11 @@ $render_collapse = function ($group) use ($current_page) {
         if (isDesktop()) return;
         document.body.classList.toggle('sidebar-toggled', hidden);
         sidebar.classList.toggle('toggled', hidden);
+        var mobileToggle = document.getElementById('sidebarToggleTop');
+        if (mobileToggle) {
+            mobileToggle.setAttribute('aria-label', hidden ? 'Abrir menú lateral' : 'Cerrar menú lateral');
+            mobileToggle.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+        }
         if (hidden) closeAllGroups();
         sidebar.querySelectorAll('.sidebar-group > .collapse').forEach(clearFlyoutPosition);
     }
