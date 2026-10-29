@@ -209,6 +209,60 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  .gr-page #gr-new{font-size:.71rem;padding:.27rem .42rem}
  .gr-page .gr-filter .row>div{flex:0 0 100%;max-width:100%}
 }
+/* IMPORTANTE: ui_consistency.js añade la clase ed-page-actions al contenedor.
+   ui_responsive.css establece display:grid, width:100% y .btn width:100%
+   en móvil. En la cabecera de Notas se anulan SOLO esas reglas para impedir
+   que el botón se comprima a unos pocos píxeles y el texto se desborde. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header > .gr-header-info{
+ min-width:0!important;max-width:100%;overflow-wrap:anywhere;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header > .gr-header-actions{
+ display:flex!important;
+ flex:0 0 auto!important;
+ align-items:center!important;
+ justify-content:flex-end!important;
+ grid-template-columns:none!important;
+ justify-self:end!important;
+ align-self:center!important;
+ width:max-content!important;
+ min-width:max-content!important;
+ max-width:none!important;
+ margin:0!important;
+ padding:0!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header > .gr-header-actions #gr-new{
+ display:inline-flex!important;
+ flex:0 0 auto!important;
+ align-items:center!important;
+ justify-content:center!important;
+ width:max-content!important;
+ min-width:max-content!important;
+ max-width:none!important;
+ box-sizing:border-box;
+ white-space:nowrap!important;
+ word-break:normal!important;
+ overflow:visible!important;
+ transform:none!important;
+ position:static!important;
+ margin:0!important;
+}
+@media(max-width:991.98px){
+ /* Abreviar ANTES de llegar al tamaño estrecho: el menú lateral también
+    reduce el área útil en tablets y ventanas medianas. */
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page #gr-new .gr-new-full{display:none!important}
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page #gr-new .gr-new-short{display:inline!important}
+}
+@media(max-width:767.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header .gr-header-info h1{
+  font-size:.97rem!important;line-height:1.25!important;
+  white-space:normal!important;margin:0!important
+ }
+}
+@media(max-width:359.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header .gr-header-info h1{
+  font-size:.91rem!important
+ }
+}
 /* Los formularios largos del módulo Notas conservan el encabezado visible.
    Sólo el cuerpo del modal se desplaza, no la página ni la ventana completa. */
 body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-dialog{
@@ -255,7 +309,7 @@ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal #uni_
 </style>
 <link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/operational_consistency.css') ?: 1); ?>">
 <div class="container-fluid gr-page">
- <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i><span class="gr-full-title">Evaluaciones y </span>Notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="mt-3 mt-md-0"><button class="btn btn-primary btn-sm" id="gr-new" type="button" aria-label="Nueva evaluación" title="Crear una nueva evaluación"><i class="fas fa-plus mr-1" aria-hidden="true"></i><span class="gr-new-full">Nueva evaluación</span><span class="gr-new-short" aria-hidden="true">Nueva</span></button></div></div>
+ <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div class="gr-header-info"><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i><span class="gr-full-title">Evaluaciones y </span>Notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="gr-header-actions mt-3 mt-md-0"><button class="btn btn-primary btn-sm" id="gr-new" type="button" aria-label="Nueva evaluación" title="Crear una nueva evaluación"><i class="fas fa-plus mr-1" aria-hidden="true"></i><span class="gr-new-full">Nueva evaluación</span><span class="gr-new-short" aria-hidden="true">Nueva</span></button></div></div>
  <?php if(!$migrationReady): ?><div class="alert alert-warning gr-migration"><i class="fas fa-database mr-2"></i>Para habilitar anulación y auditoría histórica, ejecuta manualmente <strong>sql/grades_module_upgrade.sql</strong>. El listado y registro de notas continúan disponibles.</div><?php endif; ?>
  <div class="d-flex justify-content-center mb-3"><div class="gr-view-switch"><button class="btn btn-primary btn-sm" id="gr-show-list"><i class="fas fa-list mr-1"></i>Lista de evaluaciones</button><button class="btn btn-light btn-sm" id="gr-show-book"><i class="fas fa-table mr-1"></i>Libro de notas</button></div></div>
  <div id="gr-list-view">
