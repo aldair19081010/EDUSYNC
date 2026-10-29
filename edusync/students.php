@@ -653,6 +653,18 @@ if ($years_query) {
   }
 }
 
+/* Corregir el margen heredado del pie del formulario universal:
+   en móvil puede causar desplazamiento horizontal dentro del modal. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #uni_modal.ed-modal-student #manage-student .ed-modal-actions{
+  margin:.65rem 0 0!important;
+  padding:.65rem .12rem .15rem!important;
+  border-top:1px solid #edf0f5!important;
+  border-radius:0!important;
+  background:#fff!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #uni_modal.ed-modal-student #manage-student .ed-modal-actions > .btn{
+  margin:0!important;
+}
 /* Estudiantes: encabezado móvil realmente compacto, sin afectar escritorio.
    Las reglas generales fuerzan columnas y botones a 100%; aquí se acota
    la excepción sólo a esta página para evitar dos filas innecesarias. */
@@ -1015,11 +1027,11 @@ body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #confirm_modal
 
 <!-- Modal para subir Excel -->
 <div class="modal fade" id="uploadExcelModal" tabindex="-1" role="dialog" aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
-	<div class="modal-dialog" role="document">
+	<div class="modal-dialog modal-dialog-centered" role="document">
 		<div class="modal-content">
 			<div class="modal-header ed-import-modal-header">
 				<h5 class="modal-title" id="uploadExcelModalLabel">
-					<i class="fa fa-file-excel text-success mr-2"></i>Subir Archivo Excel
+					<i class="fa fa-file-excel text-success mr-2"></i>Importar estudiantes
 				</h5>
 				<button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
 					<span aria-hidden="true">&times;</span>
@@ -1205,10 +1217,10 @@ body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #confirm_modal
 
 		// Delegar eventos para los botones de acción
 		$('#student-table tbody').on('click', '.edit_student', function() {
-			uni_modal("Gestionar Información de Estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
+			uni_modal("Editar estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
 		});
 		$('#student-table tbody').on('click', '.view_student', function() {
-			uni_modal("Ver Estudiante", "view_student.php?id=" + $(this).attr('data-id'), "mid-large");
+			uni_modal("Ficha del estudiante", "view_student.php?id=" + $(this).attr('data-id'), "mid-large");
 		});
 		$('#student-table tbody').on('click', '.delete_student', function() {
 			confirmStudentDeletion(this);
@@ -1270,14 +1282,14 @@ body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #confirm_modal
     });
 
 	$('.edit_student').click(function() {
-		uni_modal("Gestionar Información de Estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
+		uni_modal("Editar estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
 	});
 
 	// Doble clic en fila para abrir vista (usa data-id del botón Ver)
 	$('#student-table tbody').on('dblclick', 'tr', function() {
 		var $viewBtn = $(this).find('.view_student');
 		if ($viewBtn.length) {
-			uni_modal("Ver Estudiante", "view_student.php?id=" + $viewBtn.attr('data-id'), "mid-large");
+			uni_modal("Ficha del estudiante", "view_student.php?id=" + $viewBtn.attr('data-id'), "mid-large");
 		}
 	});
 
