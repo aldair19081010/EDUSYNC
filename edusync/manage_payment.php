@@ -41,6 +41,21 @@ if ($correctionOf > 0) {
 ?>
 <style>
 #uni_modal .modal-dialog{max-width:1180px;width:calc(100% - 32px)}#uni_modal .modal-body{padding:1.25rem 1.5rem}.pm-section{border-bottom:1px solid #e8edf4;padding-bottom:14px;margin-bottom:16px}.pm-section h6{font-weight:700;color:#2f6fed;margin-bottom:12px}.pm-row{border:1px solid #e1e7ef;border-radius:9px;padding:11px;margin-bottom:9px;background:#fff}.pm-total{background:#f3f7ff;border-radius:10px;padding:12px;font-weight:700}.pm-discount{background:#f8fafc;border-radius:8px;padding:9px;margin-top:9px}.pm-discount-total{color:#079455}.pm-balance{font-size:.77rem;color:#667085}.pm-overpay{display:none;margin-top:6px;padding:6px 9px;border-radius:6px;background:#fff4e5;color:#9a5b00;font-size:.78rem;font-weight:600}.pm-overpay.show{display:block}@media(max-width:767px){#uni_modal .modal-dialog{width:calc(100% - 16px);margin:8px}.pm-row .form-group{margin-bottom:10px!important}}
+
+/* Pago: composición existente, sin cambiar cobro, validaciones o responsive. */
+#payment-form{font-size:.81rem;color:#344054}
+#payment-form .pm-section{padding-bottom:.7rem;margin-bottom:.8rem;border-bottom:1px solid #edf0f5}
+#payment-form .pm-section h6{font-size:.86rem;font-weight:700;color:#233b52;margin-bottom:.58rem}
+#payment-form .form-group{margin-bottom:.76rem}
+#payment-form label{font-size:.75rem;font-weight:700;color:#526274;margin-bottom:.24rem}
+#payment-form .form-control{min-height:35px;border:1px solid #d8deea;border-radius:.4rem;font-size:.81rem;box-shadow:none}
+#payment-form .select2-container{max-width:100%}
+#payment-form .pm-row{padding:.68rem .76rem;border:1px solid #e3e6f0;border-left:3px solid #dbe7fa;border-radius:.46rem;margin-bottom:.56rem;box-shadow:none}
+#payment-form .pm-discount{padding:.58rem .7rem;border:1px solid #e3e6f0;border-radius:.44rem}
+#payment-form .pm-total{padding:.75rem .82rem;background:#f4f8ff;border:1px solid #dbe7fa;border-radius:.48rem;font-variant-numeric:tabular-nums}
+#payment-form .pm-balance{line-height:1.35}
+#payment-form .btn{min-height:34px;font-size:.78rem;box-shadow:none!important}
+#payment-form #save-payment{font-weight:700}
 </style>
 <div class="container-fluid">
 <form id="payment-form">
