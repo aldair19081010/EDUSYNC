@@ -135,8 +135,46 @@ while ($row = $q_comp->fetch_assoc()) {
 	$competencias[] = $row;
 }
 ?>
-<style>.meg-progress{height:7px}.meg-table thead th{position:sticky;top:0;z-index:2;background:#f8f9fc}.meg-table tbody td:nth-child(2){min-width:230px}.meg-counter{background:#f8f9fc;border:1px solid #e3e6f0;border-radius:.4rem;padding:.65rem .8rem}</style>
-<div class="container-fluid">
+<style>
+/* Calificar evaluación: ficha compacta, planilla con scroll propio. */
+.meg-page{padding:0!important;font-size:.81rem;color:#344054}
+.meg-page .meg-progress{height:7px}
+.meg-page .meg-counter{
+  background:#f8fafd;border:1px solid #e3e6f0;border-radius:.48rem;
+  padding:.64rem .76rem;margin-bottom:.7rem!important
+}
+.meg-page>.card,.meg-page #manage-evaluation-grades>.card{
+  border:1px solid #e3e6f0;border-radius:.5rem;
+  margin-bottom:.72rem!important;overflow:hidden;box-shadow:none!important
+}
+.meg-page>.card>.card-header,.meg-page #manage-evaluation-grades>.card>.card-header{
+  min-height:39px;padding:.57rem .75rem!important;
+  background:#f8fafd;border-bottom:1px solid #edf0f5
+}
+.meg-page>.card>.card-header h6,.meg-page #manage-evaluation-grades>.card>.card-header strong{
+  font-size:.84rem;line-height:1.36;overflow-wrap:anywhere
+}
+.meg-page>.card>.card-body{padding:.72rem .8rem!important}
+.meg-page #manage-evaluation-grades>.card>.card-header .badge{margin-left:.55rem;flex:0 0 auto}
+.meg-page .form-control{min-height:34px;border:1px solid #d8deea;border-radius:.4rem;font-size:.79rem;box-shadow:none}
+.meg-page .table-responsive{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.meg-page .meg-table{font-size:.78rem;margin-bottom:0!important}
+.meg-page .meg-table thead th{
+  position:sticky;top:0;z-index:2;background:#f8fafd;
+  color:#526274;font-size:.73rem;padding:.51rem .55rem;white-space:nowrap
+}
+.meg-page .meg-table tbody td{padding:.45rem .53rem;vertical-align:middle}
+.meg-page .meg-table tbody td:nth-child(2){min-width:210px}
+.meg-page .meg-table input,.meg-page .meg-table select{max-width:100%;min-height:32px}
+.meg-page .alert{font-size:.79rem;padding:.67rem .75rem;margin-bottom:.75rem!important}
+@media(max-width:767.98px){
+  .meg-page>.card>.card-body{padding:.6rem .66rem!important}
+  .meg-page .meg-table{min-width:490px}
+  .meg-page .meg-table tbody td:nth-child(2){min-width:175px}
+  .meg-page #manage-evaluation-grades>.card>.card-header{padding:.52rem .62rem!important}
+}
+</style>
+<div class="container-fluid meg-page">
 	<?php if ($readonly_mode): ?>
 	<div class="alert alert-warning mb-3">
 		<i class="fa fa-lock"></i> <strong>Modo de visualización:</strong> <?php 
