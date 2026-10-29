@@ -190,7 +190,7 @@ $notifications_count = count($notifications);
 $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_count;
 ?>
 
-<link rel="stylesheet" href="css/topbar-modern.css?v=<?php echo @filemtime(__DIR__ . '/../css/topbar-modern.css') ?: time(); ?>">
+<?php // topbar-modern.css se carga desde index.php <head> para evitar parpadeos. ?>
 
 <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 sticky-top edusync-topbar">
     <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-2" aria-label="Abrir menú lateral">
