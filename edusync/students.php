@@ -42,7 +42,7 @@ if ($years_query) {
 }
 ?>
 <style>
-	input[type=checkbox] {
+	.ed-students-page input[type=checkbox] {
 		-ms-transform: scale(1.3);
 		-moz-transform: scale(1.3);
 		-webkit-transform: scale(1.3);
@@ -182,12 +182,12 @@ if ($years_query) {
 	}
 	
 	/* Keep button groups simple and let SB Admin / Bootstrap handle colors */
-	.btn-group .btn {
+	.ed-students-page .btn-group .btn {
 		border-radius: 4px;
 		margin: 0 4px;
 		transition: transform 0.12s ease, box-shadow 0.12s ease;
 	}
-	.btn-group .btn:hover {
+	.ed-students-page .btn-group .btn:hover {
 		transform: translateY(-1px);
 	} 
 	
@@ -200,30 +200,30 @@ if ($years_query) {
 	}
 	
 	/* Estilos adicionales */
-	img {
+	.ed-students-page img {
 		max-width: 100px;
 		max-height: 150px;
 		border-radius: 4px;
 	}
 	
 	/* Mejoras para DataTables */
-	.dataTables_wrapper .dataTables_filter input {
+	.ed-students-page .dataTables_wrapper .dataTables_filter input {
 		border: 1px solid #e3e6f0;
 		border-radius: 6px;
 		padding: 6px 12px;
 		margin-left: 8px;
 	}
 	
-	.dataTables_info, .dataTables_paginate {
+	.ed-students-page .dataTables_info, .ed-students-page .dataTables_paginate {
 		margin-top: 15px;
 	}
 	
-	.dataTables_paginate .paginate_button {
+	.ed-students-page .dataTables_paginate .paginate_button {
 		border-radius: 4px !important;
 		margin: 0 2px;
 	}
 	
-	.dataTables_paginate .paginate_button.current {
+	.ed-students-page .dataTables_paginate .paginate_button.current {
 		background: #4285f4 !important;
 		border-color: #2a75f3 !important;
 		color: white !important;
@@ -275,18 +275,18 @@ if ($years_query) {
 }
 	
 	/* Mejoras para la visualización de tablas */
-	.table {
+	.ed-students-page .table {
 		font-size: 0.9rem;
 	}
 	
-	.table th {
+	.ed-students-page .table th {
 		font-weight: 600;
 		padding: 12px 10px;
 		background-color: #f8f9fc;
 		border-top: none;
 	}
 	
-	.table td {
+	.ed-students-page .table td {
 		padding: 12px 10px;
 		vertical-align: middle;
 	}
@@ -317,11 +317,11 @@ if ($years_query) {
 	
 	/* Mejorar visualización en móviles */
 	@media (max-width: 767px) {
-		.table {
+		.ed-students-page .table {
 			font-size: 0.85rem;
 		}
 		
-		.table td, .table th {
+		.ed-students-page .table td, .ed-students-page .table th {
 			padding: 10px 8px;
 		}
 	}
@@ -342,12 +342,12 @@ if ($years_query) {
 	
 	/* Mejorar visualización de botones de filtro en dispositivos móviles */
 	@media (max-width: 767px) {
-		.btn-group {
+		.ed-students-page .btn-group {
 			flex-wrap: wrap;
 			width: 100%;
 		}
 		
-		.btn-group .btn {
+		.ed-students-page .btn-group .btn {
 			flex-grow: 1;
 			padding: 5px;
 			margin-bottom: 5px;
@@ -356,19 +356,19 @@ if ($years_query) {
 	}
 	
 	/* Mejorar apariencia de badges y etiquetas */
-	.badge {
+	.ed-students-page .badge {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 	}
 	
-	.badge i {
+	.ed-students-page .badge i {
 		margin-right: 4px;
 	}
 	
 	/* Mejorar el espaciado de las tablas */
-	.table-responsive {
+	.ed-students-page .table-responsive {
 		padding: 0;
 		border: none;
 	}
@@ -453,6 +453,416 @@ if ($years_query) {
     .ed-students-page .ed-students-filter-actions{justify-content:flex-start;width:100%;margin-left:0!important}
     .ed-students-page .students-card > .card-body{padding:.5rem!important}
 }
+
+/* Estudiantes | Refinamiento v2. Sólo altera presentación del listado. */
+.ed-students-page .ed-students-header{
+  border-left:4px solid var(--edu-primary,#4285f4);
+  border-radius:var(--edu-radius,.55rem);
+  background:#fff;
+}
+.ed-students-page .ed-page-heading{
+  flex:1 1 320px;
+}
+.ed-students-page .ed-page-heading .small{
+  display:block;
+  color:#6e7891!important;
+  max-width:760px;
+}
+.ed-students-page .ed-page-actions .btn-group{
+  width:auto;
+  display:inline-flex;
+  flex-wrap:nowrap;
+}
+.ed-students-page .ed-page-actions .btn-group > .btn{
+  margin:0!important;
+  min-width:112px;
+  box-shadow:none!important;
+  transform:none!important;
+  white-space:nowrap;
+}
+.ed-students-page .student-add-menu{
+  width:295px;
+}
+.ed-students-page .student-add-menu .dropdown-item{
+  padding:.58rem .67rem;
+}
+.ed-students-page .students-card{
+  margin-bottom:.8rem;
+}
+.ed-students-page .students-card > .card-body{
+  padding:.72rem .85rem .5rem!important;
+}
+.ed-students-page .filter-bar-students{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr)) auto;
+  gap:.55rem .7rem;
+  align-items:end;
+  background:#f8fafd;
+  border:1px solid #edf0f5;
+  border-radius:.45rem;
+  padding:.63rem .7rem;
+  margin-bottom:.68rem;
+}
+.ed-students-page .filter-bar-students .filter-group{
+  min-width:0;
+  width:100%;
+  gap:.2rem;
+}
+.ed-students-page .filter-bar-students .filter-group label{
+  color:#526274;
+  font-size:.74rem;
+  font-weight:700;
+}
+.ed-students-page .filter-bar-students select.form-control{
+  width:100%;
+  min-width:0;
+  height:34px;
+  min-height:34px;
+  border:1px solid #d8deea;
+  border-radius:.4rem;
+  background-color:#fff;
+  font-size:.8rem;
+}
+.ed-students-page .filter-bar-students .ed-students-filter-actions{
+  justify-content:flex-end;
+  width:auto;
+  margin:0!important;
+  gap:0;
+}
+.ed-students-page .filter-bar-students .ed-students-filter-actions .btn{
+  height:34px;
+  min-height:34px;
+  border-radius:.4rem;
+  box-shadow:none!important;
+  margin:0;
+}
+.ed-students-page #bulk-student-toolbar{
+  background:#f4f8ff!important;
+  border-color:#dbe7fa!important;
+  border-radius:.45rem;
+  padding:.55rem .75rem;
+  gap:.6rem;
+}
+.ed-students-page .student-table-container{
+  overflow-x:auto;
+  margin:0;
+}
+.ed-students-page #student-table{
+  width:100%!important;
+  border-radius:0;
+  box-shadow:none;
+}
+.ed-students-page #student-table thead th{
+  border-bottom:1px solid #dce4ef;
+  background:#f8fafd;
+  font-size:.75rem;
+  color:#526274;
+  font-weight:700;
+  white-space:nowrap;
+}
+.ed-students-page #student-table tbody td{
+  color:#344054;
+  line-height:1.32;
+}
+.ed-students-page #student-table .student-info{
+  margin:0 0 .24rem;
+  line-height:1.32;
+  font-size:.76rem;
+  overflow-wrap:anywhere;
+}
+.ed-students-page #student-table .student-info:last-child{
+  margin-bottom:0;
+}
+.ed-students-page #student-table .badge{
+  box-shadow:none;
+  font-size:.75rem;
+  padding:.36rem .55rem;
+  letter-spacing:0;
+}
+.ed-students-page .dataTables_wrapper .dataTables_filter,
+.ed-students-page .dataTables_wrapper .dataTables_length,
+.ed-students-page .dataTables_wrapper .dataTables_info,
+.ed-students-page .dataTables_wrapper .dataTables_paginate{
+  font-size:.78rem;
+}
+.ed-students-page .dataTables_wrapper .dataTables_filter input{
+  min-width:175px;
+  min-height:33px;
+  font-size:.8rem;
+  border-radius:.4rem;
+  box-shadow:none;
+}
+#uploadExcelModal .upload-info-box{
+  padding:.72rem .85rem;
+  margin-bottom:.85rem!important;
+  background:#eff6ff;
+  border-left-color:var(--edu-primary,#4285f4);
+}
+#uploadExcelModal .upload-info-content p{
+  font-size:.81rem;
+  line-height:1.4;
+  margin-bottom:.3rem;
+}
+#uploadExcelModal .form-group{
+  margin-bottom:.85rem;
+}
+@media(max-width:1199.98px){
+  .ed-students-page .filter-bar-students{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .ed-students-page .filter-bar-students .ed-students-filter-actions{
+    grid-column:1/-1;
+    justify-content:flex-end;
+  }
+}
+@media(max-width:575.98px){
+  .ed-students-page .ed-students-header{
+    align-items:stretch;
+  }
+  .ed-students-page .ed-page-actions,
+  .ed-students-page .ed-page-actions .btn-group,
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    width:100%;
+  }
+  .ed-students-page .filter-bar-students{
+    grid-template-columns:1fr;
+    padding:.6rem;
+    gap:.48rem;
+  }
+  .ed-students-page .filter-bar-students .ed-students-filter-actions{
+    grid-column:auto;
+    justify-content:flex-end;
+  }
+  .ed-students-page .filter-bar-students .ed-students-filter-actions .btn{
+    width:100%;
+  }
+  .ed-students-page .students-card > .card-body{
+    padding:.5rem!important;
+  }
+  .ed-students-page #bulk-student-toolbar{
+    flex-direction:column;
+    align-items:stretch!important;
+  }
+  .ed-students-page #bulk-student-toolbar > div{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.4rem;
+  }
+  .ed-students-page #bulk-student-toolbar > div .btn{
+    margin:0!important;
+  }
+}
+
+/* Corregir el margen heredado del pie del formulario universal:
+   en móvil puede causar desplazamiento horizontal dentro del modal. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #uni_modal.ed-modal-student #manage-student .ed-modal-actions{
+  margin:.65rem 0 0!important;
+  padding:.65rem .12rem .15rem!important;
+  border-top:1px solid #edf0f5!important;
+  border-radius:0!important;
+  background:#fff!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #uni_modal.ed-modal-student #manage-student .ed-modal-actions > .btn{
+  margin:0!important;
+}
+/* Estudiantes: encabezado móvil realmente compacto, sin afectar escritorio.
+   Las reglas generales fuerzan columnas y botones a 100%; aquí se acota
+   la excepción sólo a esta página para evitar dos filas innecesarias. */
+@media(max-width:767.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-students-header{
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:.46rem!important;
+    min-height:52px;
+    margin-bottom:.55rem!important;
+    padding:.43rem .6rem!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-heading{
+    display:flex!important;
+    flex:1 1 auto;
+    align-items:center!important;
+    gap:.48rem!important;
+    min-width:0;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-icon{
+    width:31px!important;
+    height:31px!important;
+    flex:0 0 31px!important;
+    border-radius:.42rem!important;
+    font-size:.88rem;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-title{
+    font-size:.98rem!important;
+    font-weight:700!important;
+    line-height:1.25!important;
+    white-space:nowrap;
+  }
+  .ed-students-page .ed-students-title-prefix,
+  .ed-students-page .ed-page-heading .small{
+    display:none!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-actions{
+    width:auto!important;
+    max-width:none!important;
+    flex:0 0 auto;
+    margin:0!important;
+    padding:0!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+  }
+  .ed-students-page .ed-page-actions .btn-group,
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    flex:0 0 auto!important;
+    width:auto!important;
+    max-width:none!important;
+    margin:0!important;
+  }
+  .ed-students-page .student-add-menu{
+    width:min(295px,calc(100vw - 2.5rem));
+    max-width:calc(100vw - 2.5rem);
+    right:0;
+    left:auto;
+  }
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    min-width:0!important;
+    height:32px!important;
+    min-height:32px!important;
+    padding:.26rem .54rem!important;
+    font-size:.77rem!important;
+  }
+}
+@media(max-width:359.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-students-header{
+    gap:.3rem!important;
+    padding:.38rem .48rem!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-icon{
+    width:28px!important;height:28px!important;flex-basis:28px!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-title{
+    font-size:.91rem!important;
+  }
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    padding:.23rem .43rem!important;
+  }
+}
+/* Sólo los modales usados en esta pantalla: no alteran otras sesiones.
+   Cabecera visible, contenido desplazable y footer sin cortes en móvil. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #uni_modal .modal-title,
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-title{
+  font-size:.92rem!important;
+  line-height:1.3!important;
+  overflow-wrap:anywhere;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #bulkStudentsModal .modal-body .form-group{
+  margin-bottom:.78rem;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #bulkStudentsModal .modal-footer,
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #confirm_modal .modal-footer{
+  gap:.4rem;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #bulkStudentsModal .modal-footer .btn,
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #confirm_modal .modal-footer .btn{
+  min-height:34px;
+  margin:0!important;
+  box-shadow:none!important;
+  font-size:.79rem;
+}
+#uploadExcelModal .ed-student-upload-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:.5rem;
+  border-top:1px solid #edf0f5;
+  padding-top:.75rem;
+  margin-top:.75rem!important;
+}
+#uploadExcelModal .ed-student-upload-actions .btn{
+  min-height:34px;
+  min-width:98px;
+  box-shadow:none!important;
+  margin:0!important;
+}
+@media(max-width:767.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-dialog{
+    margin:.48rem auto!important;
+    width:calc(100% - .96rem)!important;
+    max-width:calc(100% - .96rem)!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-content{
+    display:flex;
+    flex-direction:column;
+    max-height:calc(100vh - .96rem);
+    max-height:calc(100dvh - .96rem);
+    overflow:hidden;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-header{
+    flex:0 0 auto;
+    min-height:44px!important;
+    padding:.48rem .75rem!important;
+    gap:.45rem;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-header .close{
+    width:30px;
+    height:30px;
+    flex:0 0 30px;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-body{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior-y:contain;
+    -webkit-overflow-scrolling:touch;
+    padding:.68rem .73rem!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#bulkStudentsModal,#confirm_modal) .modal-footer{
+    flex:0 0 auto;
+    padding:.6rem .73rem!important;
+    justify-content:flex-end;
+  }
+  #bulkStudentsModal #bulk-academic-fields .form-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:0;
+  }
+  #bulkStudentsModal #bulk-academic-fields .form-row .form-group{
+    min-width:110px;
+  }
+  #uploadExcelModal .upload-info-box{
+    gap:.5rem;
+    padding:.6rem!important;
+  }
+  #uploadExcelModal .upload-info-icon{
+    margin-right:.25rem;
+    font-size:1.1rem;
+  }
+  #uploadExcelModal .ed-student-upload-actions{
+    padding-top:.65rem;
+    margin-top:.65rem!important;
+  }
+}
+@media(max-width:359.98px){
+  #bulkStudentsModal #bulk-academic-fields .form-row{
+    display:block;
+  }
+  #bulkStudentsModal #bulk-academic-fields .form-row .form-group{
+    width:100%;
+    max-width:100%;
+  }
+}
+@media print{
+  /* La ficha debe imprimirse completa, no sólo el área visible del modal. */
+  body[data-edusync-page="students"] #uni_modal .modal-content,
+  body[data-edusync-page="students"] #uni_modal #uni_modal_body{
+    overflow:visible!important;
+    max-height:none!important;
+  }
+}
 </style>
 
 <div class="main-content-area ed-students-page">
@@ -460,13 +870,13 @@ if ($years_query) {
 		<div class="ed-page-heading">
 			<div class="ed-page-icon"><i class="fa fa-graduation-cap" aria-hidden="true"></i></div>
 			<div>
-				<h1 class="ed-page-title">Gestión de Estudiantes</h1>
-				<div class="small text-muted">Lista, filtros y acciones principales · Año activo predeterminado: <strong><?php echo htmlspecialchars($active_year['year'] ?? 'No configurado', ENT_QUOTES, 'UTF-8'); ?><?php echo !empty($active_year['description']) ? ' - ' . htmlspecialchars($active_year['description'], ENT_QUOTES, 'UTF-8') : ''; ?></strong></div>
+				<h1 class="ed-page-title"><span class="ed-students-title-prefix">Gestión de </span>Estudiantes</h1>
+				<div class="small text-muted">Consulta y administra la nómina de estudiantes de tu institución</div>
 			</div>
 		</div>
 		<div class="ed-page-actions">
 			<?php if ($can_manage_students): ?><div class="btn-group">
-				<button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-plus mr-1"></i>Agregar / importar</button>
+				<button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-ellipsis-h mr-1"></i>Acciones</button>
 				<div class="dropdown-menu dropdown-menu-right student-add-menu">
 					<h6 class="dropdown-header">Registro</h6>
 					<a class="dropdown-item" href="#" id="action_new_student"><span class="menu-icon student-menu-new"><i class="fa fa-user-plus"></i></span><span class="menu-copy"><span class="menu-title">Nuevo estudiante</span><span class="menu-description">Registrar manualmente un estudiante.</span></span></a>
@@ -491,7 +901,7 @@ if ($years_query) {
 					<!-- Barra de Filtros -->
                     <div class="filter-bar-students">
                         <div class="filter-group">
-                            <label><i class="fa fa-graduation-cap mr-1"></i>Nivel</label>
+                            <label for="filter_nivel_students"><i class="fa fa-graduation-cap mr-1"></i>Nivel</label>
                             <select id="filter_nivel_students" class="form-control form-control-sm">
                                 <option value="all">Todos</option>
                                 <option value="Inicial">Inicial</option>
@@ -500,19 +910,19 @@ if ($years_query) {
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label><i class="fa fa-layer-group mr-1"></i>Grado</label>
+                            <label for="grado_filter"><i class="fa fa-layer-group mr-1"></i>Grado</label>
                             <select id="grado_filter" class="form-control form-control-sm">
                                 <option value="">Todos</option>
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label><i class="fa fa-door-open mr-1"></i>Sección</label>
+                            <label for="seccion_filter"><i class="fa fa-door-open mr-1"></i>Sección</label>
                             <select id="seccion_filter" class="form-control form-control-sm">
                                 <option value="">Todas</option>
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label><i class="fa fa-user mr-1"></i>Estado</label>
+                            <label for="filter_student_status"><i class="fa fa-user mr-1"></i>Estado</label>
                             <select id="filter_student_status" class="form-control form-control-sm">
                                 <option value="all">Todos</option>
                                 <option value="Activo" selected>Activo</option>
@@ -521,7 +931,6 @@ if ($years_query) {
                             </select>
                         </div>
                         <div class="filter-group ml-auto d-flex flex-row align-items-end ed-students-filter-actions">
-							<button id="export_csv" class="btn btn-outline-success btn-sm" title="Exportar CSV"><i class="fa fa-file-csv mr-1"></i> Exportar</button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="clear_students_filters" title="Limpiar filtros">
                                 <i class="fa fa-times mr-1"></i> Limpiar
                             </button>
@@ -565,7 +974,7 @@ if ($years_query) {
 <?php if ($can_manage_students): ?>
 <div class="modal fade" id="bulkStudentsModal" tabindex="-1" role="dialog" aria-labelledby="bulkStudentsModalLabel" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">
-		<div class="modal-header"><h5 class="modal-title" id="bulkStudentsModalLabel"><i class="fas fa-tasks mr-2"></i>Acciones masivas</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+		<div class="modal-header"><h5 class="modal-title" id="bulkStudentsModalLabel"><i class="fas fa-tasks mr-2"></i>Acciones masivas</h5><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button></div>
 		<div class="modal-body">
 			<div class="form-group"><label for="bulk-action">Acción</label><select id="bulk-action" class="form-control"><option value="status">Cambiar estado</option><option value="academic">Cambiar nivel, grado y sección</option></select></div>
 			<div id="bulk-status-fields" class="form-group"><label for="bulk-status">Nuevo estado</label><select id="bulk-status" class="form-control"><option value="Activo">Activo</option><option value="Egresado">Egresado</option><option value="Retirado">Retirado</option></select></div>
@@ -624,13 +1033,13 @@ if ($years_query) {
 
 <!-- Modal para subir Excel -->
 <div class="modal fade" id="uploadExcelModal" tabindex="-1" role="dialog" aria-labelledby="uploadExcelModalLabel" aria-hidden="true">
-	<div class="modal-dialog" role="document">
+	<div class="modal-dialog modal-dialog-centered" role="document">
 		<div class="modal-content">
 			<div class="modal-header ed-import-modal-header">
 				<h5 class="modal-title" id="uploadExcelModalLabel">
-					<i class="fa fa-file-excel text-success mr-2"></i>Subir Archivo Excel
+					<i class="fa fa-file-excel text-success mr-2"></i>Importar estudiantes
 				</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+				<button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
 					<span aria-hidden="true">&times;</span>
 				</button>
 			</div>
@@ -670,17 +1079,15 @@ if ($years_query) {
 							Formatos permitidos: .xls, .xlsx
 						</small>
 					</div>
-					<div class="form-group mt-4">
-					<button type="submit" class="btn btn-primary btn-block">
-							<i class="fa fa-upload mr-2"></i> Subir Excel
+					<div class="form-group mt-3 mb-0 ed-student-upload-actions">
+						<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">
+							<i class="fa fa-times mr-1"></i>Cancelar
+						</button>
+						<button type="submit" class="btn btn-primary btn-sm">
+							<i class="fa fa-upload mr-1"></i>Subir Excel
 						</button>
 					</div>
 				</form>
-			</div>
-			<div class="modal-footer">
-				<button type="button" class="btn btn-secondary" data-dismiss="modal">
-					<i class="fa fa-times mr-2"></i>Cancelar
-				</button>
 			</div>
 		</div>
 	</div>
@@ -816,10 +1223,10 @@ if ($years_query) {
 
 		// Delegar eventos para los botones de acción
 		$('#student-table tbody').on('click', '.edit_student', function() {
-			uni_modal("Gestionar Información de Estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
+			uni_modal("Editar estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
 		});
 		$('#student-table tbody').on('click', '.view_student', function() {
-			uni_modal("Ver Estudiante", "view_student.php?id=" + $(this).attr('data-id'), "mid-large");
+			uni_modal("Ficha del estudiante", "view_student.php?id=" + $(this).attr('data-id'), "mid-large");
 		});
 		$('#student-table tbody').on('click', '.delete_student', function() {
 			confirmStudentDeletion(this);
@@ -859,7 +1266,7 @@ if ($years_query) {
 
 
 		// Exportar CSV desde servidor con todos los registros filtrados
-		$('#export_csv, #action_export_students').off('click.studentsExport').on('click.studentsExport', function(e){
+		$('#action_export_students').off('click.studentsExport').on('click.studentsExport', function(e){
 			e.preventDefault();
 			var params = $.param({
 				nivel: $('#filter_nivel_students').val(),
@@ -881,14 +1288,14 @@ if ($years_query) {
     });
 
 	$('.edit_student').click(function() {
-		uni_modal("Gestionar Información de Estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
+		uni_modal("Editar estudiante", "manage_student.php?id=" + $(this).attr('data-id'), "mid-large");
 	});
 
 	// Doble clic en fila para abrir vista (usa data-id del botón Ver)
 	$('#student-table tbody').on('dblclick', 'tr', function() {
 		var $viewBtn = $(this).find('.view_student');
 		if ($viewBtn.length) {
-			uni_modal("Ver Estudiante", "view_student.php?id=" + $viewBtn.attr('data-id'), "mid-large");
+			uni_modal("Ficha del estudiante", "view_student.php?id=" + $viewBtn.attr('data-id'), "mid-large");
 		}
 	});
 
@@ -946,7 +1353,8 @@ window.delete_student = function(id) {
 	}
 
     // Abrir modal para subir Excel
-	$('#upload_excel, #action_upload_excel').off('click.studentsUpload').on('click.studentsUpload', function() {
+	$('#upload_excel, #action_upload_excel').off('click.studentsUpload').on('click.studentsUpload', function(e) {
+        e.preventDefault();
         $('#uploadExcelModal').modal('show');
     });
 	
