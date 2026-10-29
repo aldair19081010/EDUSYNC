@@ -54,39 +54,122 @@ if (isset($_GET['id'])) {
 }
 ?>
 <style>
-    .form-section-title {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: #2e59d9;
-        margin-top: 1.5rem;
-        margin-bottom: 1rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 2px solid #2e59d9;
-    }
-
-    .tutor-box {
-        background-color: #f8f9fa;
-        border-left: 4px solid #2e59d9;
-        padding: 1.25rem;
-        border-radius: 0.35rem;
-        margin-bottom: 1.5rem;
-    }
-
-    .tutor-box.secondary {
-        background-color: #f0f2f5;
-        border-left-color: #858796;
-    }
-
-    .tutor-title {
-        font-weight: 600;
-        color: #2e59d9;
-        font-size: 0.95rem;
-        margin-bottom: 1rem;
-    }
-
-    .tutor-title.secondary {
-        color: #858796;
-    }
+/* Modal de estudiante: coherente con los formularios EduSync.
+   Se conservan todos los campos, nombres, IDs y manejadores de guardado. */
+#manage-student{
+  --student-blue:var(--edu-primary,#4285f4);
+  --student-border:var(--edu-border,#e3e6f0);
+  --student-muted:#6e7891;
+  font-size:.82rem;
+}
+#manage-student > .card{
+  border:0;
+  box-shadow:none!important;
+  background:transparent;
+  margin:0!important;
+  border-radius:0;
+}
+#manage-student > .card > .card-body{
+  padding:.08rem .12rem .45rem!important;
+}
+#manage-student .form-section-title{
+  display:flex;
+  align-items:center;
+  min-height:37px;
+  margin:1.05rem 0 .7rem;
+  padding:0 0 .38rem;
+  border-bottom:1px solid #dce6f2;
+  font-size:.88rem;
+  line-height:1.32;
+  font-weight:750;
+  color:#233b52;
+}
+#manage-student .form-section-title:first-child{
+  margin-top:0;
+}
+#manage-student .form-section-title i{
+  color:var(--student-blue);
+  font-size:.88rem;
+}
+#manage-student .form-group{
+  margin-bottom:.72rem;
+}
+#manage-student label{
+  display:block;
+  font-size:.74rem;
+  font-weight:700;
+  color:#526274;
+  margin-bottom:.23rem;
+}
+#manage-student .form-control{
+  min-height:34px;
+  border-radius:.4rem;
+  border-color:#d8deea;
+  box-shadow:none;
+  font-size:.81rem;
+}
+#manage-student textarea.form-control{
+  min-height:58px;
+}
+#manage-student .form-control:focus{
+  border-color:#4285f4;
+  box-shadow:0 0 0 .16rem rgba(66,133,244,.12);
+}
+#manage-student .tutor-box{
+  background:#f8fafd;
+  border:1px solid var(--student-border);
+  border-left:3px solid var(--student-blue);
+  padding:.8rem .85rem .2rem;
+  border-radius:.45rem;
+  margin-bottom:.8rem;
+}
+#manage-student .tutor-box.secondary{
+  background:#fbfcfe;
+  border-left-color:#94a3b8;
+}
+#manage-student .tutor-title{
+  display:flex;
+  align-items:center;
+  gap:.12rem;
+  font-size:.8rem;
+  line-height:1.35;
+  font-weight:750;
+  margin-bottom:.68rem;
+  color:#233b52;
+}
+#manage-student .tutor-title i{
+  color:var(--student-blue);
+}
+#manage-student .tutor-title.secondary i{
+  color:#64748b;
+}
+#manage-student .card-footer{
+  padding:.72rem .12rem .12rem;
+  background:#fff!important;
+  border-top:1px solid #edf0f5;
+}
+#manage-student .card-footer .btn{
+  border-radius:.4rem;
+  min-height:34px;
+  font-size:.8rem;
+  box-shadow:none!important;
+}
+@media(max-width:575.98px){
+  #manage-student .tutor-box{
+    padding:.68rem .65rem .12rem;
+  }
+  #manage-student .form-section-title{
+    margin-top:.82rem;
+  }
+  #manage-student .card-footer{
+    display:flex;
+    gap:.45rem;
+    justify-content:flex-end;
+  }
+  #manage-student .card-footer .btn{
+    margin:0!important;
+  }
+}
 </style>
 
 <form action="" id="manage-student">
