@@ -652,6 +652,199 @@ if ($years_query) {
     margin:0!important;
   }
 }
+
+/* Estudiantes: encabezado móvil realmente compacto, sin afectar escritorio.
+   Las reglas generales fuerzan columnas y botones a 100%; aquí se acota
+   la excepción sólo a esta página para evitar dos filas innecesarias. */
+@media(max-width:767.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-students-header{
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
+    align-items:center!important;
+    justify-content:space-between!important;
+    gap:.46rem!important;
+    min-height:52px;
+    margin-bottom:.55rem!important;
+    padding:.43rem .6rem!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-heading{
+    display:flex!important;
+    flex:1 1 auto;
+    align-items:center!important;
+    gap:.48rem!important;
+    min-width:0;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-icon{
+    width:31px!important;
+    height:31px!important;
+    flex:0 0 31px!important;
+    border-radius:.42rem!important;
+    font-size:.88rem;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-title{
+    font-size:.98rem!important;
+    font-weight:700!important;
+    line-height:1.25!important;
+    white-space:nowrap;
+  }
+  .ed-students-page .ed-students-title-prefix,
+  .ed-students-page .ed-page-heading .small{
+    display:none!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-actions{
+    width:auto!important;
+    max-width:none!important;
+    flex:0 0 auto;
+    margin:0!important;
+    padding:0!important;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+  }
+  .ed-students-page .ed-page-actions .btn-group,
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    flex:0 0 auto!important;
+    width:auto!important;
+    max-width:none!important;
+    margin:0!important;
+  }
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    min-width:0!important;
+    height:32px!important;
+    min-height:32px!important;
+    padding:.26rem .54rem!important;
+    font-size:.77rem!important;
+  }
+}
+@media(max-width:359.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-students-header{
+    gap:.3rem!important;
+    padding:.38rem .48rem!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-icon{
+    width:28px!important;height:28px!important;flex-basis:28px!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #content .ed-students-page .ed-page-title{
+    font-size:.91rem!important;
+  }
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    padding:.23rem .43rem!important;
+  }
+}
+/* Sólo los modales usados en esta pantalla: no alteran otras sesiones.
+   Cabecera visible, contenido desplazable y footer sin cortes en móvil. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #uni_modal .modal-title,
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-title{
+  font-size:.92rem!important;
+  line-height:1.3!important;
+  overflow-wrap:anywhere;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #bulkStudentsModal .modal-body .form-group{
+  margin-bottom:.78rem;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #bulkStudentsModal .modal-footer,
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #confirm_modal .modal-footer{
+  gap:.4rem;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #bulkStudentsModal .modal-footer .btn,
+body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #confirm_modal .modal-footer .btn{
+  min-height:34px;
+  margin:0!important;
+  box-shadow:none!important;
+  font-size:.79rem;
+}
+#uploadExcelModal .ed-student-upload-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  gap:.5rem;
+  border-top:1px solid #edf0f5;
+  padding-top:.75rem;
+  margin-top:.75rem!important;
+}
+#uploadExcelModal .ed-student-upload-actions .btn{
+  min-height:34px;
+  min-width:98px;
+  box-shadow:none!important;
+  margin:0!important;
+}
+@media(max-width:767.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-dialog{
+    margin:.48rem auto!important;
+    width:calc(100% - .96rem)!important;
+    max-width:calc(100% - .96rem)!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-content{
+    display:flex;
+    flex-direction:column;
+    max-height:calc(100vh - .96rem);
+    max-height:calc(100dvh - .96rem);
+    overflow:hidden;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-header{
+    flex:0 0 auto;
+    min-height:44px!important;
+    padding:.48rem .75rem!important;
+    gap:.45rem;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-header .close{
+    width:30px;
+    height:30px;
+    flex:0 0 30px;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#uni_modal,#uploadExcelModal,#bulkStudentsModal,#confirm_modal) .modal-body{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior-y:contain;
+    -webkit-overflow-scrolling:touch;
+    padding:.68rem .73rem!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="students"] :is(#bulkStudentsModal,#confirm_modal) .modal-footer{
+    flex:0 0 auto;
+    padding:.6rem .73rem!important;
+    justify-content:flex-end;
+  }
+  #bulkStudentsModal #bulk-academic-fields .form-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:0;
+  }
+  #bulkStudentsModal #bulk-academic-fields .form-row .form-group{
+    min-width:110px;
+  }
+  #uploadExcelModal .upload-info-box{
+    gap:.5rem;
+    padding:.6rem!important;
+  }
+  #uploadExcelModal .upload-info-icon{
+    margin-right:.25rem;
+    font-size:1.1rem;
+  }
+  #uploadExcelModal .ed-student-upload-actions{
+    padding-top:.65rem;
+    margin-top:.65rem!important;
+  }
+}
+@media(max-width:359.98px){
+  #bulkStudentsModal #bulk-academic-fields .form-row{
+    display:block;
+  }
+  #bulkStudentsModal #bulk-academic-fields .form-row .form-group{
+    width:100%;
+    max-width:100%;
+  }
+}
+@media print{
+  /* La ficha debe imprimirse completa, no sólo el área visible del modal. */
+  body[data-edusync-page="students"] #uni_modal .modal-content,
+  body[data-edusync-page="students"] #uni_modal #uni_modal_body{
+    overflow:visible!important;
+    max-height:none!important;
+  }
+}
 </style>
 
 <div class="main-content-area ed-students-page">
@@ -659,7 +852,7 @@ if ($years_query) {
 		<div class="ed-page-heading">
 			<div class="ed-page-icon"><i class="fa fa-graduation-cap" aria-hidden="true"></i></div>
 			<div>
-				<h1 class="ed-page-title">Gestión de Estudiantes</h1>
+				<h1 class="ed-page-title"><span class="ed-students-title-prefix">Gestión de </span>Estudiantes</h1>
 				<div class="small text-muted">Consulta y administra la nómina de estudiantes de tu institución</div>
 			</div>
 		</div>
@@ -763,7 +956,7 @@ if ($years_query) {
 <?php if ($can_manage_students): ?>
 <div class="modal fade" id="bulkStudentsModal" tabindex="-1" role="dialog" aria-labelledby="bulkStudentsModalLabel" aria-hidden="true">
 	<div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">
-		<div class="modal-header"><h5 class="modal-title" id="bulkStudentsModalLabel"><i class="fas fa-tasks mr-2"></i>Acciones masivas</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+		<div class="modal-header"><h5 class="modal-title" id="bulkStudentsModalLabel"><i class="fas fa-tasks mr-2"></i>Acciones masivas</h5><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button></div>
 		<div class="modal-body">
 			<div class="form-group"><label for="bulk-action">Acción</label><select id="bulk-action" class="form-control"><option value="status">Cambiar estado</option><option value="academic">Cambiar nivel, grado y sección</option></select></div>
 			<div id="bulk-status-fields" class="form-group"><label for="bulk-status">Nuevo estado</label><select id="bulk-status" class="form-control"><option value="Activo">Activo</option><option value="Egresado">Egresado</option><option value="Retirado">Retirado</option></select></div>
@@ -828,7 +1021,7 @@ if ($years_query) {
 				<h5 class="modal-title" id="uploadExcelModalLabel">
 					<i class="fa fa-file-excel text-success mr-2"></i>Subir Archivo Excel
 				</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+				<button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
 					<span aria-hidden="true">&times;</span>
 				</button>
 			</div>
@@ -868,17 +1061,15 @@ if ($years_query) {
 							Formatos permitidos: .xls, .xlsx
 						</small>
 					</div>
-					<div class="form-group mt-4">
-					<button type="submit" class="btn btn-primary btn-block">
-							<i class="fa fa-upload mr-2"></i> Subir Excel
+					<div class="form-group mt-3 mb-0 ed-student-upload-actions">
+						<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal">
+							<i class="fa fa-times mr-1"></i>Cancelar
+						</button>
+						<button type="submit" class="btn btn-primary btn-sm">
+							<i class="fa fa-upload mr-1"></i>Subir Excel
 						</button>
 					</div>
 				</form>
-			</div>
-			<div class="modal-footer">
-				<button type="button" class="btn btn-secondary" data-dismiss="modal">
-					<i class="fa fa-times mr-2"></i>Cancelar
-				</button>
 			</div>
 		</div>
 	</div>
