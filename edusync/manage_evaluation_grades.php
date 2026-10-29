@@ -167,11 +167,32 @@ while ($row = $q_comp->fetch_assoc()) {
 .meg-page .meg-table tbody td:nth-child(2){min-width:210px}
 .meg-page .meg-table input,.meg-page .meg-table select{max-width:100%;min-height:32px}
 .meg-page .alert{font-size:.79rem;padding:.67rem .75rem;margin-bottom:.75rem!important}
+/* Un solo scroll vertical: el modal contiene el contenido y la planilla
+   conserva exclusivamente el desplazamiento horizontal. */
+.meg-page #manage-evaluation-grades>.row.mt-4{
+  position:sticky;bottom:0;z-index:6;
+  width:100%;margin:.6rem 0 0!important;
+  padding:.57rem .62rem!important;
+  background:#fff;border-top:1px solid #dce4ef;
+  box-shadow:0 -.25rem .65rem rgba(31,45,61,.06);
+}
+.meg-page #manage-evaluation-grades>.row.mt-4>.col-12{
+  display:flex;justify-content:flex-end;align-items:center;
+  gap:.45rem;flex-wrap:wrap;min-width:0;
+}
+.meg-page #manage-evaluation-grades>.row.mt-4 .btn{
+  min-height:34px;font-size:.78rem;margin:0!important;
+  padding:.34rem .65rem;box-shadow:none!important
+}
 @media(max-width:767.98px){
   .meg-page>.card>.card-body{padding:.6rem .66rem!important}
-  .meg-page .meg-table{min-width:490px}
-  .meg-page .meg-table tbody td:nth-child(2){min-width:175px}
+  .meg-page .meg-table{min-width:440px}
+  .meg-page .meg-table tbody td:nth-child(2){min-width:155px}
+  .meg-page .meg-table :is(th,td){padding:.4rem .42rem}
+  .meg-page .meg-counter{padding:.52rem .6rem;margin-bottom:.55rem!important}
+  .meg-page>.card,.meg-page #manage-evaluation-grades>.card{margin-bottom:.55rem!important}
   .meg-page #manage-evaluation-grades>.card>.card-header{padding:.52rem .62rem!important}
+  .meg-page #manage-evaluation-grades>.row.mt-4{padding:.5rem .4rem!important}
 }
 </style>
 <div class="container-fluid meg-page">
