@@ -192,33 +192,35 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
 
 <?php // topbar-modern.css se carga desde index.php <head> para evitar parpadeos. ?>
 
-<nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 sticky-top edusync-topbar">
+<nav class="navbar navbar-expand navbar-light bg-white topbar mb-3 sticky-top edusync-topbar" aria-label="Barra superior de EduSync">
     <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-2" aria-label="Abrir menú lateral">
         <i class="fa fa-bars"></i>
     </button>
 
-    <div class="edusync-topbar-context d-none d-md-flex" title="<?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?>">
+    <div class="edusync-topbar-context d-flex" title="<?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?>">
         <span class="edusync-topbar-school-icon">
             <?php if ($hasSchoolLogo): ?>
-                <img src="<?php echo htmlspecialchars($schoolLogoPath, ENT_QUOTES, 'UTF-8'); ?>"
+                <img class="edusync-topbar-school-logo" src="<?php echo htmlspecialchars($schoolLogoPath, ENT_QUOTES, 'UTF-8'); ?>"
                      alt="Logo de <?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?>"
-                     style="width:100%;height:100%;object-fit:contain;border-radius:.7rem;background:#fff;padding:.12rem;">
+                     width="40" height="40" decoding="async">
             <?php else: ?>
                 <i class="fas fa-school"></i>
             <?php endif; ?>
         </span>
         <span class="edusync-topbar-school-copy">
             <span class="edusync-topbar-school-name"><?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?></span>
-            <span class="edusync-topbar-school-meta">
-                <span class="edusync-year-pill"><i class="far fa-calendar-alt"></i><?php echo $activeAcademicYear ? 'Año académico ' . htmlspecialchars($activeAcademicYear, ENT_QUOTES, 'UTF-8') : 'Sin año académico activo'; ?></span>
-            </span>
+        </span>
+        <span class="edusync-year-pill" title="<?php echo $activeAcademicYear ? 'Año académico ' . htmlspecialchars((string)$activeAcademicYear, ENT_QUOTES, 'UTF-8') : 'Sin año académico activo'; ?>"
+              aria-label="<?php echo $activeAcademicYear ? 'Año académico ' . htmlspecialchars((string)$activeAcademicYear, ENT_QUOTES, 'UTF-8') : 'Sin año académico activo'; ?>">
+            <i class="far fa-calendar-alt" aria-hidden="true"></i>
+            <span><?php echo $activeAcademicYear ? htmlspecialchars((string)$activeAcademicYear, ENT_QUOTES, 'UTF-8') : 'Sin año activo'; ?></span>
         </span>
     </div>
 
     <ul class="navbar-nav ml-auto align-items-center">
         <?php if ($is_student || in_array($user_type, [1, 2, 3], true)): ?>
         <li class="nav-item dropdown no-arrow mx-1">
-            <a class="nav-link dropdown-toggle edusync-alert-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones">
+            <a class="nav-link dropdown-toggle edusync-alert-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones" title="Notificaciones">
                 <i class="fas fa-bell fa-fw"></i>
                 <?php if ($notifications_count > 0): ?>
                     <span class="badge badge-danger badge-counter"><?php echo $notificationBadge; ?></span>
@@ -297,13 +299,10 @@ $notificationBadge = $notifications_count > 99 ? '99+' : (string)$notifications_
         </li>
         <?php endif; ?>
 
-        <div class="topbar-divider d-none d-sm-block"></div>
-
-        <li class="nav-item dropdown no-arrow">
-            <a class="nav-link dropdown-toggle edusync-user-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+        <li class="nav-item dropdown no-arrow edusync-account-item">
+            <a class="nav-link dropdown-toggle edusync-user-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" aria-label="Opciones de cuenta: <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>" title="Mi cuenta">
                 <span class="edusync-user-summary d-none d-lg-flex mr-2">
                     <span class="edusync-user-name"><?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?></span>
-                    <span class="edusync-user-role"><?php echo htmlspecialchars($roleLabel, ENT_QUOTES, 'UTF-8'); ?></span>
                 </span>
                 <?php if ($hasAvatar): ?>
                     <img class="edusync-avatar" src="<?php echo htmlspecialchars($avatarPath, ENT_QUOTES, 'UTF-8'); ?>" alt="Avatar">
