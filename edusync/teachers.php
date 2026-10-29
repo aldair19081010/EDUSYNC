@@ -79,7 +79,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 ?>
 <style>
 /* Estilos generales para la página */
-.main-content-area {
+.ed-teachers-page .main-content-area {
     padding: 10px 5px;
 }
 .teacher-summary-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:18px; }
@@ -97,10 +97,10 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 @media (max-width:575px) { .teacher-summary-grid { grid-template-columns:1fr; } }
 
 /* Nuevo encabezado compacto y limpio */
-.page-title-wrapper {
+.ed-teachers-page .page-title-wrapper {
     margin-bottom: 16px;
 }
-.page-title {
+.ed-teachers-page .page-title {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -159,7 +159,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     margin-right: 6px;
 }
 
-.content-card { /* Clase genérica para la tarjeta */
+.ed-teachers-page .content-card { /* Clase genérica para la tarjeta */
     border-radius: 8px;
     box-shadow: 0 2px 15px rgba(0,0,0,0.05);
     border: none;
@@ -167,11 +167,11 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     overflow: hidden;
     transition: transform 0.2s, box-shadow 0.2s;
 }
-.content-card:hover {
+.ed-teachers-page .content-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
-.card-header {
+.ed-teachers-page .card-header {
 	padding: 12px 18px;
 	background: #fff;
 	border-bottom: 1px solid #e3e6f0;
@@ -214,7 +214,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 .teacher-add-menu .menu-title { display:block; color:#2c4964; font-size:.88rem; font-weight:700; line-height:1.2; }
 .teacher-add-menu .menu-description { display:block; color:#858796; font-size:.72rem; line-height:1.25; margin-top:3px; }
 .menu-icon-new { background:#e8f0fe; color:#2e59d9; }.menu-icon-upload { background:#e8f9f0; color:#1e7e34; }.menu-icon-template { background:#fff3cd; color:#856404; }.menu-icon-export { background:#e2e3e5; color:#5a5c69; }
-.table-custom { /* Clase genérica para la tabla */
+.ed-teachers-page .table-custom { /* Clase genérica para la tabla */
     box-shadow: none;
     border-radius: 0;
     background: #fff;
@@ -236,40 +236,40 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 .table-hover tbody tr:hover {
     background-color: rgba(252, 125, 28, 0.05);
 }
-.btn {
+.ed-teachers-page .btn {
     border-radius: 6px;
     font-weight: 500;
     transition: all 0.2s;
 }
-.btn-primary, .btn-primary:focus {
-	background: #bcbfc4;
-	border-color: #357ae8;
-	color: #fff;
+.ed-teachers-page .btn-primary, .ed-teachers-page .btn-primary:focus {
+  background:var(--edu-primary,#4285f4);
+  border-color:var(--edu-primary,#4285f4);
+  color:#fff;
 }
-.btn-primary:hover {
+.ed-teachers-page .btn-primary:hover {
 	background: #357ae8;
 	border-color: #2a63d6;
 	color: #fff;
 }
-.btn-danger {
+.ed-teachers-page .btn-danger {
     background: #fff;
     color: #dc3545;
     border: 1px solid #dc3545;
 }
-.btn-danger:hover {
+.ed-teachers-page .btn-danger:hover {
     background: #f8d7da;
     color: #a71d2a;
 }
-.btn-success {
+.ed-teachers-page .btn-success {
     background: #fff;
     color: #28a745;
     border: 1px solid #28a745;
 }
-.btn-success:hover {
+.ed-teachers-page .btn-success:hover {
     background: #e8f9f0;
     color: #218838;
 }
-.btn-success:hover {
+.ed-teachers-page .btn-success:hover {
     background: #e8f9f0;
     color: #218838;
 }
@@ -279,7 +279,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     padding: 6px 12px;
     margin-left: 8px;
 }
-.dataTables_info, .dataTables_paginate {
+.ed-teachers-page .dataTables_info, .ed-teachers-page .dataTables_paginate {
     margin-top: 15px;
 }
 .dataTables_paginate .paginate_button {
@@ -292,16 +292,16 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     color: white !important;
 }
 @media (max-width: 768px) {
-    .btn {
+    .ed-teachers-page .btn {
         padding: 5px 8px;
         min-width: 32px;
     }
-    .table-responsive {
+    .ed-teachers-page .table-responsive {
         overflow-x: auto;
     }
 }
 @media (max-width: 576px) {
-    .btn {
+    .ed-teachers-page .btn {
         padding: 4px 6px;
         min-width: 28px;
     }
