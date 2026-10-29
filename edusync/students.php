@@ -721,6 +721,12 @@ body[data-edusync-ui="standard-v2"][data-edusync-page="students"] #uni_modal.ed-
     max-width:none!important;
     margin:0!important;
   }
+  .ed-students-page .student-add-menu{
+    width:min(295px,calc(100vw - 2.5rem));
+    max-width:calc(100vw - 2.5rem);
+    right:0;
+    left:auto;
+  }
   .ed-students-page .ed-page-actions .btn-group > .btn{
     min-width:0!important;
     height:32px!important;
@@ -1347,7 +1353,8 @@ window.delete_student = function(id) {
 	}
 
     // Abrir modal para subir Excel
-	$('#upload_excel, #action_upload_excel').off('click.studentsUpload').on('click.studentsUpload', function() {
+	$('#upload_excel, #action_upload_excel').off('click.studentsUpload').on('click.studentsUpload', function(e) {
+        e.preventDefault();
         $('#uploadExcelModal').modal('show');
     });
 	
