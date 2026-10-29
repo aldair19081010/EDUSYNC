@@ -42,7 +42,7 @@ if ($years_query) {
 }
 ?>
 <style>
-	input[type=checkbox] {
+	.ed-students-page input[type=checkbox] {
 		-ms-transform: scale(1.3);
 		-moz-transform: scale(1.3);
 		-webkit-transform: scale(1.3);
@@ -182,12 +182,12 @@ if ($years_query) {
 	}
 	
 	/* Keep button groups simple and let SB Admin / Bootstrap handle colors */
-	.btn-group .btn {
+	.ed-students-page .btn-group .btn {
 		border-radius: 4px;
 		margin: 0 4px;
 		transition: transform 0.12s ease, box-shadow 0.12s ease;
 	}
-	.btn-group .btn:hover {
+	.ed-students-page .btn-group .btn:hover {
 		transform: translateY(-1px);
 	} 
 	
@@ -200,30 +200,30 @@ if ($years_query) {
 	}
 	
 	/* Estilos adicionales */
-	img {
+	.ed-students-page img {
 		max-width: 100px;
 		max-height: 150px;
 		border-radius: 4px;
 	}
 	
 	/* Mejoras para DataTables */
-	.dataTables_wrapper .dataTables_filter input {
+	.ed-students-page .dataTables_wrapper .dataTables_filter input {
 		border: 1px solid #e3e6f0;
 		border-radius: 6px;
 		padding: 6px 12px;
 		margin-left: 8px;
 	}
 	
-	.dataTables_info, .dataTables_paginate {
+	.ed-students-page .dataTables_info, .ed-students-page .dataTables_paginate {
 		margin-top: 15px;
 	}
 	
-	.dataTables_paginate .paginate_button {
+	.ed-students-page .dataTables_paginate .paginate_button {
 		border-radius: 4px !important;
 		margin: 0 2px;
 	}
 	
-	.dataTables_paginate .paginate_button.current {
+	.ed-students-page .dataTables_paginate .paginate_button.current {
 		background: #4285f4 !important;
 		border-color: #2a75f3 !important;
 		color: white !important;
@@ -275,18 +275,18 @@ if ($years_query) {
 }
 	
 	/* Mejoras para la visualización de tablas */
-	.table {
+	.ed-students-page .table {
 		font-size: 0.9rem;
 	}
 	
-	.table th {
+	.ed-students-page .table th {
 		font-weight: 600;
 		padding: 12px 10px;
 		background-color: #f8f9fc;
 		border-top: none;
 	}
 	
-	.table td {
+	.ed-students-page .table td {
 		padding: 12px 10px;
 		vertical-align: middle;
 	}
@@ -317,11 +317,11 @@ if ($years_query) {
 	
 	/* Mejorar visualización en móviles */
 	@media (max-width: 767px) {
-		.table {
+		.ed-students-page .table {
 			font-size: 0.85rem;
 		}
 		
-		.table td, .table th {
+		.ed-students-page .table td, .ed-students-page .table th {
 			padding: 10px 8px;
 		}
 	}
@@ -342,12 +342,12 @@ if ($years_query) {
 	
 	/* Mejorar visualización de botones de filtro en dispositivos móviles */
 	@media (max-width: 767px) {
-		.btn-group {
+		.ed-students-page .btn-group {
 			flex-wrap: wrap;
 			width: 100%;
 		}
 		
-		.btn-group .btn {
+		.ed-students-page .btn-group .btn {
 			flex-grow: 1;
 			padding: 5px;
 			margin-bottom: 5px;
@@ -356,19 +356,19 @@ if ($years_query) {
 	}
 	
 	/* Mejorar apariencia de badges y etiquetas */
-	.badge {
+	.ed-students-page .badge {
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
 		box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 	}
 	
-	.badge i {
+	.ed-students-page .badge i {
 		margin-right: 4px;
 	}
 	
 	/* Mejorar el espaciado de las tablas */
-	.table-responsive {
+	.ed-students-page .table-responsive {
 		padding: 0;
 		border: none;
 	}
@@ -453,6 +453,205 @@ if ($years_query) {
     .ed-students-page .ed-students-filter-actions{justify-content:flex-start;width:100%;margin-left:0!important}
     .ed-students-page .students-card > .card-body{padding:.5rem!important}
 }
+
+/* Estudiantes | Refinamiento v2. Sólo altera presentación del listado. */
+.ed-students-page .ed-students-header{
+  border-left:4px solid var(--edu-primary,#4285f4);
+  border-radius:var(--edu-radius,.55rem);
+  background:#fff;
+}
+.ed-students-page .ed-page-heading{
+  flex:1 1 320px;
+}
+.ed-students-page .ed-page-heading .small{
+  display:block;
+  color:#6e7891!important;
+  max-width:760px;
+}
+.ed-students-page .ed-page-actions .btn-group{
+  width:auto;
+  display:inline-flex;
+  flex-wrap:nowrap;
+}
+.ed-students-page .ed-page-actions .btn-group > .btn{
+  margin:0!important;
+  min-width:112px;
+  box-shadow:none!important;
+  transform:none!important;
+  white-space:nowrap;
+}
+.ed-students-page .student-add-menu{
+  width:295px;
+}
+.ed-students-page .student-add-menu .dropdown-item{
+  padding:.58rem .67rem;
+}
+.ed-students-page .students-card{
+  margin-bottom:.8rem;
+}
+.ed-students-page .students-card > .card-body{
+  padding:.72rem .85rem .5rem!important;
+}
+.ed-students-page .filter-bar-students{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr)) auto;
+  gap:.55rem .7rem;
+  align-items:end;
+  background:#f8fafd;
+  border:1px solid #edf0f5;
+  border-radius:.45rem;
+  padding:.63rem .7rem;
+  margin-bottom:.68rem;
+}
+.ed-students-page .filter-bar-students .filter-group{
+  min-width:0;
+  width:100%;
+  gap:.2rem;
+}
+.ed-students-page .filter-bar-students .filter-group label{
+  color:#526274;
+  font-size:.74rem;
+  font-weight:700;
+}
+.ed-students-page .filter-bar-students select.form-control{
+  width:100%;
+  min-width:0;
+  height:34px;
+  min-height:34px;
+  border:1px solid #d8deea;
+  border-radius:.4rem;
+  background-color:#fff;
+  font-size:.8rem;
+}
+.ed-students-page .filter-bar-students .ed-students-filter-actions{
+  justify-content:flex-end;
+  width:auto;
+  margin:0!important;
+  gap:0;
+}
+.ed-students-page .filter-bar-students .ed-students-filter-actions .btn{
+  height:34px;
+  min-height:34px;
+  border-radius:.4rem;
+  box-shadow:none!important;
+  margin:0;
+}
+.ed-students-page #bulk-student-toolbar{
+  background:#f4f8ff!important;
+  border-color:#dbe7fa!important;
+  border-radius:.45rem;
+  padding:.55rem .75rem;
+  gap:.6rem;
+}
+.ed-students-page .student-table-container{
+  overflow-x:auto;
+  margin:0;
+}
+.ed-students-page #student-table{
+  width:100%!important;
+  border-radius:0;
+  box-shadow:none;
+}
+.ed-students-page #student-table thead th{
+  border-bottom:1px solid #dce4ef;
+  background:#f8fafd;
+  font-size:.75rem;
+  color:#526274;
+  font-weight:700;
+  white-space:nowrap;
+}
+.ed-students-page #student-table tbody td{
+  color:#344054;
+  line-height:1.32;
+}
+.ed-students-page #student-table .student-info{
+  margin:0 0 .24rem;
+  line-height:1.32;
+  font-size:.76rem;
+  overflow-wrap:anywhere;
+}
+.ed-students-page #student-table .student-info:last-child{
+  margin-bottom:0;
+}
+.ed-students-page #student-table .badge{
+  box-shadow:none;
+  font-size:.75rem;
+  padding:.36rem .55rem;
+  letter-spacing:0;
+}
+.ed-students-page .dataTables_wrapper .dataTables_filter,
+.ed-students-page .dataTables_wrapper .dataTables_length,
+.ed-students-page .dataTables_wrapper .dataTables_info,
+.ed-students-page .dataTables_wrapper .dataTables_paginate{
+  font-size:.78rem;
+}
+.ed-students-page .dataTables_wrapper .dataTables_filter input{
+  min-width:175px;
+  min-height:33px;
+  font-size:.8rem;
+  border-radius:.4rem;
+  box-shadow:none;
+}
+#uploadExcelModal .upload-info-box{
+  padding:.72rem .85rem;
+  margin-bottom:.85rem!important;
+  background:#eff6ff;
+  border-left-color:var(--edu-primary,#4285f4);
+}
+#uploadExcelModal .upload-info-content p{
+  font-size:.81rem;
+  line-height:1.4;
+  margin-bottom:.3rem;
+}
+#uploadExcelModal .form-group{
+  margin-bottom:.85rem;
+}
+@media(max-width:1199.98px){
+  .ed-students-page .filter-bar-students{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .ed-students-page .filter-bar-students .ed-students-filter-actions{
+    grid-column:1/-1;
+    justify-content:flex-end;
+  }
+}
+@media(max-width:575.98px){
+  .ed-students-page .ed-students-header{
+    align-items:stretch;
+  }
+  .ed-students-page .ed-page-actions,
+  .ed-students-page .ed-page-actions .btn-group,
+  .ed-students-page .ed-page-actions .btn-group > .btn{
+    width:100%;
+  }
+  .ed-students-page .filter-bar-students{
+    grid-template-columns:1fr;
+    padding:.6rem;
+    gap:.48rem;
+  }
+  .ed-students-page .filter-bar-students .ed-students-filter-actions{
+    grid-column:auto;
+    justify-content:flex-end;
+  }
+  .ed-students-page .filter-bar-students .ed-students-filter-actions .btn{
+    width:100%;
+  }
+  .ed-students-page .students-card > .card-body{
+    padding:.5rem!important;
+  }
+  .ed-students-page #bulk-student-toolbar{
+    flex-direction:column;
+    align-items:stretch!important;
+  }
+  .ed-students-page #bulk-student-toolbar > div{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.4rem;
+  }
+  .ed-students-page #bulk-student-toolbar > div .btn{
+    margin:0!important;
+  }
+}
 </style>
 
 <div class="main-content-area ed-students-page">
@@ -461,12 +660,12 @@ if ($years_query) {
 			<div class="ed-page-icon"><i class="fa fa-graduation-cap" aria-hidden="true"></i></div>
 			<div>
 				<h1 class="ed-page-title">Gestión de Estudiantes</h1>
-				<div class="small text-muted">Lista, filtros y acciones principales · Año activo predeterminado: <strong><?php echo htmlspecialchars($active_year['year'] ?? 'No configurado', ENT_QUOTES, 'UTF-8'); ?><?php echo !empty($active_year['description']) ? ' - ' . htmlspecialchars($active_year['description'], ENT_QUOTES, 'UTF-8') : ''; ?></strong></div>
+				<div class="small text-muted">Consulta y administra la nómina de estudiantes de tu institución</div>
 			</div>
 		</div>
 		<div class="ed-page-actions">
 			<?php if ($can_manage_students): ?><div class="btn-group">
-				<button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-plus mr-1"></i>Agregar / importar</button>
+				<button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"><i class="fa fa-ellipsis-h mr-1"></i>Acciones</button>
 				<div class="dropdown-menu dropdown-menu-right student-add-menu">
 					<h6 class="dropdown-header">Registro</h6>
 					<a class="dropdown-item" href="#" id="action_new_student"><span class="menu-icon student-menu-new"><i class="fa fa-user-plus"></i></span><span class="menu-copy"><span class="menu-title">Nuevo estudiante</span><span class="menu-description">Registrar manualmente un estudiante.</span></span></a>
@@ -491,7 +690,7 @@ if ($years_query) {
 					<!-- Barra de Filtros -->
                     <div class="filter-bar-students">
                         <div class="filter-group">
-                            <label><i class="fa fa-graduation-cap mr-1"></i>Nivel</label>
+                            <label for="filter_nivel_students"><i class="fa fa-graduation-cap mr-1"></i>Nivel</label>
                             <select id="filter_nivel_students" class="form-control form-control-sm">
                                 <option value="all">Todos</option>
                                 <option value="Inicial">Inicial</option>
@@ -500,19 +699,19 @@ if ($years_query) {
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label><i class="fa fa-layer-group mr-1"></i>Grado</label>
+                            <label for="grado_filter"><i class="fa fa-layer-group mr-1"></i>Grado</label>
                             <select id="grado_filter" class="form-control form-control-sm">
                                 <option value="">Todos</option>
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label><i class="fa fa-door-open mr-1"></i>Sección</label>
+                            <label for="seccion_filter"><i class="fa fa-door-open mr-1"></i>Sección</label>
                             <select id="seccion_filter" class="form-control form-control-sm">
                                 <option value="">Todas</option>
                             </select>
                         </div>
                         <div class="filter-group">
-                            <label><i class="fa fa-user mr-1"></i>Estado</label>
+                            <label for="filter_student_status"><i class="fa fa-user mr-1"></i>Estado</label>
                             <select id="filter_student_status" class="form-control form-control-sm">
                                 <option value="all">Todos</option>
                                 <option value="Activo" selected>Activo</option>
@@ -521,7 +720,6 @@ if ($years_query) {
                             </select>
                         </div>
                         <div class="filter-group ml-auto d-flex flex-row align-items-end ed-students-filter-actions">
-							<button id="export_csv" class="btn btn-outline-success btn-sm" title="Exportar CSV"><i class="fa fa-file-csv mr-1"></i> Exportar</button>
                             <button type="button" class="btn btn-outline-secondary btn-sm" id="clear_students_filters" title="Limpiar filtros">
                                 <i class="fa fa-times mr-1"></i> Limpiar
                             </button>
@@ -859,7 +1057,7 @@ if ($years_query) {
 
 
 		// Exportar CSV desde servidor con todos los registros filtrados
-		$('#export_csv, #action_export_students').off('click.studentsExport').on('click.studentsExport', function(e){
+		$('#action_export_students').off('click.studentsExport').on('click.studentsExport', function(e){
 			e.preventDefault();
 			var params = $.param({
 				nivel: $('#filter_nivel_students').val(),
