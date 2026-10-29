@@ -356,3 +356,243 @@ body[data-edusync-ui="standard-v2"] .edusync-topbar .edusync-profile-menu {
 .edusync-topbar .edusync-profile-menu .dropdown-item:focus-visible {
     background-color: var(--edu-hover, #f7faff);
 }
+
+
+/* ===============================================
+   EduSync | Topbar refinado v2
+   Misma identidad del navbar, sin nuevos controles.
+   =============================================== */
+.edusync-topbar {
+    min-height: 4.35rem;
+    margin-bottom: .85rem !important;
+    padding: 0 .8rem !important;
+}
+.edusync-topbar .edusync-topbar-context {
+    justify-content: flex-start;
+    gap: .65rem;
+    padding: 0 .45rem;
+}
+.edusync-topbar .edusync-topbar-school-icon {
+    border-radius: .62rem;
+    background: #eef4ff;
+    overflow: hidden;
+}
+.edusync-topbar .edusync-topbar-school-logo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    padding: .12rem;
+    background: #fff;
+    border-radius: .58rem;
+    object-fit: contain;
+}
+.edusync-topbar .edusync-topbar-school-copy {
+    min-width: 0;
+    flex: 0 1 auto;
+}
+.edusync-topbar .edusync-topbar-school-name {
+    max-width: min(31vw, 28rem);
+    font-size: .89rem;
+    font-weight: 700;
+    color: var(--edu-heading, #233b52);
+}
+.edusync-topbar .edusync-year-pill {
+    flex: 0 0 auto;
+    margin-left: .15rem;
+    padding: .22rem .58rem;
+    border-radius: 999px;
+    background: #eef4ff;
+    color: #2863a0;
+    font-size: .71rem;
+    line-height: 1.2;
+    border: 1px solid #e0eaf9;
+}
+.edusync-topbar .navbar-nav {
+    flex: 0 0 auto;
+    gap: .1rem;
+}
+.edusync-topbar .edusync-alert-toggle,
+.edusync-topbar .edusync-user-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.7rem;
+    height: 2.7rem;
+    border-radius: .7rem;
+    color: #627389;
+    transition: color .14s ease, background-color .14s ease;
+}
+.edusync-topbar .edusync-alert-toggle {
+    width: 2.7rem;
+    padding: .2rem !important;
+}
+.edusync-topbar .edusync-user-toggle {
+    padding: .22rem .55rem !important;
+    gap: .15rem;
+}
+.edusync-topbar .edusync-alert-toggle:hover,
+.edusync-topbar .edusync-alert-toggle[aria-expanded="true"],
+.edusync-topbar .edusync-user-toggle:hover,
+.edusync-topbar .edusync-user-toggle[aria-expanded="true"] {
+    background: #eef4ff;
+    color: #2863a0;
+}
+.edusync-topbar .edusync-alert-toggle .fa-bell {
+    font-size: 1.05rem;
+}
+.edusync-topbar .edusync-alert-toggle .badge-counter {
+    position: absolute;
+    top: -.15rem;
+    right: -.14rem;
+    transform: none;
+    margin: 0;
+    min-width: 1.05rem;
+    height: 1.05rem;
+    padding: .09rem .25rem;
+    font-size: .58rem;
+    line-height: 1;
+    border: 2px solid #fff;
+    box-sizing: content-box;
+    font-variant-numeric: tabular-nums;
+}
+.edusync-topbar .edusync-account-item {
+    margin-left: .35rem;
+}
+.edusync-topbar .edusync-user-summary {
+    min-width: 0;
+}
+.edusync-topbar .edusync-user-name {
+    max-width: 10rem;
+    font-size: .78rem;
+    color: #344767;
+}
+.edusync-topbar .edusync-avatar,
+.edusync-topbar .edusync-avatar-initials {
+    width: 2.2rem;
+    height: 2.2rem;
+    flex: 0 0 2.2rem;
+    border: 2px solid #e7eff9;
+}
+.edusync-topbar .edusync-notification-menu .dropdown-header {
+    background: #27679f;
+    border: 0;
+    color: #fff;
+    padding: .65rem .82rem;
+    font-size: .72rem;
+    letter-spacing: .02em;
+}
+.edusync-topbar .edusync-notification-menu .dropdown-header .mark-all-read-topbar {
+    font-size: .69rem;
+    border-radius: .4rem;
+}
+.edusync-topbar .edusync-notification-list .system-notification-item {
+    padding: .66rem .83rem;
+    border-bottom: 1px solid var(--edu-border-soft, #edf0f5);
+}
+.edusync-topbar .edusync-notification-list .system-notification-item:hover,
+.edusync-topbar .edusync-notification-list .system-notification-item:focus-visible {
+    background: var(--edu-hover, #f7faff);
+}
+.edusync-topbar .edusync-notification-menu .topbar-empty-notifications {
+    min-height: 4.5rem;
+}
+.edusync-topbar .edusync-profile-card {
+    padding: .8rem .9rem;
+}
+.edusync-topbar .edusync-profile-menu .dropdown-item {
+    padding: .62rem .85rem;
+}
+@media (max-width: 1199.98px) {
+    .edusync-topbar .edusync-topbar-school-name {
+        max-width: 23vw;
+    }
+}
+@media (max-width: 991.98px) {
+    .edusync-topbar .edusync-topbar-school-name {
+        max-width: 26vw;
+    }
+}
+@media (max-width: 767.98px) {
+    .edusync-topbar {
+        min-height: 4rem;
+        margin-bottom: .75rem !important;
+        padding: 0 .45rem !important;
+    }
+    /* En pantallas pequeñas la institución sigue identificable.
+       El nombre se trunca y el año se oculta sólo visualmente. */
+    .edusync-topbar .edusync-topbar-context {
+        flex: 1 1 auto;
+        min-width: 0;
+        gap: .35rem;
+        padding: 0 .1rem;
+    }
+    .edusync-topbar .edusync-topbar-school-icon {
+        width: 1.95rem;
+        height: 1.95rem;
+        flex: 0 0 1.95rem;
+        border-radius: .5rem;
+    }
+    .edusync-topbar .edusync-topbar-school-logo {
+        border-radius: .46rem;
+        padding: .08rem;
+    }
+    .edusync-topbar .edusync-topbar-school-copy {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    .edusync-topbar .edusync-topbar-school-name {
+        max-width: 100%;
+        font-size: .73rem;
+        font-weight: 700;
+    }
+    .edusync-topbar .edusync-year-pill {
+        display: none;
+    }
+    .edusync-topbar .navbar-nav {
+        gap: 0;
+        margin-left: .15rem !important;
+    }
+    .edusync-topbar #sidebarToggleTop {
+        flex: 0 0 auto;
+        margin-right: .25rem !important;
+        padding: .28rem .42rem;
+    }
+    .edusync-topbar .edusync-alert-toggle,
+    .edusync-topbar .edusync-user-toggle {
+        min-height: 2.45rem;
+        height: 2.45rem;
+    }
+    .edusync-topbar .edusync-alert-toggle {
+        width: 2.3rem;
+        padding: .1rem !important;
+    }
+    .edusync-topbar .edusync-user-toggle {
+        padding: .1rem .22rem !important;
+    }
+    .edusync-topbar .edusync-account-item {
+        margin-left: 0;
+    }
+    .edusync-topbar .edusync-avatar,
+    .edusync-topbar .edusync-avatar-initials {
+        width: 1.95rem;
+        height: 1.95rem;
+        flex: 0 0 1.95rem;
+    }
+}
+@media (max-width: 359.98px) {
+    .edusync-topbar .edusync-topbar-school-icon {
+        width: 1.75rem;
+        height: 1.75rem;
+        flex-basis: 1.75rem;
+    }
+    .edusync-topbar .edusync-topbar-school-name {
+        font-size: .7rem;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .edusync-topbar .edusync-alert-toggle,
+    .edusync-topbar .edusync-user-toggle {
+        transition: none;
+    }
+}
