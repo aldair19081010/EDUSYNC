@@ -153,17 +153,41 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 .gr-page .gr-table td{padding:.55rem .63rem;vertical-align:middle}
 .gr-page .gr-pager{padding:.6rem .8rem}
 .gr-page #gr-book-view .gb-compact-controls{border:1px solid #e3e6f0;border-radius:.48rem;box-shadow:none}
+/* El botón no debe forzar una fila flex ni montarse sobre el título.
+   Grid reserva espacio real para cada elemento en móvil y tablet. */
+.gr-page #gr-new .gr-new-short{display:none}
+@media(max-width:991.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) max-content;
+  align-items:center!important;
+  justify-content:stretch!important;
+  gap:.5rem!important;
+  min-width:0;
+  width:100%;
+  height:auto!important;
+ }
+ .gr-page .gr-header>div:first-child{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ .gr-page .gr-header>div:last-child{
+  justify-self:end;align-self:center;min-width:0;
+  margin:0!important;max-width:100%;
+ }
+ .gr-page #gr-new{
+  position:static!important;inset:auto!important;
+  transform:none!important;float:none!important;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:auto!important;max-width:100%;height:auto;
+  white-space:normal;line-height:1.25;overflow-wrap:anywhere
+ }
+}
 @media(max-width:767.98px){
  body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header{
-  display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
-  align-items:center!important;justify-content:space-between!important;
-  gap:.38rem!important;min-height:53px;padding:.47rem .61rem!important
+  gap:.42rem!important;min-height:51px;padding:.46rem .63rem!important
  }
- .gr-page .gr-header>div:first-child{min-width:0;flex:1 1 auto}
- .gr-page .gr-header h1{font-size:1rem!important;white-space:nowrap;margin:0!important}
+ .gr-page .gr-header h1{font-size:1rem!important;white-space:normal!important;line-height:1.25!important;margin:0!important}
  .gr-page .gr-header p,.gr-page .gr-full-title{display:none!important}
- .gr-page #gr-new{min-height:32px;font-size:.73rem;padding:.27rem .46rem}
- .gr-page #gr-new i{margin-right:.2rem!important}
+ .gr-page #gr-new{min-height:32px;font-size:.74rem;padding:.32rem .52rem}
+ .gr-page #gr-new i{margin-right:.23rem!important}
  .gr-page .gr-filter{padding:.58rem!important}
  .gr-page .gr-filter .row>div{flex:0 0 50%;max-width:50%}
  .gr-page .gr-view-switch{width:100%;display:flex!important}
@@ -175,15 +199,63 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
  .gr-page .gr-table{min-width:750px}
  .gr-page #gr-book-view .gb-compact-controls{padding:.5rem .55rem}
 }
+@media(max-width:430px){
+ .gr-page #gr-new .gr-new-full{display:none}
+ .gr-page #gr-new .gr-new-short{display:inline}
+ .gr-page #gr-new{font-size:.73rem;padding:.3rem .47rem}
+}
 @media(max-width:359.98px){
  .gr-page .gr-header h1{font-size:.92rem!important}
- .gr-page #gr-new{font-size:.69rem;padding:.24rem .38rem}
+ .gr-page #gr-new{font-size:.71rem;padding:.27rem .42rem}
  .gr-page .gr-filter .row>div{flex:0 0 100%;max-width:100%}
+}
+/* Los formularios largos del módulo Notas conservan el encabezado visible.
+   Sólo el cuerpo del modal se desplaza, no la página ni la ventana completa. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-dialog{
+ margin:.75rem auto!important;
+ max-width:min(1140px,calc(100vw - 1.5rem));
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-content{
+ display:flex!important;flex-direction:column!important;
+ max-height:calc(100vh - 1.5rem);
+ max-height:calc(100dvh - 1.5rem);
+ overflow:hidden!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-header{
+ flex:0 0 auto;min-height:47px!important;
+ padding:.62rem .82rem!important
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal #uni_modal_body{
+ flex:1 1 auto;min-height:0;
+ overflow-y:auto!important;overflow-x:hidden!important;
+ overscroll-behavior-y:contain;
+ -webkit-overflow-scrolling:touch;
+ padding:.73rem .83rem!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal #uni_modal_body :is(.meg-page,.gr-eval-modal-page){
+ max-width:100%;min-width:0
+}
+@media(max-width:767.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-dialog{
+  width:calc(100% - .9rem)!important;
+  max-width:calc(100% - .9rem)!important;
+  margin:.45rem auto!important
+ }
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-content{
+  max-height:calc(100vh - .9rem);
+  max-height:calc(100dvh - .9rem)
+ }
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal #uni_modal_body{
+  padding:.55rem .59rem!important
+ }
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-header{
+  padding:.51rem .68rem!important;min-height:43px!important
+ }
 }
 </style>
 <link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/operational_consistency.css') ?: 1); ?>">
 <div class="container-fluid gr-page">
- <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i><span class="gr-full-title">Evaluaciones y </span>Notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="mt-3 mt-md-0"><button class="btn btn-primary btn-sm" id="gr-new"><i class="fas fa-plus mr-1"></i>Nueva evaluación</button></div></div>
+ <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i><span class="gr-full-title">Evaluaciones y </span>Notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="mt-3 mt-md-0"><button class="btn btn-primary btn-sm" id="gr-new" type="button" aria-label="Nueva evaluación" title="Crear una nueva evaluación"><i class="fas fa-plus mr-1" aria-hidden="true"></i><span class="gr-new-full">Nueva evaluación</span><span class="gr-new-short" aria-hidden="true">Nueva</span></button></div></div>
  <?php if(!$migrationReady): ?><div class="alert alert-warning gr-migration"><i class="fas fa-database mr-2"></i>Para habilitar anulación y auditoría histórica, ejecuta manualmente <strong>sql/grades_module_upgrade.sql</strong>. El listado y registro de notas continúan disponibles.</div><?php endif; ?>
  <div class="d-flex justify-content-center mb-3"><div class="gr-view-switch"><button class="btn btn-primary btn-sm" id="gr-show-list"><i class="fas fa-list mr-1"></i>Lista de evaluaciones</button><button class="btn btn-light btn-sm" id="gr-show-book"><i class="fas fa-table mr-1"></i>Libro de notas</button></div></div>
  <div id="gr-list-view">
