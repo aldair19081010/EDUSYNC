@@ -61,6 +61,78 @@ if (!empty($teacher['birth_date'])) {
 ?>
 <style>
 .teacher-profile{padding:10px 5px}.teacher-print-header{display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #e9ecef;padding-bottom:10px;margin-bottom:12px}.teacher-print-left,.teacher-header{display:flex;align-items:center}.teacher-school-logo,.teacher-avatar{display:flex;align-items:center;justify-content:center;background:#f1f3f5;color:#6c757d}.teacher-school-logo{width:64px;height:64px;border-radius:6px;margin-right:12px}.teacher-school-logo img{max-width:100%;max-height:100%}.teacher-print-header h4{margin:0;color:#2c4964;font-weight:700}.teacher-header{margin-bottom:12px}.teacher-avatar{width:70px;height:70px;border-radius:50%;font-size:28px;margin-right:12px}.teacher-name{font-size:1.1rem;font-weight:700;color:#2c4964}.teacher-badge{padding:4px 8px;border-radius:12px;font-size:12px;font-weight:600;margin-right:3px}.info-grid,.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.info-item{background:#f8f9fa;border:1px solid #e9ecef;border-radius:6px;padding:10px}.info-item small{color:#6c757d;font-weight:600;display:block;margin-bottom:4px}.summary-grid{margin-top:12px}.summary-panel,.history-panel{border:1px solid #e9ecef;border-radius:6px;padding:10px;background:#fff}.summary-title{font-weight:700;color:#2c4964;border-bottom:1px solid #e9ecef;padding-bottom:7px;margin-bottom:8px}.summary-title i{margin-right:6px}.summary-number{font-size:1.35rem;font-weight:700;color:#2c4964}.course-list{margin:5px 0 0;padding-left:18px;max-height:150px;overflow:auto}.history-panel{margin-top:12px}.history-table{width:100%;font-size:12px}.history-table th{color:#6c757d;font-weight:700;border-bottom:1px solid #dee2e6;padding:6px;white-space:nowrap}.history-table td{border-bottom:1px solid #f1f3f5;padding:6px;vertical-align:middle}.teacher-footer{margin-top:14px;border-top:1px dashed #dee2e6;padding-top:8px;color:#6c757d;font-size:12px;display:flex;justify-content:space-between}@media(max-width:576px){.info-grid,.summary-grid{grid-template-columns:1fr}}@media print{body *{visibility:hidden}#teacher-printable,#teacher-printable *{visibility:visible}#teacher-printable{position:absolute;left:0;top:0;width:100%}#btn_print_teacher{display:none!important}.summary-panel,.history-panel{break-inside:avoid}}
+
+/* Ficha docente: misma jerarquía compacta y legible de la ficha estudiantil. */
+.teacher-profile{font-size:.81rem;color:#344054;padding:.28rem .15rem .45rem}
+.teacher-profile .teacher-print-header{
+  flex-wrap:wrap;gap:.55rem .8rem;
+  padding:.32rem 0 .7rem;margin-bottom:.78rem;
+  border-bottom:1px solid #dce4ef
+}
+.teacher-profile .teacher-print-left{flex:1 1 260px;min-width:0}
+.teacher-profile .teacher-print-left > div:last-child{min-width:0}
+.teacher-profile .teacher-school-logo{
+  width:50px;height:50px;flex:0 0 50px;
+  margin-right:.65rem;border:1px solid #edf0f5;
+  border-radius:.5rem;background:#f8fafd
+}
+.teacher-profile .teacher-print-header h4{
+  color:#233b52;font-size:.97rem;line-height:1.32;
+  overflow-wrap:anywhere
+}
+.teacher-profile #btn_print_teacher{
+  min-height:33px;border:1px solid #d8deea!important;
+  border-radius:.4rem;box-shadow:none;font-size:.77rem
+}
+.teacher-profile .teacher-header{align-items:flex-start;gap:.65rem;margin-bottom:.75rem}
+.teacher-profile .teacher-header > div:last-child{flex:1 1 auto;min-width:0}
+.teacher-profile .teacher-avatar{
+  width:49px;height:49px;flex:0 0 49px;
+  margin:0;border-radius:.55rem;
+  background:#eef4ff;color:#4285f4;font-size:1.15rem
+}
+.teacher-profile .teacher-name{color:#233b52;font-size:1rem;line-height:1.35;margin-bottom:.23rem}
+.teacher-profile .teacher-badge{
+  font-size:.71rem;line-height:1.3;
+  border-radius:.35rem;padding:.26rem .45rem;
+  margin:.12rem .15rem .12rem 0;box-shadow:none
+}
+.teacher-profile .info-grid,.teacher-profile .summary-grid{gap:.55rem .7rem}
+.teacher-profile .info-item{
+  border-color:#e3e6f0;background:#f8fafd;
+  border-radius:.45rem;padding:.6rem .72rem;
+  min-width:0;overflow-wrap:anywhere;line-height:1.35
+}
+.teacher-profile .info-item small{font-size:.7rem;color:#69798d;margin-bottom:.2rem}
+.teacher-profile .summary-grid{margin-top:.72rem}
+.teacher-profile .summary-panel,.teacher-profile .history-panel{
+  border:1px solid #e3e6f0;background:#fff;
+  border-radius:.5rem;padding:.7rem .78rem;min-width:0
+}
+.teacher-profile .summary-title{
+  color:#233b52;font-size:.83rem;margin-bottom:.55rem;
+  padding-bottom:.42rem;border-bottom:1px solid #edf0f5
+}
+.teacher-profile .summary-number{font-size:1.2rem;color:#233b52;font-variant-numeric:tabular-nums}
+.teacher-profile .course-list{max-height:180px;overflow-y:auto;font-size:.77rem;line-height:1.45}
+.teacher-profile .history-panel{margin-top:.72rem}
+.teacher-profile .history-table th{
+  background:#f8fafd;color:#526274;
+  font-size:.72rem;padding:.45rem .53rem;white-space:nowrap
+}
+.teacher-profile .history-table td{
+  font-size:.74rem;padding:.46rem .53rem;vertical-align:middle
+}
+.teacher-profile .teacher-footer{flex-wrap:wrap;gap:.5rem;font-size:.71rem;margin-top:.8rem;padding-top:.5rem}
+@media(max-width:575.98px){
+  .teacher-profile .teacher-print-left{flex-basis:100%}
+  .teacher-profile .info-grid,.teacher-profile .summary-grid{grid-template-columns:minmax(0,1fr)}
+  .teacher-profile .teacher-print-header h4{font-size:.91rem}
+}
+@media print{
+  .teacher-profile .teacher-print-header h4{white-space:normal}
+  .teacher-profile .summary-panel,.teacher-profile .history-panel,.teacher-profile .info-item{break-inside:avoid}
+}
 </style>
 <div class="teacher-profile" id="teacher-printable">
  <div class="teacher-print-header"><div class="teacher-print-left"><div class="teacher-school-logo"><?php if (!empty($school['logo_path']) && file_exists($school['logo_path'])): ?><img src="<?php echo tv($school['logo_path']); ?>" alt="Logo"><?php else: ?><i class="fa fa-school" style="font-size:28px"></i><?php endif; ?></div><div><h4><?php echo tv($school['name']); ?></h4><small>Ficha del Docente · Fecha: <?php echo date('d/m/Y H:i'); ?></small></div></div><button type="button" id="btn_print_teacher" class="btn btn-sm btn-light" style="border:1px solid #e9ecef"><i class="fa fa-print mr-1"></i>Imprimir</button></div>

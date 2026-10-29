@@ -19,6 +19,71 @@ $user = $check->num_rows > 0 ? $check->fetch_assoc() : null;
 $check_stmt->close();
 ?>
 
+<style>
+/* Cuenta de docente: mismo espaciado de los demás modales. */
+#manage-teacher-user{
+  font-size:.81rem;
+  color:#344054;
+}
+#manage-teacher-user .form-group{margin-bottom:.78rem}
+#manage-teacher-user label{
+  display:block;
+  font-size:.75rem;
+  line-height:1.3;
+  font-weight:700;
+  color:#526274;
+  margin-bottom:.28rem;
+}
+#manage-teacher-user .form-control{
+  min-height:36px;
+  border:1px solid #d8deea;
+  border-radius:.42rem;
+  font-size:.82rem;
+  box-shadow:none;
+}
+#manage-teacher-user .form-control[readonly]{
+  background:#f8fafd;
+  color:#344054;
+}
+#manage-teacher-user .custom-control{
+  padding-top:.08rem;
+  padding-bottom:.08rem;
+}
+#manage-teacher-user .custom-control-label{
+  padding-left:.1rem;
+  margin-bottom:0;
+  cursor:pointer;
+}
+#manage-teacher-user .custom-control-label strong{
+  color:#233b52;
+  font-size:.79rem;
+}
+#manage-teacher-user .custom-control-label small{
+  display:inline-block;
+  font-size:.73rem;
+  color:#6e7891;
+  line-height:1.4;
+  margin-top:.25rem;
+}
+#manage-teacher-user > .d-flex.justify-content-end{
+  gap:.5rem;
+  border-top:1px solid #edf0f5;
+  margin-top:.65rem;
+  padding:.75rem 0 .1rem;
+  background:#fff;
+}
+#manage-teacher-user > .d-flex.justify-content-end .btn{
+  margin:0!important;
+  min-height:35px;
+  padding:.4rem .78rem;
+  font-size:.8rem;
+  box-shadow:none!important;
+  transform:none!important;
+}
+@media(max-width:575.98px){
+  #manage-teacher-user > .d-flex.justify-content-end{flex-wrap:wrap}
+}
+</style>
 <form action="" id="manage-teacher-user">
     <input type="hidden" name="id" value="<?php echo isset($user['id']) ? $user['id'] : '' ?>">
     <input type="hidden" name="teacher_id" value="<?php echo $teacher_id ?>">

@@ -57,75 +57,66 @@ if (!empty($teacher_id)) {
 ?>
 
 <style>
-	.form-group label {
-		font-weight: 600;
-		color: #233b52;
-		margin-bottom: 8px;
-		font-size: 0.95rem;
-	}
-
-	.form-control {
-		border-radius: 6px;
-		border: 1px solid #d1d3e2;
-		box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-		transition: border-color 0.2s, box-shadow 0.2s;
-		font-size: 0.95rem;
-	}
-
-	.form-control:focus {
-		border-color: #4285f4;
-		box-shadow: 0 0 0 0.2rem rgba(66,133,244,0.25);
-	}
-
-	#teacher-course-msg {
-		margin-bottom: 15px;
-	}
-
-	.form-section {
-		margin-bottom: 25px;
-	}
-
-	.form-section-title {
-		font-size: 0.9rem;
-		font-weight: 700;
-		color: #4285f4;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		margin-bottom: 15px;
-		padding-bottom: 10px;
-		border-bottom: 2px solid #e3e6f0;
-	}
-
-	.row-cols-2 {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 15px;
-	}
-
-	@media (max-width: 768px) {
-		.row-cols-2 {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	.btn-group-form {
-		display: flex;
-		gap: 10px;
-		margin-top: 25px;
-		justify-content: flex-end;
-	}
-
-	.btn-group-form .btn {
-		padding: 8px 20px;
-		border-radius: 6px;
-		font-weight: 500;
-		transition: all 0.2s;
-	}
-
-	.btn-group-form .btn:hover {
-		transform: translateY(-2px);
-		box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-	}
+/* Modal de asignación: estilo acotado para no modificar otras páginas. */
+#manage-teacher-course{font-size:.81rem;color:#344054}
+#manage-teacher-course .form-section{margin-bottom:.78rem}
+#manage-teacher-course .form-section-title{
+  display:flex;align-items:center;gap:.45rem;
+  font-size:.86rem;line-height:1.35;font-weight:700;
+  margin:0 0 .68rem;padding:0 0 .45rem;
+  color:#233b52;letter-spacing:0;text-transform:none;
+  border:0;border-bottom:1px solid #e1e8f3;
+}
+#manage-teacher-course .form-section-title i{color:#4285f4}
+#manage-teacher-course .form-group{margin-bottom:.7rem;min-width:0}
+#manage-teacher-course .form-group label{
+  font-size:.75rem;font-weight:700;color:#526274;
+  margin-bottom:.26rem;line-height:1.35;display:block
+}
+#manage-teacher-course .form-control{
+  width:100%;min-height:35px;font-size:.81rem;
+  border:1px solid #d8deea;border-radius:.42rem;box-shadow:none
+}
+#manage-teacher-course .form-control[readonly]{background:#f8fafd}
+#manage-teacher-course .form-control:focus{border-color:#9cbcf9;box-shadow:0 0 0 .14rem rgba(66,133,244,.13)}
+#manage-teacher-course .row-cols-2{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem
+}
+#manage-teacher-course .select2-container{width:100%!important;max-width:100%}
+#manage-teacher-course .select2-container--default .select2-selection--single{
+  min-height:35px!important;border:1px solid #d8deea!important;
+  border-radius:.42rem!important;box-shadow:none!important
+}
+#manage-teacher-course .select2-container--default .select2-selection__rendered{
+  line-height:33px!important;font-size:.81rem!important;padding-left:.6rem!important
+}
+#manage-teacher-course .select2-container--default .select2-selection__arrow{height:33px!important}
+#manage-teacher-course #teacher-course-msg{margin-bottom:.55rem}
+#manage-teacher-course #btn_add_to_list{min-height:34px;font-size:.79rem;box-shadow:none!important}
+#manage-teacher-course .table-responsive{overflow-x:auto;max-width:100%}
+#manage-teacher-course #assignment_table{margin-bottom:.5rem;font-size:.77rem}
+#manage-teacher-course #assignment_table th,#manage-teacher-course #assignment_table td{
+  padding:.44rem .52rem;vertical-align:middle
+}
+#manage-teacher-course #assignment_table th{
+  white-space:nowrap;background:#f8fafd;color:#526274;border-bottom:1px solid #e3e6f0
+}
+#manage-teacher-course .btn-group-form{
+  display:flex;align-items:center;justify-content:flex-end;gap:.5rem;flex-wrap:wrap;
+  margin:.68rem 0 0;padding:.74rem 0 .1rem;
+  border-top:1px solid #edf0f5;background:#fff
+}
+#manage-teacher-course .btn-group-form .btn{
+  min-height:35px;padding:.38rem .76rem;margin:0!important;
+  border-radius:.42rem;font-size:.8rem;font-weight:600;
+  box-shadow:none!important;transform:none!important
+}
+@media(max-width:575.98px){
+  #manage-teacher-course .row-cols-2{grid-template-columns:1fr;gap:0}
+  #manage-teacher-course .form-group{margin-bottom:.6rem}
+  #manage-teacher-course .form-section{margin-bottom:.58rem}
+  #manage-teacher-course .btn-group-form .btn{flex:1 1 auto}
+}
 </style>
 
 <div class="container-fluid">

@@ -361,6 +361,97 @@ if (($_GET['partial'] ?? '') === 'course_data') {
     .ed-assignments-page .btn-group-actions .btn{width:100%}
     .ed-assignments-page .ed-assignments-list-card > .card-body{padding:.5rem}
 }
+
+.ed-assignments-page{padding-left:0!important;padding-right:0!important}
+/* Asignación de cursos: control visual y responsive sin cambiar filtros ni acciones. */
+.ed-assignments-page .ed-assignments-header{
+  border-left:4px solid var(--edu-primary,#4285f4);
+  background:#fff;
+  margin-bottom:.72rem!important
+}
+.ed-assignments-page .ed-page-heading{min-width:0}
+.ed-assignments-page .ed-page-subtitle{margin:0!important;color:#6e7891}
+.ed-assignments-page .filter-controls{background:#f8fafd}
+.ed-assignments-page .filter-controls .filter-group{min-width:0}
+.ed-assignments-page .btn-group-actions{
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start
+}
+.ed-assignments-page .btn-group-actions .btn{
+  min-height:34px;
+  box-shadow:none!important;
+  transform:none!important
+}
+.ed-assignments-page .assignment-summary-grid{gap:.55rem}
+.ed-assignments-page .assignment-summary-card{
+  min-width:0;background:#fff;box-shadow:none
+}
+.ed-assignments-page .assignment-summary-value{font-variant-numeric:tabular-nums}
+.ed-assignments-page #teacher_courses_table thead th{
+  white-space:nowrap;background:#f8fafd;color:#526274;
+  font-size:.75rem;border-bottom:1px solid #dce4ef
+}
+.ed-assignments-page #teacher_courses_table tbody td{
+  color:#344054;line-height:1.33
+}
+.ed-assignments-page .dataTables_wrapper .dataTables_filter input{
+  min-height:33px;border:1px solid #d8deea;
+  border-radius:.4rem;box-shadow:none;font-size:.8rem
+}
+@media(max-width:991.98px){
+  .ed-assignments-page .assignment-summary-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+}
+@media(max-width:767.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teacher_courses"] #content .ed-assignments-page .ed-assignments-header{
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
+    gap:.45rem!important;
+    min-height:52px;
+    align-items:center!important;
+    padding:.45rem .63rem!important;
+    margin-bottom:.58rem!important
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teacher_courses"] #content .ed-assignments-page .ed-page-heading{
+    display:flex!important;align-items:center!important;gap:.48rem!important;min-width:0
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teacher_courses"] #content .ed-assignments-page .ed-page-icon{
+    width:31px!important;height:31px!important;flex:0 0 31px!important;
+    border-radius:.42rem!important;font-size:.88rem
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teacher_courses"] #content .ed-assignments-page .ed-page-title{
+    font-size:.98rem!important;line-height:1.25!important;white-space:nowrap
+  }
+  .ed-assignments-page .ed-assignments-title-prefix,
+  .ed-assignments-page .ed-page-subtitle{display:none!important}
+  .ed-assignments-page .btn-group-actions,
+  .ed-assignments-page .primary-assignment-actions,
+  .ed-assignments-page .secondary-assignment-actions{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:.42rem;align-items:stretch
+  }
+  .ed-assignments-page .btn-group-actions .btn{
+    width:100%!important;min-width:0;
+    margin:0!important;
+    padding:.43rem .47rem;
+    font-size:.76rem;
+    white-space:normal;line-height:1.3;
+  }
+  .ed-assignments-page .assignment-summary-card{
+    padding:.6rem .65rem;gap:.45rem
+  }
+  .ed-assignments-page .assignment-summary-icon{width:32px;height:32px;flex-basis:32px}
+  .ed-assignments-page .assignment-summary-value{font-size:1.07rem}
+  .ed-assignments-page .assignment-summary-label{font-size:.71rem}
+  .ed-assignments-page #teacher_courses_table{min-width:680px}
+}
+@media(max-width:359.98px){
+  .ed-assignments-page .btn-group-actions,
+  .ed-assignments-page .primary-assignment-actions,
+  .ed-assignments-page .secondary-assignment-actions{grid-template-columns:1fr}
+  .ed-assignments-page .assignment-summary-card{padding:.48rem .55rem}
+}
 </style>
 
 <div class="container-fluid ed-assignments-page">
@@ -369,7 +460,7 @@ if (($_GET['partial'] ?? '') === 'course_data') {
 		<div class="ed-page-heading">
 			<div class="ed-page-icon"><i class="fa fa-user-graduate" aria-hidden="true"></i></div>
 			<div>
-				<h1 class="ed-page-title">Asignaciones de docentes</h1>
+				<h1 class="ed-page-title"><span class="ed-assignments-title-prefix">Asignaciones de </span>Docentes</h1>
 				<p class="ed-page-subtitle">Gestión de docentes por curso y año académico</p>
 			</div>
 		</div>

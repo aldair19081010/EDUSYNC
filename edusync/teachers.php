@@ -79,7 +79,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 ?>
 <style>
 /* Estilos generales para la página */
-.main-content-area {
+.ed-teachers-page .main-content-area {
     padding: 10px 5px;
 }
 .teacher-summary-grid { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:14px; margin-bottom:18px; }
@@ -97,10 +97,10 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 @media (max-width:575px) { .teacher-summary-grid { grid-template-columns:1fr; } }
 
 /* Nuevo encabezado compacto y limpio */
-.page-title-wrapper {
+.ed-teachers-page .page-title-wrapper {
     margin-bottom: 16px;
 }
-.page-title {
+.ed-teachers-page .page-title {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -159,7 +159,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     margin-right: 6px;
 }
 
-.content-card { /* Clase genérica para la tarjeta */
+.ed-teachers-page .content-card { /* Clase genérica para la tarjeta */
     border-radius: 8px;
     box-shadow: 0 2px 15px rgba(0,0,0,0.05);
     border: none;
@@ -167,11 +167,11 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     overflow: hidden;
     transition: transform 0.2s, box-shadow 0.2s;
 }
-.content-card:hover {
+.ed-teachers-page .content-card:hover {
     transform: translateY(-3px);
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
-.card-header {
+.ed-teachers-page .card-header {
 	padding: 12px 18px;
 	background: #fff;
 	border-bottom: 1px solid #e3e6f0;
@@ -214,7 +214,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 .teacher-add-menu .menu-title { display:block; color:#2c4964; font-size:.88rem; font-weight:700; line-height:1.2; }
 .teacher-add-menu .menu-description { display:block; color:#858796; font-size:.72rem; line-height:1.25; margin-top:3px; }
 .menu-icon-new { background:#e8f0fe; color:#2e59d9; }.menu-icon-upload { background:#e8f9f0; color:#1e7e34; }.menu-icon-template { background:#fff3cd; color:#856404; }.menu-icon-export { background:#e2e3e5; color:#5a5c69; }
-.table-custom { /* Clase genérica para la tabla */
+.ed-teachers-page .table-custom { /* Clase genérica para la tabla */
     box-shadow: none;
     border-radius: 0;
     background: #fff;
@@ -236,40 +236,40 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
 .table-hover tbody tr:hover {
     background-color: rgba(252, 125, 28, 0.05);
 }
-.btn {
+.ed-teachers-page .btn {
     border-radius: 6px;
     font-weight: 500;
     transition: all 0.2s;
 }
-.btn-primary, .btn-primary:focus {
-	background: #bcbfc4;
-	border-color: #357ae8;
-	color: #fff;
+.ed-teachers-page .btn-primary, .ed-teachers-page .btn-primary:focus {
+  background:var(--edu-primary,#4285f4);
+  border-color:var(--edu-primary,#4285f4);
+  color:#fff;
 }
-.btn-primary:hover {
+.ed-teachers-page .btn-primary:hover {
 	background: #357ae8;
 	border-color: #2a63d6;
 	color: #fff;
 }
-.btn-danger {
+.ed-teachers-page .btn-danger {
     background: #fff;
     color: #dc3545;
     border: 1px solid #dc3545;
 }
-.btn-danger:hover {
+.ed-teachers-page .btn-danger:hover {
     background: #f8d7da;
     color: #a71d2a;
 }
-.btn-success {
+.ed-teachers-page .btn-success {
     background: #fff;
     color: #28a745;
     border: 1px solid #28a745;
 }
-.btn-success:hover {
+.ed-teachers-page .btn-success:hover {
     background: #e8f9f0;
     color: #218838;
 }
-.btn-success:hover {
+.ed-teachers-page .btn-success:hover {
     background: #e8f9f0;
     color: #218838;
 }
@@ -279,7 +279,7 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     padding: 6px 12px;
     margin-left: 8px;
 }
-.dataTables_info, .dataTables_paginate {
+.ed-teachers-page .dataTables_info, .ed-teachers-page .dataTables_paginate {
     margin-top: 15px;
 }
 .dataTables_paginate .paginate_button {
@@ -292,16 +292,16 @@ $teacher_summary = get_teacher_summary($conn, $session_school_id, $active_year_i
     color: white !important;
 }
 @media (max-width: 768px) {
-    .btn {
+    .ed-teachers-page .btn {
         padding: 5px 8px;
         min-width: 32px;
     }
-    .table-responsive {
+    .ed-teachers-page .table-responsive {
         overflow-x: auto;
     }
 }
 @media (max-width: 576px) {
-    .btn {
+    .ed-teachers-page .btn {
         padding: 4px 6px;
         min-width: 28px;
     }
@@ -359,24 +359,264 @@ img { max-width: 100px; max-height: 150px; }
     .ed-teachers-page .content-card > .card-body{padding:.5rem}
     .ed-teachers-page .ed-teachers-filterbar{padding:.55rem .6rem}
 }
+
+body[data-edusync-page="teachers"] #content .ed-teachers-shell{padding-left:0!important;padding-right:0!important}
+/* Gestión de Docentes: armonía con Estudiantes, sin modificar datos ni otros módulos. */
+.ed-teachers-page .ed-teachers-header{
+  border-left:4px solid var(--edu-primary,#4285f4);
+  background:#fff;
+  margin-bottom:.7rem!important;
+}
+.ed-teachers-page .ed-page-heading{min-width:0;flex:1 1 280px}
+.ed-teachers-page .ed-page-subtitle{margin:0!important;color:#6e7891}
+.ed-teachers-page .ed-page-actions .btn-group{width:auto}
+.ed-teachers-page .ed-page-actions .btn{
+  min-width:108px;
+  margin:0!important;
+  box-shadow:none!important;
+  transform:none!important;
+}
+.ed-teachers-page .teacher-summary-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:.55rem;
+  margin-bottom:.75rem;
+}
+.ed-teachers-page .teacher-summary-card{
+  min-width:0;
+  background:#fff;
+  box-shadow:none;
+  padding:.65rem .75rem;
+}
+.ed-teachers-page .teacher-summary-value{
+  color:#233b52;
+  font-variant-numeric:tabular-nums;
+}
+.ed-teachers-page .content-card{overflow:visible}
+.ed-teachers-page .content-card > .card-body{padding:.7rem .8rem!important}
+.ed-teachers-page .ed-teachers-filterbar{
+  display:flex;
+  gap:.55rem;
+  justify-content:flex-start;
+  align-items:end;
+  flex-wrap:wrap;
+  margin-bottom:.65rem!important;
+  background:#f8fafd;
+  padding:.6rem .7rem!important;
+}
+.ed-teachers-page .ed-teachers-filterbar label{font-weight:700;color:#526274}
+.ed-teachers-page .ed-teachers-filterbar select.form-control{
+  min-width:160px;
+  min-height:34px;
+  border:1px solid #d8deea;
+  border-radius:.4rem;
+}
+.ed-teachers-page #teacher-bulk-toolbar{
+  background:#f4f8ff!important;
+  border-color:#dbe7fa!important;
+  padding:.55rem .7rem;
+  border-radius:.45rem;
+  gap:.55rem;
+}
+.ed-teachers-page #teachers-table thead th{
+  background:#f8fafd;
+  border-bottom:1px solid #dce4ef;
+  color:#526274;
+  font-size:.75rem;
+  white-space:nowrap;
+}
+.ed-teachers-page #teachers-table td{
+  padding:.54rem .65rem!important;
+  line-height:1.32;
+  font-size:.79rem;
+  color:#344054;
+}
+.ed-teachers-page #teachers-table .badge{
+  font-size:.73rem;
+  border-radius:.38rem;
+  box-shadow:none;
+}
+.ed-teachers-page .dataTables_wrapper .dataTables_filter,
+.ed-teachers-page .dataTables_wrapper .dataTables_length,
+.ed-teachers-page .dataTables_wrapper .dataTables_info,
+.ed-teachers-page .dataTables_wrapper .dataTables_paginate{font-size:.79rem}
+.ed-teachers-page .dataTables_wrapper .dataTables_filter input{
+  min-width:155px;
+  min-height:33px;
+  box-shadow:none;
+  border-radius:.4rem;
+  font-size:.79rem;
+}
+.ed-teachers-page .teacher-add-menu{
+  max-width:calc(100vw - 1.5rem);
+  padding:.5rem;
+}
+.ed-teachers-page .teacher-add-menu .dropdown-item{
+  padding:.56rem .65rem;
+}
+/* Sólo los modales del módulo Docentes; no se alteran los de otros módulos. */
+body[data-edusync-page="teachers"] #uploadTeacherExcelModal .ed-teacher-upload-actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:.5rem;
+  flex-wrap:wrap;
+  padding-top:.7rem;
+  border-top:1px solid #edf0f5;
+}
+body[data-edusync-page="teachers"] #uploadTeacherExcelModal .ed-teacher-upload-actions .btn{
+  min-height:34px;
+  min-width:98px;
+  box-shadow:none!important;
+  margin:0!important;
+}
+body[data-edusync-page="teachers"] :is(#bulkTeachersModal,#teacherEmploymentActionModal) .modal-footer{
+  gap:.45rem;
+}
+body[data-edusync-page="teachers"] :is(#bulkTeachersModal,#teacherEmploymentActionModal) .modal-footer .btn{
+  min-height:34px;
+  font-size:.8rem;
+  margin:0!important;
+  box-shadow:none!important;
+}
+@media(max-width:991.98px){
+  .ed-teachers-page .teacher-summary-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media(max-width:767.98px){
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] #content .ed-teachers-page .ed-teachers-header{
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
+    justify-content:space-between!important;
+    align-items:center!important;
+    gap:.44rem!important;
+    padding:.45rem .62rem!important;
+    min-height:52px;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] #content .ed-teachers-page .ed-page-heading{
+    display:flex!important;
+    align-items:center!important;
+    flex:1 1 auto;
+    gap:.48rem!important;
+    min-width:0;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] #content .ed-teachers-page .ed-page-icon{
+    width:31px!important;height:31px!important;flex:0 0 31px!important;
+    border-radius:.42rem!important;font-size:.88rem;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] #content .ed-teachers-page .ed-page-title{
+    font-size:.98rem!important;
+    line-height:1.25!important;
+    white-space:nowrap;
+  }
+  .ed-teachers-page .ed-teachers-title-prefix,
+  .ed-teachers-page .ed-page-subtitle{display:none!important}
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] #content .ed-teachers-page .ed-page-actions{
+    flex:0 0 auto!important;
+    display:flex!important;
+    width:auto!important;
+    max-width:none!important;
+    margin:0!important;
+    align-items:center!important;
+  }
+  .ed-teachers-page .ed-page-actions .btn-group,
+  .ed-teachers-page .ed-page-actions .btn{
+    flex:0 0 auto!important;
+    width:auto!important;
+    margin:0!important;
+    max-width:none!important;
+  }
+  .ed-teachers-page .ed-page-actions .btn{
+    height:32px!important;min-height:32px!important;
+    min-width:0!important;padding:.27rem .53rem!important;
+    font-size:.77rem!important;
+  }
+  .ed-teachers-page .teacher-add-menu{
+    width:min(300px,calc(100vw - 2rem));
+    max-width:calc(100vw - 2rem);
+    right:0;left:auto;
+  }
+  .ed-teachers-page .ed-teachers-filterbar{
+    margin-bottom:.55rem!important;
+  }
+  .ed-teachers-page .ed-teachers-filterbar select.form-control{
+    min-width:min(200px,100%);
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] :is(#uni_modal,#uploadTeacherExcelModal,#bulkTeachersModal,#teacherEmploymentActionModal) .modal-dialog{
+    margin:.48rem auto!important;
+    width:calc(100% - .96rem)!important;
+    max-width:calc(100% - .96rem)!important;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] :is(#uni_modal,#uploadTeacherExcelModal,#bulkTeachersModal,#teacherEmploymentActionModal) .modal-content{
+    display:flex;
+    flex-direction:column;
+    max-height:calc(100dvh - .96rem);
+    overflow:hidden;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] :is(#uni_modal,#uploadTeacherExcelModal,#bulkTeachersModal,#teacherEmploymentActionModal) .modal-header{
+    min-height:44px!important;
+    padding:.48rem .72rem!important;
+    flex:0 0 auto;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] :is(#uni_modal,#uploadTeacherExcelModal,#bulkTeachersModal,#teacherEmploymentActionModal) .modal-body{
+    min-height:0;
+    overflow-y:auto;
+    overscroll-behavior-y:contain;
+    -webkit-overflow-scrolling:touch;
+    padding:.68rem .72rem!important;
+    flex:1 1 auto;
+  }
+  body[data-edusync-ui="standard-v2"][data-edusync-page="teachers"] :is(#bulkTeachersModal,#teacherEmploymentActionModal) .modal-footer{
+    flex:0 0 auto;
+    padding:.64rem .72rem!important;
+  }
+  .ed-teachers-page #teacher-bulk-toolbar{
+    flex-direction:column;
+    align-items:stretch!important;
+  }
+  .ed-teachers-page #teacher-bulk-toolbar > div{
+    display:flex;flex-wrap:wrap;gap:.4rem;
+  }
+  .ed-teachers-page #teacher-bulk-toolbar .btn{margin:0!important}
+}
+@media(max-width:359.98px){
+  .ed-teachers-page .ed-page-actions .btn{padding:.25rem .42rem!important}
+  .ed-teachers-page .ed-page-title{font-size:.91rem!important}
+  .ed-teachers-page .teacher-summary-card{
+    padding:.53rem .55rem;
+    gap:.4rem;
+  }
+  .ed-teachers-page .teacher-summary-icon{
+    width:30px;height:30px;flex-basis:30px;
+  }
+  .ed-teachers-page .teacher-summary-value{font-size:1.05rem}
+  .ed-teachers-page .teacher-summary-label{font-size:.69rem}
+}
+@media print{
+  body[data-edusync-page="teachers"] #uni_modal .modal-content,
+  body[data-edusync-page="teachers"] #uni_modal #uni_modal_body{
+    max-height:none!important;overflow:visible!important;
+  }
+}
 </style>
 
 <!-- Contenido principal -->
-<div class="container-fluid">
+<div class="container-fluid ed-teachers-shell">
     <div class="main-content-area ed-teachers-page">
         <!-- Encabezado compacto de gestión: mismas acciones y menú existente -->
         <div class="ed-page-header ed-teachers-header">
             <div class="ed-page-heading">
                 <div class="ed-page-icon"><i class="fa fa-chalkboard-teacher" aria-hidden="true"></i></div>
                 <div>
-                    <h1 class="ed-page-title">Gestión de docentes</h1>
+                    <h1 class="ed-page-title"><span class="ed-teachers-title-prefix">Gestión de </span>Docentes</h1>
                     <p class="ed-page-subtitle">Lista y administración de docentes</p>
                 </div>
             </div>
             <div class="ed-page-actions">
                 <div class="btn-group teacher-add-dropdown">
                             <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                                <i class="fa fa-plus"></i> Agregar / importar
+                                <i class="fa fa-ellipsis-h mr-1"></i>Acciones
                             </button>
                             <div class="dropdown-menu dropdown-menu-right teacher-add-menu">
                                 <h6 class="dropdown-header">Registro</h6>
@@ -465,11 +705,11 @@ img { max-width: 100px; max-height: 150px; }
 
 <!-- Modal para subir Excel (unificado) -->
 <div class="modal fade" id="uploadTeacherExcelModal" tabindex="-1" role="dialog" aria-labelledby="uploadTeacherExcelModalLabel" aria-hidden="true">
-	<div class="modal-dialog" role="document">
+	<div class="modal-dialog modal-dialog-centered" role="document">
 		<div class="modal-content">
 			<div class="modal-header ed-import-modal-header">
-				<h5 class="modal-title" id="uploadTeacherExcelModalLabel"><i class="fa fa-file-excel text-success mr-2"></i> Subir Archivo Excel</h5>
-				<button type="button" class="close" data-dismiss="modal" aria-label="Close">
+				<h5 class="modal-title" id="uploadTeacherExcelModalLabel"><i class="fa fa-file-excel text-success mr-2"></i>Importar docentes</h5>
+				<button type="button" class="close" data-dismiss="modal" aria-label="Cerrar">
 					<span aria-hidden="true">&times;</span>
 				</button>
 			</div>
@@ -490,8 +730,9 @@ img { max-width: 100px; max-height: 150px; }
 						</div>
 						<small class="form-text text-muted">Formatos permitidos: .xls, .xlsx</small>
 					</div>
-					<div class="form-group mt-3">
-						<button type="submit" class="btn btn-primary btn-block"><i class="fa fa-upload mr-2"></i> Subir Excel</button>
+					<div class="form-group mt-3 mb-0 ed-teacher-upload-actions">
+						<button type="button" class="btn btn-outline-secondary btn-sm" data-dismiss="modal"><i class="fa fa-times mr-1"></i>Cancelar</button>
+						<button type="submit" class="btn btn-primary btn-sm"><i class="fa fa-upload mr-1"></i>Subir Excel</button>
 					</div>
 				</form>
 			</div>
@@ -499,9 +740,9 @@ img { max-width: 100px; max-height: 150px; }
 	</div>
 </div>
 
-<div class="modal fade" id="bulkTeachersModal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal fade" id="bulkTeachersModal" tabindex="-1" role="dialog" aria-labelledby="bulkTeachersModalLabel" aria-hidden="true">
 	<div class="modal-dialog" role="document"><div class="modal-content">
-		<div class="modal-header"><h5 class="modal-title"><i class="fas fa-tasks mr-2"></i>Acciones masivas</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+		<div class="modal-header"><h5 class="modal-title" id="bulkTeachersModalLabel"><i class="fas fa-tasks mr-2"></i>Acciones masivas</h5><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button></div>
 		<div class="modal-body">
 			<div class="alert alert-info py-2"><strong id="bulk-teachers-modal-count">0</strong> docentes seleccionados</div>
 			<div class="form-group"><label for="bulk-teacher-action">Acción</label><select id="bulk-teacher-action" class="form-control"><option value="Inactivo">Desactivar docentes</option><option value="Activo">Recontratar docentes</option></select></div>
@@ -513,9 +754,9 @@ img { max-width: 100px; max-height: 150px; }
 	</div></div>
 </div>
 
-<div class="modal fade" id="teacherEmploymentActionModal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal fade" id="teacherEmploymentActionModal" tabindex="-1" role="dialog" aria-labelledby="teacher-employment-title" aria-hidden="true">
 	<div class="modal-dialog" role="document"><div class="modal-content">
-		<div class="modal-header"><h5 class="modal-title" id="teacher-employment-title">Cambiar vínculo laboral</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+		<div class="modal-header"><h5 class="modal-title" id="teacher-employment-title">Cambiar vínculo laboral</h5><button type="button" class="close" data-dismiss="modal" aria-label="Cerrar"><span aria-hidden="true">&times;</span></button></div>
 		<form id="teacher-employment-form">
 			<div class="modal-body">
 				<input type="hidden" id="employment-teacher-id">
@@ -659,7 +900,7 @@ img { max-width: 100px; max-height: 150px; }
 	// Delegar eventos para que sigan funcionando tras refrescar el tbody
 	$(document).off('click.teachers', '#teachers-table .edit_teacher').on('click.teachers', '#teachers-table .edit_teacher', function(e) {
 		e.preventDefault();
-		uni_modal("Gestionar Información de Docente", "manage_teacher.php?id=" + $(this).attr('data-id'), "mid-large");
+		uni_modal("Editar docente", "manage_teacher.php?id=" + $(this).attr('data-id'), "mid-large");
 	});
 
 	$(document).off('click.teachers', '#teachers-table .view_teacher_history').on('click.teachers', '#teachers-table .view_teacher_history', function(e) {
