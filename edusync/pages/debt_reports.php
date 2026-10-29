@@ -6,6 +6,29 @@ include_once 'db_connect.php';$school=(int)($_SESSION['login_school_id']??0);$ye
 
 .dr-views{background:#fff;border:1px solid #e4e9f2;border-radius:10px 10px 0 0;padding:10px 14px;border-bottom:0}.dr-views .dr-tabs{margin:0}.dr-views .btn{font-size:.78rem}.dr-views+.dr-panel{border-radius:0 0 10px 10px}.dr-money{font-weight:700;text-align:right;white-space:nowrap}
 @media(max-width:560px){.dr-tabs{display:flex;flex-wrap:wrap}.dr-tabs .btn{flex:1 0 45%}}
+
+/* Deudas: sólo refinamiento visual; se conservan grids y breakpoints. */
+.dr-report{padding-top:.35rem!important}
+.dr-report .dr-head{margin-bottom:.75rem}
+.dr-report .dr-head h1{color:#233b52;font-size:1.14rem;line-height:1.32}
+.dr-report .dr-head p{font-size:.77rem;line-height:1.38;color:#6e7891}
+.dr-report .dr-actions .btn{min-height:34px;font-size:.77rem;box-shadow:none}
+.dr-report .dr-filters,.dr-report .dr-panel{border-color:#e3e6f0;border-radius:.55rem;box-shadow:none}
+.dr-report .dr-filters{padding:.78rem .86rem;margin-bottom:.78rem}
+.dr-report .dr-grid label{color:#526274;font-size:.74rem;line-height:1.31;margin-bottom:.25rem}
+.dr-report .dr-grid .form-control{min-height:34px;height:34px;border:1px solid #d8deea;border-radius:.4rem;font-size:.79rem;box-shadow:none}
+.dr-report .dr-stat{border:1px solid #e3e6f0;border-radius:.48rem;box-shadow:none}
+.dr-report .dr-stat small{font-size:.7rem;color:#526274;line-height:1.34}
+.dr-report .dr-stat strong{font-variant-numeric:tabular-nums}
+.dr-report .dr-views{padding:.64rem .76rem;border-color:#e3e6f0}
+.dr-report .dr-views .btn{min-height:32px;font-size:.75rem;box-shadow:none}
+.dr-report .dr-views #dr-view-help{font-size:.73rem;line-height:1.35}
+.dr-report #debt-reports-table thead th{white-space:nowrap;color:#526274;background:#f8fafd;font-size:.73rem}
+.dr-report #debt-reports-table tbody td{font-size:.78rem;color:#344054;vertical-align:middle}
+.dr-report .dataTables_wrapper :is(.dataTables_filter,.dataTables_length,.dataTables_info,.dataTables_paginate){font-size:.77rem}
+#debt-print-modal .modal-header{padding:.62rem .8rem!important}
+#debt-print-modal .modal-title{font-size:.9rem!important;color:#233b52}
+#debt-print-modal .modal-body{padding:0!important}
 </style>
 <link rel="stylesheet" href="css/report_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/report_consistency.css') ?: 1); ?>">
 <div class="container-fluid py-3 dr-report"><div class="dr-head"><div><h1><i class="fas fa-file-invoice-dollar text-primary mr-2"></i>Reporte de deudas</h1><p>Exigibilidad, descuentos, cobranza y vencimientos.</p></div><div class="dr-actions"><button id="dr-export" class="btn btn-outline-success"><i class="fas fa-file-excel mr-1"></i>Exportar</button><button id="dr-print" class="btn btn-outline-primary"><i class="fas fa-print mr-1"></i>Vista de impresión</button></div></div>
