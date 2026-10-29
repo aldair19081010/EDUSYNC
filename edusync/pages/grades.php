@@ -118,34 +118,222 @@ $migrationReady=false;$column=$conn->query("SHOW COLUMNS FROM evaluations LIKE '
 #gr-book-view .gb-sheet .gb-group-label .gb-group-title{flex:0 1 auto;text-align:center;min-width:0;max-width:100%}
 #gr-book-view .gb-sheet .gb-group-label .gb-group-percent{flex:0 0 auto;margin:0}
 #gr-book-view .gb-sheet .gb-group-inner .gb-add-eval{grid-column:3;justify-self:end;margin:0!important}
+
+/* Notas y evaluaciones: mayor densidad visual sin alterar la planilla. */
+.gr-page{padding-top:.25rem!important;padding-bottom:1rem!important}
+.gr-page .gr-header{
+ display:flex!important;align-items:center!important;justify-content:space-between!important;
+ gap:.64rem!important;padding:.72rem .9rem!important;margin-bottom:.72rem!important;
+ background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4285f4;
+ border-radius:.55rem;box-shadow:none!important
+}
+.gr-page .gr-header h1{font-size:1.16rem!important;line-height:1.3;color:#233b52!important;font-weight:700}
+.gr-page .gr-header p{font-size:.77rem;line-height:1.35;color:#6e7891}
+.gr-page .gr-header>div:last-child{margin:0!important;flex:0 0 auto}
+.gr-page #gr-new{font-size:.79rem;padding:.35rem .68rem;min-height:34px;border-radius:.4rem;white-space:nowrap;box-shadow:none}
+.gr-page .gr-view-switch{padding:.22rem!important;border-radius:.48rem;background:#f1f5fb}
+.gr-page .gr-view-switch .btn{min-height:34px;padding:.36rem .7rem;font-size:.8rem;border-radius:.38rem!important;box-shadow:none}
+.gr-page .gr-filter{margin-bottom:.7rem!important;padding:.72rem .82rem!important;border:1px solid #e3e6f0;border-radius:.55rem;background:#fff;box-shadow:none}
+.gr-page .gr-filter .row{margin-left:-.27rem;margin-right:-.27rem}
+.gr-page .gr-filter .row>div{padding-left:.27rem;padding-right:.27rem;margin-bottom:.57rem!important;min-width:0}
+.gr-page .gr-filter .gr-label{display:block;font-size:.73rem;font-weight:700;line-height:1.3;margin-bottom:.24rem;color:#526274}
+.gr-page .gr-filter .form-control{
+ width:100%;min-width:0;height:34px;min-height:34px;padding:.3rem .5rem;
+ font-size:.79rem;border:1px solid #d8deea;border-radius:.4rem;box-shadow:none
+}
+.gr-page .gr-filter .form-control:focus{border-color:#9cbcf9;box-shadow:0 0 0 .14rem rgba(66,133,244,.13)}
+.gr-page .gr-filter .gr-tabs{gap:.33rem}
+.gr-page .gr-filter .gr-tabs .btn{min-height:32px;font-size:.75rem;padding:.33rem .54rem;border-radius:.38rem!important;box-shadow:none}
+.gr-page .gr-filter :is(.gr-filter-actions,.gb-filter-actions) .btn{min-height:32px;font-size:.76rem;padding:.33rem .58rem;border-radius:.38rem;box-shadow:none}
+.gr-page #gr-list-view>.card,.gr-page #gr-book-view>.card{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:none!important;overflow:hidden}
+.gr-page #gr-list-view>.card>.card-header{min-height:41px;padding:.6rem .82rem!important;border-bottom:1px solid #edf0f5}
+.gr-page #gr-list-view>.card>.card-header strong{font-size:.88rem;color:#233b52}
+.gr-page .gr-table{font-size:.79rem}
+.gr-page .gr-table thead th{background:#f8fafd;color:#526274;white-space:nowrap;font-size:.74rem;border-bottom:1px solid #dce4ef}
+.gr-page .gr-table td{padding:.55rem .63rem;vertical-align:middle}
+.gr-page .gr-pager{padding:.6rem .8rem}
+.gr-page #gr-book-view .gb-compact-controls{border:1px solid #e3e6f0;border-radius:.48rem;box-shadow:none}
+/* El botón no debe forzar una fila flex ni montarse sobre el título.
+   Grid reserva espacio real para cada elemento en móvil y tablet. */
+.gr-page #gr-new .gr-new-short{display:none}
+@media(max-width:991.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) max-content;
+  align-items:center!important;
+  justify-content:stretch!important;
+  gap:.5rem!important;
+  min-width:0;
+  width:100%;
+  height:auto!important;
+ }
+ .gr-page .gr-header>div:first-child{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ .gr-page .gr-header>div:last-child{
+  justify-self:end;align-self:center;min-width:0;
+  margin:0!important;max-width:100%;
+ }
+ .gr-page #gr-new{
+  position:static!important;inset:auto!important;
+  transform:none!important;float:none!important;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:auto!important;max-width:100%;height:auto;
+  white-space:normal;line-height:1.25;overflow-wrap:anywhere
+ }
+}
+@media(max-width:767.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header{
+  gap:.42rem!important;min-height:51px;padding:.46rem .63rem!important
+ }
+ .gr-page .gr-header h1{font-size:1rem!important;white-space:normal!important;line-height:1.25!important;margin:0!important}
+ .gr-page .gr-header p,.gr-page .gr-full-title{display:none!important}
+ .gr-page #gr-new{min-height:32px;font-size:.74rem;padding:.32rem .52rem}
+ .gr-page #gr-new i{margin-right:.23rem!important}
+ .gr-page .gr-filter{padding:.58rem!important}
+ .gr-page .gr-filter .row>div{flex:0 0 50%;max-width:50%}
+ .gr-page .gr-view-switch{width:100%;display:flex!important}
+ .gr-page .gr-view-switch .btn{min-width:0;flex:1 1 50%;font-size:.74rem;padding:.32rem .4rem}
+ .gr-page .gr-filter .gr-tabs{width:100%;max-width:100%;flex-wrap:nowrap!important;overflow-x:auto;padding-bottom:.17rem;scrollbar-width:thin}
+ .gr-page .gr-filter .gr-tabs .btn{flex:0 0 auto}
+ .gr-page .gr-filter :is(.gr-filter-actions,.gb-filter-actions){width:100%;display:flex;justify-content:flex-end;gap:.36rem;flex-wrap:wrap}
+ .gr-page .gr-filter :is(.gr-filter-actions,.gb-filter-actions) .btn{margin:0!important}
+ .gr-page .gr-table{min-width:750px}
+ .gr-page #gr-book-view .gb-compact-controls{padding:.5rem .55rem}
+}
+@media(max-width:430px){
+ .gr-page #gr-new .gr-new-full{display:none}
+ .gr-page #gr-new .gr-new-short{display:inline}
+ .gr-page #gr-new{font-size:.73rem;padding:.3rem .47rem}
+}
+@media(max-width:359.98px){
+ .gr-page .gr-header h1{font-size:.92rem!important}
+ .gr-page #gr-new{font-size:.71rem;padding:.27rem .42rem}
+ .gr-page .gr-filter .row>div{flex:0 0 100%;max-width:100%}
+}
+/* IMPORTANTE: ui_consistency.js añade la clase ed-page-actions al contenedor.
+   ui_responsive.css establece display:grid, width:100% y .btn width:100%
+   en móvil. En la cabecera de Notas se anulan SOLO esas reglas para impedir
+   que el botón se comprima a unos pocos píxeles y el texto se desborde. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header > .gr-header-info{
+ min-width:0!important;max-width:100%;overflow-wrap:anywhere;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header > .gr-header-actions{
+ display:flex!important;
+ flex:0 0 auto!important;
+ align-items:center!important;
+ justify-content:flex-end!important;
+ grid-template-columns:none!important;
+ justify-self:end!important;
+ align-self:center!important;
+ width:max-content!important;
+ min-width:max-content!important;
+ max-width:none!important;
+ margin:0!important;
+ padding:0!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header > .gr-header-actions #gr-new{
+ display:inline-flex!important;
+ flex:0 0 auto!important;
+ align-items:center!important;
+ justify-content:center!important;
+ width:max-content!important;
+ min-width:max-content!important;
+ max-width:none!important;
+ box-sizing:border-box;
+ white-space:nowrap!important;
+ word-break:normal!important;
+ overflow:visible!important;
+ transform:none!important;
+ position:static!important;
+ margin:0!important;
+}
+@media(max-width:991.98px){
+ /* Abreviar ANTES de llegar al tamaño estrecho: el menú lateral también
+    reduce el área útil en tablets y ventanas medianas. */
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page #gr-new .gr-new-full{display:none!important}
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page #gr-new .gr-new-short{display:inline!important}
+}
+@media(max-width:767.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header .gr-header-info h1{
+  font-size:.97rem!important;line-height:1.25!important;
+  white-space:normal!important;margin:0!important
+ }
+}
+@media(max-width:359.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #content .gr-page .gr-header .gr-header-info h1{
+  font-size:.91rem!important
+ }
+}
+/* Los formularios largos del módulo Notas conservan el encabezado visible.
+   Sólo el cuerpo del modal se desplaza, no la página ni la ventana completa. */
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-dialog{
+ margin:.75rem auto!important;
+ max-width:min(1140px,calc(100vw - 1.5rem));
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-content{
+ display:flex!important;flex-direction:column!important;
+ max-height:calc(100vh - 1.5rem);
+ max-height:calc(100dvh - 1.5rem);
+ overflow:hidden!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-header{
+ flex:0 0 auto;min-height:47px!important;
+ padding:.62rem .82rem!important
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal #uni_modal_body{
+ flex:1 1 auto;min-height:0;
+ overflow-y:auto!important;overflow-x:hidden!important;
+ overscroll-behavior-y:contain;
+ -webkit-overflow-scrolling:touch;
+ padding:.73rem .83rem!important;
+}
+body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal #uni_modal_body :is(.meg-page,.gr-eval-modal-page){
+ max-width:100%;min-width:0
+}
+@media(max-width:767.98px){
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-dialog{
+  width:calc(100% - .9rem)!important;
+  max-width:calc(100% - .9rem)!important;
+  margin:.45rem auto!important
+ }
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-content{
+  max-height:calc(100vh - .9rem);
+  max-height:calc(100dvh - .9rem)
+ }
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal #uni_modal_body{
+  padding:.55rem .59rem!important
+ }
+ body[data-edusync-ui="standard-v2"][data-edusync-page="grades"] #uni_modal .modal-header{
+  padding:.51rem .68rem!important;min-height:43px!important
+ }
+}
 </style>
 <link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/operational_consistency.css') ?: 1); ?>">
-<div class="container-fluid py-4 gr-page">
- <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i>Evaluaciones y notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="mt-3 mt-md-0"><button class="btn btn-primary btn-sm" id="gr-new"><i class="fas fa-plus mr-1"></i>Nueva evaluación</button></div></div>
+<div class="container-fluid gr-page">
+ <div class="gr-header d-md-flex align-items-center justify-content-between mb-3"><div class="gr-header-info"><h1 class="h4 text-gray-800 mb-1"><i class="fas fa-clipboard-list text-primary mr-2"></i><span class="gr-full-title">Evaluaciones y </span>Notas</h1><p class="text-muted mb-0">Controla el avance de calificación de cada curso y bimestre.</p></div><div class="gr-header-actions mt-3 mt-md-0"><button class="btn btn-primary btn-sm" id="gr-new" type="button" aria-label="Nueva evaluación" title="Crear una nueva evaluación"><i class="fas fa-plus mr-1" aria-hidden="true"></i><span class="gr-new-full">Nueva evaluación</span><span class="gr-new-short" aria-hidden="true">Nueva</span></button></div></div>
  <?php if(!$migrationReady): ?><div class="alert alert-warning gr-migration"><i class="fas fa-database mr-2"></i>Para habilitar anulación y auditoría histórica, ejecuta manualmente <strong>sql/grades_module_upgrade.sql</strong>. El listado y registro de notas continúan disponibles.</div><?php endif; ?>
  <div class="d-flex justify-content-center mb-3"><div class="gr-view-switch"><button class="btn btn-primary btn-sm" id="gr-show-list"><i class="fas fa-list mr-1"></i>Lista de evaluaciones</button><button class="btn btn-light btn-sm" id="gr-show-book"><i class="fas fa-table mr-1"></i>Libro de notas</button></div></div>
  <div id="gr-list-view">
 
  <div class="gr-filter p-3 mb-3"><div class="row align-items-end">
-  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Año académico</label><select id="gr-year" class="form-control form-control-sm"><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo(int)$y['id']===$activeYear?'selected':''; ?>><?php echo htmlspecialchars($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
-  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Curso</label><select id="gr-course" class="form-control form-control-sm"><option value="">Todos</option></select></div>
-  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Nivel</label><select id="gr-level" class="form-control form-control-sm"><option value="">Todos</option></select></div>
-  <div class="col-lg-1 col-sm-4 mb-2"><label class="gr-label">Grado</label><select id="gr-grade" class="form-control form-control-sm"><option value="">Todos</option></select></div>
-  <div class="col-lg-1 col-sm-4 mb-2"><label class="gr-label">Sección</label><select id="gr-section" class="form-control form-control-sm"><option value="">Todas</option></select></div>
-  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gr-bimester" class="form-control form-control-sm"><option value="">Todos</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
-  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label">Buscar</label><input id="gr-search" class="form-control form-control-sm" placeholder="Título o descripción"></div>
+  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label" for="gr-year">Año académico</label><select id="gr-year" class="form-control form-control-sm"><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo(int)$y['id']===$activeYear?'selected':''; ?>><?php echo htmlspecialchars($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
+  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label" for="gr-course">Curso</label><select id="gr-course" class="form-control form-control-sm"><option value="">Todos</option></select></div>
+  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label" for="gr-level">Nivel</label><select id="gr-level" class="form-control form-control-sm"><option value="">Todos</option></select></div>
+  <div class="col-lg-1 col-sm-4 mb-2"><label class="gr-label" for="gr-grade">Grado</label><select id="gr-grade" class="form-control form-control-sm"><option value="">Todos</option></select></div>
+  <div class="col-lg-1 col-sm-4 mb-2"><label class="gr-label" for="gr-section">Sección</label><select id="gr-section" class="form-control form-control-sm"><option value="">Todas</option></select></div>
+  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label" for="gr-bimester">Bimestre</label><select id="gr-bimester" class="form-control form-control-sm"><option value="">Todos</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
+  <div class="col-lg-2 col-sm-6 mb-2"><label class="gr-label" for="gr-search">Buscar</label><input id="gr-search" class="form-control form-control-sm" placeholder="Título o descripción"></div>
  </div><div class="d-flex flex-wrap justify-content-between align-items-center mt-1"><div class="gr-tabs d-flex flex-wrap" id="gr-tabs"><button class="btn btn-primary btn-sm" data-state="all">Todas</button><button class="btn btn-outline-primary btn-sm" data-state="pending">Pendientes</button><button class="btn btn-outline-primary btn-sm" data-state="partial">En proceso</button><button class="btn btn-outline-primary btn-sm" data-state="complete">Completadas</button><button class="btn btn-outline-primary btn-sm" data-state="locked">Bloqueadas</button><button class="btn btn-outline-primary btn-sm" data-state="annulled">Anuladas</button></div><div class="d-flex flex-wrap align-items-center mt-2 mt-md-0 gr-filter-actions"><button type="button" class="btn btn-outline-success btn-sm gc-open-closure" data-gc-view="list" title="Revisar el cierre del curso y bimestre seleccionados"><i class="fas fa-lock mr-1"></i>Cierre bimestral</button><button class="btn btn-light btn-sm" id="gr-clear"><i class="fas fa-eraser mr-1"></i>Limpiar filtros</button></div></div></div>
  <div class="card shadow-sm"><div class="card-header bg-white d-flex justify-content-between align-items-center"><strong><i class="fas fa-list text-primary mr-2"></i>Mis evaluaciones</strong><span class="badge badge-light border" id="gr-count">0 registros</span></div><div class="card-body p-0"><div class="table-responsive"><table class="table table-hover gr-table mb-0" id="gr-table"><thead class="thead-light"><tr><th>Evaluación</th><th>Curso y aula</th><th>Competencia</th><th>Bimestre</th><th>Avance de notas</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody><tr><td colspan="8" class="gr-empty"><i class="fas fa-spinner fa-spin mr-2"></i>Cargando evaluaciones...</td></tr></tbody></table></div></div><div class="card-footer bg-white gr-pager" id="gr-pager"><div class="d-flex flex-wrap align-items-center justify-content-between gr-pager-layout"><div class="d-flex flex-wrap align-items-center gr-pager-summary"><small class="text-muted" id="gr-page-info" aria-live="polite">0 evaluaciones</small><label for="gr-page-size" class="small text-muted mb-0 ml-3 mr-2">Mostrar</label><select class="form-control form-control-sm gr-page-size" id="gr-page-size" aria-label="Evaluaciones por página"><option value="10" selected>10</option><option value="25">25</option><option value="50">50</option></select><small class="text-muted ml-2">por página</small></div><nav aria-label="Paginación de evaluaciones"><ul class="pagination pagination-sm mb-0" id="gr-pagination"></ul></nav></div></div></div>
  </div>
  <div id="gr-book-view" style="display:none">
   <div class="gr-filter p-3 mb-3"><div class="row align-items-end">
-   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Año académico</label><select id="gb-year" class="form-control form-control-sm"><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo(int)$y['id']===$activeYear?'selected':''; ?>><?php echo htmlspecialchars($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
-   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Curso</label><select id="gb-course" class="form-control form-control-sm"><option value="">Selecciona</option></select></div>
-   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label">Nivel</label><select id="gb-level" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
-   <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label">Grado</label><select id="gb-grade" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
-   <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label">Sección</label><select id="gb-section" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
-   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label">Bimestre</label><select id="gb-bimester" class="form-control form-control-sm"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
-   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label">Visualización</label><select id="gb-system" class="form-control form-control-sm"><option value="numeric">Notas numéricas</option><option value="letters">Notas literales</option></select></div>
+   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label" for="gb-year">Año académico</label><select id="gb-year" class="form-control form-control-sm"><?php foreach($years as$y): ?><option value="<?php echo(int)$y['id']; ?>" <?php echo(int)$y['id']===$activeYear?'selected':''; ?>><?php echo htmlspecialchars($y['year']); ?><?php echo(int)$y['is_active']===1?' (Activo)':''; ?></option><?php endforeach; ?></select></div>
+   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label" for="gb-course">Curso</label><select id="gb-course" class="form-control form-control-sm"><option value="">Selecciona</option></select></div>
+   <div class="col-xl-2 col-md-4 col-sm-6 mb-2"><label class="gr-label" for="gb-level">Nivel</label><select id="gb-level" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
+   <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label" for="gb-grade">Grado</label><select id="gb-grade" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
+   <div class="col-xl-1 col-md-3 col-sm-6 mb-2"><label class="gr-label" for="gb-section">Sección</label><select id="gb-section" class="form-control form-control-sm" disabled><option value="">Selecciona</option></select></div>
+   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label" for="gb-bimester">Bimestre</label><select id="gb-bimester" class="form-control form-control-sm"><option value="">Selecciona</option><option value="1">1° Bimestre</option><option value="2">2° Bimestre</option><option value="3">3° Bimestre</option><option value="4">4° Bimestre</option></select></div>
+   <div class="col-xl-2 col-md-3 col-sm-6 mb-2"><label class="gr-label" for="gb-system">Visualización</label><select id="gb-system" class="form-control form-control-sm"><option value="numeric">Notas numéricas</option><option value="letters">Notas literales</option></select></div>
   </div><input type="hidden" id="gb-assignment" value=""><div class="d-flex flex-wrap justify-content-end align-items-center mt-1"><div class="d-flex flex-wrap align-items-center gb-filter-actions"><button type="button" class="btn btn-outline-success btn-sm gc-open-closure" data-gc-view="book" title="Revisar el cierre del curso y bimestre seleccionados"><i class="fas fa-lock mr-1"></i>Cierre bimestral</button><button class="btn btn-outline-primary btn-sm" id="gb-load"><i class="fas fa-sync-alt mr-1"></i>Actualizar planilla</button></div></div></div>
   <div id="gb-readonly-banner" class="alert alert-warning gb-readonly" style="display:none"><i class="fas fa-lock mr-2"></i><span></span></div>
   <div id="gb-weight-warning" class="alert alert-danger" style="display:none"><i class="fas fa-exclamation-triangle mr-2"></i><strong>Configuración de competencias incompleta.</strong> <span></span></div>

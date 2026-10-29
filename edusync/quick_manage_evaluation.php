@@ -12,7 +12,33 @@ $stmt->bind_param('iiii',$compId,$tcid,$teacherId,$schoolId);$stmt->execute();$c
 $title='';$evaluationType='Tarea';$description='';
 if($sourceId>0){$copy=$conn->prepare('SELECT title,type,description FROM evaluations WHERE id=? AND teacher_id=? AND teacher_course_id=? LIMIT 1');$copy->bind_param('iii',$sourceId,$teacherId,$tcid);$copy->execute();$source=$copy->get_result()->fetch_assoc();$copy->close();if($source){$title='Copia de '.$source['title'];$evaluationType=$source['type'];$description=$source['description'];}}
 ?>
-<style>.qev-context{background:#f8f9fc;border:1px solid #e3e6f0;border-left:4px solid #4e73df;border-radius:.4rem;padding:.7rem .85rem}</style>
+<style>
+/* Evaluación rápida dentro de la planilla: compacto y uniforme. */
+#quick-evaluation-form{font-size:.81rem;color:#344054}
+#quick-evaluation-form .qev-context{
+  background:#f8fafd;border:1px solid #e3e6f0;border-left:3px solid #4285f4;
+  border-radius:.45rem;padding:.63rem .76rem;margin-bottom:.75rem!important;
+  line-height:1.42;overflow-wrap:anywhere
+}
+#quick-evaluation-form .form-group{margin-bottom:.72rem}
+#quick-evaluation-form label{font-size:.75rem;font-weight:700;color:#526274;line-height:1.32;margin-bottom:.23rem}
+#quick-evaluation-form .form-control{
+  min-height:35px;font-size:.8rem;border:1px solid #d8deea;
+  border-radius:.42rem;box-shadow:none
+}
+#quick-evaluation-form textarea.form-control{min-height:65px}
+#quick-evaluation-form .border-top{
+  display:flex;gap:.45rem;flex-wrap:wrap;
+  justify-content:flex-end!important;margin-top:.72rem!important;padding-top:.68rem!important
+}
+#quick-evaluation-form .border-top .btn{
+  min-height:35px;padding:.38rem .7rem;font-size:.79rem;margin:0!important;box-shadow:none!important
+}
+@media(max-width:575.98px){
+  #quick-evaluation-form .qev-context{padding:.6rem .65rem}
+  #quick-evaluation-form .border-top{align-items:center}
+}
+</style>
 <form id="quick-evaluation-form">
  <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'],ENT_QUOTES,'UTF-8'); ?>">
  <input type="hidden" name="teacher_course_id" value="<?php echo $tcid; ?>"><input type="hidden" name="academic_year_id" value="<?php echo (int)$context['academic_year_id']; ?>"><input type="hidden" name="teacher_id" value="<?php echo $teacherId; ?>"><input type="hidden" name="bimestre" value="<?php echo $bim; ?>"><input type="hidden" name="competencias[]" value="<?php echo $compId; ?>">

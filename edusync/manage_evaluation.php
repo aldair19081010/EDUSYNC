@@ -181,7 +181,46 @@ if ($id) {
 	}
 }
 ?>
-<div class="container-fluid">
+<style>
+/* Crear/editar evaluación: tarjetas internas sin competir con el modal. */
+.gr-eval-modal-page{padding:0!important;font-size:.82rem;color:#344054}
+.gr-eval-modal-page #manage-evaluation>.card{
+  margin:0 0 .72rem!important;border:1px solid #e3e6f0;
+  border-radius:.5rem;box-shadow:none!important;overflow:hidden
+}
+.gr-eval-modal-page #manage-evaluation>.card>.card-header{
+  min-height:40px;padding:.58rem .8rem!important;background:#f8fafd;
+  border-bottom:1px solid #edf0f5
+}
+.gr-eval-modal-page #manage-evaluation>.card>.card-header h6{font-size:.85rem;line-height:1.3;color:#233b52!important}
+.gr-eval-modal-page #manage-evaluation>.card>.card-body{padding:.75rem .83rem!important}
+.gr-eval-modal-page #manage-evaluation label{display:block;margin-bottom:.25rem;color:#526274;font-size:.75rem;font-weight:700;line-height:1.32}
+.gr-eval-modal-page #manage-evaluation .row>[class*="col-"]{min-width:0;margin-bottom:.7rem!important}
+.gr-eval-modal-page #manage-evaluation .form-group{margin-bottom:.7rem!important}
+.gr-eval-modal-page #manage-evaluation .form-control{
+  width:100%;min-height:35px;border:1px solid #d8deea;
+  border-radius:.42rem;font-size:.81rem;box-shadow:none
+}
+.gr-eval-modal-page #manage-evaluation textarea.form-control{min-height:74px}
+.gr-eval-modal-page #manage-evaluation .form-control[readonly]{background:#f8fafd}
+.gr-eval-modal-page #manage-evaluation .select2-container{max-width:100%!important;width:100%!important}
+.gr-eval-modal-page #manage-evaluation .select2-container--default .select2-selection--single{
+  min-height:35px!important;border:1px solid #d8deea!important;border-radius:.42rem!important;box-shadow:none!important
+}
+.gr-eval-modal-page #manage-evaluation .select2-selection__rendered{line-height:33px!important;font-size:.81rem}
+.gr-eval-modal-page #manage-evaluation .select2-selection__arrow{height:33px!important}
+.gr-eval-modal-page #manage-evaluation .alert{font-size:.78rem;padding:.66rem .74rem;margin-bottom:.6rem!important}
+.gr-eval-modal-page #manage-evaluation>.row:last-of-type{margin:0!important;padding:.75rem .15rem .1rem;border-top:1px solid #edf0f5}
+.gr-eval-modal-page #manage-evaluation>.row:last-of-type .col-12{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.45rem;margin-bottom:0!important}
+.gr-eval-modal-page #manage-evaluation>.row:last-of-type .btn{
+  margin:0!important;min-height:35px;padding:.35rem .7rem;font-size:.79rem;box-shadow:none!important;transform:none!important
+}
+@media(max-width:575.98px){
+  .gr-eval-modal-page #manage-evaluation>.card>.card-body{padding:.62rem .66rem!important}
+  .gr-eval-modal-page #manage-evaluation>.card>.card-header{padding:.52rem .65rem!important}
+}
+</style>
+<div class="container-fluid gr-eval-modal-page">
 	<form id="manage-evaluation" method="post" action="#" onsubmit="return false;">
 		<input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
 		<div class="card shadow mb-3">
