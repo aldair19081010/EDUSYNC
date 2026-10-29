@@ -238,7 +238,7 @@ $render_collapse = function ($group) use ($current_page) {
     <a class="sidebar-brand d-flex align-items-center justify-content-center"
        href="index.php?page=home" aria-label="EduSync - Ir al inicio">
         <span class="sidebar-brand-icon edusync-brand-icon" aria-hidden="true">
-            <img class="edusync-brand-logo" src="assets/uploads/edusync-cloud-navbar-transparent.png"
+            <img class="edusync-brand-logo" src="assets/uploads/edusync-cloud-navbar-transparent.png?v=20261028-white-arrow"
                  alt="" width="180" height="121" decoding="async">
         </span>
         <span class="sidebar-brand-text edusync-brand-text text-left">
