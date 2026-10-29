@@ -360,6 +360,7 @@ img { max-width: 100px; max-height: 150px; }
     .ed-teachers-page .ed-teachers-filterbar{padding:.55rem .6rem}
 }
 
+body[data-edusync-page="teachers"] #content .ed-teachers-shell{padding-left:0!important;padding-right:0!important}
 /* Gestión de Docentes: armonía con Estudiantes, sin modificar datos ni otros módulos. */
 .ed-teachers-page .ed-teachers-header{
   border-left:4px solid var(--edu-primary,#4285f4);
@@ -601,7 +602,7 @@ body[data-edusync-page="teachers"] :is(#bulkTeachersModal,#teacherEmploymentActi
 </style>
 
 <!-- Contenido principal -->
-<div class="container-fluid">
+<div class="container-fluid ed-teachers-shell">
     <div class="main-content-area ed-teachers-page">
         <!-- Encabezado compacto de gestión: mismas acciones y menú existente -->
         <div class="ed-page-header ed-teachers-header">
