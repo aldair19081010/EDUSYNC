@@ -1021,12 +1021,18 @@ a.text-primary:focus {
     border-bottom: 1px solid rgba(255, 255, 255, .13);
 }
 .edusync-sidebar .sidebar-brand .edusync-brand-icon {
-    width: 3.1rem;
-    height: 2.75rem;
-    flex-basis: 3.1rem;
+    width: 3.55rem;
+    height: 3rem;
+    flex-basis: 3.55rem;
 }
 .edusync-sidebar .sidebar-brand .edusync-brand-logo {
-    width: 3.1rem;
+    width: 3.55rem;
+    height: auto;
+    /* El azul de la nube coincide con el fondo: recuperamos el contorno sin
+       añadir un cuadro ni modificar las flechas blanca y naranja. */
+    filter: brightness(1.10)
+            drop-shadow(0 0 1px rgba(255, 255, 255, .98))
+            drop-shadow(0 0 3px rgba(224, 245, 255, .58));
 }
 .edusync-sidebar .sidebar-brand .edusync-brand-text {
     font-size: 1.02rem;
