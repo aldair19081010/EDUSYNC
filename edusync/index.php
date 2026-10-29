@@ -138,7 +138,8 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
 
     <!-- Custom styles for this template-->
     <link href="css/sb-admin-2.css" rel="stylesheet">
-    <link href="css/custom.css" rel="stylesheet">
+    <!-- Estilos definitivos cargados una sola vez antes de pintar el navbar. -->
+    <link href="css/custom.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/custom.css') ?: 1)); ?>" rel="stylesheet">
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#2459a8">
     <link href="css/web_notifications.css?v=<?php echo @filemtime(__DIR__.'/css/web_notifications.css') ?: time(); ?>" rel="stylesheet">
@@ -164,6 +165,18 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <link data-edusync-ui-feedback="1" href="css/ui_feedback.css?v=<?php echo rawurlencode((string)$users_ui_feedback_version); ?>" rel="stylesheet">
     <link data-edusync-ui-responsive="1" href="css/ui_responsive.css?v=<?php echo rawurlencode((string)$users_ui_responsive_version); ?>" rel="stylesheet">
     <link data-edusync-ui-table-actions="1" href="css/ui_table_actions.css?v=<?php echo rawurlencode((string)$users_ui_table_actions_version); ?>" rel="stylesheet">
+
+    <!-- Los estilos de cada portal estudiantil también se sirven antes del HTML,
+         en lugar de insertarlos después de que el navegador dibuje la página. -->
+    <?php if ($page === 'student_grades'): ?>
+    <link data-edusync-student-grades="1" href="css/student_grades.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/student_grades.css') ?: 1)); ?>" rel="stylesheet">
+    <?php endif; ?>
+    <?php if ($page === 'student_payments'): ?>
+    <link data-edusync-student-payments="1" href="css/student_payments.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/student_payments.css') ?: 1)); ?>" rel="stylesheet">
+    <?php endif; ?>
+    <?php if ($page === 'student_attendances'): ?>
+    <link data-edusync-student-attendance="1" href="css/student_attendance.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/student_attendance.css') ?: 1)); ?>" rel="stylesheet">
+    <?php endif; ?>
 <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <!-- Select2 global -->
