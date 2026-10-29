@@ -181,6 +181,10 @@ if (in_array($page, ['students', 'teachers', 'teacher_courses', 'academic_manage
     <!-- La barra superior comparte el mismo ciclo de carga de estilos que el navbar.
          Así no aparece momentáneamente la versión SB Admin al cambiar de página. -->
     <link data-edusync-topbar="1" href="css/topbar-modern.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/topbar-modern.css') ?: 1)); ?>" rel="stylesheet">
+    <!-- El Dashboard carga su CSS definitivo antes del HTML; evita cambios de estilo al entrar a Inicio. -->
+    <?php if ($page === 'home'): ?>
+    <link data-edusync-dashboard="1" href="css/dashboard_consistency.css?v=<?php echo rawurlencode((string)(@filemtime(__DIR__ . '/css/dashboard_consistency.css') ?: 1)); ?>" rel="stylesheet">
+    <?php endif; ?>
 <!-- DataTables CSS -->
     <link href="vendor/datatables/dataTables.bootstrap4.min.css" rel="stylesheet">
     <!-- Select2 global -->
