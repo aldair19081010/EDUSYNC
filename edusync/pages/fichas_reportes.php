@@ -101,6 +101,28 @@
 .ir-hero h1{font-size:1.45rem;font-weight:700;color:#344767;margin:0}.ir-hero p{margin:4px 0 0;color:#7b8499}.ir-tools{display:flex;align-items:flex-end;gap:10px;min-width:280px}.ir-tools>div{flex:1}.ir-tools label{font-size:.76rem;font-weight:700;color:#596579}.ficha-option.is-hidden{display:none}.ficha-option{box-shadow:0 1px 4px rgba(31,45,61,.04)}
 .report-catalog{margin-bottom:22px}.catalog-title{font-size:1.05rem;font-weight:700;color:#344767;margin-bottom:4px}.catalog-card{height:100%;background:#fff;border:1px solid #e3e6f0;border-radius:8px;padding:18px;display:flex;flex-direction:column;transition:.2s}.catalog-card:hover{border-color:#4e73df;box-shadow:0 3px 10px rgba(78,115,223,.12);transform:translateY(-2px)}.catalog-number{width:30px;height:30px;border-radius:6px;background:#eef2ff;color:#4e73df;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:.84rem}.catalog-card h6{font-weight:700;color:#3f4d67;margin:12px 0 6px}.catalog-card p{font-size:.82rem;color:#7b8499;flex:1}.catalog-card .btn{align-self:flex-start}.catalog-category{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#4e73df;font-weight:700}
 @media(max-width:850px){.ir-hero{align-items:stretch;flex-direction:column}.ir-tools{min-width:0;flex-direction:column;align-items:stretch}}
+
+/* Reportes institucionales: catalogo y controles, responsive original intacto. */
+.ir-page{padding-top:.38rem!important}
+.ir-page .ir-hero{border:1px solid #e3e6f0;border-left:4px solid #4285f4;border-radius:.55rem;box-shadow:none;padding:.78rem .94rem;margin-bottom:.82rem}
+.ir-page .ir-hero h1{color:#233b52;font-size:1.13rem;line-height:1.32}
+.ir-page .ir-hero p{font-size:.77rem;line-height:1.4;color:#6e7891}
+.ir-page .ir-tools label{font-size:.73rem;color:#526274;margin-bottom:.25rem}
+.ir-page #institutional-report-search{min-height:34px;height:34px;border:1px solid #d8deea;border-radius:.4rem;font-size:.8rem;box-shadow:none}
+.ir-page .ir-tools .input-group-text{height:34px;border:1px solid #d8deea;background:#f8fafd}
+.ir-page .report-catalog{margin-bottom:.85rem}
+.ir-page .catalog-title{font-size:.94rem;line-height:1.35;color:#233b52}
+.ir-page .catalog-card{padding:.78rem .87rem;border:1px solid #e3e6f0;border-radius:.53rem;box-shadow:none!important;transition:border-color .15s ease}
+.ir-page .catalog-card:hover{border-color:#b7cbee;transform:none!important;box-shadow:none!important}
+.ir-page .catalog-card .catalog-category{font-size:.69rem;color:#526274}
+.ir-page .catalog-card h6{font-size:.85rem;line-height:1.35;color:#233b52;font-weight:700}
+.ir-page .catalog-card p{font-size:.76rem;line-height:1.43;color:#6e7891}
+.ir-page .catalog-card .btn{min-height:32px;font-size:.76rem;box-shadow:none!important}
+.ir-page>.card{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:none!important}
+.ir-page>.card>.card-header{padding:.68rem .81rem!important}
+.ir-page .form-group label{font-size:.75rem;color:#526274;font-weight:700}
+.ir-page .form-control{border-color:#d8deea;border-radius:.4rem;font-size:.8rem;box-shadow:none}
+.ir-page .btn-sm{min-height:32px;font-size:.76rem;box-shadow:none}
 </style>
 
 <link rel="stylesheet" href="css/dashboard_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/dashboard_consistency.css') ?: 1); ?>">
