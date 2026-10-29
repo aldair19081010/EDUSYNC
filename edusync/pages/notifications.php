@@ -96,9 +96,29 @@ foreach (['notification_events', 'notification_user_state', 'notification_audit_
     #nt-table_wrapper .dataTables_paginate,
     #nt-table_wrapper .dataTables_info{text-align:left!important}
 }
+
+/* Notificaciones: estilo local; buscador/paginación DataTables intactos. */
+.nt-page{padding-top:.4rem!important}
+.nt-page .nt-head{padding:.7rem .86rem;background:#fff;border:1px solid #e3e6f0;border-left:4px solid #4285f4;border-radius:.55rem;margin-bottom:.77rem!important}
+.nt-page .nt-head h1{font-size:1.12rem;line-height:1.32;color:#233b52}
+.nt-page .nt-head .small{font-size:.76rem;line-height:1.4}
+.nt-page #nt-read-all{min-height:33px;font-size:.76rem;box-shadow:none}
+.nt-page .nt-stat{border:1px solid #e3e6f0;border-radius:.48rem;box-shadow:none;padding:.7rem .76rem}
+.nt-page .nt-stat small{font-size:.69rem;line-height:1.32}
+.nt-page .nt-stat strong{font-size:1.16rem;font-variant-numeric:tabular-nums}
+.nt-page .nt-filter{padding:.69rem .8rem;border-radius:.5rem;margin-bottom:.76rem!important}
+.nt-page .nt-filter label{color:#526274;font-size:.74rem;line-height:1.3}
+.nt-page .nt-filter .form-control-sm{height:33px;min-height:33px;border:1px solid #d8deea;border-radius:.4rem;font-size:.79rem}
+.nt-page .nt-tabs{border-color:#e3e6f0;padding:.48rem .63rem}
+.nt-page .nt-tabs .btn{min-height:32px;font-size:.75rem;box-shadow:none}
+.nt-page .nt-panel{border-color:#e3e6f0;border-radius:0 0 .5rem .5rem;box-shadow:none}
+.nt-page #nt-table thead th{font-size:.74rem;white-space:nowrap;background:#f8fafd;color:#526274}
+.nt-page #nt-table tbody td{font-size:.79rem;vertical-align:middle;color:#344054}
+.nt-page #nt-table_wrapper :is(.dataTables_filter,.dataTables_length,.dataTables_info,.dataTables_paginate){font-size:.77rem}
+.nt-page .nt-actions .btn{min-height:31px;box-shadow:none}
 </style>
 
-<div class="container-fluid py-3">
+<div class="container-fluid py-3 nt-page">
     <div class="nt-head d-flex flex-wrap align-items-center justify-content-between mb-3">
         <div>
             <h1 class="h4 mb-1 text-gray-800"><i class="fas fa-bell text-primary mr-2"></i>Centro de notificaciones</h1>
