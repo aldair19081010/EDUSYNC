@@ -16,25 +16,86 @@ if (isset($_GET['id'])) {
 }
 ?>
 <style>
-    .form-section-title {
-        font-size: 0.95rem;
-        font-weight: 700;
-        color: #2e59d9;
-        margin-bottom: 0.9rem;
-        padding-bottom: 0.55rem;
-        border-bottom: 2px solid #2e59d9;
-    }
-
-    .helper-text {
-        color: #6c757d;
-        font-size: 0.85rem;
-    }
-
-    .card-lite {
-        border: 1px solid #e3e6f0;
-        border-radius: 0.5rem;
-        box-shadow: 0 0.15rem 1.75rem 0 rgba(58,59,69,.15);
-    }
+/* Formulario docente dentro del modal universal, sin estilos globales. */
+#manage-teacher{
+  font-size:.81rem;
+  color:#344054;
+}
+#manage-teacher .card-lite{
+  border:0;
+  background:transparent;
+  box-shadow:none!important;
+  border-radius:0;
+  margin-bottom:.4rem!important;
+}
+#manage-teacher .card-lite > .card-body{
+  padding:0!important;
+}
+#manage-teacher .form-section-title{
+  display:flex;
+  align-items:center;
+  border:0;
+  border-bottom:1px solid #e1e8f3;
+  margin:0 0 .75rem;
+  padding:0 0 .44rem;
+  font-size:.9rem;
+  line-height:1.35;
+  color:#233b52;
+  font-weight:700;
+}
+#manage-teacher .form-section-title i{
+  color:var(--edu-primary,#4285f4);
+}
+#manage-teacher .form-group{
+  margin-bottom:.72rem;
+}
+#manage-teacher label{
+  display:block;
+  color:#526274;
+  font-size:.75rem;
+  margin:0 0 .26rem;
+  font-weight:700;
+}
+#manage-teacher .form-control{
+  min-height:36px;
+  font-size:.81rem;
+  border:1px solid #d8deea;
+  box-shadow:none;
+  border-radius:.42rem;
+}
+#manage-teacher textarea.form-control{
+  min-height:67px;
+}
+#manage-teacher .form-control:focus{
+  border-color:#9cbcf9;
+  box-shadow:0 0 0 .14rem rgba(66,133,244,.12);
+}
+#manage-teacher .helper-text{
+  font-size:.73rem;
+  color:#758397;
+  line-height:1.38;
+  margin-top:.2rem;
+}
+#manage-teacher > .d-flex.justify-content-end{
+  gap:.5rem;
+  border-top:1px solid #edf0f5;
+  background:#fff;
+  padding:.75rem 0 .1rem;
+  margin:0!important;
+}
+#manage-teacher > .d-flex.justify-content-end .btn{
+  min-height:35px;
+  margin:0!important;
+  padding:.4rem .77rem;
+  font-size:.8rem;
+  border-radius:.4rem;
+  box-shadow:none!important;
+  transform:none!important;
+}
+@media(max-width:575.98px){
+  #manage-teacher .form-group{margin-bottom:.68rem}
+  #manage-teacher > .d-flex.justify-content-end{flex-wrap:wrap}
+}
 </style>
 
 <div class="container-fluid px-0">
