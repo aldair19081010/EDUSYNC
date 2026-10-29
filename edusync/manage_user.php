@@ -251,18 +251,30 @@ if (isset($_GET['id'])) {
 </script>
 
 <style>
-    .form-control:focus {
+    #manage-user .form-control:focus {
         border-color: #4e73df;
         box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
     }
     
-    .custom-file-input:focus ~ .custom-file-label {
+    #manage-user .custom-file-input:focus ~ .custom-file-label {
         border-color: #4e73df;
         box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
     }
     
-    .input-group-append .btn:focus {
+    #manage-user .input-group-append .btn:focus {
         box-shadow: none;
         border-color: #d1d3e2;
     }
+
+/* Modal de cuentas: estilos exclusivos del formulario de usuario. */
+#manage-user{font-size:.81rem;color:#344054}
+#manage-user .form-group{margin-bottom:.77rem}
+#manage-user .form-group>label{font-size:.75rem;line-height:1.35;color:#526274;margin-bottom:.27rem;font-weight:700}
+#manage-user .form-control{min-height:36px;border:1px solid #d8deea;border-radius:.42rem;font-size:.81rem;box-shadow:none}
+#manage-user .form-control:focus{border-color:#9cbcf9;box-shadow:0 0 0 .14rem rgba(66,133,244,.12)}
+#manage-user .input-group-append .btn{min-height:36px;font-size:.79rem}
+#manage-user .custom-file-label{border-color:#d8deea;border-radius:.42rem;font-size:.79rem}
+#manage-user #avatarPreviewContainer{margin-bottom:.7rem}
+#manage-user #user_avatar_preview{border-radius:.5rem;box-shadow:none}
+#btnSaveUser{min-height:35px;font-size:.8rem;padding:.38rem .77rem;box-shadow:none!important}
 </style>
