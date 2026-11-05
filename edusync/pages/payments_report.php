@@ -14,6 +14,29 @@ $courses=[];$stmt=$conn->prepare('SELECT c.id,c.course,c.level,ay.year FROM cour
 .pr-views{background:#fff;border:1px solid #e4e9f2;border-radius:9px 9px 0 0;padding:10px 14px;border-bottom:0}.pr-views .pr-tabs{margin:0}.pr-views .btn{font-size:.78rem}.pr-views+.pr-panel{border-radius:0 0 9px 9px}.pr-money{font-weight:700;text-align:right;white-space:nowrap}
 @media(max-width:900px){.pr-views .btn-group{display:flex;flex-wrap:wrap}.pr-views .btn{flex:1 0 auto}}
 @media print{.pr-views{display:none!important}}
+
+/* Reporte de pagos: no se cambian seis columnas, vistas ni breakpoints. */
+.pr-report{padding-top:.35rem!important}
+.pr-report .pr-head{padding:.73rem .94rem;border-left-color:#4285f4;margin-bottom:.77rem;border-radius:.55rem;box-shadow:none}
+.pr-report .pr-head h1{color:#233b52;font-size:1.14rem;line-height:1.32}
+.pr-report .pr-head p{font-size:.77rem;line-height:1.4;color:#6e7891}
+.pr-report .pr-head .btn{min-height:34px;font-size:.78rem;box-shadow:none}
+.pr-report .pr-filters,.pr-report .pr-panel{border:1px solid #e3e6f0;border-radius:.52rem;box-shadow:none}
+.pr-report .pr-filters{padding:.78rem .84rem;margin-bottom:.77rem}
+.pr-report .pr-grid label{font-size:.73rem;color:#526274;line-height:1.3;margin-bottom:.24rem}
+.pr-report .pr-grid .form-control{height:34px;min-height:34px;border:1px solid #d8deea;border-radius:.4rem;font-size:.78rem;box-shadow:none}
+.pr-report .pr-stat{border:1px solid #e3e6f0;border-radius:.48rem;box-shadow:none}
+.pr-report .pr-stat small{font-size:.69rem;color:#526274;line-height:1.34}
+.pr-report .pr-stat strong{font-variant-numeric:tabular-nums}
+.pr-report .pr-views{padding:.62rem .78rem;border-color:#e3e6f0}
+.pr-report .pr-tabs .btn{min-height:32px;font-size:.74rem;box-shadow:none}
+.pr-report #pr-view-help{font-size:.73rem;line-height:1.35}
+.pr-report #payments-report-table thead th{white-space:nowrap;background:#f8fafd;font-size:.73rem;color:#526274}
+.pr-report #payments-report-table tbody td{font-size:.78rem;vertical-align:middle;color:#344054}
+.pr-report .dataTables_wrapper :is(.dataTables_filter,.dataTables_length,.dataTables_info,.dataTables_paginate){font-size:.77rem}
+#payments-print-modal .modal-header{padding:.62rem .8rem!important}
+#payments-print-modal .modal-title{font-size:.9rem!important;color:#233b52}
+#payments-print-modal .modal-body{padding:0!important}
 </style>
 <link rel="stylesheet" href="css/report_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/report_consistency.css') ?: 1); ?>">
 <div class="container-fluid py-3 pr-report"><div class="pr-head"><div><h1><i class="fas fa-chart-line text-primary mr-2"></i>Reporte de pagos</h1><p>Operaciones, recibos, descuentos y medios de pago consolidados.</p></div><button class="btn btn-outline-primary btn-sm" type="button" onclick="openPaymentsPrintPreview(<?php echo htmlspecialchars(json_encode('print_payments_report.php?'.http_build_query($filters)),ENT_QUOTES,'UTF-8'); ?>)"><i class="fas fa-print mr-1"></i> Vista de impresión</button></div>

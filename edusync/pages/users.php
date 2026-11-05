@@ -189,6 +189,30 @@ function user_role_badge($row) {
 .access-tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;padding:.35rem;background:#f1f4f9;border:1px solid #e3e6f0;border-radius:.65rem}.access-tab{border:0;background:transparent;color:#6c7587;font-weight:700;font-size:.82rem;padding:.65rem .9rem;border-radius:.5rem;transition:.18s ease}.access-tab:hover{background:#fff;color:#4e73df}.access-tab.active{background:#fff;color:#4e73df;box-shadow:0 2px 8px rgba(31,45,61,.08)}.access-panel{display:none}.access-panel.active{display:block}
 .student-access-meta{font-size:.78rem;color:#7b8499}.student-access-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .55rem;border-radius:999px;font-size:.72rem;font-weight:700}.student-access-badge.custom{background:#eafaf4;color:#14855f}.student-access-badge.default{background:#fff8e1;color:#8b6b00}.policy-card{border:1px solid #e3e6f0;border-radius:.65rem;box-shadow:0 2px 8px rgba(31,45,61,.05)}.policy-preview{border-left:4px solid #f6c23e;background:#fffaf0;border-radius:.4rem;padding:.85rem 1rem}.policy-status{font-size:.76rem;font-weight:700}.policy-help{font-size:.78rem;color:#7b8499;line-height:1.45}#studentAccessTable td,#studentAccessTable th{vertical-align:middle}
 @media(max-width:1199.98px){.users-toolbar--students{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:991.98px){.users-toolbar--personal{grid-template-columns:repeat(2,minmax(0,1fr))}.users-toolbar-note{grid-column:1/-1;justify-self:start;padding-bottom:0}}@media(max-width:767.98px){.users-toolbar--students{grid-template-columns:repeat(2,minmax(0,1fr))}.user-hero{padding:1rem}.user-stat{margin-bottom:.5rem}.access-tabs{display:grid;grid-template-columns:1fr}.access-tab{width:100%}}@media(max-width:575.98px){.users-toolbar--personal,.users-toolbar--students{grid-template-columns:1fr}}
+
+/* Usuarios y accesos: la cuadrícula responsive original permanece intacta. */
+.users-page .user-hero{border-left-color:#4285f4;border-radius:.55rem;padding:.73rem .95rem;box-shadow:none;margin-bottom:.78rem}
+.users-page .user-hero h1{font-size:1.14rem;line-height:1.3;color:#233b52}
+.users-page .user-hero p{font-size:.77rem;line-height:1.39;color:#6e7891}
+.users-page #new_user{min-height:34px;font-size:.79rem;box-shadow:none}
+.users-page .access-tabs{gap:.35rem;padding:.28rem;margin-bottom:.8rem;border-radius:.52rem}
+.users-page .access-tab{min-height:34px;padding:.48rem .68rem;font-size:.77rem;border-radius:.4rem;box-shadow:none}
+.users-page .access-tab.active{color:#244d8f}
+.users-page .user-stat{border:1px solid #e3e6f0;border-radius:.49rem;box-shadow:none}
+.users-page .user-stat .card-body{padding:.74rem .81rem}
+.users-page .user-stat .label{font-size:.68rem;line-height:1.28;color:#526274}
+.users-page .user-stat .number{font-size:1.28rem;line-height:1.22;font-variant-numeric:tabular-nums;color:#233b52}
+.users-page .user-stat .meta{font-size:.7rem;line-height:1.35}
+.users-page .users-table-card{border:1px solid #e3e6f0;border-radius:.55rem;box-shadow:none!important}
+.users-page .users-table-card>.card-header{padding:.7rem .81rem!important;border-bottom:1px solid #edf0f5}
+.users-page .users-toolbar .form-group{margin-bottom:0}
+.users-page .users-toolbar label{display:block;font-size:.74rem;color:#526274;font-weight:700;margin-bottom:.24rem}
+.users-page .users-toolbar .form-control{height:34px;min-height:34px;border:1px solid #d8deea;border-radius:.4rem;font-size:.8rem;box-shadow:none}
+.users-page :is(#usersTable,#studentAccessTable) thead th{font-size:.74rem;white-space:nowrap;color:#526274;background:#f8fafd}
+.users-page :is(#usersTable,#studentAccessTable) tbody td{font-size:.78rem;vertical-align:middle;color:#344054}
+.users-page :is(#usersTable_wrapper,#studentAccessTable_wrapper) :is(.dataTables_length,.dataTables_filter,.dataTables_info,.dataTables_paginate){font-size:.76rem}
+.users-page .student-access-badge{box-shadow:none;font-size:.7rem}
+.users-page .policy-card{border-color:#e3e6f0;border-radius:.5rem;box-shadow:none}
 </style>
 
 <link rel="stylesheet" href="css/operational_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/operational_consistency.css') ?: 1); ?>">
