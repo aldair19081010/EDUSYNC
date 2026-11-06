@@ -69,6 +69,7 @@ function grp_h($value) {
 function grp_course_page(array $data, $courseId, $format, $index, $total) {
     $course = $data['courses'][$courseId];
     $competencies = $data['competencies'][$courseId] ?? [];
+    $isCompetencyModel = ($course['evaluation_model'] ?? 'weighted') === 'competency';
     ?>
     <section class="print-page">
         <div class="page-topline">
@@ -89,9 +90,9 @@ function grp_course_page(array $data, $courseId, $format, $index, $total) {
                         <?php foreach ($competencies as $competency):
                             $span = max(1, count($competency['evaluations'])) + 1;
                             $pct = rtrim(rtrim(number_format((float)$competency['percentage'], 2, '.', ''), '0'), '.'); ?>
-                            <th colspan="<?= $span ?>" class="competency"><?= grp_h(mb_strtoupper($competency['name'], 'UTF-8')) ?> (<?= grp_h($pct) ?>%)</th>
+                            <th colspan="<?= $span ?>" class="competency"><?= grp_h(mb_strtoupper($competency['name'], 'UTF-8')) ?><?= $isCompetencyModel ? '' : ' ('.grp_h($pct).'%)' ?></th>
                         <?php endforeach; ?>
-                        <th rowspan="2" class="final-col">PROMEDIO FINAL</th>
+                        <?php if (!$isCompetencyModel): ?><th rowspan="2" class="final-col">PROMEDIO FINAL</th><?php endif; ?>
                     </tr>
                     <tr>
                         <?php foreach ($competencies as $competency): ?>
@@ -102,7 +103,7 @@ function grp_course_page(array $data, $courseId, $format, $index, $total) {
                             <?php else: ?>
                                 <th>Sin evaluaciones</th>
                             <?php endif; ?>
-                            <th class="avg-col">PROMEDIO</th>
+                            <th class="avg-col"><?= $isCompetencyModel ? 'RESULTADO' : 'PROMEDIO' ?></th>
                         <?php endforeach; ?>
                     </tr>
                 </thead>
@@ -127,13 +128,12 @@ function grp_course_page(array $data, $courseId, $format, $index, $total) {
                                 <?php
                                 $avg = $values ? array_sum($values) / count($values) : null;
                                 if ($avg !== null) {
-                                    $weighted += $avg * ((float)$competency['percentage'] / 100);
-                                    $hasAny = true;
+                                    if (!$isCompetencyModel) { $weighted += $avg * ((float)$competency['percentage'] / 100); $hasAny = true; }
                                 }
                                 ?>
                                 <td class="avg-col"><?= grp_h(grbd_display_avg($avg, $format)) ?></td>
                             <?php endforeach; ?>
-                            <td class="final-col"><?= grp_h(grbd_display_avg($hasAny ? $weighted : null, $format)) ?></td>
+                            <?php if (!$isCompetencyModel): ?><td class="final-col"><?= grp_h(grbd_display_avg($hasAny ? $weighted : null, $format)) ?></td><?php endif; ?>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>
