@@ -42,7 +42,7 @@ if($sourceId>0){$copy=$conn->prepare('SELECT title,type,description FROM evaluat
 if($evaluationId>0){
  if($evaluationModel!=='competency'){echo '<div class="alert alert-danger">La edición rápida solo corresponde a evaluaciones del modelo por competencias.</div>';exit;}
  $edit=$conn->prepare("SELECT e.title,e.type,e.description FROM evaluations e INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND eac.area_competencia_id=? WHERE e.id=? AND e.teacher_id=? AND e.teacher_course_id=? AND e.academic_year_id=? AND e.bimestre=? LIMIT 1");
- $edit->bind_param('iiiiis',$compId,$evaluationId,$teacherId,$tcid,$context['academic_year_id'],$bim);$edit->execute();$existing=$edit->get_result()->fetch_assoc();$edit->close();
+ $edit->bind_param('iiiiii',$compId,$evaluationId,$teacherId,$tcid,$context['academic_year_id'],$bim);$edit->execute();$existing=$edit->get_result()->fetch_assoc();$edit->close();
  if(!$existing){echo '<div class="alert alert-danger">La evaluación no existe o no pertenece a esta competencia.</div>';exit;}
  $title=$existing['title'];$evaluationType=$existing['type'];$description=$existing['description'];
 }
