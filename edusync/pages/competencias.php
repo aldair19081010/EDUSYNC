@@ -145,7 +145,7 @@ if ($level && !$course_id) {
         
         <div class="card shadow mb-4">
             <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Selecciona un curso para gestionar sus competencias</h6>
+                <h6 class="m-0 font-weight-bold text-primary">Selecciona un curso para gestionar sus componentes de calificación</h6>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -228,7 +228,7 @@ if ($active_year_id > 0) {
 }
 $conn->query("UPDATE general_course_competencies SET is_active = 1 WHERE is_active IS NULL");
 
-// CRUD de competencias generales por curso
+// CRUD de componentes de calificación ponderados por curso
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	$action = $_POST['action'] ?? '';
 	$name = trim($_POST['name'] ?? '');
@@ -276,7 +276,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	}
 }
 
-// Listar competencias generales del curso
+// Listar componentes de calificación del curso
 $competencias_query = $conn->prepare("
     SELECT id, name, percentage
     FROM general_course_competencies
@@ -387,7 +387,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                             <td colspan="3" class="text-center py-4">
                                 <div class="text-muted">
                                     <i class="fa fa-info-circle fa-2x mb-2"></i>
-                                    <p>No hay competencias registradas para este curso. Agregue su primera competencia usando el formulario superior.</p>
+                                    <p>No hay componentes de calificación registrados para este curso. Agregue su primer componente usando el formulario superior.</p>
                                 </div>
                             </td>
                         </tr>
