@@ -162,9 +162,9 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
     while ($r=$q->fetch_assoc()) {if ((float)$r['percentage']<=0)continue;$key=(int)$r['course_id'].':'.(int)$r['teacher_id'];$competencies[$key][(int)$r['id']]=['name'=>$r['name'],'percentage'=>(float)$r['percentage']];}
     $s->close();
     $areaCompetencies=[];
-    if(ibc_table($db,'area_competencies')){
-        $s=$db->prepare('SELECT id,area_id,level,name FROM area_competencies WHERE school_id=? AND academic_year_id=? AND is_active=1 ORDER BY display_order,id');
-        $s->bind_param('ii',$schoolId,$yearId);$s->execute();$q=$s->get_result();
+    if(ibc_table($db,'area_competencies')&&ibc_table($db,'evaluation_area_competencies')&&ibc_col($db,'evaluation_grades','area_competencia_id')){
+        $s=$db->prepare("SELECT id,area_id,level,name FROM area_competencies WHERE school_id=? AND academic_year_id=? AND (is_active=1 OR id IN (SELECT eac.area_competencia_id FROM evaluation_area_competencies eac INNER JOIN evaluations e ON e.id=eac.evaluation_id WHERE eac.school_id=? AND eac.academic_year_id=? AND e.academic_year_id=? AND CAST(e.bimestre AS UNSIGNED)=?)) ORDER BY display_order,id");
+        $s->bind_param('iiiiii',$schoolId,$yearId,$schoolId,$yearId,$yearId,$bimester);$s->execute();$q=$s->get_result();
         while($r=$q->fetch_assoc()){$key=(int)$r['area_id'].':'.(string)$r['level'];$areaCompetencies[$key][(int)$r['id']]=['name'=>$r['name'],'percentage'=>0];}
         $s->close();
     }
@@ -229,6 +229,7 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
         $areaKey=(int)$a['area_id'].':'.(string)$a['level'];$comps=$isCompetency?($areaCompetencies[$areaKey]??[]):($competencies[$compKey]??[]);
         $pct=0.0;foreach($comps as $c)$pct+=(float)$c['percentage'];
         $evals=$evaluations[$tc]??[];$studentKey=ibc_student_key((string)$a['level'],(string)$a['grado'],(string)$a['seccion']);$studentIds=array_keys($students[$studentKey]??[]);$issues=[];
+        if($isCompetency&&(!ibc_table($db,'area_competencies')||!ibc_table($db,'evaluation_area_competencies')||!ibc_col($db,'evaluation_grades','area_competencia_id')))$issues[]='Falta ejecutar sql/evaluation_models_competencies_v1.sql para habilitar el modelo por competencias.';
         if(!$comps)$issues[]=$isCompetency?'Sin competencias del área activas.':'Sin componentes de calificación activos.';
         if(!$isCompetency&&abs($pct-100.0)>0.01)$issues[]='Los porcentajes de los componentes suman '.number_format($pct,2).'%.';
         if(!$evals)$issues[]='Sin evaluaciones activas.';
