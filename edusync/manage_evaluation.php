@@ -96,6 +96,28 @@ if ($id) {
 		exit;
 	}
 }
+// Las evaluaciones del modelo por competencias se editan con el formulario
+// dedicado, que conserva la relación independiente con una sola competencia del área.
+if ($id > 0 && $is_teacher && $teacher_id) {
+    $modelStmt=$conn->prepare("SELECT e.teacher_course_id,e.bimestre,e.academic_year_id,eac.area_competencia_id
+        FROM evaluations e
+        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.teacher_id=e.teacher_id AND tc.school_id=?
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id
+        INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id
+        WHERE e.id=? AND e.teacher_id=? AND COALESCE(ac.evaluation_model,'weighted')='competency' LIMIT 1");
+    if($modelStmt){
+        $modelStmt->bind_param('iii',$school_id,$id,$teacher_id);$modelStmt->execute();$areaEvaluation=$modelStmt->get_result()->fetch_assoc();$modelStmt->close();
+        if($areaEvaluation){
+            $_GET['teacher_course_id']=(int)$areaEvaluation['teacher_course_id'];
+            $_GET['bimestre']=(int)$areaEvaluation['bimestre'];
+            $_GET['competencia_id']=(int)$areaEvaluation['area_competencia_id'];
+            $_GET['evaluation_id']=(int)$id;
+            require __DIR__.'/quick_manage_evaluation.php';
+            exit;
+        }
+    }
+}
+
 // Cargar cursos, grados y secciones asignados al docente
 $cursos = [];
 $curso_grados = [];
