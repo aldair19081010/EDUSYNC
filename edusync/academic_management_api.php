@@ -337,7 +337,7 @@ if ($action === 'copy_year') {
                 $oldArea=(int)$comp['area_id'];if(!isset($areaMap[$oldArea]))continue;$newAreaId=(int)$areaMap[$oldArea];
                 $findComp->bind_param('iiiss',$schoolId,$target,$newAreaId,$comp['level'],$comp['name']);$findComp->execute();
                 if($findComp->get_result()->fetch_assoc())continue;
-                $insertComp->bind_param('iiiisssii',$schoolId,$target,$newAreaId,$comp['level'],$comp['code'],$comp['name'],$comp['description'],$comp['display_order'],$comp['is_active']);
+                $insertComp->bind_param('iiissssii',$schoolId,$target,$newAreaId,$comp['level'],$comp['code'],$comp['name'],$comp['description'],$comp['display_order'],$comp['is_active']);
                 if(!$insertComp->execute())throw new Exception($insertComp->error);$copiedAreaCompetencies++;
             }
             $findComp->close();$insertComp->close();$sourceComps->close();
