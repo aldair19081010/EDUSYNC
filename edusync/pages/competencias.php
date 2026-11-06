@@ -10,7 +10,7 @@ $school_id = $_SESSION['login_school_id'] ?? 0;
 if ($login_type != 2 || !$teacher_id) {
 	echo "<div class='container mt-5'>
 		<div class='alert alert-danger text-center'>
-			<i class='fas fa-exclamation-triangle'></i> Solo los docentes pueden gestionar competencias.
+			<i class='fas fa-exclamation-triangle'></i> Solo los docentes pueden gestionar componentes de calificación.
 		</div>
 	</div>";
 	exit;
@@ -47,12 +47,12 @@ if (!$level) {
     <link rel="stylesheet" href="css/competency_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/competency_consistency.css') ?: 1); ?>">
 <div class="container-fluid co-page">
         <div class="co-head d-sm-flex align-items-center justify-content-between mb-4">
-            <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-tasks"></i> Competencias por Curso</h1>
+            <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-tasks"></i> Componentes de calificación</h1>
         </div>
         
         <div class="card shadow mb-4">
             <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Selecciona un nivel para ver sus cursos y gestionar competencias</h6>
+                <h6 class="m-0 font-weight-bold text-primary">Selecciona un nivel para ver sus cursos y gestionar componentes de calificación</h6>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -163,7 +163,7 @@ if ($level && !$course_id) {
                                         <span class="badge badge-secondary"><?php echo $course['num_grados']; ?> grado(s)</span>
                                     </div>
                                     <div class="text-center mt-3">
-                                        <small class="text-muted"><i class="fas fa-arrow-right text-primary"></i> Click para gestionar competencias</small>
+                                        <small class="text-muted"><i class="fas fa-arrow-right text-primary"></i> Click para gestionar componentes de calificación</small>
                                     </div>
                                 </div>
                             </div>
@@ -287,7 +287,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
 <link rel="stylesheet" href="css/competency_consistency.css?v=<?php echo (int)(@filemtime(__DIR__ . '/../css/competency_consistency.css') ?: 1); ?>">
 <div class="container-fluid co-page">
     <div class="co-head d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-globe"></i> Competencias del Curso</h1>
+        <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-globe"></i> Componentes de calificación</h1>
         <a href="index.php?page=competencias&level=<?php echo urlencode($level); ?>" class="btn btn-sm btn-secondary">
             <i class="fa fa-arrow-left"></i> Volver a Cursos
         </a>
@@ -323,7 +323,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                         </div>
                         <p class="mb-0 small">
                             <?php if ($total_percentage == 100): ?>
-                                El porcentaje total es correcto. Las competencias suman 100%.
+                                El porcentaje total es correcto. Los componentes suman 100%. 
                             <?php else: ?>
                                 El porcentaje total debe ser exactamente 100%.
                             <?php endif; ?>
@@ -336,8 +336,8 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                 <div class="d-flex align-items-start">
                     <i class="fa fa-info-circle mt-1 mr-2"></i>
                     <div>
-                        <strong>¿Qué son las competencias del curso?</strong>
-                        <p class="mb-0 small">Las competencias del curso se aplican a <strong>todos los grados</strong> de este curso. Son útiles cuando quieres usar las mismas competencias para todos los grados del mismo curso.</p>
+                        <strong>¿Qué son los componentes de calificación?</strong>
+                        <p class="mb-0 small">Los componentes de calificación se aplican a <strong>todos los grados</strong> de este curso. Son útiles cuando quieres usar las mismas competencias para todos los grados del mismo curso.</p>
                     </div>
                 </div>
             </div>
@@ -347,7 +347,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                     <input type="hidden" name="action" value="add">
                     <div class="row">
                         <div class="col-md-7 mb-2 mb-md-0">
-                            <input type="text" name="name" class="form-control form-control-sm" placeholder="Nombre de la competencia" required>
+                            <input type="text" name="name" class="form-control form-control-sm" placeholder="Nombre del componente" required>
                         </div>
                         <div class="col-md-3 mb-2 mb-md-0">
                             <div class="input-group input-group-sm">
@@ -410,8 +410,8 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                                 <form method="POST" class="d-inline">
                                     <input type="hidden" name="id" value="<?php echo $c['id'] ?>">
                                     <input type="hidden" name="action" value="delete">
-                                    <button class="btn btn-danger btn-sm" type="submit" data-toggle="tooltip" title="Eliminar competencia" 
-                                        onclick="return confirm('¿Está seguro que desea eliminar esta competencia?\nEsta acción no se puede deshacer.')">
+                                    <button class="btn btn-danger btn-sm" type="submit" data-toggle="tooltip" title="Eliminar componente" 
+                                        onclick="return confirm('¿Está seguro que desea eliminar este componente?\nEsta acción no se puede deshacer.')">
                                         <i class="fa fa-trash"></i>
                                     </button>
                                 </form>
@@ -432,7 +432,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                         </div>
                         <p class="mb-0 small" id="totalMessage">
                             <?php if ($total_percentage == 100): ?>
-                                El porcentaje total es correcto. Las competencias suman 100%.
+                                El porcentaje total es correcto. Los componentes suman 100%. 
                             <?php else: ?>
                                 El porcentaje total debe ser exactamente 100%.
                             <?php endif; ?>
@@ -442,7 +442,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
             </div>
         </div>
         <div class="card-footer">
-            <small class="text-muted"><i class="fa fa-info-circle"></i> Las competencias se utilizan para calcular los promedios finales por bimestre.</small>
+            <small class="text-muted"><i class="fa fa-info-circle"></i> Los componentes se utilizan para calcular los promedios ponderados por bimestre.</small>
         </div>
     </div>
 </div>
@@ -462,7 +462,7 @@ $(document).ready(function() {
 		let alertClass = total == 100 ? 'alert-success' : 'alert-warning';
 		let iconClass = total == 100 ? 'fa-check-circle' : 'fa-exclamation-triangle';
 		let message = total == 100 ? 
-			'El porcentaje total es correcto. Las competencias suman 100%.' : 
+			'El porcentaje total es correcto. Los componentes suman 100%. ' : 
 			'El porcentaje total debe ser exactamente 100%.';
 		
 		$('#totalPercentageContainer').removeClass('alert-success alert-warning').addClass(alertClass);
