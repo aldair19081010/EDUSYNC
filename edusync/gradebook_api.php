@@ -25,6 +25,129 @@ function gradebook_column_exists(mysqli $conn, string $table, string $column): b
     return $result && $result->num_rows > 0;
 }
 
+
+function gradebook_save_area_competency_changes(mysqli $conn,int $schoolId,int $teacherId,int $teacherCourseId,int $bimester,string $gradingSystem,string $notificationSource,array $changes,array $assignment): void {
+    foreach(['evaluation_area_competencies','evaluation_area_grades','evaluation_area_grade_history'] as $table){
+        if(!gradebook_table_exists($conn,$table))gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_dual_model_upgrade.sql para habilitar el registro por competencias.'],409);
+    }
+    $evaluationIds=[];$studentIds=[];
+    foreach($changes as $change){$evaluationIds[]=(int)($change['evaluation_id']??0);$studentIds[]=(int)($change['student_id']??0);}
+    $evaluationIds=array_values(array_unique(array_filter($evaluationIds)));
+    $studentIds=array_values(array_unique($studentIds));
+    if(!$evaluationIds||!$studentIds)gradebook_response(['status'=>0,'message'=>'Los cambios no contienen estudiantes o evaluaciones válidas.']);
+    $evaluationList=implode(',',array_map('intval',$evaluationIds));$studentList=implode(',',array_map('intval',$studentIds));
+    $statusCondition=gradebook_column_exists($conn,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
+    $validEvaluations=[];$evaluationTitles=[];
+    $evaluationResult=$conn->query("SELECT e.id,e.title,eac.area_competency_id FROM evaluations e
+        INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id
+        INNER JOIN area_competencies acomp ON acomp.id=eac.area_competency_id
+        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id
+        WHERE e.id IN ($evaluationList) AND e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId
+          AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
+          AND tc.school_id=$schoolId AND ac.evaluation_mode='competency'
+          AND acomp.school_id=$schoolId AND acomp.academic_year_id=tc.academic_year_id
+          AND acomp.area_id=ac.area_id AND acomp.level=ac.level $statusCondition");
+    while($evaluationResult&&($row=$evaluationResult->fetch_assoc())){
+        $validEvaluations[(int)$row['id']]=(int)$row['area_competency_id'];
+        $evaluationTitles[(int)$row['id']]=(string)($row['title']??'Evaluación');
+    }
+    if(count($validEvaluations)!==count($evaluationIds))gradebook_response(['status'=>0,'message'=>'Una evaluación fue anulada, no pertenece a este curso o no está vinculada a una competencia válida.']);
+
+    $activeYearId=0;$activeYearResult=$conn->query("SELECT id FROM academic_year WHERE school_id=$schoolId AND is_active=1 LIMIT 1");
+    if($activeYearResult&&$activeYearResult->num_rows)$activeYearId=(int)$activeYearResult->fetch_assoc()['id'];
+    $levelEsc=$conn->real_escape_string(mb_strtolower((string)$assignment['level'],'UTF-8'));
+    $gradeEsc=$conn->real_escape_string((string)$assignment['grado']);
+    $section=trim((string)$assignment['seccion']);$sectionEsc=$conn->real_escape_string($section);
+    $sectionCondition="s.seccion='$sectionEsc'";
+    if(in_array(mb_strtoupper($section,'UTF-8'),['U','ÚNICA','UNICA'],true))$sectionCondition="COALESCE(NULLIF(TRIM(s.seccion),''),'U') IN ('U','u','Única','Unica','única')";
+    $currentClassCondition=(int)$assignment['academic_year_id']===$activeYearId
+        ? "((s.status='Activo' OR s.status IS NULL) AND LOWER(s.nivel)='$levelEsc' AND s.grado='$gradeEsc' AND $sectionCondition)"
+        : '0=1';
+    $validStudents=[];$studentResult=$conn->query("SELECT DISTINCT s.id FROM student s WHERE s.id IN ($studentList) AND s.school_id=$schoolId
+        AND ($currentClassCondition OR EXISTS (SELECT 1 FROM evaluation_area_grades eag WHERE eag.student_id=s.id AND eag.evaluation_id IN ($evaluationList)))");
+    while($studentResult&&($row=$studentResult->fetch_assoc()))$validStudents[(int)$row['id']]=true;
+    if(count($validStudents)!==count($studentIds))gradebook_response(['status'=>0,'message'=>'Uno de los estudiantes no pertenece al colegio o al aula seleccionada.']);
+
+    $select=$conn->prepare('SELECT id,grade FROM evaluation_area_grades WHERE evaluation_id=? AND student_id=? LIMIT 1');
+    $insert=$conn->prepare('INSERT INTO evaluation_area_grades (evaluation_id,area_competency_id,student_id,grade) VALUES (?,?,?,?)');
+    $update=$conn->prepare('UPDATE evaluation_area_grades SET grade=? WHERE id=?');
+    $delete=$conn->prepare('DELETE FROM evaluation_area_grades WHERE evaluation_id=? AND student_id=?');
+    $academicYearId=(int)$assignment['academic_year_id'];$userId=(int)($_SESSION['login_id']??0);
+    $saved=0;$gradePushChanges=[];$adminGradeChanges=[];
+    $conn->begin_transaction();
+    try{
+        foreach($changes as $change){
+            $evaluationId=(int)($change['evaluation_id']??0);$studentId=(int)($change['student_id']??0);
+            if(!isset($validEvaluations[$evaluationId],$validStudents[$studentId]))throw new RuntimeException('Se encontró una celda fuera del curso seleccionado.');
+            $value=trim((string)($change['grade']??''));
+            if($gradingSystem==='letters'){
+                $value=mb_strtoupper($value,'UTF-8');
+                if($value!==''&&!in_array($value,['C','B','A','AD'],true))throw new RuntimeException("La calificación $value no es válida. Usa C, B, A o AD.");
+            }elseif($value!==''){
+                if(!is_numeric($value))throw new RuntimeException("La calificación $value no es numérica.");
+                $number=(float)$value;if($number<0||$number>20)throw new RuntimeException('Las calificaciones deben estar entre 0 y 20.');
+                $value=rtrim(rtrim(number_format($number,2,'.',''),'0'),'.');
+            }
+            $select->bind_param('ii',$evaluationId,$studentId);$select->execute();$existing=$select->get_result()->fetch_assoc();
+            $currentValue=$existing?mb_strtoupper(trim((string)$existing['grade']),'UTF-8'):'';
+            $originalValue=mb_strtoupper(trim((string)($change['original']??'')),'UTF-8');
+            $sameOriginal=$currentValue===$originalValue;
+            if($gradingSystem==='numeric'&&$currentValue!==''&&$originalValue!==''&&is_numeric($currentValue)&&is_numeric($originalValue))$sameOriginal=abs((float)$currentValue-(float)$originalValue)<0.0001;
+            if(!$sameOriginal)throw new RuntimeException('Algunas notas cambiaron desde que abriste el libro. Recarga antes de guardar para evitar sobrescribir cambios de otro equipo.');
+
+            if($value===''){
+                if($existing){$delete->bind_param('ii',$evaluationId,$studentId);if(!$delete->execute())throw new RuntimeException($delete->error);}
+            }elseif($existing){
+                $gradeId=(int)$existing['id'];$update->bind_param('si',$value,$gradeId);if(!$update->execute())throw new RuntimeException($update->error);
+            }else{
+                $competencyId=$validEvaluations[$evaluationId];
+                $insert->bind_param('iiis',$evaluationId,$competencyId,$studentId,$value);if(!$insert->execute())throw new RuntimeException($insert->error);
+            }
+
+            $changedForPush=$currentValue!==mb_strtoupper(trim((string)$value),'UTF-8');
+            if($gradingSystem==='numeric'&&$currentValue!==''&&$value!==''&&is_numeric($currentValue)&&is_numeric($value))$changedForPush=abs((float)$currentValue-(float)$value)>=0.0001;
+            if($changedForPush&&$currentValue!=='')$adminGradeChanges[]=['student_id'=>$studentId,'evaluation_id'=>$evaluationId,'old_grade'=>$currentValue,'new_grade'=>$value];
+            if($changedForPush&&$value!==''){
+                if(!isset($gradePushChanges[$studentId]))$gradePushChanges[$studentId]=['created'=>0,'updated'=>0,'evaluation_ids'=>[]];
+                if($currentValue==='')$gradePushChanges[$studentId]['created']++;else$gradePushChanges[$studentId]['updated']++;
+                $gradePushChanges[$studentId]['evaluation_ids'][$evaluationId]=true;
+            }
+            $history=$conn->prepare("INSERT INTO evaluation_area_grade_history (school_id,academic_year_id,evaluation_id,student_id,area_competency_id,previous_grade,new_grade,changed_by,source) VALUES (?,?,?,?,?,?,?,?,?)");
+            $history->bind_param('iiiiissis',$schoolId,$academicYearId,$evaluationId,$studentId,$validEvaluations[$evaluationId],$currentValue,$value,$userId,$notificationSource);
+            if(!$history->execute())throw new RuntimeException($history->error);$history->close();
+            $saved++;
+        }
+        if(gradebook_table_exists($conn,'evaluation_audit_log')){
+            $details=$conn->real_escape_string(json_encode(['teacher_course_id'=>$teacherCourseId,'bimestre'=>$bimester,'changed_cells'=>$saved,'grading_system'=>$gradingSystem,'evaluation_mode'=>'competency'],JSON_UNESCAPED_UNICODE));
+            $ip=$conn->real_escape_string($_SERVER['REMOTE_ADDR']??'');
+            foreach(array_keys($validEvaluations) as $evaluationId)$conn->query("INSERT INTO evaluation_audit_log (school_id,academic_year_id,evaluation_id,teacher_id,user_id,action,details,ip_address) VALUES ($schoolId,$academicYearId,$evaluationId,$teacherId,$userId,'gradebook_saved','$details','$ip')");
+        }
+        $conn->commit();
+    }catch(Throwable $error){
+        $conn->rollback();gradebook_response(['status'=>0,'message'=>$error->getMessage()]);
+    }
+    $pushSummary=['students'=>0,'sent'=>0,'failed'=>0];
+    if($gradePushChanges){
+        try{
+            require_once __DIR__.'/includes/push_notifications.php';
+            foreach($gradePushChanges as $pushStudentId=>$pushData){
+                $ids=array_map('intval',array_keys($pushData['evaluation_ids']));$names=[];
+                foreach($ids as $evaluationId)if(isset($evaluationTitles[$evaluationId]))$names[]=$evaluationTitles[$evaluationId];
+                $push=push_send_grade_notification($conn,$schoolId,(int)$pushStudentId,(string)($assignment['course_name']??'Curso'),$names,(int)$pushData['created'],(int)$pushData['updated'],$bimester,(int)($assignment['academic_year']??date('Y')),$ids);
+                $pushSummary['students']++;$pushSummary['sent']+=(int)($push['sent']??0);$pushSummary['failed']+=(int)($push['failed']??0);
+            }
+        }catch(Throwable $pushError){error_log('[gradebook competency push] '.$pushError->getMessage());}
+    }
+    if($adminGradeChanges){
+        try{
+            require_once __DIR__.'/includes/grade_change_admin_notifications.php';
+            edun_notify_admin_grade_changes($conn,$schoolId,$teacherId,(int)($_SESSION['login_id']??0),$teacherCourseId,$academicYearId,$bimester,(string)$assignment['course_name'],(string)$assignment['grado'],(string)$assignment['seccion'],$notificationSource,$adminGradeChanges);
+        }catch(Throwable $e){error_log('[EduSync competency admin grade changes] '.$e->getMessage());}
+    }
+    gradebook_response(['status'=>1,'message'=>"Se guardaron $saved celdas correctamente.",'saved'=>$saved,'push'=>$pushSummary]);
+}
+
 function gradebook_teacher_period_closed(mysqli $conn, int $schoolId, int $teacherCourseId, int $bimester): bool {
     if (!gradebook_table_exists($conn, 'grade_period_closures')) return false;
     $stmt = $conn->prepare("SELECT id FROM grade_period_closures WHERE school_id=? AND teacher_course_id=? AND bimester=? AND status='Cerrado' LIMIT 1");
@@ -463,7 +586,7 @@ if ($action === 'save') {
     }
     if (count($changes) > 3000) gradebook_response(['status'=>0,'message'=>'Solo puedes guardar hasta 3000 celdas por operación.']);
 
-    $assignmentResult = $conn->query("SELECT tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ay.year academic_year,ay.is_active".(gradebook_column_exists($conn,'academic_year','status')?',ay.status year_status':'')." FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=$teacherCourseId AND tc.teacher_id=$teacherId AND tc.school_id=$schoolId AND ay.school_id=$schoolId LIMIT 1");
+    $assignmentResult = $conn->query("SELECT tc.academic_year_id,tc.grado,tc.seccion,ac.area_id,ac.name course_name,ac.level,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode,ay.year academic_year,ay.is_active".(gradebook_column_exists($conn,'academic_year','status')?',ay.status year_status':'')." FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=$teacherCourseId AND tc.teacher_id=$teacherId AND tc.school_id=$schoolId AND ay.school_id=$schoolId LIMIT 1");
     $assignment = $assignmentResult ? $assignmentResult->fetch_assoc() : null;
     if (!$assignment) gradebook_response(['status'=>0,'message'=>'La asignación no existe o no te pertenece.'],403);
     if ((int)$assignment['is_active'] !== 1 || (isset($assignment['year_status']) && in_array($assignment['year_status'],['Cerrado','Archivado'],true))) gradebook_response(['status'=>0,'message'=>'El año académico está cerrado y sus notas son de solo lectura.']);
@@ -473,6 +596,10 @@ if ($action === 'save') {
     }
     if (gradebook_teacher_period_closed($conn, $schoolId, $teacherCourseId, $bimester)) {
         gradebook_response(['status'=>0,'message'=>'Las notas de este curso y bimestre están cerradas. Solicita una reapertura a Administración.']);
+    }
+
+    if ((string)($assignment['evaluation_mode']??'weighted') === 'competency') {
+        gradebook_save_area_competency_changes($conn,$schoolId,$teacherId,$teacherCourseId,$bimester,$gradingSystem,$notificationSource,$changes,$assignment);
     }
 
     $evaluationIds=[];$studentIds=[];
