@@ -254,7 +254,7 @@ try {
         : ($hasEvaluationCompetencies ? 'COALESCE(ec.competencia_id, 0)' : '0');
     $areaEvaluationJoin = ($hasEvaluationAreaCompetencies && $hasAreaCompetencies) ? 'LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND COALESCE(ac.evaluation_model,\'weighted\')=\'competency\'' : '';
     $areaCompetencyJoin = ($hasAreaCompetencies && $hasAreaGradeCompetency && $hasEvaluationAreaCompetencies) ? 'LEFT JOIN area_competencies acmp ON acmp.id=COALESCE(NULLIF(eg.area_competencia_id,0),eac.area_competencia_id)' : '';
-    $areaCompName = ($hasAreaCompetencies && $hasAreaGradeCompetency) ? "COALESCE(acmp.name,'Competencia del área')" : "'Competencia del área'";
+    $areaCompName = ($hasAreaCompetencies && $hasAreaGradeCompetency && $hasEvaluationAreaCompetencies) ? "COALESCE(acmp.name,'Competencia del área')" : "'Competencia del área'";
     $areaCompId = ($hasAreaGradeCompetency && $hasEvaluationAreaCompetencies) ? 'COALESCE(NULLIF(eg.area_competencia_id,0),eac.area_competencia_id,0)' : '0';
     $compNameSelect = "CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN $areaCompName ELSE $legacyCompName END";
     $compPercentageSelect = "CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN 0 ELSE $legacyCompPercentage END";
