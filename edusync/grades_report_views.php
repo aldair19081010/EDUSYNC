@@ -92,19 +92,22 @@ function report_competency_stats($course, $bi) {
 
 // Se parte de las evaluaciones esperadas y se hace LEFT JOIN a las notas.
 // Así también podemos detectar evaluaciones aún sin calificación.
-$sql = "SELECT s.id student_id, s.name student_name, s.id_no,
-               ac.id course_id, ac.name course_name,
-               e.id evaluation_id, e.title evaluation_title, e.bimestre,
-               eg.grade, ec.competencia_id competency_id,
-               gcc.name competency_name, gcc.percentage
+$sql = "SELECT s.id student_id,s.name student_name,s.id_no,
+               ac.id course_id,ac.name course_name,COALESCE(ac.evaluation_model,'weighted') evaluation_model,
+               e.id evaluation_id,e.title evaluation_title,e.bimestre,
+               eg.grade,
+               CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN eac.area_competencia_id ELSE ec.competencia_id END competency_id,
+               CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN COALESCE(acmp.name,'Competencia del área') ELSE COALESCE(gcc.name,'Componente de calificación') END competency_name,
+               CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN 0 ELSE COALESCE(gcc.percentage,0) END percentage
         FROM evaluations e
         INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=?
         INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=?
-        INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id
-        INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+        LEFT JOIN evaluation_competencias ec ON ec.evaluation_id=e.id AND COALESCE(ac.evaluation_model,'weighted')<>'competency'
+        LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+        LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND eac.school_id=tc.school_id AND eac.academic_year_id=tc.academic_year_id AND COALESCE(ac.evaluation_model,'weighted')='competency'
+        LEFT JOIN area_competencies acmp ON acmp.id=eac.area_competencia_id
         INNER JOIN student s ON s.school_id=?
             AND (
-                -- La nómina actual sólo sirve para el año activo.
                 (EXISTS (SELECT 1 FROM academic_year ay_history
                          WHERE ay_history.id=tc.academic_year_id
                            AND ay_history.school_id=tc.school_id
@@ -113,8 +116,6 @@ $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
                  AND s.grado=? AND s.seccion=?
                  AND (s.status='Activo' OR s.status='1' OR s.status IS NULL))
                 OR
-                -- En un año pasado, los registros de notas determinan
-                -- la pertenencia al aula, aunque el alumno haya ascendido.
                 EXISTS (
                     SELECT 1 FROM evaluation_grades eg_history
                     INNER JOIN evaluations e_history ON e_history.id=eg_history.evaluation_id
@@ -127,9 +128,9 @@ $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
                       AND tc_history.grado=tc.grado AND tc_history.seccion=tc.seccion
                 )
             )
-        LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id
-            AND eg.student_id=s.id
-            AND (eg.competencia_id=ec.competencia_id OR eg.competencia_id IS NULL)
+        LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.student_id=s.id
+            AND ((COALESCE(ac.evaluation_model,'weighted')='competency' AND eg.area_competencia_id=eac.area_competencia_id)
+              OR (COALESCE(ac.evaluation_model,'weighted')<>'competency' AND (eg.competencia_id=ec.competencia_id OR eg.competencia_id IS NULL)))
         WHERE tc.academic_year_id=?
           AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
           AND tc.grado=? AND tc.seccion=?";
@@ -166,7 +167,7 @@ if ($studentId > 0 && $dataMode !== 'trend') {
     $params[] = $studentId;
     $types .= 'i';
 }
-$sql .= ' ORDER BY s.name, ac.name, e.bimestre, gcc.id, e.id';
+$sql .= ' ORDER BY s.name, ac.name, e.bimestre, competency_id, e.id';
 
 $stmt = $conn->prepare($sql);
 if (!$stmt) {
@@ -201,6 +202,7 @@ foreach ($rows as $row) {
     if (!isset($students[$sid]['courses'][$cid])) {
         $students[$sid]['courses'][$cid] = [
             'name' => $row['course_name'],
+            'evaluation_model' => ($row['evaluation_model'] ?? 'weighted') === 'competency' ? 'competency' : 'weighted',
             'competencies' => [],
             'bimesters' => [],
             'values' => [],
@@ -247,12 +249,14 @@ foreach ($students as &$student) {
                 $missing += max(0, $expectedCount - $gradedCount);
                 if ($gradedCount > 0) {
                     $comp['avg'] = array_sum($marks) / $gradedCount;
-                    $weighted += $comp['avg'] * $comp['percentage'] / 100;
+                    if (($course['evaluation_model'] ?? 'weighted') !== 'competency') {
+                        $weighted += $comp['avg'] * $comp['percentage'] / 100;
+                    }
                     $hasGrade = true;
                 }
             }
             unset($comp);
-            $course['bimesters'][$bi] = $hasGrade ? $weighted : null;
+            $course['bimesters'][$bi] = ($hasGrade && ($course['evaluation_model'] ?? 'weighted') !== 'competency') ? $weighted : null;
             $course['missing'][$bi] = $missing;
             $course['expected'][$bi] = $expected;
             $course['graded'][$bi] = $graded;
