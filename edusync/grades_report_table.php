@@ -110,6 +110,20 @@ if ((int)$academic_year_id > 0) {
 }
 
 
+if ($show_avg && !empty($student_id_filter) && empty($course_id_filter)) {
+    // No promediar cursos ponderados y cursos por competencias en un único resultado.
+    $sqlModelCheck="SELECT e.id FROM evaluation_grades eg INNER JOIN evaluations e ON e.id=eg.evaluation_id INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN student s ON s.id=eg.student_id AND s.school_id=tc.school_id WHERE eg.student_id=? AND tc.school_id=? AND COALESCE(ac.evaluation_model,'weighted')='competency'";
+    $modelParams=[$student_id_filter,$school_id];$modelTypes='ii';
+    if(!empty($academic_year_id)){$sqlModelCheck.=" AND tc.academic_year_id=?";$modelParams[]=$academic_year_id;$modelTypes.='i';}
+    if($normalized_level_key!==null){$sqlModelCheck.=" AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?";$modelParams[]=$normalized_level_key;$modelTypes.='s';}
+    if(!empty($grado_filter)){$sqlModelCheck.=" AND tc.grado=?";$modelParams[]=$grado_filter;$modelTypes.='s';}
+    if(!empty($seccion_filter)){$sqlModelCheck.=" AND tc.seccion=?";$modelParams[]=$seccion_filter;$modelTypes.='s';}
+    if(!empty($bimestre_filter)){$sqlModelCheck.=" AND e.bimestre=?";$modelParams[]=$bimestre_filter;$modelTypes.='s';}
+    if(!empty($evaluation_id_filter)){$sqlModelCheck.=" AND e.id=?";$modelParams[]=$evaluation_id_filter;$modelTypes.='i';}
+    $modelCheck=$conn->prepare($sqlModelCheck.' LIMIT 1');
+    if($modelCheck){$modelCheck->bind_param($modelTypes,...$modelParams);$modelCheck->execute();$hasCompetencyCourse=(bool)$modelCheck->get_result()->fetch_assoc();$modelCheck->close();if($hasCompetencyCourse){echo '<div class="alert alert-info mb-0"><strong>Resultados por competencias.</strong> No se calcula un promedio único mezclando cursos. Selecciona un curso para consultar sus competencias y resultados individuales.</div>';exit;}}
+}
+
 if ($show_avg && !empty($student_id_filter)) {    
     if (empty($bimestre_filter)) {        
         echo '<div class="alert alert-warning alert-dismissible fade show" role="alert">
@@ -581,7 +595,11 @@ if ($show_avg && !empty($student_id_filter)) {
     $sql_main = "SELECT s.name as student_name, s.id_no as student_dni, 
                         ac.name as course_name, ac.level as academic_level,
                         tc.grado as evaluation_grado, tc.seccion as evaluation_seccion,
-                        e.title as evaluation_title, 
+                        e.title as evaluation_title,
+                        CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency'
+                             THEN (SELECT acmp.name FROM evaluation_area_competencies eac INNER JOIN area_competencies acmp ON acmp.id=eac.area_competencia_id WHERE eac.evaluation_id=e.id ORDER BY eac.id LIMIT 1)
+                             ELSE (SELECT gcc.name FROM evaluation_competencias ec INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1)
+                        END as evaluation_competency,
                         e.bimestre, eg.grade as nota
                  FROM evaluation_grades eg
                  INNER JOIN student s ON eg.student_id = s.id AND s.school_id = ?
@@ -687,6 +705,7 @@ if ($show_avg && !empty($student_id_filter)) {
                     <th>Grado</th>
                     <th>Sección</th>
                     <th>Evaluación</th>
+                    <th>Competencia / Componente</th>
                     <th>Bimestre</th>
                     <th>Nota</th>
                 </tr>
@@ -703,13 +722,14 @@ if ($show_avg && !empty($student_id_filter)) {
                         <td><?php echo htmlspecialchars($row['evaluation_grado']); ?></td>
                         <td><?php echo htmlspecialchars($row['evaluation_seccion']); ?></td>
                         <td><?php echo htmlspecialchars($row['evaluation_title']); ?></td>
+                        <td><?php echo htmlspecialchars($row['evaluation_competency']??'—'); ?></td>
                         <td><?php echo !empty($row['bimestre']) ? htmlspecialchars($row['bimestre']) . '° Bimestre' : 'N/A'; ?></td>
                         <td><?php echo format_grade($row['nota']); ?></td>
                     </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr class="no-data-row">
-                        <td colspan="10" class="text-center py-4">
+                        <td colspan="11" class="text-center py-4">
                             <i class="fa fa-info-circle mr-2"></i> No se encontraron registros con los filtros seleccionados.
                         </td>
                     </tr>
