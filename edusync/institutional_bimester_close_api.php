@@ -127,7 +127,7 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
 
     $assignments = [];
     $s = $db->prepare("SELECT tc.id,tc.teacher_id,tc.course_id,tc.grado,COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,
-                              ac.name course_name,ac.level,COALESCE(t.name,'Docente no disponible') teacher_name
+                              ac.name course_name,ac.area_id,ac.level,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode,COALESCE(t.name,'Docente no disponible') teacher_name
                        FROM teacher_courses tc
                        INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
                        LEFT JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id
@@ -168,11 +168,23 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
     }
     $s->close();
 
+    $areaCompetencies=[];
+    if(ibc_table($db,'area_competencies')){
+        $s=$db->prepare('SELECT id,area_id,level,name,code,is_active FROM area_competencies WHERE school_id=? AND academic_year_id=? ORDER BY area_id,level,display_order,id');
+        $s->bind_param('ii',$schoolId,$yearId);$s->execute();$q=$s->get_result();
+        while($r=$q->fetch_assoc()){
+            $key=(int)$r['area_id'].':'.mb_strtolower(trim((string)$r['level']),'UTF-8');
+            $areaCompetencies[$key][(int)$r['id']]=['name'=>$r['name'],'code'=>$r['code'],'percentage'=>0.0,'active'=>(int)$r['is_active']];
+        }
+        $s->close();
+    }
+
     $evalStatus = ibc_col($db, 'evaluations', 'status') ? " AND (e.status IS NULL OR e.status<>'Anulada')" : '';
     $evaluations = [];
     $evaluationIds = [];
-    $s = $db->prepare("SELECT e.id,e.teacher_course_id,e.title FROM evaluations e
+    $s = $db->prepare("SELECT e.id,e.teacher_course_id,e.title,tc.course_id,ac.area_id,ac.level,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode FROM evaluations e
                        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=?
+                       INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
                        WHERE e.academic_year_id=? AND CAST(e.bimestre AS UNSIGNED)=?$evalStatus");
     $s->bind_param('iii', $schoolId, $yearId, $bimester);
     $s->execute();
@@ -180,13 +192,15 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
     while ($r = $q->fetch_assoc()) {
         $id = (int)$r['id'];
         $tc = (int)$r['teacher_course_id'];
-        $evaluations[$tc][$id] = ['id'=>$id,'title'=>$r['title']];
+        $evaluations[$tc][$id] = ['id'=>$id,'title'=>$r['title'],'evaluation_mode'=>(string)$r['evaluation_mode'],'course_id'=>(int)$r['course_id'],'area_id'=>(int)$r['area_id'],'level'=>(string)$r['level']];
         $evaluationIds[] = $id;
     }
     $s->close();
 
     $links = [];
     $gradeMap = [];
+    $areaLinks = [];
+    $areaGradeMap = [];
     if ($evaluationIds) {
         $ids = implode(',', array_map('intval', $evaluationIds));
         $q = $db->query("SELECT evaluation_id,competencia_id FROM evaluation_competencias WHERE evaluation_id IN ($ids)");
@@ -194,6 +208,14 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
         $q = $db->query("SELECT evaluation_id,student_id,competencia_id FROM evaluation_grades
                          WHERE evaluation_id IN ($ids) AND grade IS NOT NULL AND TRIM(grade)<>''");
         while ($q && ($r = $q->fetch_assoc())) $gradeMap[(int)$r['evaluation_id']][(int)$r['competencia_id']][(int)$r['student_id']] = true;
+        if(ibc_table($db,'evaluation_area_competencies')){
+            $q=$db->query("SELECT evaluation_id,area_competency_id FROM evaluation_area_competencies WHERE evaluation_id IN ($ids)");
+            while($q&&($r=$q->fetch_assoc()))$areaLinks[(int)$r['evaluation_id']][]=(int)$r['area_competency_id'];
+        }
+        if(ibc_table($db,'evaluation_area_grades')){
+            $q=$db->query("SELECT evaluation_id,student_id,area_competency_id FROM evaluation_area_grades WHERE evaluation_id IN ($ids) AND grade IS NOT NULL AND TRIM(grade)<>''");
+            while($q&&($r=$q->fetch_assoc()))$areaGradeMap[(int)$r['evaluation_id']][(int)$r['area_competency_id']][(int)$r['student_id']]=true;
+        }
     }
 
     $closures = [];
@@ -219,67 +241,58 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
     $openItems = [];
 
     foreach ($assignments as $a) {
-        $tc = (int)$a['id'];
-        $compKey = (int)$a['course_id'] . ':' . (int)$a['teacher_id'];
-        $comps = $competencies[$compKey] ?? [];
-        $pct = 0.0;
-        foreach ($comps as $c) $pct += (float)$c['percentage'];
-        $evals = $evaluations[$tc] ?? [];
-        $studentKey = ibc_student_key((string)$a['level'], (string)$a['grado'], (string)$a['seccion']);
-        $studentIds = array_keys($students[$studentKey] ?? []);
-        $issues = [];
-        if (!$comps) $issues[] = 'Sin competencias activas.';
-        if (abs($pct - 100.0) > 0.01) $issues[] = 'Porcentajes de competencias: ' . number_format($pct, 2) . '%.';
-        if (!$evals) $issues[] = 'Sin evaluaciones activas.';
-        if (!$studentIds) $issues[] = 'Sin estudiantes activos en el aula.';
-
-        $compEvalCount = [];
-        foreach ($comps as $cid => $_) $compEvalCount[(int)$cid] = 0;
-        $expected = 0;
-        $completed = 0;
-        foreach ($evals as $ev) {
-            $evalLinks = array_values(array_unique($links[(int)$ev['id']] ?? []));
-            if (!$evalLinks) {
-                $issues[] = 'La evaluación “' . $ev['title'] . '” no tiene competencia.';
-                continue;
+        $tc=(int)$a['id'];$evals=$evaluations[$tc]??[];
+        $studentKey=ibc_student_key((string)$a['level'],(string)$a['grado'],(string)$a['seccion']);
+        $studentIds=array_keys($students[$studentKey]??[]);$issues=[];$expected=0;$completed=0;
+        $competencyMode=(string)($a['evaluation_mode']??'weighted')==='competency';
+        if($competencyMode){
+            $areaKey=(int)$a['area_id'].':'.mb_strtolower(trim((string)$a['level']),'UTF-8');$comps=$areaCompetencies[$areaKey]??[];
+            if(!$comps)$issues[]='El área y nivel no tienen competencias curriculares configuradas.';
+            if(!$evals)$issues[]='Sin evaluaciones activas.';
+            if(!$studentIds)$issues[]='Sin estudiantes activos en el aula.';
+            foreach($evals as $ev){
+                $evalLinks=array_values(array_unique($areaLinks[(int)$ev['id']]??[]));
+                if(count($evalLinks)!==1){$issues[]='La evaluación “'.$ev['title'].'” debe estar vinculada a una sola competencia del área.';continue;}
+                $cid=(int)$evalLinks[0];
+                if(!isset($comps[$cid])){$issues[]='La evaluación “'.$ev['title'].'” usa una competencia que no corresponde al área o nivel.';continue;}
+                foreach($studentIds as $studentId){$expected++;if(!empty($areaGradeMap[(int)$ev['id']][$cid][$studentId]))$completed++;}
             }
-            foreach ($evalLinks as $cid) {
-                if (!isset($comps[$cid])) {
-                    $issues[] = 'La evaluación “' . $ev['title'] . '” usa una competencia inactiva.';
-                    continue;
-                }
-                $compEvalCount[$cid] = ($compEvalCount[$cid] ?? 0) + 1;
-                foreach ($studentIds as $studentId) {
-                    $expected++;
-                    if (!empty($gradeMap[(int)$ev['id']][$cid][$studentId])) $completed++;
+            if($expected>$completed)$issues[]='Faltan '.($expected-$completed).' calificación(es).';
+        }else{
+            $compKey=(int)$a['course_id'].':'.(int)$a['teacher_id'];$comps=$competencies[$compKey]??[];$pct=0.0;
+            foreach($comps as $item)$pct+=(float)$item['percentage'];
+            if(!$comps)$issues[]='Sin componentes de calificación activos.';
+            if(abs($pct-100.0)>0.01)$issues[]='Porcentajes de componentes: '.number_format($pct,2).'%.';
+            if(!$evals)$issues[]='Sin evaluaciones activas.';
+            if(!$studentIds)$issues[]='Sin estudiantes activos en el aula.';
+            $compEvalCount=[];foreach($comps as $cid=>$_)$compEvalCount[(int)$cid]=0;
+            foreach($evals as $ev){
+                $evalLinks=array_values(array_unique($links[(int)$ev['id']]??[]));
+                if(!$evalLinks){$issues[]='La evaluación “'.$ev['title'].'” no tiene componente de calificación.';continue;}
+                foreach($evalLinks as $cid){
+                    if(!isset($comps[$cid])){$issues[]='La evaluación “'.$ev['title'].'” usa un componente inactivo.';continue;}
+                    $compEvalCount[$cid]=($compEvalCount[$cid]??0)+1;
+                    foreach($studentIds as $studentId){$expected++;if(!empty($gradeMap[(int)$ev['id']][$cid][$studentId]))$completed++;}
                 }
             }
+            foreach($comps as $cid=>$comp)if(($compEvalCount[(int)$cid]??0)<1)$issues[]='El componente “'.$comp['name'].'” no tiene evaluación.';
+            if($expected>$completed)$issues[]='Faltan '.($expected-$completed).' calificación(es).';
         }
-        foreach ($comps as $cid => $comp) if (($compEvalCount[(int)$cid] ?? 0) < 1) $issues[] = 'La competencia “' . $comp['name'] . '” no tiene evaluación.';
-        if ($expected > $completed) $issues[] = 'Faltan ' . ($expected - $completed) . ' calificación(es).';
-
-        $summary['expected_grade_cells'] += $expected;
-        $summary['completed_grade_cells'] += $completed;
-        $closure = $closures[$tc] ?? null;
-        $closed = $closure && ($closure['status'] ?? '') === 'Cerrado';
-        $reopened = $closure && !$closed && !empty($closure['reopened_at']);
-        $ready = count(array_unique($issues)) === 0;
-        $pending = !empty($pendingReopen[$tc]);
-        if ($closed) $summary['closed']++;
-        elseif ($reopened) $summary['reopened']++;
-        elseif ($ready) $summary['ready']++;
-        else $summary['incomplete']++;
-        if ($pending) $summary['pending_reopen']++;
-
-        if (!$closed) {
-            $openItems[] = [
-                'teacher_course_id'=>$tc,'teacher_name'=>$a['teacher_name'],'course_name'=>$a['course_name'],
-                'level'=>$a['level'],'grado'=>$a['grado'],'seccion'=>$a['seccion'],
-                'state'=>$reopened?'Reabierto':($ready?'Listo':'Incompleto'),'pending_reopen'=>$pending,
-                'grade_progress'=>$expected ? round(($completed/$expected)*100,1) : 0,
-                'issues'=>array_slice(array_values(array_unique($issues)),0,6)
-            ];
-        }
+        $summary['expected_grade_cells']+=$expected;$summary['completed_grade_cells']+=$completed;
+        $closure=$closures[$tc]??null;$closed=$closure&&($closure['status']??'')==='Cerrado';
+        $reopened=$closure&&!$closed&&!empty($closure['reopened_at']);
+        $ready=count(array_unique($issues))===0&&$expected>0&&$completed===$expected;
+        $pending=!empty($pendingReopen[$tc]);
+        if($closed)$summary['closed']++;elseif($reopened)$summary['reopened']++;elseif($ready)$summary['ready']++;else$summary['incomplete']++;
+        if($pending)$summary['pending_reopen']++;
+        if(!$closed)$openItems[]=[
+            'teacher_course_id'=>$tc,'teacher_name'=>$a['teacher_name'],'course_name'=>$a['course_name'],
+            'level'=>$a['level'],'grado'=>$a['grado'],'seccion'=>$a['seccion'],
+            'evaluation_mode'=>$competencyMode?'competency':'weighted',
+            'state'=>$reopened?'Reabierto':($ready?'Listo':'Incompleto'),'pending_reopen'=>$pending,
+            'grade_progress'=>$expected?round(($completed/$expected)*100,1):0,
+            'issues'=>array_slice(array_values(array_unique($issues)),0,6)
+        ];
     }
 
     $summary['grade_progress'] = $summary['expected_grade_cells'] > 0 ? round(($summary['completed_grade_cells']/$summary['expected_grade_cells'])*100,1) : 0;
@@ -300,7 +313,7 @@ $userId = (int)($_SESSION['login_id'] ?? 0);
 $loginType = (int)($_SESSION['login_type'] ?? 0);
 if ($schoolId <= 0 || $userId <= 0 || $loginType !== 1) ibc_response(['status'=>0,'message'=>'Solo Administración puede gestionar el cierre institucional.'], 403);
 
-$required = ['institutional_bimester_closures','bimester_locks','academic_periods','academic_year_audit','grade_period_closures','grade_reopen_requests','teacher_courses','academic_courses','general_course_competencies','evaluations','evaluation_competencias','evaluation_grades','student'];
+$required = ['institutional_bimester_closures','bimester_locks','academic_periods','academic_year_audit','grade_period_closures','grade_reopen_requests','teacher_courses','academic_courses','general_course_competencies','area_competencies','evaluation_area_competencies','evaluation_area_grades','evaluations','evaluation_competencias','evaluation_grades','student'];
 $missing = [];
 foreach ($required as $table) if (!ibc_table($conn, $table)) $missing[] = $table;
 if ($missing) ibc_response(['status'=>0,'migration_required'=>true,'message'=>'Falta actualizar la base de datos para el cierre institucional. Ejecuta sql/institutional_bimester_closure_upgrade.sql.','missing_tables'=>$missing], 409);
