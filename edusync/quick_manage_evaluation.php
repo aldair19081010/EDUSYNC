@@ -5,7 +5,7 @@ require_login_modal();
 include __DIR__.'/db_connect.php';
 if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
 $teacherId=(int)($_SESSION['login_teacher_id']??0);$schoolId=(int)($_SESSION['login_school_id']??0);$type=(int)($_SESSION['login_type']??0);
-$tcid=(int)($_GET['teacher_course_id']??0);$bim=(int)($_GET['bimestre']??0);$compId=(int)($_GET['competencia_id']??0);$sourceId=(int)($_GET['source_id']??0);
+$tcid=(int)($_GET['teacher_course_id']??0);$bim=(int)($_GET['bimestre']??0);$compId=(int)($_GET['competencia_id']??0);$sourceId=(int)($_GET['source_id']??0);$evaluationId=(int)($_GET['evaluation_id']??0);
 if($type!==2||$teacherId<=0||$schoolId<=0||$tcid<=0||$bim<1||$bim>4||$compId<=0){echo '<div class="alert alert-danger">Contexto de evaluación no válido.</div>';exit;}
 $stmt=$conn->prepare('SELECT tc.academic_year_id,tc.course_id,ac.name course_name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,"weighted") evaluation_model,tc.grado,tc.seccion FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? AND ay.is_active=1 LIMIT 1');
 $stmt->bind_param('iii',$tcid,$teacherId,$schoolId);$stmt->execute();$context=$stmt->get_result()->fetch_assoc();$stmt->close();
@@ -24,6 +24,13 @@ if($evaluationModel==='competency'){
 }
 $title='';$evaluationType='Tarea';$description='';
 if($sourceId>0){$copy=$conn->prepare('SELECT title,type,description FROM evaluations WHERE id=? AND teacher_id=? AND teacher_course_id=? LIMIT 1');$copy->bind_param('iii',$sourceId,$teacherId,$tcid);$copy->execute();$source=$copy->get_result()->fetch_assoc();$copy->close();if($source){$title='Copia de '.$source['title'];$evaluationType=$source['type'];$description=$source['description'];}}
+if($evaluationId>0){
+ if($evaluationModel!=='competency'){echo '<div class="alert alert-danger">La edición rápida solo corresponde a evaluaciones del modelo por competencias.</div>';exit;}
+ $edit=$conn->prepare("SELECT e.title,e.type,e.description FROM evaluations e INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND eac.area_competencia_id=? WHERE e.id=? AND e.teacher_id=? AND e.teacher_course_id=? AND e.academic_year_id=? AND e.bimestre=? LIMIT 1");
+ $edit->bind_param('iiiiis',$compId,$evaluationId,$teacherId,$tcid,$context['academic_year_id'],$bim);$edit->execute();$existing=$edit->get_result()->fetch_assoc();$edit->close();
+ if(!$existing){echo '<div class="alert alert-danger">La evaluación no existe o no pertenece a esta competencia.</div>';exit;}
+ $title=$existing['title'];$evaluationType=$existing['type'];$description=$existing['description'];
+}
 ?>
 <style>
 /* Evaluación rápida dentro de la planilla: compacto y uniforme. */
@@ -54,14 +61,14 @@ if($sourceId>0){$copy=$conn->prepare('SELECT title,type,description FROM evaluat
 </style>
 <form id="quick-evaluation-form">
  <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'],ENT_QUOTES,'UTF-8'); ?>">
- <input type="hidden" name="teacher_course_id" value="<?php echo $tcid; ?>"><input type="hidden" name="academic_year_id" value="<?php echo (int)$context['academic_year_id']; ?>"><input type="hidden" name="teacher_id" value="<?php echo $teacherId; ?>"><input type="hidden" name="bimestre" value="<?php echo $bim; ?>"><?php if($evaluationModel==='competency'): ?><input type="hidden" name="area_competencia_id" value="<?php echo $compId; ?>"><?php else: ?><input type="hidden" name="competencias[]" value="<?php echo $compId; ?>"><?php endif; ?>
+ <input type="hidden" name="id" value="<?php echo $evaluationId; ?>"><input type="hidden" name="teacher_course_id" value="<?php echo $tcid; ?>"><input type="hidden" name="academic_year_id" value="<?php echo (int)$context['academic_year_id']; ?>"><input type="hidden" name="teacher_id" value="<?php echo $teacherId; ?>"><input type="hidden" name="bimestre" value="<?php echo $bim; ?>"><?php if($evaluationModel==='competency'): ?><input type="hidden" name="area_competencia_id" value="<?php echo $compId; ?>"><?php else: ?><input type="hidden" name="competencias[]" value="<?php echo $compId; ?>"><?php endif; ?>
  <div class="qev-context mb-3"><strong><?php echo htmlspecialchars($context['course_name'].' · '.$context['level'].' · '.$context['grado'].' '.($context['seccion']?:'U')); ?></strong><br><small class="text-muted"><?php echo htmlspecialchars($context['competency_name']); ?><?php if($evaluationModel==='weighted'): ?> (<?php echo number_format((float)$context['percentage'],2); ?>%)<?php else: ?> · Competencia del área<?php endif; ?> · <?php echo $bim; ?>° Bimestre</small></div>
  <div class="form-group"><label class="small font-weight-bold">Nombre de la evaluación</label><input class="form-control" name="title" maxlength="150" required autofocus value="<?php echo htmlspecialchars($title,ENT_QUOTES,'UTF-8'); ?>" placeholder="Ej. Práctica 2"></div>
  <div class="form-group"><label class="small font-weight-bold">Tipo</label><select class="form-control" name="type" required><?php foreach(['Tarea','Examen','Práctica','Proyecto','Participación','Otro'] as $option): ?><option value="<?php echo $option; ?>" <?php echo $evaluationType===$option?'selected':''; ?>><?php echo $option; ?></option><?php endforeach; ?></select></div>
  <div class="form-group"><label class="small font-weight-bold">Tema u observación <span class="text-muted font-weight-normal">(opcional)</span></label><textarea class="form-control" name="description" rows="2" placeholder="Se usará el nombre si se deja vacío"><?php echo htmlspecialchars($description); ?></textarea></div>
  <div class="d-flex justify-content-end border-top pt-3 mt-3">
   <button type="button" class="btn btn-light btn-sm mr-2" data-dismiss="modal"><i class="fas fa-times mr-1"></i>Cancelar</button>
-  <button type="submit" class="btn btn-primary btn-sm" id="quick-evaluation-save"><i class="fas fa-save mr-1"></i>Guardar evaluación</button>
+  <button type="submit" class="btn btn-primary btn-sm" id="quick-evaluation-save"><i class="fas fa-save mr-1"></i><?php echo $evaluationId>0?"Actualizar evaluación":"Guardar evaluación"; ?></button>
  </div>
 </form>
 <script>
