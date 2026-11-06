@@ -79,9 +79,12 @@ if ($action === 'list') {
     if ($status === 'suspended') $where[] = "ac.course_status = 'Suspendido'";
     if ($status === 'inactive') $where[] = "ac.course_status = 'Inactivo'";
     if ($search !== '') { $where[] = '(ac.name LIKE ? OR ac.course_code LIKE ? OR a.name LIKE ?)'; $like = "%$search%"; $types .= 'sss'; array_push($params, $like, $like, $like); }
+    $areaCompetencyCountSql = amHasColumn($conn,'area_competencies','id')
+        ? '(SELECT COUNT(*) FROM area_competencies acmp WHERE acmp.school_id=ac.school_id AND acmp.academic_year_id=ac.academic_year_id AND acmp.area_id=ac.area_id AND acmp.level=ac.level AND acmp.is_active=1)'
+        : '0';
     $sql = "SELECT ac.*, a.name area_name, a.color area_color,
             (SELECT COUNT(*) FROM general_course_competencies gcc WHERE gcc.course_id=ac.id AND (gcc.academic_year_id=ac.academic_year_id OR gcc.academic_year_id IS NULL) AND gcc.is_active=1) component_count,
-            (SELECT COUNT(*) FROM area_competencies acmp WHERE acmp.school_id=ac.school_id AND acmp.academic_year_id=ac.academic_year_id AND acmp.area_id=ac.area_id AND acmp.level=ac.level AND acmp.is_active=1) area_competency_count,
+            $areaCompetencyCountSql area_competency_count,
             (SELECT COUNT(*) FROM teacher_courses tc WHERE tc.course_id=ac.id AND tc.academic_year_id=ac.academic_year_id) teacher_assignment_count
             FROM academic_courses ac LEFT JOIN areas a ON a.id=ac.area_id AND a.school_id=ac.school_id
             WHERE " . implode(' AND ', $where) . ' ORDER BY ac.level, ac.display_order, a.name, ac.name';
