@@ -80,7 +80,7 @@ if ($action === 'list') {
     if ($status === 'inactive') $where[] = "ac.course_status = 'Inactivo'";
     if ($search !== '') { $where[] = '(ac.name LIKE ? OR ac.course_code LIKE ? OR a.name LIKE ?)'; $like = "%$search%"; $types .= 'sss'; array_push($params, $like, $like, $like); }
     $sql = "SELECT ac.*, a.name area_name, a.color area_color,
-            (SELECT COUNT(*) FROM general_course_competencies gcc WHERE gcc.course_id=ac.id AND (gcc.academic_year_id=ac.academic_year_id OR gcc.academic_year_id IS NULL) AND gcc.is_active=1) competency_count,
+            (SELECT COUNT(*) FROM general_course_competencies gcc WHERE gcc.course_id=ac.id AND (gcc.academic_year_id=ac.academic_year_id OR gcc.academic_year_id IS NULL) AND gcc.is_active=1) component_count,
             (SELECT COUNT(*) FROM teacher_courses tc WHERE tc.course_id=ac.id AND tc.academic_year_id=ac.academic_year_id) teacher_assignment_count
             FROM academic_courses ac LEFT JOIN areas a ON a.id=ac.area_id AND a.school_id=ac.school_id
             WHERE " . implode(' AND ', $where) . ' ORDER BY ac.level, ac.display_order, a.name, ac.name';
@@ -88,7 +88,7 @@ if ($action === 'list') {
     $stmt->bind_param($types, ...$params); $stmt->execute(); $res = $stmt->get_result(); $rows = [];
     while ($row = $res->fetch_assoc()) $rows[] = $row;
     $stmt->close();
-    $totalAreas = 0; $active = 0; $withoutArea = 0; $withoutCompetencies = 0;
+    $totalAreas = 0; $active = 0; $withoutArea = 0; $withoutComponents = 0;
     $areaIds = [];
     foreach ($rows as $row) {
         if ($row['area_id']) $areaIds[(int)$row['area_id']] = true; else $withoutArea++;
@@ -96,7 +96,7 @@ if ($action === 'list') {
         if ((int)$row['competency_count'] === 0) $withoutCompetencies++;
     }
     $totalAreas = count($areaIds);
-    amResponse(['status'=>1, 'courses'=>$rows, 'stats'=>['areas'=>$totalAreas,'courses'=>count($rows),'active'=>$active,'without_area'=>$withoutArea,'without_competencies'=>$withoutCompetencies]]);
+    amResponse(['status'=>1, 'courses'=>$rows, 'stats'=>['areas'=>$totalAreas,'courses'=>count($rows),'active'=>$active,'without_area'=>$withoutArea,'without_components'=>$withoutCompetencies]]);
 }
 
 if ($action === 'areas') {
