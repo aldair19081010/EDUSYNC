@@ -28,7 +28,7 @@ if (!$identity || (int)$identity['type']!==1) {
 
 $owner=$conn->prepare("SELECT e.id,e.title,e.bimestre,e.type,
     tc.academic_year_id,tc.grado,COALESCE(NULLIF(tc.seccion,''),'U') seccion,
-    ac.name course_name,ac.level,ay.year,ay.is_active,t.name teacher_name
+    ac.name course_name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,'weighted') evaluation_model,ay.year,ay.is_active,t.name teacher_name
     FROM evaluations e
     INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=?
     INNER JOIN academic_courses ac ON ac.id=tc.course_id
@@ -43,16 +43,20 @@ if (!$evaluation) {
     return;
 }
 
+$isCompetencyModel=($evaluation['evaluation_model']??'weighted')==='competency';
 $competencies=[];
-$q=$conn->prepare("SELECT gcc.id,gcc.name,gcc.percentage
-    FROM evaluation_competencias ec
-    INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
-    WHERE ec.evaluation_id=? ORDER BY ec.id");
-if ($q) {
-    $q->bind_param('i',$evaluationId);$q->execute();
-    $result=$q->get_result();
-    while ($row=$result->fetch_assoc()) $competencies[]=$row;
-    $q->close();
+if($isCompetencyModel){
+    $q=$conn->prepare("SELECT acmp.id,acmp.name,0 percentage
+        FROM evaluation_area_competencies eac
+        INNER JOIN area_competencies acmp ON acmp.id=eac.area_competencia_id
+        WHERE eac.evaluation_id=? AND eac.school_id=? AND eac.academic_year_id=? LIMIT 1");
+    if($q){$q->bind_param('iii',$evaluationId,$school,(int)$evaluation['academic_year_id']);$q->execute();$result=$q->get_result();while($row=$result->fetch_assoc())$competencies[]=$row;$q->close();}
+}else{
+    $q=$conn->prepare("SELECT gcc.id,gcc.name,gcc.percentage
+        FROM evaluation_competencias ec
+        INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+        WHERE ec.evaluation_id=? ORDER BY ec.id");
+    if($q){$q->bind_param('i',$evaluationId);$q->execute();$result=$q->get_result();while($row=$result->fetch_assoc())$competencies[]=$row;$q->close();}
 }
 
 $grade=trim((string)$evaluation['grado']);
@@ -75,7 +79,8 @@ $activeFlag=$active?1:0;
 $stmt->bind_param('iiissss',$school,$evaluationId,$activeFlag,$level,$grade,$section,$section);
 $stmt->execute();$students=$stmt->get_result()->fetch_all(MYSQLI_ASSOC);$stmt->close();
 $notes=[];
-$stmt=$conn->prepare("SELECT eg.student_id,eg.competencia_id,eg.grade
+$gradeCompetencyField=$isCompetencyModel?'area_competencia_id':'competencia_id';
+$stmt=$conn->prepare("SELECT eg.student_id,eg.$gradeCompetencyField competency_id,eg.grade
     FROM evaluation_grades eg INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
     WHERE eg.evaluation_id=?");
 if ($stmt) {
@@ -101,7 +106,7 @@ edn_header('evaluation','Calificaciones de la evaluación',
   <div class="col-md-6 mb-2">
     <div class="card shadow-sm h-100"><div class="card-body py-3">
       <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Curso y aula</div>
-      <div class="font-weight-bold text-gray-800"><?= $e($evaluation['course_name']) ?></div>
+      <div class="font-weight-bold text-gray-800"><?= $e($evaluation['course_name']) ?></div><div class="small text-muted"><?= $isCompetencyModel ? 'Evaluación por competencias' : 'Promedio ponderado' ?></div>
       <div class="small text-muted"><?= $e($level.' · '.$grade.' '.$section) ?> · <?= $e($evaluation['year']) ?></div>
     </div></div>
   </div>
@@ -141,7 +146,7 @@ edn_header('evaluation','Calificaciones de la evaluación',
               <?php foreach ($competencies as $comp): ?>
                 <th class="text-center">
                   <div class="font-weight-bold"><?= $e($comp['name']) ?></div>
-                  <span class="badge badge-primary"><?= $e($comp['percentage']) ?>%</span>
+                  <?php if(!$isCompetencyModel): ?><span class="badge badge-primary"><?= $e($comp['percentage']) ?>%</span><?php endif; ?>
                 </th>
               <?php endforeach; ?>
             </tr>
