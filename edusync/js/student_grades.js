@@ -81,6 +81,17 @@
         function summaryCard(icon, label, value, note) {
             return '<div class="sg-summary-card"><span class="sg-summary-icon"><i class="fas ' + icon + '"></i></span><div class="sg-summary-copy"><div class="sg-summary-label">' + esc(label) + '</div><div class="sg-summary-value">' + value + '</div>' + (note ? '<div class="sg-summary-note">' + esc(note) + '</div>' : '') + '</div></div>';
         }
+        function isCompetencyCourse(course) { return !!course && course.evaluation_mode === 'competency'; }
+        function courseModelPill(course) {
+            return isCompetencyCourse(course)
+                ? '<span class="badge badge-success">Por competencias</span>'
+                : gradePill(course,false);
+        }
+        function competencyAttentionCount(course) {
+            return (course.competencias || []).filter(function(comp) {
+                return ['B','C'].indexOf(String(comp.nivel_logro || '').toUpperCase()) !== -1;
+            }).length;
+        }
         function renderSummary() {
             if (!state.yearData) {
                 $summary.html(summaryCard('fa-star','Resultado','—','Sin notas publicadas') + summaryCard('fa-book-open','Cursos evaluados','0','') + summaryCard('fa-life-ring','Por reforzar','0','') + summaryCard('fa-calendar-alt','Avance','0 / 4','Bimestres publicados'));
@@ -89,8 +100,15 @@
             if (state.view === 'annual') {
                 var annualCourses = state.yearData.promedios_por_curso || [];
                 var published = (state.yearData.bimestres || []).length;
-                var attention = annualCourses.filter(function (course) { return ['B','C'].indexOf(resultLevel(course)) !== -1; }).length;
-                $summary.html(summaryCard('fa-star','Resultado anual',gradePill(state.yearData,false),'Con los bimestres publicados') + summaryCard('fa-book-open','Cursos con notas',String(annualCourses.length),'En el año seleccionado') + summaryCard('fa-life-ring','Por reforzar',String(attention),'Cursos en nivel B o C') + summaryCard('fa-calendar-check','Avance',published + ' / 4','Bimestres publicados'));
+                var hasCompetencyModel = !!state.yearData.tiene_modelo_competencias || annualCourses.some(isCompetencyCourse);
+                var attention = annualCourses.reduce(function(total,course) {
+                    return total + (isCompetencyCourse(course) ? competencyAttentionCount(course) : (['B','C'].indexOf(resultLevel(course)) !== -1 ? 1 : 0));
+                },0);
+                var annualResult = hasCompetencyModel
+                    ? '<span class="badge badge-success">Resultados individuales</span>'
+                    : gradePill(state.yearData,false);
+                var annualNote = hasCompetencyModel ? 'No se calcula un promedio general entre áreas.' : 'Con los bimestres publicados';
+                $summary.html(summaryCard('fa-star',hasCompetencyModel?'Resultado anual':'Resultado anual',annualResult,annualNote) + summaryCard('fa-book-open','Cursos con notas',String(annualCourses.length),'En el año seleccionado') + summaryCard('fa-life-ring','Resultados por reforzar',String(attention),'Competencias o cursos en nivel B o C') + summaryCard('fa-calendar-check','Avance',published + ' / 4','Bimestres publicados'));
                 return;
             }
             var bim = selectedBimesterData();
@@ -98,7 +116,15 @@
                 $summary.html(summaryCard('fa-star','Resultado','—','Bimestre sin publicar') + summaryCard('fa-book-open','Cursos evaluados','0','') + summaryCard('fa-life-ring','Por reforzar','0','') + summaryCard('fa-calendar-alt','Bimestre',roman(state.bimester) + ' / IV','Aún sin calificaciones'));
                 return;
             }
-            $summary.html(summaryCard('fa-star','Resultado del bimestre',gradePill(bim,false),'Promedio de cursos evaluados') + summaryCard('fa-book-open','Cursos evaluados',String(bim.cursos_evaluados || (bim.cursos || []).length),'Con calificaciones publicadas') + summaryCard('fa-life-ring','Por reforzar',String(bim.cursos_por_reforzar || 0),'Cursos en nivel B o C') + summaryCard('fa-calendar-alt','Bimestre',roman(bim.numero) + ' / IV','Año ' + state.year));
+            var hasCompetencyModel = !!bim.tiene_modelo_competencias || (bim.cursos || []).some(isCompetencyCourse);
+            var resultValue = hasCompetencyModel
+                ? '<span class="badge badge-success">Por competencias</span>'
+                : gradePill(bim,false);
+            var resultNote = hasCompetencyModel ? 'No hay promedio general del área.' : 'Promedio de cursos evaluados';
+            var attention = (bim.cursos || []).reduce(function(total,course) {
+                return total + (isCompetencyCourse(course) ? competencyAttentionCount(course) : (['B','C'].indexOf(resultLevel(course)) !== -1 ? 1 : 0));
+            },0);
+            $summary.html(summaryCard('fa-star',hasCompetencyModel?'Resultados del bimestre':'Resultado del bimestre',resultValue,resultNote) + summaryCard('fa-book-open','Cursos evaluados',String(bim.cursos_evaluados || (bim.cursos || []).length),'Con calificaciones publicadas') + summaryCard('fa-life-ring','Resultados por reforzar',String(attention),'Competencias o cursos en nivel B o C') + summaryCard('fa-calendar-alt','Bimestre',roman(bim.numero) + ' / IV','Año ' + state.year));
         }
         function renderBimesterNav() {
             var available = {};
@@ -107,7 +133,12 @@
             for (var i=1;i<=4;i++) {
                 var bim = available[i];
                 var active = Number(state.bimester) === i && state.view === 'bimester';
-                if (bim) html += '<button type="button" class="sg-bimester-btn' + (active ? ' active' : '') + '" data-bimester="' + i + '"><span><strong>' + roman(i) + ' Bimestre</strong><small>Publicado</small></span>' + gradePill(bim,true) + '</button>';
+                if (bim) {
+                    var bimResult = bim.tiene_modelo_competencias
+                        ? '<span class="badge badge-success">Competencias</span>'
+                        : gradePill(bim,true);
+                    html += '<button type="button" class="sg-bimester-btn' + (active ? ' active' : '') + '" data-bimester="' + i + '"><span><strong>' + roman(i) + ' Bimestre</strong><small>Publicado</small></span>' + bimResult + '</button>';
+                }
                 else html += '<button type="button" class="sg-bimester-btn is-empty" disabled><span><strong>' + roman(i) + ' Bimestre</strong><small>Sin publicar</small></span><i class="far fa-clock"></i></button>';
             }
             $nav.html(html).toggleClass('d-none', state.view === 'annual');
@@ -127,12 +158,24 @@
             courses.forEach(function (course,index) {
                 var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
                 var trend = trendForCourse(course.curso,bim.numero);
-                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div></td><td><span class="sg-area-name">' + esc(area) + '</span></td><td class="sg-result-cell">' + gradePill(course,false) + '</td><td class="sg-trend-cell">' + trendPill(trend) + '</td><td class="sg-action-cell"><button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></td></tr>';
-                cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + gradePill(course,false) + '</div><div class="sg-mobile-course-bottom">' + trendPill(trend) + '<button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></div></article>';
+                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div></td><td><span class="sg-area-name">' + esc(area) + '</span></td><td class="sg-result-cell">' + courseModelPill(course) + '</td><td class="sg-trend-cell">' + trendPill(isCompetencyCourse(course) ? 'sin_datos' : trend) + '</td><td class="sg-action-cell"><button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></td></tr>';
+                cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + courseModelPill(course) + '</div><div class="sg-mobile-course-bottom">' + trendPill(isCompetencyCourse(course) ? 'sin_datos' : trend) + '<button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></div></article>';
             });
             $content.html('<div class="sg-desktop-table sg-table-wrap"><table class="table sg-table"><thead><tr><th>Curso</th><th>Área</th><th class="text-center">Resultado</th><th>Evolución</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="sg-mobile-list">' + cards + '</div>');
         }
         function annualCell(course,bimNumber) {
+            if (isCompetencyCourse(course)) {
+                var entries = (course.competencias || []).filter(function(comp) {
+                    var values = comp.detalle_bimestres || {};
+                    return values[String(bimNumber)] != null;
+                });
+                if (!entries.length) return '<span class="text-muted">—</span>';
+                return '<div class="sg-annual-competency-list">' + entries.map(function(comp) {
+                    var value = comp.detalle_bimestres[String(bimNumber)];
+                    var level = (comp.detalle_niveles || {})[String(bimNumber)] || levelFromNumeric(value);
+                    return '<div class="sg-annual-competency-item"><span>' + esc(comp.nombre || 'Competencia') + '</span>' + gradePill({promedio:String(value),nivel_logro:level,escala:comp.escala || 'numerica'},true) + '</div>';
+                }).join('') + '</div>';
+            }
             var values = course.detalle_bimestres || {}, levels = course.detalle_niveles || {}, raw = values[String(bimNumber)];
             if (raw == null) return '<span class="text-muted">—</span>';
             var level = levels[String(bimNumber)] || levelFromNumeric(raw);
@@ -148,8 +191,12 @@
             courses.forEach(function (course) {
                 var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
                 var annualEntity = {promedio:course.promedio_anual,nivel_logro:course.nivel_logro,escala:course.escala};
-                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div><div class="sg-area-name">' + esc(area) + '</div></td><td class="sg-bim-col">' + annualCell(course,1) + '</td><td class="sg-bim-col">' + annualCell(course,2) + '</td><td class="sg-bim-col">' + annualCell(course,3) + '</td><td class="sg-bim-col">' + annualCell(course,4) + '</td><td class="sg-result-cell">' + gradePill(annualEntity,false) + '</td><td class="sg-trend-cell">' + trendPill(course.tendencia) + '</td></tr>';
-                cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + gradePill(annualEntity,false) + '</div><div class="sg-mobile-bim-grid"><span class="sg-area-name">I:</span>' + annualCell(course,1) + '<span class="sg-area-name ml-1">II:</span>' + annualCell(course,2) + '<span class="sg-area-name ml-1">III:</span>' + annualCell(course,3) + '<span class="sg-area-name ml-1">IV:</span>' + annualCell(course,4) + '</div><div class="sg-mobile-course-bottom">' + trendPill(course.tendencia) + '</div></article>';
+                var annualResult = isCompetencyCourse(course)
+                    ? '<span class="badge badge-success">Por competencias</span>'
+                    : gradePill(annualEntity,false);
+                var annualTrend = isCompetencyCourse(course) ? trendPill('sin_datos') : trendPill(course.tendencia);
+                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div><div class="sg-area-name">' + esc(area) + '</div></td><td class="sg-bim-col">' + annualCell(course,1) + '</td><td class="sg-bim-col">' + annualCell(course,2) + '</td><td class="sg-bim-col">' + annualCell(course,3) + '</td><td class="sg-bim-col">' + annualCell(course,4) + '</td><td class="sg-result-cell">' + annualResult + '</td><td class="sg-trend-cell">' + annualTrend + '</td></tr>';
+                cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + annualResult + '</div><div class="sg-mobile-bim-grid"><span class="sg-area-name">I:</span>' + annualCell(course,1) + '<span class="sg-area-name ml-1">II:</span>' + annualCell(course,2) + '<span class="sg-area-name ml-1">III:</span>' + annualCell(course,3) + '<span class="sg-area-name ml-1">IV:</span>' + annualCell(course,4) + '</div><div class="sg-mobile-course-bottom">' + annualTrend + '</div></article>';
             });
             $content.html('<div class="sg-desktop-table sg-table-wrap"><table class="table sg-table sg-annual-table"><thead><tr><th>Curso</th><th class="sg-bim-col">I</th><th class="sg-bim-col">II</th><th class="sg-bim-col">III</th><th class="sg-bim-col">IV</th><th class="text-center">Resultado</th><th>Evolución</th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="sg-mobile-list">' + cards + '</div>');
         }
@@ -162,6 +209,7 @@
                 ? course.area.nombre
                 : (course.area || 'Área General');
             var competencies = course.competencias || [];
+            var competencyMode = isCompetencyCourse(course);
 
             function numeric(value) {
                 if (value == null || value === '') return null;
@@ -214,10 +262,11 @@
             html += '<div>' + esc(area) + '</div>';
             html += '<div class="sg-ir-meta">Año académico ' + esc(state.year) + '</div>';
             html += '</div>';
-            html += '<div class="sg-ir-result">';
-            html += '<small>Promedio ponderado</small>';
-            html += '<div class="sg-ir-result-pill">' + gradePill(course,false) + '</div>';
-            html += '</div>';
+            if (competencyMode) {
+                html += '<div class="sg-ir-result"><small>Modelo de evaluación</small><div class="sg-ir-result-pill"><span class="badge badge-success">Por competencias</span></div><div class="sg-ir-meta">Sin promedio final del área</div></div>';
+            } else {
+                html += '<div class="sg-ir-result"><small>Promedio ponderado</small><div class="sg-ir-result-pill">' + gradePill(course,false) + '</div></div>';
+            }
             html += '</div>';
 
             if (!competencies.length) {
@@ -242,10 +291,12 @@
                     html += '<small>Competencia ' + String(compIndex + 1).padStart(2,'0') + '</small>';
                     html += '<h4>' + esc(compName) + '</h4>';
                     html += '</div>';
-                    html += '<div class="sg-ir-meta-badges">';
-                    html += '<span class="sg-ir-info-badge"><i class="fas fa-percentage"></i>Ponderación ' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</span>';
-                    html += '<span class="sg-ir-info-badge"><i class="fas fa-calculator"></i>Aporte ' + numberText(contribution,2) + '</span>';
-                    html += '</div>';
+                    if (!competencyMode) {
+                        html += '<div class="sg-ir-meta-badges">';
+                        html += '<span class="sg-ir-info-badge"><i class="fas fa-percentage"></i>Ponderación ' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</span>';
+                        html += '<span class="sg-ir-info-badge"><i class="fas fa-calculator"></i>Aporte ' + numberText(contribution,2) + '</span>';
+                        html += '</div>';
+                    }
                     html += '</div>';
 
                     html += '<div class="sg-ir-evaluation-block">';
@@ -278,12 +329,13 @@
                     html += '</div>';
 
                     html += '<div class="sg-ir-competency-footer">';
-                    html += '<span class="sg-ir-footer-label">Promedio de la competencia</span>';
+                    html += '<span class="sg-ir-footer-label">' + (competencyMode ? 'Resultado de la competencia' : 'Promedio de la competencia') + '</span>';
                     html += '<span class="sg-ir-footer-average">' + gradePill(avgEntity,true) + '</span>';
                     html += '</div>';
                     html += '</div>';
                 });
 
+                if (!competencyMode) {
                 html += '<div class="sg-ir-calc-compact">';
                 html += '<button class="sg-ir-calc-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-ir-calculation-panel" aria-expanded="false" aria-controls="sg-ir-calculation-panel">';
                 html += '<span><i class="fas fa-calculator mr-2"></i>Ver detalle del cálculo ponderado</span>';
@@ -319,6 +371,7 @@
                 html += '</table></div>';
                 html += '</div></div>';
                 html += '</div>';
+                }
             }
 
             html += '</section>';
