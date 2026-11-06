@@ -1941,14 +1941,21 @@ function save_payment(){
 		$updates[] = "`$key` = '$value'";
 	}
 
-	// De-duplicación: si ya existe una evaluación equivalente, convertir a UPDATE
+	// Evitar duplicados solo dentro del mismo modelo y la misma competencia.
+	// Nunca convertir una evaluación ponderada existente en una evaluación
+	// del catálogo curricular independiente por compartir el título.
 	if (empty($id)) {
 		$esc_title = $this->db->real_escape_string($title);
 		$esc_bim = $this->db->real_escape_string($bimestre);
 		$tid = intval($teacher_id);
 		$tcid = intval($teacher_course_id);
 		$ayid = intval($academic_year_id);
-		$check = $this->db->query("SELECT id FROM evaluations WHERE title = '$esc_title' AND teacher_id = $tid AND teacher_course_id = $tcid AND academic_year_id = $ayid AND bimestre = '$esc_bim' LIMIT 1");
+        if ($evaluation_model === 'competency') {
+            $areaCompId = (int)$area_competency_id;
+            $check = $this->db->query("SELECT e.id FROM evaluations e INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND eac.area_competencia_id=$areaCompId WHERE e.title='$esc_title' AND e.teacher_id=$tid AND e.teacher_course_id=$tcid AND e.academic_year_id=$ayid AND e.bimestre='$esc_bim' LIMIT 1");
+        } else {
+            $check = $this->db->query("SELECT e.id FROM evaluations e WHERE e.title='$esc_title' AND e.teacher_id=$tid AND e.teacher_course_id=$tcid AND e.academic_year_id=$ayid AND e.bimestre='$esc_bim' AND NOT EXISTS (SELECT 1 FROM evaluation_area_competencies eac WHERE eac.evaluation_id=e.id) LIMIT 1");
+        }
 		if ($check && $check->num_rows > 0) {
 			$id = intval($check->fetch_assoc()['id']);
 		}
@@ -2099,7 +2106,10 @@ function save_payment(){
 			$user_id=intval($_SESSION['login_id']??0);$reason_safe=$this->db->real_escape_string($reason);$ok=$this->db->query("UPDATE evaluations SET status='Anulada',annulled_at=NOW(),annulled_by=$user_id,annulment_reason='$reason_safe' WHERE id=$id AND teacher_id=$teacher_id");if(!$ok)return json_encode(['status'=>0,'message'=>'No se pudo anular la evaluación.']);
 			$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'annulled',['reason'=>$reason,'grades_preserved'=>$grade_count]);return json_encode(['status'=>1,'action'=>'annulled','message'=>'La evaluación fue anulada y sus notas se conservaron.']);
 		}
-		$delete=$this->db->query("DELETE FROM evaluation_competencias WHERE evaluation_id=$id")&&$this->db->query("DELETE FROM evaluations WHERE id=$id AND teacher_id=$teacher_id");if($delete){$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'deleted',['title'=>$evaluation['title'],'without_grades'=>true]);return json_encode(['status'=>1,'action'=>'deleted','message'=>'La evaluación sin notas fue eliminada.']);}
+		$deleteLegacyLinks=$this->db->query("DELETE FROM evaluation_competencias WHERE evaluation_id=$id");
+        $areaLinkTable=$this->db->query("SHOW TABLES LIKE 'evaluation_area_competencies'");
+        $deleteAreaLinks=(!$areaLinkTable||$areaLinkTable->num_rows===0)?true:(bool)$this->db->query("DELETE FROM evaluation_area_competencies WHERE evaluation_id=$id");
+		$delete=$deleteLegacyLinks&&$deleteAreaLinks&&$this->db->query("DELETE FROM evaluations WHERE id=$id AND teacher_id=$teacher_id");if($delete){$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'deleted',['title'=>$evaluation['title'],'without_grades'=>true]);return json_encode(['status'=>1,'action'=>'deleted','message'=>'La evaluación sin notas fue eliminada.']);}
 		return json_encode(['status'=>0,'message'=>'Error al eliminar la evaluación.']);
 	}
 	function save_evaluation_grades() {
