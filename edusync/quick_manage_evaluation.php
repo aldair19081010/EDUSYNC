@@ -14,8 +14,9 @@ $evaluationModel=($context['evaluation_model']??'weighted')==='competency'?'comp
 $areaCompetencies=[];
 if($evaluationModel==='competency'){
  $areaLinkTable=$conn->query("SHOW TABLES LIKE 'evaluation_area_competencies'");
+ $areaCatalogTable=$conn->query("SHOW TABLES LIKE 'area_competencies'");
  $areaGradeColumn=$conn->query("SHOW COLUMNS FROM evaluation_grades LIKE 'area_competencia_id'");
- if(!$areaLinkTable||$areaLinkTable->num_rows===0||!$areaGradeColumn||$areaGradeColumn->num_rows===0){echo '<div class="alert alert-warning">Ejecuta <strong>sql/evaluation_models_competencies_v1.sql</strong> para habilitar las evaluaciones por competencias.</div>';exit;}
+ if(!$areaLinkTable||$areaLinkTable->num_rows===0||!$areaCatalogTable||$areaCatalogTable->num_rows===0||!$areaGradeColumn||$areaGradeColumn->num_rows===0){echo '<div class="alert alert-warning">Ejecuta <strong>sql/evaluation_models_competencies_v1.sql</strong> para habilitar las evaluaciones por competencias.</div>';exit;}
  if($bim<0||$bim>4||($evaluationId>0&&($bim<1||$compId<=0))){echo '<div class="alert alert-danger">Bimestre o competencia no válidos para la evaluación.</div>';exit;}
  $catalog=$conn->prepare('SELECT id,name FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND is_active=1 ORDER BY display_order,id');
  $catalog->bind_param('iiis',$schoolId,$context['academic_year_id'],$context['area_id'],$context['level']);$catalog->execute();$catResult=$catalog->get_result();while($row=$catResult->fetch_assoc())$areaCompetencies[]=$row;$catalog->close();
