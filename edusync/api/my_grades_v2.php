@@ -257,6 +257,7 @@ try {
     $createdSelect = grades_has_column($conn, 'evaluations', 'created_at') ? 'e.created_at' : 'NULL';
     $obsSelect = grades_has_column($conn, 'evaluations', 'description') ? 'e.description' : "''";
     $courseNameSelect = grades_has_column($conn, 'academic_courses', 'name') ? "COALESCE(ac.name, e.title, 'Curso')" : "COALESCE(e.title, 'Curso')";
+    $courseModeSelect = grades_has_column($conn, 'academic_courses', 'evaluation_mode') ? "COALESCE(ac.evaluation_mode,'weighted')" : "'weighted'";
     $courseIdSelect = grades_has_column($conn, 'teacher_courses', 'course_id') ? 'COALESCE(tc.course_id, 0)' : '0';
 
     $sql = "SELECT e.id AS evaluation_id, e.title, $obsSelect AS observacion, $bimSelect AS bimestre, $createdSelect AS created_at,
@@ -268,7 +269,7 @@ try {
                    $areaNameSelect AS area_nombre,
                    $areaColorSelect AS area_color,
                    $areaDescriptionSelect AS area_descripcion,
-                   $tcYearSelect AS tc_year, $eYearSelect AS e_year
+                   $tcYearSelect AS tc_year, $eYearSelect AS e_year, $courseModeSelect AS evaluation_mode
             FROM evaluation_grades eg
             INNER JOIN evaluations e ON e.id = eg.evaluation_id
             INNER JOIN teacher_courses tc ON tc.id = e.teacher_course_id
@@ -282,10 +283,37 @@ try {
             ORDER BY e.id ASC";
     $gradesResult = $conn->query($sql);
     if (!$gradesResult) throw new RuntimeException('Consulta calificaciones: ' . $conn->error);
+    $gradeRows=[];
+    while($row=$gradesResult->fetch_assoc())$gradeRows[]=$row;
+
+    if(grades_has_table($conn,'area_competencies')&&grades_has_table($conn,'evaluation_area_competencies')&&grades_has_table($conn,'evaluation_area_grades')){
+        $areaGradeSql="SELECT e.id AS evaluation_id,e.title,
+            ".(grades_has_column($conn,'evaluations','description')?'e.description':"''")." AS observacion,
+            ".(grades_has_column($conn,'evaluations','bimestre')?'e.bimestre':"'1'")." AS bimestre,
+            ".(grades_has_column($conn,'evaluations','created_at')?'e.created_at':'NULL')." AS created_at,
+            eag.grade,eac.area_competency_id AS competencia_id,acomp.name AS competencia_nombre,
+            0 AS porcentaje,tc.course_id,ac.name AS curso,
+            ".($hasAreas?"COALESCE(a.name,'Área General')":"'Área General'")." AS area_nombre,
+            ".($hasAreas&&grades_has_column($conn,'areas','color')?"COALESCE(a.color,'#6c757d')":"'#6c757d'")." AS area_color,
+            ".($hasAreas&&grades_has_column($conn,'areas','description')?'a.description':"''")." AS area_descripcion,
+            tc.academic_year_id AS tc_year,e.academic_year_id AS e_year,'competency' AS evaluation_mode
+            FROM evaluation_area_grades eag
+            INNER JOIN evaluations e ON e.id=eag.evaluation_id
+            INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND eac.area_competency_id=eag.area_competency_id
+            INNER JOIN area_competencies acomp ON acomp.id=eac.area_competency_id
+            INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+            INNER JOIN academic_courses ac ON ac.id=tc.course_id
+            ".($hasAreas?'LEFT JOIN areas a ON a.id=ac.area_id':'')."
+            WHERE eag.student_id=$studentIdsSql AND tc.school_id=$studentSchoolId AND ac.school_id=$studentSchoolId
+            ORDER BY e.id ASC";
+        $areaGradeResult=$conn->query($areaGradeSql);
+        if(!$areaGradeResult)throw new RuntimeException('Consulta de competencias: '.$conn->error);
+        while($row=$areaGradeResult->fetch_assoc())$gradeRows[]=$row;
+    }
 
     $bucket = [];
     $usedCompetencies = [];
-    while ($row = $gradesResult->fetch_assoc()) {
+    foreach ($gradeRows as $row) {
         // La ficha individual filtra por teacher_courses.academic_year_id.
         // No inferimos el año por fecha de creación ni por otros campos.
         $yearLabel = null;
@@ -305,13 +333,14 @@ try {
             $bucket[$yearLabel][$bim][$courseId] = [
                 'nombre'=>(string)$row['curso'],
                 'area'=>['nombre'=>(string)$row['area_nombre'],'color'=>(string)$row['area_color'],'descripcion'=>(string)($row['area_descripcion'] ?? '')],
+                'evaluation_mode'=>(string)($row['evaluation_mode']??'weighted'),
                 'competencias'=>[]
             ];
         }
         if (!isset($bucket[$yearLabel][$bim][$courseId]['competencias'][$compId])) {
             $bucket[$yearLabel][$bim][$courseId]['competencias'][$compId] = [
                 'nombre'=>(string)$row['competencia_nombre'],
-                'peso'=>max(0.0, (float)$row['porcentaje']/100.0),
+                'peso'=>((string)($row['evaluation_mode']??'weighted')==='competency'?0.0:max(0.0,(float)$row['porcentaje']/100.0)),
                 'notas'=>[]
             ];
         }
@@ -329,7 +358,7 @@ try {
         ];
         $bucket[$yearLabel][$bim][$courseId]['competencias'][$compId]['notas'][] = $evaluation;
         if (!isset($usedCompetencies[$yearLabel][$bim][$compId])) {
-            $usedCompetencies[$yearLabel][$bim][$compId] = ['nombre'=>(string)$row['competencia_nombre'],'peso'=>max(0.0,(float)$row['porcentaje']/100.0)];
+            $usedCompetencies[$yearLabel][$bim][$compId] = ['nombre'=>(string)$row['competencia_nombre'],'peso'=>((string)($row['evaluation_mode']??'weighted')==='competency'?0.0:max(0.0,(float)$row['porcentaje']/100.0))];
         }
     }
 
