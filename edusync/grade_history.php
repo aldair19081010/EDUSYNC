@@ -6,7 +6,17 @@ include __DIR__.'/db_connect.php';
 $schoolId=(int)($_SESSION['login_school_id']??0);$teacherId=(int)($_SESSION['login_teacher_id']??0);$type=(int)($_SESSION['login_type']??0);$evaluationId=(int)($_GET['evaluation_id']??0);$studentId=(int)($_GET['student_id']??0);
 $table=$conn->query("SHOW TABLES LIKE 'evaluation_grade_history'");if(!$table||!$table->num_rows){echo '<div class="alert alert-warning mb-0">Ejecuta <strong>sql/gradebook_history_upgrade.sql</strong> para habilitar este historial.</div>';exit;}
 if($type!==2||$teacherId<=0||$schoolId<=0){echo '<div class="alert alert-danger mb-0">No tienes permisos para consultar este historial.</div>';exit;}
-$stmt=$conn->prepare('SELECT e.title,s.name student_name,gcc.name competency_name FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN student s ON s.id=? AND s.school_id=tc.school_id LEFT JOIN evaluation_competencias ec ON ec.evaluation_id=e.id LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id WHERE e.id=? AND e.teacher_id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');$stmt->bind_param('iiiii',$studentId,$evaluationId,$teacherId,$teacherId,$schoolId);$stmt->execute();$context=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$context){echo '<div class="alert alert-danger mb-0">La nota no existe o no te pertenece.</div>';exit;}
+$stmt=$conn->prepare("SELECT e.title,s.name student_name,
+CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN COALESCE(acmp.name,'Competencia del área') ELSE COALESCE(gcc.name,'Componente de calificación') END competency_name
+FROM evaluations e
+INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
+INNER JOIN student s ON s.id=? AND s.school_id=tc.school_id
+LEFT JOIN evaluation_competencias ec ON ec.evaluation_id=e.id AND COALESCE(ac.evaluation_model,'weighted')<>'competency'
+LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND COALESCE(ac.evaluation_model,'weighted')='competency'
+LEFT JOIN area_competencies acmp ON acmp.id=eac.area_competencia_id
+WHERE e.id=? AND e.teacher_id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1");$stmt->bind_param('iiiii',$studentId,$evaluationId,$teacherId,$teacherId,$schoolId);$stmt->execute();$context=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$context){echo '<div class="alert alert-danger mb-0">La nota no existe o no te pertenece.</div>';exit;}
 $history=[];$stmt=$conn->prepare('SELECT h.previous_grade,h.new_grade,h.source,h.created_at,u.name changed_by_name FROM evaluation_grade_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.school_id=? AND h.evaluation_id=? AND h.student_id=? ORDER BY h.created_at DESC,h.id DESC LIMIT 50');$stmt->bind_param('iii',$schoolId,$evaluationId,$studentId);$stmt->execute();$result=$stmt->get_result();while($row=$result->fetch_assoc())$history[]=$row;$stmt->close();
 ?>
 <div class="mb-3"><strong><?php echo htmlspecialchars($context['student_name']); ?></strong><br><small class="text-muted"><?php echo htmlspecialchars($context['title'].' · '.($context['competency_name']?:'Sin competencia')); ?></small></div>
