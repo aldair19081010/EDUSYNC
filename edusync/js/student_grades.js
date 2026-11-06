@@ -98,7 +98,11 @@
                 var attention = annualCourses.filter(function (course) { return ['B','C'].indexOf(resultLevel(course)) !== -1; }).length;
                 competencyCourses.forEach(function(course){(course.competencias||[]).forEach(function(comp){if(['B','C'].indexOf(comp.nivel_logro||'')!==-1)attention++;});});
                 var annualResult = annualCourses.length ? gradePill(state.yearData,false) : '<span class="badge badge-info">Por competencias</span>';
-                $summary.html(summaryCard('fa-star',annualCourses.length?'Resultado anual':'Resultados anuales',annualResult,'Los resultados se muestran por modelo de evaluación') + summaryCard('fa-book-open','Cursos con notas',String(annualCourses.length+competencyCourses.length),'En el año seleccionado') + summaryCard('fa-life-ring','Por reforzar',String(attention),'Resultados en nivel B o C') + summaryCard('fa-calendar-check','Avance',published + ' / 4','Bimestres publicados'));
+                var annualLabel = annualCourses.length ? (competencyCourses.length ? 'Promedio anual ponderado' : 'Promedio anual') : 'Resultados por competencia';
+                var annualNote = competencyCourses.length && annualCourses.length
+                    ? 'Excluye cursos por competencias, que se muestran por separado'
+                    : (competencyCourses.length ? 'Resultados independientes por competencia' : 'Promedio de cursos ponderados');
+                $summary.html(summaryCard('fa-star',annualLabel,annualResult,annualNote) + summaryCard('fa-book-open','Cursos con notas',String(annualCourses.length+competencyCourses.length),'En el año seleccionado') + summaryCard('fa-life-ring','Por reforzar',String(attention),'Resultados en nivel B o C') + summaryCard('fa-calendar-check','Avance',published + ' / 4','Bimestres publicados'));
                 return;
             }
             var bim = selectedBimesterData();
@@ -107,8 +111,11 @@
                 return;
             }
             var hasWeighted=(bim.cursos||[]).some(function(course){return course.evaluation_model!=='competency';});
+            var hasAreaCompetency=(bim.cursos||[]).some(function(course){return course.evaluation_model==='competency';});
             var bimResult=hasWeighted?gradePill(bim,false):'<span class="badge badge-info">Por competencias</span>';
-            $summary.html(summaryCard('fa-star',hasWeighted?'Resultado del bimestre':'Resultados del bimestre',bimResult,hasWeighted?'Promedio de cursos ponderados':'Cada competencia tiene su propio resultado') + summaryCard('fa-book-open','Cursos evaluados',String(bim.cursos_evaluados || (bim.cursos || []).length),'Con calificaciones publicadas') + summaryCard('fa-life-ring','Por reforzar',String(bim.cursos_por_reforzar || 0),'Resultados en nivel B o C') + summaryCard('fa-calendar-alt','Bimestre',roman(bim.numero) + ' / IV','Año ' + state.year));
+            var bimLabel=hasWeighted?'Promedio de cursos ponderados':'Resultados por competencia';
+            var bimNote=hasWeighted&&hasAreaCompetency?'No incluye los cursos que se evalúan por competencias':(hasWeighted?'Promedio de los cursos con ponderación':'Cada competencia tiene un resultado independiente');
+            $summary.html(summaryCard('fa-star',bimLabel,bimResult,bimNote) + summaryCard('fa-book-open','Cursos evaluados',String(bim.cursos_evaluados || (bim.cursos || []).length),'Con calificaciones publicadas') + summaryCard('fa-life-ring','Por reforzar',String(bim.cursos_por_reforzar || 0),'Resultados en nivel B o C') + summaryCard('fa-calendar-alt','Bimestre',roman(bim.numero) + ' / IV','Año ' + state.year));
         }
         function renderBimesterNav() {
             var available = {};
