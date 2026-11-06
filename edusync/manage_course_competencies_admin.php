@@ -2,7 +2,7 @@
 include_once __DIR__.'/includes/session_check.php';require_login_modal();include __DIR__.'/db_connect.php';
 $schoolId=(int)($_SESSION['login_school_id']??0);$courseId=(int)($_GET['course_id']??0);$yearId=(int)($_GET['academic_year_id']??0);
 if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
-$stmt=$conn->prepare('SELECT ac.name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,'weighted') evaluation_model,ay.year FROM academic_courses ac INNER JOIN academic_year ay ON ay.id=ac.academic_year_id WHERE ac.id=? AND ac.school_id=? AND ac.academic_year_id=?');$stmt->bind_param('iii',$courseId,$schoolId,$yearId);$stmt->execute();$course=$stmt->get_result()->fetch_assoc();$stmt->close();
+$stmt=$conn->prepare('SELECT ac.name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,"weighted") evaluation_model,ay.year FROM academic_courses ac INNER JOIN academic_year ay ON ay.id=ac.academic_year_id WHERE ac.id=? AND ac.school_id=? AND ac.academic_year_id=?');$stmt->bind_param('iii',$courseId,$schoolId,$yearId);$stmt->execute();$course=$stmt->get_result()->fetch_assoc();$stmt->close();
 if(!$course){echo '<div class="alert alert-danger">El curso no existe o pertenece a otro año académico.</div>';exit;}
 $isCompetencyModel=($course['evaluation_model']??'weighted')==='competency';
 ?>
