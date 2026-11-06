@@ -34,7 +34,7 @@ function agca_year(mysqli $db,int $school,int $yearId): ?array {
 }
 function agca_assignment(mysqli $db,int $school,int $yearId,int $tcId): ?array {
     $statusCol=agca_col($db,'academic_year','status')?',ay.status year_status':",'' year_status";
-    $s=$db->prepare("SELECT tc.id,tc.teacher_id,tc.course_id,tc.academic_year_id,tc.grado,COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,ac.name course_name,ac.level,ay.year,ay.is_active$statusCol,COALESCE(t.name,'Docente no disponible') teacher_name FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id LEFT JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id WHERE tc.id=? AND tc.school_id=? AND tc.academic_year_id=? LIMIT 1");
+    $s=$db->prepare("SELECT tc.id,tc.teacher_id,tc.course_id,tc.academic_year_id,tc.grado,COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,ac.name course_name,ac.area_id,ac.level,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode,ay.year,ay.is_active$statusCol,COALESCE(t.name,'Docente no disponible') teacher_name FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id LEFT JOIN teacher t ON t.id=tc.teacher_id AND t.school_id=tc.school_id WHERE tc.id=? AND tc.school_id=? AND tc.academic_year_id=? LIMIT 1");
     $s->bind_param('iii',$tcId,$school,$yearId);$s->execute();$r=$s->get_result()->fetch_assoc();$s->close();return $r?:null;
 }
 function agca_section_sql(mysqli $db,string $section): string {
@@ -66,9 +66,60 @@ function agca_audit(mysqli $db,int $school,int $yearId,int $tcId,int $teacherId,
         if($s){$s->bind_param('iiisss',$school,$yearId,$userId,$action,$json,$ip);$s->execute();$s->close();}
     }
 }
+function agca_validate_area_model(mysqli $db,int $school,array $a,int $bim): array {
+    $tc=(int)$a['id'];$teacher=(int)$a['teacher_id'];$year=(int)$a['academic_year_id'];$course=(int)$a['course_id'];$area=(int)($a['area_id']??0);$level=(string)$a['level'];$issues=[];
+    if((int)$a['is_active']!==1||in_array((string)($a['year_status']??''),['Cerrado','Archivado'],true))$issues[]='El año académico no está activo.';
+    foreach(['area_competencies','evaluation_area_competencies','evaluation_area_grades'] as $table)if(!agca_table($db,$table))$issues[]='Ejecuta sql/evaluation_dual_model_upgrade.sql para habilitar el cierre por competencias.';
+    $comps=[];
+    if($area>0&&agca_table($db,'area_competencies')){
+        $s=$db->prepare('SELECT id,name,code,is_active FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? ORDER BY display_order,id');
+        $s->bind_param('iiis',$school,$year,$area,$level);$s->execute();$r=$s->get_result();
+        while($x=$r->fetch_assoc())$comps[(int)$x['id']]=['id'=>(int)$x['id'],'name'=>$x['name'],'code'=>$x['code'],'percentage'=>0,'active'=>(int)$x['is_active']];
+        $s->close();
+    }
+    if(!$comps)$issues[]='El área y nivel no tienen competencias curriculares configuradas.';
+    $status=agca_col($db,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
+    $evals=[];
+    if(agca_table($db,'evaluation_area_competencies')&&agca_table($db,'area_competencies')){
+        $s=$db->prepare("SELECT e.id,e.title,e.type,eac.area_competency_id,acomp.name competency_name,acomp.school_id competency_school_id,acomp.academic_year_id competency_year_id,acomp.area_id competency_area_id,acomp.level competency_level,acomp.is_active competency_active FROM evaluations e LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id LEFT JOIN area_competencies acomp ON acomp.id=eac.area_competency_id WHERE e.teacher_course_id=? AND e.teacher_id=? AND e.academic_year_id=? AND CAST(e.bimestre AS UNSIGNED)=?$status ORDER BY e.id");
+        $s->bind_param('iiii',$tc,$teacher,$year,$bim);$s->execute();$r=$s->get_result();
+        while($x=$r->fetch_assoc()){
+            $id=(int)$x['id'];$cid=(int)($x['area_competency_id']??0);
+            $x['id']=$id;$x['competencies']=[];
+            if($cid>0)$x['competencies'][]=['id'=>$cid,'name'=>(string)($x['competency_name']??'Competencia no disponible'),'percentage'=>0,'active'=>(int)($x['competency_active']??0)];
+            $x['area_competency_id']=$cid;$evals[$id]=$x;
+            if($cid<=0)$issues[]='La evaluación “'.$x['title'].'” no tiene una competencia del área asociada.';
+            elseif((int)$x['competency_school_id']!==$school||(int)$x['competency_year_id']!==$year||(int)$x['competency_area_id']!==$area||(string)$x['competency_level']!==$level)$issues[]='La evaluación “'.$x['title'].'” está vinculada a una competencia que no corresponde al área o nivel del curso.';
+            elseif(!isset($comps[$cid]))$comps[$cid]=['id'=>$cid,'name'=>(string)$x['competency_name'],'percentage'=>0,'active'=>(int)$x['competency_active']];
+        }
+        $s->close();
+    }
+    if(!$evals)$issues[]='No hay evaluaciones activas registradas en el bimestre.';
+    $section=agca_section_sql($db,(string)$a['seccion']);$levelEsc=$db->real_escape_string(mb_strtolower($level,'UTF-8'));$gradeEsc=$db->real_escape_string((string)$a['grado']);$students=[];
+    $q=$db->query("SELECT s.id,s.id_no,s.name FROM student s WHERE s.school_id=$school AND (s.status='Activo' OR s.status IS NULL) AND LOWER(s.nivel)='$levelEsc' AND s.grado='$gradeEsc' AND $section ORDER BY s.name");
+    while($q&&($x=$q->fetch_assoc()))$students[(int)$x['id']]=['id'=>(int)$x['id'],'id_no'=>$x['id_no'],'name'=>$x['name']];
+    if(!$students)$issues[]='No hay estudiantes activos en el aula.';
+    $expected=0;$completed=0;
+    if($evals&&$students&&agca_table($db,'evaluation_area_grades')){
+        $eids=implode(',',array_map('intval',array_keys($evals)));$sids=implode(',',array_map('intval',array_keys($students)));$map=[];
+        $q=$db->query("SELECT evaluation_id,area_competency_id,student_id FROM evaluation_area_grades WHERE evaluation_id IN ($eids) AND student_id IN ($sids) AND grade IS NOT NULL AND TRIM(grade)<>''");
+        while($q&&($x=$q->fetch_assoc()))$map[(int)$x['evaluation_id']][(int)$x['area_competency_id']][(int)$x['student_id']]=true;
+        foreach($evals as $ev){
+            $cid=(int)$ev['area_competency_id'];if($cid<=0||!isset($comps[$cid]))continue;$missing=0;
+            foreach($students as $sid=>$student){$expected++;if(!empty($map[$ev['id']][$cid][$sid]))$completed++;else$missing++;}
+            if($missing)$issues[]='La evaluación “'.$ev['title'].'” tiene '.$missing.' estudiante(s) sin nota en “'.$comps[$cid]['name'].'”.';
+        }
+    }
+    $issues=array_values(array_unique($issues));$progress=$expected?round(($completed/$expected)*100,1):0;$ready=count($issues)===0&&$expected>0&&$completed===$expected;
+    $summary=['evaluation_mode'=>'competency','percentage_total'=>0,'competencies'=>count($comps),'evaluations'=>count($evals),'students'=>count($students),'expected_grade_cells'=>$expected,'completed_grade_cells'=>$completed,'progress'=>$ready?100:min(99.9,$progress)];
+    $snapshot=['generated_at'=>date('Y-m-d H:i:s'),'evaluation_mode'=>'competency','assignment'=>['teacher_course_id'=>$tc,'teacher_id'=>$teacher,'teacher_name'=>$a['teacher_name'],'course_id'=>$course,'course_name'=>$a['course_name'],'area_id'=>$area,'level'=>$level,'grado'=>$a['grado'],'seccion'=>$a['seccion'],'academic_year_id'=>$year,'year'=>$a['year'],'bimester'=>$bim,'evaluation_mode'=>'competency'],'competencies'=>array_values($comps),'evaluations'=>array_values($evals),'students'=>array_values($students),'summary'=>$summary];
+    return ['ready'=>$ready,'issues'=>$issues,'summary'=>$summary,'snapshot'=>$snapshot];
+}
+
 function agca_validate(mysqli $db,int $school,array $a,int $bim): array {
     $tc=(int)$a['id'];$teacher=(int)$a['teacher_id'];$year=(int)$a['academic_year_id'];$course=(int)$a['course_id'];$issues=[];
     if((int)$a['is_active']!==1||in_array((string)($a['year_status']??''),['Cerrado','Archivado'],true)) $issues[]='El año académico no está activo.';
+    if((string)($a['evaluation_mode']??'weighted')==='competency')return agca_validate_area_model($db,$school,$a,$bim);
 
     $comps=[];$pct=0.0;
     $s=$db->prepare('SELECT id,name,percentage FROM general_course_competencies WHERE course_id=? AND teacher_id=? AND academic_year_id=? AND is_active=1 ORDER BY id');
