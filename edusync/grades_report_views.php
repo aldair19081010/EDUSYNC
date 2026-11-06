@@ -94,6 +94,15 @@ function report_competency_stats($course, $bi) {
     }
     return $result;
 }
+function report_competency_cell($course,$bi) {
+    $stats=report_competency_stats($course,$bi);
+    if(!$stats['rows'])return '<span class="text-muted">—</span>';
+    $html='<div class="gr-competency-cell">';
+    foreach($stats['rows'] as $row){
+        $html.='<div><span>'.htmlspecialchars((string)$row['name'],ENT_QUOTES,'UTF-8').'</span><strong>'.report_fmt($row['avg']).' · '.htmlspecialchars($row['status']['letter']).'</strong></div>';
+    }
+    return $html.'</div>';
+}
 
 // Se parte de las evaluaciones esperadas y se hace LEFT JOIN a las notas.
 // Así también podemos detectar evaluaciones aún sin calificación.
@@ -230,7 +239,6 @@ if($dualTablesReady){
           AND acomp.area_id=ac.area_id AND acomp.level=ac.level";
     $areaParams=[$schoolId,$schoolId,$schoolId,report_level_key($level),$grade,$section,$yearId,report_level_key($level),$grade,$section];
     $areaTypes='iiisssisss';
-    if($selectedYear??false) {}
     if($loginType===2&&$teacherId>0&&!$reportDirector){$areaSql.=' AND tc.teacher_id=?';$areaParams[]=$teacherId;$areaTypes.='i';}
     if($courseId>0){$areaSql.=' AND tc.course_id=?';$areaParams[]=$courseId;$areaTypes.='i';}
     if($studentId>0&&$dataMode!=='trend'){$areaSql.=' AND s.id=?';$areaParams[]=$studentId;$areaTypes.='i';}
@@ -379,14 +387,15 @@ foreach ($rows as $row) {
 
 <?php if ($view === 'comparison'): ?>
   <div class="table-responsive"><table class="table table-sm table-bordered report-clean-table js-report-table">
-    <thead><tr><th>Estudiante</th><th>DNI</th><th>Curso</th><th>1°</th><th>2°</th><th>3°</th><th>4°</th><th>Promedio</th><th>Tendencia</th></tr></thead><tbody>
+    <thead><tr><th>Estudiante</th><th>DNI</th><th>Curso</th><th>1°</th><th>2°</th><th>3°</th><th>4°</th><th>Resultado</th><th>Tendencia</th></tr></thead><tbody>
     <?php foreach ($students as $student): foreach ($student['courses'] as $course):
+        $competencyMode=(string)($course['evaluation_mode']??'weighted')==='competency';
         $first = null; $last = null; $firstBi = null; $lastBi = null;
     ?>
       <tr><td><?php echo htmlspecialchars($student['name']); ?></td><td><?php echo htmlspecialchars($student['dni']); ?></td><td><?php echo htmlspecialchars($course['name']); ?></td>
-      <?php for ($i=1; $i<=4; $i++): $value=$course['bimesters'][$i] ?? null; if($value!==null){if($first===null){$first=$value;$firstBi=$i;}$last=$value;$lastBi=$i;} ?><td><?php echo report_fmt($value); ?></td><?php endfor; ?>
-      <td><strong><?php echo report_fmt(report_average($course['values'])); ?></strong></td>
-      <td><?php if($first===null || $last===null || $firstBi===$lastBi): ?><span class="text-muted">Sin tendencia</span><?php else: $delta=report_round_grade($last)-report_round_grade($first); if($delta>=2): ?><span class="text-success"><i class="fas fa-arrow-up mr-1"></i>Mejora +<?php echo $delta; ?></span><?php elseif($delta<=-2): ?><span class="text-danger"><i class="fas fa-arrow-down mr-1"></i>Desciende <?php echo $delta; ?></span><?php else: ?><span class="text-muted"><i class="fas fa-minus mr-1"></i>Estable</span><?php endif; endif; ?></td></tr>
+      <?php for ($i=1; $i<=4; $i++): $value=$course['bimesters'][$i] ?? null; if($value!==null){if($first===null){$first=$value;$firstBi=$i;}$last=$value;$lastBi=$i;} ?><td><?php echo $competencyMode?report_competency_cell($course,$i):report_fmt($value); ?></td><?php endfor; ?>
+      <td><strong><?php echo $competencyMode?'<span class="badge badge-success">Por competencias</span>':report_fmt(report_average($course['values'])); ?></strong></td>
+      <td><?php if($competencyMode): ?><span class="text-muted">Sin promedio general</span><?php elseif($first===null || $last===null || $firstBi===$lastBi): ?><span class="text-muted">Sin tendencia</span><?php else: $delta=report_round_grade($last)-report_round_grade($first); if($delta>=2): ?><span class="text-success"><i class="fas fa-arrow-up mr-1"></i>Mejora +<?php echo $delta; ?></span><?php elseif($delta<=-2): ?><span class="text-danger"><i class="fas fa-arrow-down mr-1"></i>Desciende <?php echo $delta; ?></span><?php else: ?><span class="text-muted"><i class="fas fa-minus mr-1"></i>Estable</span><?php endif; endif; ?></td></tr>
     <?php endforeach; endforeach; ?></tbody>
   </table></div>
 
@@ -395,7 +404,7 @@ foreach ($rows as $row) {
     <div class="alert alert-info mb-0"><i class="fas fa-calendar-alt mr-2"></i>Seleccione un bimestre para analizar el seguimiento académico y compararlo con el periodo anterior.</div>
   <?php else: ?>
     <div class="table-responsive"><table class="table table-sm table-bordered report-clean-table js-report-table">
-      <thead><tr><th>Estudiante</th><th>DNI</th><th>Curso</th><th>Promedio</th><th>Variación</th><th>Alertas detectadas</th><th>Situación</th></tr></thead><tbody>
+      <thead><tr><th>Estudiante</th><th>DNI</th><th>Curso</th><th>Resultado</th><th>Variación</th><th>Alertas detectadas</th><th>Situación</th></tr></thead><tbody>
       <?php $visible=0; foreach($students as $student): foreach($student['courses'] as $course):
           $current = $course['bimesters'][$bimester] ?? null;
           $previous = $bimester > 1 ? ($course['bimesters'][$bimester-1] ?? null) : null;
@@ -412,7 +421,7 @@ foreach ($rows as $row) {
           if (!$alerts) continue;
           $visible++;
       ?>
-        <tr><td><?php echo htmlspecialchars($student['name']); ?></td><td><?php echo htmlspecialchars($student['dni']); ?></td><td><?php echo htmlspecialchars($course['name']); ?></td><td><strong><?php echo report_fmt($current); ?></strong></td>
+        <tr><td><?php echo htmlspecialchars($student['name']); ?></td><td><?php echo htmlspecialchars($student['dni']); ?></td><td><?php echo htmlspecialchars($course['name']); ?></td><td><strong><?php echo (($course['evaluation_mode']??'weighted')==='competency')?'<span class="badge badge-success">Por competencias</span>':report_fmt($current); ?></strong></td>
         <td><?php if($delta===null): ?>—<?php elseif($delta>0): ?><span class="text-success">↑ +<?php echo $delta; ?></span><?php elseif($delta<0): ?><span class="text-danger">↓ <?php echo $delta; ?></span><?php else: ?>= 0<?php endif; ?></td>
         <td><ul class="gr-alert-list"><?php foreach($alerts as $alert): ?><li><?php echo htmlspecialchars($alert); ?></li><?php endforeach; ?></ul></td>
         <td><?php if($severity==='risk'): ?><span class="badge badge-danger">Riesgo</span><?php elseif($severity==='attention'): ?><span class="badge badge-warning">Atención</span><?php else: ?><span class="badge badge-success">Favorable</span><?php endif; ?></td></tr>
