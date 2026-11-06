@@ -93,7 +93,7 @@ if ($action === 'list') {
     foreach ($rows as $row) {
         if ($row['area_id']) $areaIds[(int)$row['area_id']] = true; else $withoutArea++;
         if (($row['course_status'] ?? 'Activo') === 'Activo') $active++;
-        if ((int)$row['competency_count'] === 0) $withoutCompetencies++;
+        if ((int)$row['component_count'] === 0) $withoutComponents++;
     }
     $totalAreas = count($areaIds);
     amResponse(['status'=>1, 'courses'=>$rows, 'stats'=>['areas'=>$totalAreas,'courses'=>count($rows),'active'=>$active,'without_area'=>$withoutArea,'without_components'=>$withoutCompetencies]]);
