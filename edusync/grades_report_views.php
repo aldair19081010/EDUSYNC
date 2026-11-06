@@ -323,9 +323,9 @@ foreach ($rows as $row) {
     <?php foreach ($students as $student): foreach ($student['courses'] as $course):
         $first = null; $last = null; $firstBi = null; $lastBi = null;
     ?>
-      <tr><td><?php echo htmlspecialchars($student['name']); ?></td><td><?php echo htmlspecialchars($student['dni']); ?></td><td><?php echo htmlspecialchars($course['name']); ?></td>
-      <?php for ($i=1; $i<=4; $i++): $value=$course['bimesters'][$i] ?? null; if($value!==null){if($first===null){$first=$value;$firstBi=$i;}$last=$value;$lastBi=$i;} ?><td><?php echo report_fmt($value); ?></td><?php endfor; ?>
-      <td><strong><?php echo report_fmt(report_average($course['values'])); ?></strong></td>
+      <tr><td><?php echo htmlspecialchars($student['name']); ?></td><td><?php echo htmlspecialchars($student['dni']); ?></td><td><?php echo htmlspecialchars($course['name']); ?><?php if(($course['evaluation_model']??'weighted')==='competency'): ?><div><span class="badge badge-info">Por competencias</span></div><?php endif; ?></td>
+      <?php for ($i=1; $i<=4; $i++): $value=$course['bimesters'][$i] ?? null; if($value!==null){if($first===null){$first=$value;$firstBi=$i;}$last=$value;$lastBi=$i;} ?><td><?php echo ($course['evaluation_model']??'weighted')==='competency'?'<span class="text-muted small">Por comp.</span>':report_fmt($value); ?></td><?php endfor; ?>
+      <td><strong><?php echo ($course['evaluation_model']??'weighted')==='competency'?'Por competencias':report_fmt(report_average($course['values'])); ?></strong></td>
       <td><?php if($first===null || $last===null || $firstBi===$lastBi): ?><span class="text-muted">Sin tendencia</span><?php else: $delta=report_round_grade($last)-report_round_grade($first); if($delta>=2): ?><span class="text-success"><i class="fas fa-arrow-up mr-1"></i>Mejora +<?php echo $delta; ?></span><?php elseif($delta<=-2): ?><span class="text-danger"><i class="fas fa-arrow-down mr-1"></i>Desciende <?php echo $delta; ?></span><?php else: ?><span class="text-muted"><i class="fas fa-minus mr-1"></i>Estable</span><?php endif; endif; ?></td></tr>
     <?php endforeach; endforeach; ?></tbody>
   </table></div>
@@ -352,7 +352,7 @@ foreach ($rows as $row) {
           if (!$alerts) continue;
           $visible++;
       ?>
-        <tr><td><?php echo htmlspecialchars($student['name']); ?></td><td><?php echo htmlspecialchars($student['dni']); ?></td><td><?php echo htmlspecialchars($course['name']); ?></td><td><strong><?php echo report_fmt($current); ?></strong></td>
+        <tr><td><?php echo htmlspecialchars($student['name']); ?></td><td><?php echo htmlspecialchars($student['dni']); ?></td><td><?php echo htmlspecialchars($course['name']); ?><?php if(($course['evaluation_model']??'weighted')==='competency'): ?><div><span class="badge badge-info">Por competencias</span></div><?php endif; ?></td><td><strong><?php echo ($course['evaluation_model']??'weighted')==='competency'?'Por competencias':report_fmt($current); ?></strong></td>
         <td><?php if($delta===null): ?>—<?php elseif($delta>0): ?><span class="text-success">↑ +<?php echo $delta; ?></span><?php elseif($delta<0): ?><span class="text-danger">↓ <?php echo $delta; ?></span><?php else: ?>= 0<?php endif; ?></td>
         <td><ul class="gr-alert-list"><?php foreach($alerts as $alert): ?><li><?php echo htmlspecialchars($alert); ?></li><?php endforeach; ?></ul></td>
         <td><?php if($severity==='risk'): ?><span class="badge badge-danger">Riesgo</span><?php elseif($severity==='attention'): ?><span class="badge badge-warning">Atención</span><?php else: ?><span class="badge badge-success">Favorable</span><?php endif; ?></td></tr>
@@ -383,7 +383,7 @@ foreach ($rows as $row) {
     $maxStatus = max(1, max($statusCounts));
   ?>
   <div class="gr-kpi-grid">
-    <div class="gr-kpi"><small>Promedio del aula</small><strong><?php echo report_fmt($classAvg); ?></strong></div>
+    <div class="gr-kpi"><small>Promedio de cursos ponderados</small><strong><?php echo report_fmt($classAvg); ?></strong></div>
     <div class="gr-kpi"><small>Logro destacado (AD)</small><strong><?php echo $statusCounts['AD']; ?></strong></div>
     <div class="gr-kpi"><small>Logro esperado (A)</small><strong><?php echo $statusCounts['A']; ?></strong></div>
     <div class="gr-kpi"><small>En proceso (B)</small><strong><?php echo $statusCounts['B']; ?></strong></div>
@@ -399,7 +399,7 @@ foreach ($rows as $row) {
   <div class="table-responsive mb-4"><table class="table table-sm table-bordered report-clean-table js-report-table">
     <thead><tr><th>Estudiante</th><th>DNI</th><th>Curso</th><th>Notas registradas</th><th>Promedio</th><th>Estado</th></tr></thead><tbody>
     <?php foreach($records as $record): $value=$record['value']; $status=report_status($value); $biForCount=$bimester>0?$bimester:0; $graded=$biForCount?($record['course']['graded'][$biForCount]??0):array_sum($record['course']['graded']); ?>
-      <tr><td><?php echo htmlspecialchars($record['student']['name']); ?></td><td><?php echo htmlspecialchars($record['student']['dni']); ?></td><td><?php echo htmlspecialchars($record['course']['name']); ?></td><td><?php echo (int)$graded; ?></td><td><strong><?php echo report_fmt($value); ?></strong></td><td><span class="gr-status-pill gr-pill-<?php echo strtolower($status['letter']==='—'?'none':$status['letter']); ?>"><?php echo htmlspecialchars($status['letter'].' · '.$status['label']); ?></span></td></tr>
+      <tr><td><?php echo htmlspecialchars($record['student']['name']); ?></td><td><?php echo htmlspecialchars($record['student']['dni']); ?></td><td><?php echo htmlspecialchars($record['course']['name']); ?><?php if(($record['course']['evaluation_model']??'weighted')==='competency'): ?><div><span class="badge badge-info">Por competencias</span></div><?php endif; ?></td><td><?php echo (int)$graded; ?></td><td><strong><?php echo ($record['course']['evaluation_model']??'weighted')==='competency'?'—':report_fmt($value); ?></strong></td><td><?php if(($record['course']['evaluation_model']??'weighted')==='competency'): ?><span class="badge badge-info">Resultado independiente</span><?php else: ?><span class="gr-status-pill gr-pill-<?php echo strtolower($status['letter']==='—'?'none':$status['letter']); ?>"><?php echo htmlspecialchars($status['letter'].' · '.$status['label']); ?></span><?php endif; ?></td></tr>
     <?php endforeach; ?></tbody>
   </table></div>
 
@@ -413,11 +413,12 @@ foreach ($rows as $row) {
   ?>
     <h6 class="font-weight-bold text-primary mb-2"><i class="fas fa-th mr-2"></i>Matriz de competencias</h6>
     <div class="table-responsive"><table class="table table-sm table-bordered report-clean-table js-report-table gr-matrix">
-      <thead><tr><th>Estudiante</th><?php foreach($competencyColumns as $compName): ?><th><?php echo htmlspecialchars($compName); ?></th><?php endforeach; ?><th>Promedio</th></tr></thead><tbody>
+      <?php $matrixIsCompetency=false;foreach($students as $matrixStudent){if(isset($matrixStudent['courses'][$courseId])){$matrixIsCompetency=($matrixStudent['courses'][$courseId]['evaluation_model']??'weighted')==='competency';break;}} ?>
+      <thead><tr><th>Estudiante</th><?php foreach($competencyColumns as $compName): ?><th><?php echo htmlspecialchars($compName); ?></th><?php endforeach; ?><th><?php echo $matrixIsCompetency?'Resultado del curso':'Promedio ponderado'; ?></th></tr></thead><tbody>
       <?php foreach($students as $student): $course=$student['courses'][$courseId]??null; if(!$course)continue; ?>
         <tr><td><?php echo htmlspecialchars($student['name']); ?></td>
         <?php foreach($competencyColumns as $compId=>$compName): $comp=$course['competencies'][$bimester][$compId]??null; $value=$comp['avg']??null; $status=report_status($value); ?><td><span class="gr-status-pill gr-pill-<?php echo strtolower($status['letter']==='—'?'none':$status['letter']); ?>"><?php echo report_fmt($value); ?><?php if($value!==null): ?> · <?php echo $status['letter']; ?><?php endif; ?></span></td><?php endforeach; ?>
-        <td><strong><?php echo report_fmt($course['bimesters'][$bimester]??null); ?></strong></td></tr>
+        <td><strong><?php echo $matrixIsCompetency?'<span class="badge badge-info">Sin promedio de área</span>':report_fmt($course['bimesters'][$bimester]??null); ?></strong></td></tr>
       <?php endforeach; ?></tbody>
     </table></div>
   <?php else: ?>
@@ -425,4 +426,4 @@ foreach ($rows as $row) {
   <?php endif; ?>
 <?php endif; ?>
 
-<div class="small text-muted mt-2"><i class="fas fa-info-circle mr-1"></i>Los promedios se muestran como enteros redondeados. El cálculo conserva la fórmula por competencias: promedio de cada competencia multiplicado por su porcentaje, sin normalizar los pesos.</div>
+<div class="small text-muted mt-2"><i class="fas fa-info-circle mr-1"></i>Los resultados se muestran como enteros redondeados. En cursos ponderados, el promedio se calcula con el porcentaje de cada componente sin normalizar los pesos. En cursos por competencias, cada competencia tiene un resultado independiente y no se calcula un promedio general del curso.</div>
