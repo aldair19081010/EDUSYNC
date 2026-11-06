@@ -414,11 +414,11 @@ foreach ($rows as $row) {
     <h6 class="font-weight-bold text-primary mb-2"><i class="fas fa-th mr-2"></i>Matriz de competencias</h6>
     <div class="table-responsive"><table class="table table-sm table-bordered report-clean-table js-report-table gr-matrix">
       <?php $matrixIsCompetency=false;foreach($students as $matrixStudent){if(isset($matrixStudent['courses'][$courseId])){$matrixIsCompetency=($matrixStudent['courses'][$courseId]['evaluation_model']??'weighted')==='competency';break;}} ?>
-      <thead><tr><th>Estudiante</th><?php foreach($competencyColumns as $compName): ?><th><?php echo htmlspecialchars($compName); ?></th><?php endforeach; ?><th><?php echo $matrixIsCompetency?'Resultado del curso':'Promedio ponderado'; ?></th></tr></thead><tbody>
+      <thead><tr><th>Estudiante</th><?php foreach($competencyColumns as $compName): ?><th><?php echo htmlspecialchars($compName); ?></th><?php endforeach; ?><?php if(!$matrixIsCompetency): ?><th>Promedio ponderado</th><?php endif; ?></tr></thead><tbody>
       <?php foreach($students as $student): $course=$student['courses'][$courseId]??null; if(!$course)continue; ?>
         <tr><td><?php echo htmlspecialchars($student['name']); ?></td>
         <?php foreach($competencyColumns as $compId=>$compName): $comp=$course['competencies'][$bimester][$compId]??null; $value=$comp['avg']??null; $status=report_status($value); ?><td><span class="gr-status-pill gr-pill-<?php echo strtolower($status['letter']==='—'?'none':$status['letter']); ?>"><?php echo report_fmt($value); ?><?php if($value!==null): ?> · <?php echo $status['letter']; ?><?php endif; ?></span></td><?php endforeach; ?>
-        <td><strong><?php echo $matrixIsCompetency?'<span class="badge badge-info">Sin promedio de área</span>':report_fmt($course['bimesters'][$bimester]??null); ?></strong></td></tr>
+        <?php if(!$matrixIsCompetency): ?><td><strong><?php echo report_fmt($course['bimesters'][$bimester]??null); ?></strong></td><?php endif; ?></tr>
       <?php endforeach; ?></tbody>
     </table></div>
   <?php else: ?>
