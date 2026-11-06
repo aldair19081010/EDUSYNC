@@ -89,7 +89,7 @@ if ($action === 'load') {
 
     $hasYearStatus = gradebook_column_exists($conn, 'academic_year', 'status');
     $yearStatusSelect = $hasYearStatus ? ',ay.status year_status' : '';
-    $assignmentSql = "SELECT tc.id,tc.course_id,tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ay.year,ay.is_active$yearStatusSelect
+    $assignmentSql = "SELECT tc.id,tc.course_id,tc.academic_year_id,tc.grado,tc.seccion,ac.area_id,ac.name course_name,ac.level,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode,ay.year,ay.is_active$yearStatusSelect
                       FROM teacher_courses tc
                       INNER JOIN academic_courses ac ON ac.id=tc.course_id
                       INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id
@@ -97,6 +97,123 @@ if ($action === 'load') {
     $assignmentResult = $conn->query($assignmentSql);
     $assignment = $assignmentResult ? $assignmentResult->fetch_assoc() : null;
     if (!$assignment) gradebook_response(['status' => 0, 'message' => 'La asignación seleccionada no existe o no te pertenece.'], 403);
+
+    $evaluationMode=(string)($assignment['evaluation_mode']??'weighted');
+    if($evaluationMode==='competency'){
+        foreach(['area_competencies','evaluation_area_competencies','evaluation_area_grades','evaluation_area_grade_history'] as $requiredTable){
+            if(!gradebook_table_exists($conn,$requiredTable)) gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_dual_model_upgrade.sql para habilitar el modelo por competencias.'],409);
+        }
+        $hasEvaluationStatus=gradebook_column_exists($conn,'evaluations','status');
+        $evaluationStatusSelect=$hasEvaluationStatus?',e.status':", 'Activa' status";
+        $historicalEvaluationFilter=(int)$assignment['is_active']===1
+            ? ' AND e.teacher_id='.$teacherId.' AND e.academic_year_id='.(int)$assignment['academic_year_id']
+            : '';
+        $evaluationsSql="SELECT e.id,e.title,e.type,e.created_at$evaluationStatusSelect,
+                                COALESCE(eac.area_competency_id,0) competencia_id,
+                                COALESCE(acomp.name,'Competencia no disponible') competency_name,
+                                0 competency_percentage,
+                                (SELECT COUNT(*) FROM evaluation_area_grades eag WHERE eag.evaluation_id=e.id) grades_count
+                         FROM evaluations e
+                         LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id
+                         LEFT JOIN area_competencies acomp ON acomp.id=eac.area_competency_id
+                         WHERE e.teacher_course_id=$teacherCourseId {$historicalEvaluationFilter}
+                           AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
+                         ORDER BY e.created_at,e.id";
+        $evaluationResult=$conn->query($evaluationsSql);$evaluations=[];$evaluationIds=[];$evaluationCompetencies=[];
+        while($evaluationResult&&($row=$evaluationResult->fetch_assoc())){
+            $row['id']=(int)$row['id'];$row['competencia_id']=(int)($row['competencia_id']??0);
+            $row['competency_percentage']=0.0;$row['grades_count']=(int)($row['grades_count']??0);
+            $row['annulled']=($row['status']??'')==='Anulada';
+            $evaluations[]=$row;$evaluationIds[]=$row['id'];
+            if($row['competencia_id']>0)$evaluationCompetencies[$row['id']]=[[
+                'id'=>$row['competencia_id'],'name'=>(string)$row['competency_name'],'percentage'=>0.0
+            ]];
+            $rowIndex=count($evaluations)-1;
+            $evaluations[$rowIndex]['competency_links']=$evaluationCompetencies[$row['id']]??[];
+            $evaluations[$rowIndex]['competency_ids']=$row['competencia_id']>0?[$row['competencia_id']]:[];
+            $evaluations[$rowIndex]['historical_multi_competency']=false;
+        }
+
+        $activeYearId=0;$activeYearResult=$conn->query("SELECT id FROM academic_year WHERE school_id=$schoolId AND is_active=1 LIMIT 1");
+        if($activeYearResult&&$activeYearResult->num_rows)$activeYearId=(int)$activeYearResult->fetch_assoc()['id'];
+        $levelEsc=$conn->real_escape_string(mb_strtolower((string)$assignment['level'],'UTF-8'));
+        $gradeEsc=$conn->real_escape_string((string)$assignment['grado']);$section=trim((string)$assignment['seccion']);$sectionEsc=$conn->real_escape_string($section);
+        $sectionCondition="s.seccion='$sectionEsc'";
+        if(in_array(mb_strtoupper($section,'UTF-8'),['U','ÚNICA','UNICA'],true))$sectionCondition="COALESCE(NULLIF(TRIM(s.seccion),''),'U') IN ('U','u','Única','Unica','única')";
+
+        $studentParts=[];
+        if((int)$assignment['academic_year_id']===$activeYearId){
+            $studentParts[]="SELECT s.id,s.id_no,s.name FROM student s WHERE s.school_id=$schoolId AND (s.status='Activo' OR s.status IS NULL) AND LOWER(s.nivel)='$levelEsc' AND s.grado='$gradeEsc' AND $sectionCondition";
+        }
+        if($evaluationIds){
+            $evaluationListForStudents=implode(',',array_map('intval',$evaluationIds));
+            $studentParts[]="SELECT s.id,s.id_no,s.name FROM student s INNER JOIN evaluation_area_grades eag ON eag.student_id=s.id WHERE s.school_id=$schoolId AND eag.evaluation_id IN ($evaluationListForStudents)";
+        }
+        $historicalYear=(int)$assignment['is_active']!==1;
+        if($historicalYear){
+            require_once __DIR__.'/includes/grades_report_historical_classroom.php';
+            $historyLevelGuard=grhc_sql($conn,'s','tc','ac',$schoolId,(int)$assignment['academic_year_id'],(string)$assignment['level'],(string)$assignment['grado'],(string)$assignment['seccion']);
+            $studentParts=[
+                "SELECT DISTINCT s.id,s.id_no,s.name FROM student s
+                 INNER JOIN evaluation_area_grades eag ON eag.student_id=s.id
+                 INNER JOIN evaluations ev ON ev.id=eag.evaluation_id
+                 INNER JOIN teacher_courses tc ON tc.id=ev.teacher_course_id
+                 INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
+                 WHERE s.school_id=$schoolId AND tc.school_id=$schoolId AND tc.id=$teacherCourseId
+                   AND tc.academic_year_id=".(int)$assignment['academic_year_id']." $historyLevelGuard"
+            ];
+        }
+        $students=[];
+        if($studentParts){
+            $studentResult=$conn->query(implode(' UNION ',$studentParts).' ORDER BY name');
+            while($studentResult&&($row=$studentResult->fetch_assoc()))$students[]=['id'=>(int)$row['id'],'id_no'=>$row['id_no'],'name'=>$row['name']];
+        }
+
+        $grades=[];$gradesByCompetency=[];$gradeCells=[];
+        if($evaluationIds&&$students){
+            $studentIds=implode(',',array_map(static function($student){return(int)$student['id'];},$students));
+            $evaluationList=implode(',',array_map('intval',$evaluationIds));
+            $gradeResult=$conn->query("SELECT id,evaluation_id,student_id,area_competency_id,grade FROM evaluation_area_grades WHERE evaluation_id IN ($evaluationList) AND student_id IN ($studentIds) ORDER BY evaluation_id,student_id,id");
+            $cellMap=[];
+            while($gradeResult&&($row=$gradeResult->fetch_assoc())){
+                $eid=(int)$row['evaluation_id'];$sid=(int)$row['student_id'];$cid=(int)$row['area_competency_id'];$grade=(string)$row['grade'];
+                $grades[$eid][$sid]=$grade;
+                if($cid>0){
+                    $gradesByCompetency[$eid][$cid][$sid]=$grade;
+                    $cellMap[$eid.':'.$cid.':'.$sid]=['evaluation_id'=>$eid,'competencia_id'=>$cid,'student_id'=>$sid,'grade'=>$grade];
+                }
+            }
+            $gradeCells=array_values($cellMap);
+        }
+
+        $competencies=[];$relatedIds=[];
+        foreach($evaluationCompetencies as $links)foreach($links as $link){$cid=(int)($link['id']??0);if($cid>0)$relatedIds[$cid]=true;}
+        $competencyScope=$historicalYear
+            ? ($relatedIds?' AND id IN ('.implode(',',array_map('intval',array_keys($relatedIds))).')':' AND 1=0')
+            : ($relatedIds?' AND (is_active=1 OR id IN ('.implode(',',array_map('intval',array_keys($relatedIds))).'))':' AND is_active=1');
+        $competencyResult=$conn->query("SELECT id,name,is_active FROM area_competencies WHERE school_id=$schoolId AND academic_year_id=".(int)$assignment['academic_year_id']." AND area_id=".(int)$assignment['area_id']." AND level='".$conn->real_escape_string((string)$assignment['level'])."'$competencyScope ORDER BY display_order,id");
+        while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>0.0,'is_active'=>(int)$row['is_active']];
+        $known=[];foreach($competencies as $item)$known[(int)$item['id']]=true;
+        foreach($evaluationCompetencies as $links)foreach($links as $link){$cid=(int)($link['id']??0);if($cid<=0||isset($known[$cid]))continue;$competencies[]=['id'=>$cid,'name'=>(string)$link['name'],'percentage'=>0.0,'historical'=>true];$known[$cid]=true;}
+
+        $locked=false;
+        if(gradebook_table_exists($conn,'bimester_locks')){
+            $lockResult=$conn->query("SELECT is_locked FROM bimester_locks WHERE academic_year_id=".(int)$assignment['academic_year_id']." AND school_id=$schoolId AND bimester=$bimester LIMIT 1");
+            $locked=$lockResult&&$lockResult->num_rows&&(int)$lockResult->fetch_assoc()['is_locked']===1;
+        }
+        $teacherClosed=gradebook_teacher_period_closed($conn,$schoolId,$teacherCourseId,$bimester);
+        $yearReadOnly=(int)$assignment['is_active']!==1||(isset($assignment['year_status'])&&in_array($assignment['year_status'],['Cerrado','Archivado'],true));
+        $readOnlyReason=$locked?'El bimestre está bloqueado institucionalmente.':($yearReadOnly?'El año académico es histórico o está cerrado.':($teacherClosed?'Las notas de este curso y bimestre fueron cerradas por el docente.':''));
+        gradebook_response([
+            'status'=>1,'evaluation_mode'=>'competency',
+            'assignment'=>['id'=>(int)$assignment['id'],'academic_year_id'=>(int)$assignment['academic_year_id'],'year'=>$assignment['year'],'course_name'=>$assignment['course_name'],'level'=>$assignment['level'],'grado'=>$assignment['grado'],'seccion'=>$assignment['seccion']?:'U','evaluation_mode'=>'competency'],
+            'bimestre'=>$bimester,'evaluations'=>$evaluations,'competencies'=>$competencies,
+            'competency_weight_total'=>0,'competency_weights_valid'=>true,
+            'students'=>$students,'grades'=>$grades,'grades_by_competency'=>$gradesByCompetency,'grade_cells'=>$gradeCells,
+            'evaluation_competencies'=>$evaluationCompetencies,'read_only'=>$locked||$yearReadOnly||$teacherClosed,
+            'read_only_reason'=>$readOnlyReason,'teacher_closed'=>$teacherClosed,'history_ready'=>gradebook_table_exists($conn,'evaluation_area_grade_history')
+        ]);
+    }
 
     $hasEvaluationStatus = gradebook_column_exists($conn, 'evaluations', 'status');
     $evaluationStatusSelect = $hasEvaluationStatus ? ',e.status' : ", 'Activa' status";
