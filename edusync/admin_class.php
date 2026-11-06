@@ -1857,6 +1857,11 @@ function save_payment(){
     $evaluation_model = ($assignment_row['evaluation_model'] ?? 'weighted') === 'competency' ? 'competency' : 'weighted';
     $area_competency_id = (int)($_POST['area_competencia_id'] ?? 0);
     if ($evaluation_model === 'competency') {
+        $areaLinkTable=$this->db->query("SHOW TABLES LIKE 'evaluation_area_competencies'");
+        $areaGradeColumn=$this->db->query("SHOW COLUMNS FROM evaluation_grades LIKE 'area_competencia_id'");
+        if (!$areaLinkTable || $areaLinkTable->num_rows===0 || !$areaGradeColumn || $areaGradeColumn->num_rows===0) {
+            return json_encode(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql para habilitar el nuevo modelo de evaluación.']);
+        }
         if ($area_competency_id <= 0) return json_encode(['status'=>0,'message'=>'Selecciona una competencia del área para esta evaluación.']);
         $area_competency = $this->db->prepare('SELECT id FROM area_competencies WHERE id=? AND school_id=? AND academic_year_id=? AND area_id=? AND level=? AND is_active=1 LIMIT 1');
         if (!$area_competency) return json_encode(['status'=>0,'message'=>'El catálogo de competencias del área todavía no está habilitado. Ejecuta la migración correspondiente.']);
@@ -1867,6 +1872,7 @@ function save_payment(){
         if (!$valid_area_competency) return json_encode(['status'=>0,'message'=>'La competencia seleccionada no pertenece al área y nivel del curso.']);
         if ($id > 0) {
             $old_link = $this->db->prepare('SELECT area_competencia_id FROM evaluation_area_competencies WHERE evaluation_id=? AND school_id=? AND academic_year_id=? LIMIT 1');
+            if (!$old_link) return json_encode(['status'=>0,'message'=>'No se pudo consultar el vínculo de la competencia del área.']);
             $old_link->bind_param('iii', $id, $school_id, $academic_year_id);
             $old_link->execute();
             $old_area_competency_id = (int)($old_link->get_result()->fetch_assoc()['area_competencia_id'] ?? 0);
@@ -2003,6 +2009,7 @@ function save_payment(){
         // Guardar competencias asociadas (ahora usando competencias por curso)
 		if ($evaluation_model === 'competency') {
             $existingLink = $this->db->prepare('SELECT id,area_competencia_id FROM evaluation_area_competencies WHERE evaluation_id=? LIMIT 1');
+            if (!$existingLink) return json_encode(['status'=>0,'message'=>'No se pudo consultar la competencia asociada a esta evaluación.']);
             $existingLink->bind_param('i', $eval_id);
             $existingLink->execute();
             $existingAreaLink = $existingLink->get_result()->fetch_assoc();
