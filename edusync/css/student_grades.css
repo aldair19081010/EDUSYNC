@@ -178,3 +178,12 @@ body[data-edusync-ui="standard-v2"] .sg-detail-modal {
     .sg-individual-report .sg-ir-calc-toggle{padding:10px 12px}
     .sg-individual-report .sg-ir-calc-body{padding:0 10px 10px}
 }
+
+
+/* Resultados por competencias reales: no se presenta una nota global del área. */
+.sg-annual-competency-list{display:flex;flex-direction:column;gap:.28rem;min-width:140px}
+.sg-annual-competency-item{display:flex;align-items:center;justify-content:space-between;gap:.45rem;padding:.2rem .32rem;border-radius:.35rem;background:#f8f9fc}
+.sg-annual-competency-item>span:first-child{min-width:0;max-width:150px;overflow:hidden;color:#526274;font-size:.66rem;text-overflow:ellipsis;white-space:nowrap}
+.sg-annual-competency-item .sg-mini-result{flex:0 0 auto}
+.sg-ir-result .badge{display:inline-flex;align-items:center;padding:.38rem .58rem;border-radius:999px;font-size:.73rem;font-weight:800}
+@media(max-width:768px){.sg-annual-competency-list{min-width:118px}.sg-annual-competency-item>span:first-child{max-width:112px}}
