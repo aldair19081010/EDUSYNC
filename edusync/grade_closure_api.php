@@ -94,8 +94,8 @@ function gc_validate_area_competencies(mysqli $db, int $schoolId, array $assignm
     }
     if((int)$assignment['is_active']!==1||in_array((string)($assignment['year_status']??''),['Cerrado','Archivado'],true))$issues[]=['code'=>'year_closed','message'=>'El año académico no está activo o ya fue cerrado.'];
     if(gc_global_locked($db,$schoolId,$yearId,$bimester))$issues[]=['code'=>'global_lock','message'=>'El bimestre fue bloqueado institucionalmente por Administración.'];
-    $stmt=$db->prepare('SELECT id,name,1 percentage FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND is_active=1 ORDER BY display_order,id');
-    $stmt->bind_param('iiis',$schoolId,$yearId,$areaId,$level);$stmt->execute();$q=$stmt->get_result();
+    $stmt=$db->prepare("SELECT id,name,1 percentage FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND (is_active=1 OR id IN (SELECT eac.area_competencia_id FROM evaluation_area_competencies eac INNER JOIN evaluations e ON e.id=eac.evaluation_id WHERE eac.school_id=? AND eac.academic_year_id=? AND e.academic_year_id=? AND CAST(e.bimestre AS UNSIGNED)=?)) ORDER BY display_order,id");
+    $stmt->bind_param('iiisiiii',$schoolId,$yearId,$areaId,$level,$schoolId,$yearId,$yearId,$bimester);$stmt->execute();$q=$stmt->get_result();
     while($row=$q->fetch_assoc()){$row['id']=(int)$row['id'];$row['percentage']=1.0;$competencies[$row['id']]=$row;}$stmt->close();
     if(!$competencies)$issues[]=['code'=>'no_competencies','message'=>'El área no tiene competencias activas configuradas para este nivel y año.'];
     $statusCondition=gc_column($db,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
