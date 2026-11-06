@@ -397,7 +397,16 @@ if ($action === 'save') {
 
     $validEvaluationCompetencies=[];
     if($evaluationModel==='competency'){
-        $linkResult=$conn->query("SELECT evaluation_id,area_competencia_id competencia_id FROM evaluation_area_competencies WHERE evaluation_id IN ($evaluationList) ORDER BY evaluation_id,id");
+        $areaId=(int)($assignment['area_id']??0);
+        $levelEsc=$conn->real_escape_string((string)$assignment['level']);
+        $yearIdForLinks=(int)$assignment['academic_year_id'];
+        $linkResult=$conn->query("SELECT eac.evaluation_id,eac.area_competencia_id competencia_id
+            FROM evaluation_area_competencies eac
+            INNER JOIN area_competencies acmp ON acmp.id=eac.area_competencia_id
+                AND acmp.school_id=$schoolId AND acmp.academic_year_id=$yearIdForLinks
+                AND acmp.area_id=$areaId AND acmp.level='$levelEsc'
+            WHERE eac.school_id=$schoolId AND eac.academic_year_id=$yearIdForLinks
+                AND eac.evaluation_id IN ($evaluationList) ORDER BY eac.evaluation_id,eac.id");
     }else{
         $linkResult=$conn->query("SELECT evaluation_id,competencia_id FROM evaluation_competencias WHERE evaluation_id IN ($evaluationList) ORDER BY evaluation_id,id");
     }
@@ -457,7 +466,7 @@ if ($action === 'save') {
             if(!isset($validEvaluationCompetencies[$evaluationId][$competencyId])){
                 throw new RuntimeException('La competencia no pertenece a la evaluación seleccionada.');
             }
-            $allowLegacy=count($validEvaluationCompetencies[$evaluationId])===1?1:0;
+            $allowLegacy=$evaluationModel==='competency'?0:(count($validEvaluationCompetencies[$evaluationId])===1?1:0);
             $select->bind_param('iiii',$evaluationId,$studentId,$competencyId,$allowLegacy);$select->execute();$existing=$select->get_result()->fetch_assoc();
             $currentValue=$existing?mb_strtoupper(trim((string)$existing['grade']),'UTF-8'):'';
             $originalValue=mb_strtoupper(trim((string)($change['original']??'')),'UTF-8');
