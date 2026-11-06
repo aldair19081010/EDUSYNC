@@ -266,7 +266,7 @@ if ($action === 'copy_year') {
         $findArea->close(); $insertArea->close();
         // Copiar también el catálogo curricular independiente al año nuevo,
         // manteniendo la relación con el área equivalente del destino.
-        if(amHasColumn($conn,'academic_courses','evaluation_model') && amHasTable($conn,'area_competencies')){
+        if(amHasColumn($conn,'academic_courses','evaluation_model') && amHasColumn($conn,'area_competencies','id')){
             $sourceCompetencies=$conn->query("SELECT * FROM area_competencies WHERE school_id=$schoolId AND academic_year_id=$source ORDER BY id");
             $findAreaCompetency=$conn->prepare('SELECT id FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND name=? LIMIT 1');
             $insertAreaCompetency=$conn->prepare('INSERT INTO area_competencies (school_id,academic_year_id,area_id,level,name,display_order,is_active) VALUES (?,?,?,?,?,?,?)');
