@@ -44,7 +44,7 @@ function gc_audit(mysqli $db, int $schoolId, int $yearId, int $teacherCourseId, 
     $stmt->close();
 }
 function gc_assignment(mysqli $db, int $schoolId, int $teacherCourseId): ?array {
-    $stmt = $db->prepare("SELECT tc.id,tc.school_id,tc.teacher_id,tc.course_id,tc.academic_year_id,tc.grado,COALESCE(NULLIF(tc.seccion,''),'U') seccion,ac.name course_name,ac.level,ay.year,ay.is_active" . (gc_column($db,'academic_year','status') ? ',ay.status year_status' : ",'' year_status") . ",t.name teacher_name FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id LEFT JOIN teacher t ON t.id=tc.teacher_id WHERE tc.id=? AND tc.school_id=? LIMIT 1");
+    $stmt = $db->prepare("SELECT tc.id,tc.school_id,tc.teacher_id,tc.course_id,tc.academic_year_id,tc.grado,COALESCE(NULLIF(tc.seccion,''),'U') seccion,ac.name course_name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,'weighted') evaluation_model,ay.year,ay.is_active" . (gc_column($db,'academic_year','status') ? ',ay.status year_status' : ",'' year_status") . ",t.name teacher_name FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id LEFT JOIN teacher t ON t.id=tc.teacher_id WHERE tc.id=? AND tc.school_id=? LIMIT 1");
     if (!$stmt) return null;
     $stmt->bind_param('ii', $teacherCourseId, $schoolId);
     $stmt->execute();
@@ -86,7 +86,41 @@ function gc_global_locked(mysqli $db, int $schoolId, int $yearId, int $bimester)
     $stmt->close();
     return $row && (int)$row['is_locked'] === 1;
 }
+function gc_validate_area_competencies(mysqli $db, int $schoolId, array $assignment, int $bimester): array {
+    $teacherCourseId=(int)$assignment['id'];$teacherId=(int)$assignment['teacher_id'];$yearId=(int)$assignment['academic_year_id'];$areaId=(int)$assignment['area_id'];$level=(string)$assignment['level'];
+    $issues=[];$warnings=[];$competencies=[];
+    if(!gc_table($db,'area_competencies')||!gc_table($db,'evaluation_area_competencies')||!gc_column($db,'evaluation_grades','area_competencia_id')){
+        return ['ready'=>false,'issues'=>[['code'=>'migration_required','message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql para habilitar el modelo por competencias.']],'warnings'=>[],'missing'=>[],'summary'=>[],'snapshot'=>[]];
+    }
+    if((int)$assignment['is_active']!==1||in_array((string)($assignment['year_status']??''),['Cerrado','Archivado'],true))$issues[]=['code'=>'year_closed','message'=>'El año académico no está activo o ya fue cerrado.'];
+    if(gc_global_locked($db,$schoolId,$yearId,$bimester))$issues[]=['code'=>'global_lock','message'=>'El bimestre fue bloqueado institucionalmente por Administración.'];
+    $stmt=$db->prepare('SELECT id,name,1 percentage FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND is_active=1 ORDER BY display_order,id');
+    $stmt->bind_param('iiis',$schoolId,$yearId,$areaId,$level);$stmt->execute();$q=$stmt->get_result();
+    while($row=$q->fetch_assoc()){$row['id']=(int)$row['id'];$row['percentage']=1.0;$competencies[$row['id']]=$row;}$stmt->close();
+    if(!$competencies)$issues[]=['code'=>'no_competencies','message'=>'El área no tiene competencias activas configuradas para este nivel y año.'];
+    $statusCondition=gc_column($db,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
+    $evalStmt=$db->prepare("SELECT e.id,e.title,e.type,e.created_at FROM evaluations e WHERE e.teacher_course_id=? AND e.teacher_id=? AND e.academic_year_id=? AND e.bimestre=?$statusCondition ORDER BY e.id");
+    $bimText=(string)$bimester;$evalStmt->bind_param('iiis',$teacherCourseId,$teacherId,$yearId,$bimText);$evalStmt->execute();$res=$evalStmt->get_result();$evaluations=[];
+    while($row=$res->fetch_assoc()){$row['id']=(int)$row['id'];$row['competencies']=[];$evaluations[$row['id']]=$row;}$evalStmt->close();
+    if(!$evaluations)$issues[]=['code'=>'no_evaluations','message'=>'No hay evaluaciones activas registradas para este bimestre.'];
+    $compEvalCount=array_fill_keys(array_keys($competencies),0);
+    if($evaluations){$ids=implode(',',array_map('intval',array_keys($evaluations)));$links=$db->query("SELECT eac.evaluation_id,eac.area_competencia_id competency_id,ac.name FROM evaluation_area_competencies eac LEFT JOIN area_competencies ac ON ac.id=eac.area_competencia_id WHERE eac.school_id=$schoolId AND eac.academic_year_id=$yearId AND eac.evaluation_id IN ($ids) ORDER BY eac.evaluation_id,eac.id");while($links&&($row=$links->fetch_assoc())){$eid=(int)$row['evaluation_id'];$cid=(int)$row['competency_id'];if(!isset($evaluations[$eid]))continue;$evaluations[$eid]['competencies'][]=['id'=>$cid,'name'=>$row['name']?:'Competencia del área no disponible','percentage'=>0,'active'=>1];if(isset($compEvalCount[$cid]))$compEvalCount[$cid]++;}}
+    foreach($competencies as $cid=>$comp)if(($compEvalCount[$cid]??0)<1)$issues[]=['code'=>'competency_without_evaluation','competency_id'=>$cid,'message'=>'La competencia “'.$comp['name'].'” no tiene ninguna evaluación activa en el bimestre.'];
+    foreach($evaluations as $ev){if(count($ev['competencies'])!==1){$issues[]=['code'=>'evaluation_competency_count','evaluation_id'=>$ev['id'],'message'=>'La evaluación “'.$ev['title'].'” debe estar asociada a una sola competencia del área.'];continue;}if(!isset($competencies[$ev['competencies'][0]['id']]))$issues[]=['code'=>'evaluation_invalid_competency','evaluation_id'=>$ev['id'],'message'=>'La evaluación “'.$ev['title'].'” utiliza una competencia inactiva o ajena al área.'];}
+    $levelEsc=$db->real_escape_string(mb_strtolower($level,'UTF-8'));$gradeEsc=$db->real_escape_string((string)$assignment['grado']);$sectionCondition=gc_section_condition($db,(string)$assignment['seccion']);
+    $students=[];$studentResult=$db->query("SELECT s.id,s.id_no,s.name FROM student s WHERE s.school_id=$schoolId AND (s.status='Activo' OR s.status IS NULL) AND LOWER(s.nivel)='$levelEsc' AND s.grado='$gradeEsc' AND $sectionCondition ORDER BY s.name");while($studentResult&&($row=$studentResult->fetch_assoc()))$students[(int)$row['id']]=['id'=>(int)$row['id'],'id_no'=>$row['id_no'],'name'=>$row['name']];
+    if(!$students)$issues[]=['code'=>'no_students','message'=>'No hay estudiantes activos en el aula seleccionada.'];
+    $expected=0;$completed=0;$missing=[];$expectedBy=array_fill_keys(array_keys($competencies),0);$completedBy=array_fill_keys(array_keys($competencies),0);
+    if($evaluations&&$students){$ids=implode(',',array_map('intval',array_keys($evaluations)));$studentIds=implode(',',array_map('intval,array_keys($students)));$gradeMap=[];$gr=$db->query("SELECT evaluation_id,student_id,area_competencia_id,grade FROM evaluation_grades WHERE evaluation_id IN ($ids) AND student_id IN ($studentIds) AND grade IS NOT NULL AND TRIM(grade)<>''");while($gr&&($row=$gr->fetch_assoc()))$gradeMap[(int)$row['evaluation_id']][(int)$row['area_competencia_id']][(int)$row['student_id']]=(string)$row['grade'];
+        foreach($evaluations as $ev){if(count($ev['competencies'])!==1)continue;$link=$ev['competencies'][0];$cid=(int)$link['id'];if(!isset($competencies[$cid]))continue;$missingNames=[];foreach($students as $sid=>$student){$expected++;$expectedBy[$cid]++;if(isset($gradeMap[$ev['id']][$cid][$sid])){$completed++;$completedBy[$cid]++;}else $missingNames[]=$student['name'];}if($missingNames){$missing[]=['evaluation_id'=>$ev['id'],'evaluation'=>$ev['title'],'competency_id'=>$cid,'competency'=>$link['name'],'missing_count'=>count($missingNames),'missing_students'=>array_slice($missingNames,0,10)];$issues[]=['code'=>'missing_grades','evaluation_id'=>$ev['id'],'competency_id'=>$cid,'missing_count'=>count($missingNames),'message'=>'La evaluación “'.$ev['title'].'” tiene '.count($missingNames).' estudiante(s) sin nota en “'.$link['name'].'”.'];}}
+    }
+    $completion=gc_calculate_competency_progress($competencies,$compEvalCount,$expectedBy,$completedBy,$expected,$completed);$progress=$completion['progress'];
+    $snapshot=['generated_at'=>date('Y-m-d H:i:s'),'assignment'=>['teacher_course_id'=>$teacherCourseId,'teacher_id'=>$teacherId,'teacher_name'=>$assignment['teacher_name'],'course_id'=>$assignment['course_id'],'course_name'=>$assignment['course_name'],'level'=>$level,'grado'=>$assignment['grado'],'seccion'=>$assignment['seccion'],'academic_year_id'=>$yearId,'year'=>$assignment['year'],'bimester'=>$bimester,'evaluation_model'=>'competency'],'competencies'=>array_values($competencies),'evaluations'=>array_values($evaluations),'students'=>array_values($students),'summary'=>['percentage_total'=>null,'competencies'=>count($competencies),'evaluations'=>count($evaluations),'students'=>count($students),'expected_grade_cells'=>$expected,'completed_grade_cells'=>$completed,'progress'=>$progress,'grade_progress'=>$completion['grade_progress'],'competency_coverage_progress'=>$completion['competency_coverage_progress'],'competencies_with_evaluations'=>$completion['competencies_with_evaluations'],'competencies_without_evaluations'=>$completion['competencies_without_evaluations']]];
+    return ['ready'=>count($issues)===0&&$completion['grade_cells_complete']&&$progress>=100.0,'issues'=>$issues,'warnings'=>$warnings,'missing'=>$missing,'summary'=>$snapshot['summary'],'snapshot'=>$snapshot];
+}
+
 function gc_validate(mysqli $db, int $schoolId, array $assignment, int $bimester): array {
+    if (($assignment['evaluation_model'] ?? 'weighted') === 'competency') return gc_validate_area_competencies($db,$schoolId,$assignment,$bimester);
     $teacherCourseId = (int)$assignment['id'];
     $teacherId = (int)$assignment['teacher_id'];
     $yearId = (int)$assignment['academic_year_id'];
