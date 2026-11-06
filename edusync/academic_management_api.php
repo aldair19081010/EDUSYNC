@@ -314,7 +314,7 @@ if ($action === 'copy_year') {
         $findArea->close(); $insertArea->close();
         $courses=$conn->query("SELECT * FROM academic_courses WHERE school_id=$schoolId AND academic_year_id=$source ORDER BY id");
         $find=$conn->prepare('SELECT id FROM academic_courses WHERE school_id=? AND academic_year_id=? AND name=? AND level=? LIMIT 1');
-        $insert=$conn->prepare('INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,grades,weekly_hours,course_type,display_order,is_active,course_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $insert=$conn->prepare('INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,evaluation_mode,grades,weekly_hours,course_type,display_order,is_active,course_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $copied=0; $skipped=0;
         while($course=$courses->fetch_assoc()) {
             $find->bind_param('iiss',$schoolId,$target,$course['name'],$course['level']); $find->execute();
@@ -322,11 +322,27 @@ if ($action === 'copy_year') {
             $newArea=isset($areaMap[(int)$course['area_id']]) ? $areaMap[(int)$course['area_id']] : null;
             $hours=(float)$course['weekly_hours']; $order=(int)$course['display_order']; $active=(int)$course['is_active'];
             $courseStatus=$course['course_status']??($active?'Activo':'Inactivo');
-            $insert->bind_param('iiisssssdsiis',$schoolId,$target,$newArea,$course['name'],$course['course_code'],$course['description'],$course['level'],$course['grades'],$hours,$course['course_type'],$order,$active,$courseStatus);
+            $courseMode=in_array(($course['evaluation_mode']??'weighted'),['weighted','competency'],true)?$course['evaluation_mode']:'weighted';
+            $insert->bind_param('iiissssssdsiis',$schoolId,$target,$newArea,$course['name'],$course['course_code'],$course['description'],$course['level'],$courseMode,$course['grades'],$hours,$course['course_type'],$order,$active,$courseStatus);
             if(!$insert->execute()) throw new Exception($insert->error); $copied++;
         }
         $find->close(); $insert->close();
-        amAudit($conn,$schoolId,$target,$userId,'structure',0,'copy_year',['source_year_id'=>$source,'copied'=>$copied,'skipped'=>$skipped]);
+        $copiedAreaCompetencies=0;
+        if ($dualModelReady && $areaMap) {
+            $sourceComps=$conn->prepare('SELECT area_id,level,code,name,description,display_order,is_active FROM area_competencies WHERE school_id=? AND academic_year_id=? ORDER BY area_id,level,display_order,id');
+            $sourceComps->bind_param('ii',$schoolId,$source);$sourceComps->execute();$sourceRows=$sourceComps->get_result();
+            $findComp=$conn->prepare('SELECT id FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND name=? LIMIT 1');
+            $insertComp=$conn->prepare('INSERT INTO area_competencies (school_id,academic_year_id,area_id,level,code,name,description,display_order,is_active) VALUES (?,?,?,?,NULLIF(?,\'\'),?,?,?,?)');
+            while($comp=$sourceRows->fetch_assoc()){
+                $oldArea=(int)$comp['area_id'];if(!isset($areaMap[$oldArea]))continue;$newAreaId=(int)$areaMap[$oldArea];
+                $findComp->bind_param('iiiss',$schoolId,$target,$newAreaId,$comp['level'],$comp['name']);$findComp->execute();
+                if($findComp->get_result()->fetch_assoc())continue;
+                $insertComp->bind_param('iiiisssii',$schoolId,$target,$newAreaId,$comp['level'],$comp['code'],$comp['name'],$comp['description'],$comp['display_order'],$comp['is_active']);
+                if(!$insertComp->execute())throw new Exception($insertComp->error);$copiedAreaCompetencies++;
+            }
+            $findComp->close();$insertComp->close();$sourceComps->close();
+        }
+        amAudit($conn,$schoolId,$target,$userId,'structure',0,'copy_year',['source_year_id'=>$source,'copied'=>$copied,'skipped'=>$skipped,'area_competencies_copied'=>$copiedAreaCompetencies]);
         $conn->commit(); amResponse(['status'=>1,'message'=>"Estructura copiada: $copied cursos nuevos y $skipped omitidos por duplicidad."]);
     } catch(Throwable $e) { $conn->rollback(); amResponse(['status'=>0,'message'=>'No se pudo copiar: '.$e->getMessage()]); }
 }
