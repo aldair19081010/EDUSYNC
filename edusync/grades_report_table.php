@@ -178,7 +178,7 @@ if ($show_avg && !empty($student_id_filter)) {
                       WHERE c.school_id=? AND c.academic_year_id=? AND c.area_id=? AND c.level=? AND (c.is_active=1 OR e.id IS NOT NULL)
                       ORDER BY c.display_order,c.id,e.created_at,e.id";
             $paramsArea=array_merge([$school_id,$yearForCompetency],$evaluationParams,[$course_id_filter,$school_id,$yearForCompetency],$assignmentParams,[$student_id_filter,$school_id,$yearForCompetency,$courseModel['area_id'],$courseModel['level']]);
-            $typesArea='ii'.$evaluationTypes.'iii'.$assignmentTypes.'iiis';
+            $typesArea='ii'.$evaluationTypes.'iii'.$assignmentTypes.'iiiiis';
             $stmtArea=$conn->prepare($sqlArea);
             if(!$stmtArea){echo '<div class="alert alert-danger">No se pudo preparar el reporte por competencias: '.htmlspecialchars($conn->error).'</div>';exit;}
             $stmtArea->bind_param($typesArea,...$paramsArea);$stmtArea->execute();$resultArea=$stmtArea->get_result();$areaRows=[];
