@@ -62,7 +62,8 @@ function grbd_grade_for(array $grades, $studentId, $evaluationId, $competencyId)
     return null;
 }
 
-function grbd_course_result(array $courseCompetencies, array $grades, $studentId) {
+function grbd_course_result(array $courseCompetencies, array $grades, $studentId, $evaluationMode = 'weighted') {
+    if ((string)$evaluationMode === 'competency') return null;
     $weighted = 0.0;
     $hasAny = false;
     foreach ($courseCompetencies as $competencyId => $competency) {
@@ -105,7 +106,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
 
     $sql = "SELECT tc.id teacher_course_id, tc.teacher_id, tc.course_id, tc.grado,
                    COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,
-                   ac.name course_name, ac.level
+                   ac.name course_name, ac.level,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode,ac.area_id
             FROM teacher_courses tc
             INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
             WHERE tc.school_id=? AND tc.academic_year_id=?";
@@ -140,6 +141,9 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
             $courses[$cid] = [
                 'id' => $cid,
                 'name' => (string)$row['course_name'],
+                'evaluation_mode' => (string)($row['evaluation_mode']??'weighted'),
+                'area_id' => (int)($row['area_id']??0),
+                'level' => (string)$row['level'],
                 'teacher_courses' => []
             ];
         }
@@ -188,6 +192,14 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         INNER JOIN student s ON s.id=eg.student_id AND s.school_id=?
         INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=s.school_id
         INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=s.school_id
+        WHERE e.teacher_course_id IN ($tcList)
+        UNION
+        SELECT DISTINCT s.id,s.name,s.id_no
+        FROM evaluation_area_grades eag
+        INNER JOIN evaluations e ON e.id=eag.evaluation_id
+        INNER JOIN student s ON s.id=eag.student_id AND s.school_id=?
+        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=s.school_id
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=s.school_id
         WHERE e.teacher_course_id IN ($tcList)";
     if (!$isCurrentAcademicYear) {
         require_once __DIR__.'/grades_report_historical_classroom.php';
@@ -196,7 +208,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
     }
     $historyStmt = $conn->prepare($historySql);
     if ($historyStmt) {
-        $historyStmt->bind_param('i', $schoolId);
+        $historyStmt->bind_param('ii', $schoolId, $schoolId);
         $historyStmt->execute();
         $historicRows = $historyStmt->get_result();
         while ($historic = $historicRows->fetch_assoc()) {
@@ -234,7 +246,8 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
             'id' => $evaluationId,
             'teacher_course_id' => $tcId,
             'course_id' => $cid,
-            'title' => (string)$row['title']
+            'title' => (string)$row['title'],
+            'evaluation_mode' => (string)($assignments[$tcId]['evaluation_mode']??'weighted')
         ];
         $evalIds[] = $evaluationId;
     }
@@ -244,11 +257,11 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
     $grades = [];
     if ($evalIds) {
         $evalList = implode(',', array_map('intval', $evalIds));
-        $linkSql = "SELECT ec.evaluation_id,gcc.id competency_id,gcc.name,gcc.percentage
+        $linkSql = "SELECT ec.evaluation_id,gcc.id competency_id,gcc.name,gcc.percentage,'weighted' evaluation_mode
                     FROM evaluation_competencias ec
                     INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
                     WHERE ec.evaluation_id IN ($evalList)
-
+                      AND COALESCE((SELECT ac.evaluation_mode FROM evaluations e2 INNER JOIN teacher_courses tc2 ON tc2.id=e2.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc2.course_id WHERE e2.id=ec.evaluation_id LIMIT 1),'weighted')='weighted'
                     ORDER BY gcc.id,ec.evaluation_id";
         $links = $conn->query($linkSql);
         while ($links && ($row = $links->fetch_assoc())) {
@@ -267,6 +280,24 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
             $competencies[$cid][$competencyId]['evaluations'][$evaluationId] = $evaluations[$evaluationId];
         }
 
+        $areaLinkSql="SELECT eac.evaluation_id,acomp.id competency_id,acomp.name,0 percentage
+            FROM evaluation_area_competencies eac
+            INNER JOIN evaluations e ON e.id=eac.evaluation_id
+            INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+            INNER JOIN academic_courses ac ON ac.id=tc.course_id
+            INNER JOIN area_competencies acomp ON acomp.id=eac.area_competency_id
+            WHERE eac.evaluation_id IN ($evalList) AND ac.evaluation_mode='competency'
+              AND acomp.school_id=tc.school_id AND acomp.academic_year_id=tc.academic_year_id
+              AND acomp.area_id=ac.area_id AND acomp.level=ac.level
+            ORDER BY acomp.display_order,acomp.id,eac.evaluation_id";
+        $areaLinks=$conn->query($areaLinkSql);
+        while($areaLinks&&($row=$areaLinks->fetch_assoc())){
+            $evaluationId=(int)$row['evaluation_id'];if(!isset($evaluations[$evaluationId]))continue;
+            $courseId=(int)$evaluations[$evaluationId]['course_id'];$competencyId=(int)$row['competency_id'];
+            if(!isset($competencies[$courseId][$competencyId]))$competencies[$courseId][$competencyId]=['id'=>$competencyId,'name'=>(string)$row['name'],'percentage'=>0.0,'evaluations'=>[]];
+            $competencies[$courseId][$competencyId]['evaluations'][$evaluationId]=$evaluations[$evaluationId];
+        }
+
         $studentIds = array_keys($students);
         if ($studentIds) {
             $studentList = implode(',', array_map('intval', $studentIds));
@@ -282,6 +313,17 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
                 $studentId = (int)$row['student_id'];
                 $competencyId = $row['competencia_id'] === null ? 0 : (int)$row['competencia_id'];
                 $grades[$studentId][$evaluationId][$competencyId] = $row['grade'];
+            }
+            $areaGradeSql="SELECT eag.evaluation_id,eag.student_id,eag.area_competency_id competency_id,eag.grade
+                FROM evaluation_area_grades eag
+                INNER JOIN evaluations e ON e.id=eag.evaluation_id
+                INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                INNER JOIN academic_courses ac ON ac.id=tc.course_id
+                WHERE eag.evaluation_id IN ($evalList) AND eag.student_id IN ($studentList)
+                  AND ac.evaluation_mode='competency' AND eag.grade IS NOT NULL AND TRIM(eag.grade)<>''";
+            $areaGradeResult=$conn->query($areaGradeSql);
+            while($areaGradeResult&&($row=$areaGradeResult->fetch_assoc())){
+                $grades[(int)$row['student_id']][(int)$row['evaluation_id']][(int)$row['competency_id']]=$row['grade'];
             }
         }
     }
@@ -333,6 +375,7 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
         'students' => $students,
         'competencies' => $competencies,
         'grades' => $grades,
+        'course_modes' => array_map(static function($course){return (string)($course['evaluation_mode']??'weighted');},$courses),
         'locked' => $locked,
         'closed_at' => $closedAt,
         'auto_format' => grbd_auto_format($grades)
