@@ -465,8 +465,15 @@ try {
                 $courseName=(string)$courseInfo['nombre'];
                 if(!isset($annualCompetencyMap[$courseName]))$annualCompetencyMap[$courseName]=['area'=>$courseInfo['area'],'competencias'=>[]];
                 foreach($courseInfo['competencias'] as $compId=>$compData){
-                    if(!isset($annualCompetencyMap[$courseName]['competencias'][$compId]))$annualCompetencyMap[$courseName]['competencias'][$compId]=['nombre'=>$compData['nombre'],'notas'=>[]];
-                    foreach(($compData['notas']??[]) as $note)$annualCompetencyMap[$courseName]['competencias'][$compId]['notas'][]=$note;
+                    $compName=(string)$compData['nombre'];
+                    $compKey=mb_strtolower(trim($compName),'UTF-8');
+                    if(!isset($annualCompetencyMap[$courseName]['competencias'][$compKey]))$annualCompetencyMap[$courseName]['competencias'][$compKey]=['nombre'=>$compName,'bimestres'=>[],'notas'=>[]];
+                    if(!isset($annualCompetencyMap[$courseName]['competencias'][$compKey]['bimestres'][(string)$bimNo]))$annualCompetencyMap[$courseName]['competencias'][$compKey]['bimestres'][(string)$bimNo]=['sum'=>0.0,'count'=>0];
+                    foreach(($compData['notas']??[]) as $note){
+                        $annualCompetencyMap[$courseName]['competencias'][$compKey]['notas'][]=$note;
+                        $annualCompetencyMap[$courseName]['competencias'][$compKey]['bimestres'][(string)$bimNo]['sum']+=(float)$note['numeric'];
+                        $annualCompetencyMap[$courseName]['competencias'][$compKey]['bimestres'][(string)$bimNo]['count']++;
+                    }
                 }
             }
         }
@@ -474,9 +481,14 @@ try {
         foreach($annualCompetencyMap as $courseName=>$courseData){
             $items=[];
             foreach($courseData['competencias'] as $compData){
-                $notes=$compData['notas'];if(!$notes)continue;$sum=0.0;$count=0;$letters=0;$numeric=0;
-                foreach($notes as $note){$sum+=(float)$note['numeric'];$count++;if(($note['tipo']??'')==='literal')$letters++;else$numeric++;}
-                if(!$count)continue;$avg=$sum/$count;$items[]=['nombre'=>$compData['nombre'],'promedio_anual'=>number_format($avg,2,'.',''),'resultado'=>number_format($avg,2,'.',''),'nivel_logro'=>numeric_to_level($avg),'escala'=>scale_type($letters,$numeric),'evaluaciones'=>$notes,'peso'=>null];
+                $bimAverages=[];$letters=0;$numeric=0;
+                foreach($compData['bimestres'] as $bimNo=>$data){
+                    if((int)$data['count']>0)$bimAverages[$bimNo]=$data['sum']/(int)$data['count'];
+                }
+                foreach($compData['notas'] as $note){if(($note['tipo']??'')==='literal')$letters++;else$numeric++;}
+                if(!$bimAverages)continue;
+                $avg=array_sum($bimAverages)/count($bimAverages);ksort($bimAverages,SORT_NATURAL);
+                $items[]=['nombre'=>$compData['nombre'],'promedio_anual'=>number_format($avg,2,'.',''),'resultado'=>number_format($avg,2,'.',''),'nivel_logro'=>numeric_to_level($avg),'escala'=>scale_type($letters,$numeric),'detalle_bimestres'=>$bimAverages,'evaluaciones'=>$compData['notas'],'peso'=>null];
             }
             $annualCompetencyCourses[]=['curso'=>$courseName,'area'=>$courseData['area'],'evaluation_model'=>'competency','competencias'=>$items];
         }
