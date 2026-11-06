@@ -100,7 +100,7 @@ if ($action === 'list') {
         if (($row['evaluation_model']??'weighted')==='competency' ? (int)$row['area_competency_count']===0 : (int)$row['component_count']===0) $withoutComponents++;
     }
     $totalAreas = count($areaIds);
-    amResponse(['status'=>1, 'courses'=>$rows, 'stats'=>['areas'=>$totalAreas,'courses'=>count($rows),'active'=>$active,'without_area'=>$withoutArea,'without_components'=>$withoutCompetencies]]);
+    amResponse(['status'=>1, 'courses'=>$rows, 'stats'=>['areas'=>$totalAreas,'courses'=>count($rows),'active'=>$active,'without_area'=>$withoutArea,'without_components'=>$withoutComponents]]);
 }
 
 if ($action === 'areas') {
@@ -129,7 +129,7 @@ if ($action === 'audit') {
 
 if ($action === 'competencies') {
     $courseId=(int)($_GET['course_id']??0);$yearId=(int)($_GET['academic_year_id']??0);
-    $courseStmt=$conn->prepare('SELECT id,name FROM academic_courses WHERE id=? AND school_id=? AND academic_year_id=? LIMIT 1');$courseStmt->bind_param('iii',$courseId,$schoolId,$yearId);$courseStmt->execute();$course=$courseStmt->get_result()->fetch_assoc();$courseStmt->close();if(!$course)amResponse(['status'=>0,'message'=>'Curso inválido.']);
+    $courseStmt=$conn->prepare('SELECT id,name,COALESCE(evaluation_model,"weighted") evaluation_model FROM academic_courses WHERE id=? AND school_id=? AND academic_year_id=? LIMIT 1');$courseStmt->bind_param('iii',$courseId,$schoolId,$yearId);$courseStmt->execute();$course=$courseStmt->get_result()->fetch_assoc();$courseStmt->close();if(!$course)amResponse(['status'=>0,'message'=>'Curso inválido.']);
     $teachers=[];$stmt=$conn->prepare("SELECT DISTINCT t.id,t.name FROM teacher_courses tc INNER JOIN teacher t ON t.id=tc.teacher_id WHERE tc.course_id=? AND tc.academic_year_id=? AND tc.school_id=? ORDER BY t.name");$stmt->bind_param('iii',$courseId,$yearId,$schoolId);$stmt->execute();$res=$stmt->get_result();while($row=$res->fetch_assoc())$teachers[]=$row;$stmt->close();
     $items=[];$stmt=$conn->prepare("SELECT gcc.id,gcc.teacher_id,gcc.name,gcc.percentage,gcc.is_active,t.name teacher_name,(SELECT COUNT(*) FROM evaluation_competencias ec WHERE ec.competencia_id=gcc.id) usage_count FROM general_course_competencies gcc INNER JOIN teacher t ON t.id=gcc.teacher_id AND t.school_id=? WHERE gcc.course_id=? AND gcc.academic_year_id=? ORDER BY t.name,gcc.is_active DESC,gcc.name");$stmt->bind_param('iii',$schoolId,$courseId,$yearId);$stmt->execute();$res=$stmt->get_result();while($row=$res->fetch_assoc())$items[]=$row;$stmt->close();
     amResponse(['status'=>1,'course'=>$course,'teachers'=>$teachers,'competencies'=>$items]);
