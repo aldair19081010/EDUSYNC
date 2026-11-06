@@ -1995,6 +1995,9 @@ function save_payment(){
             $existingLink->close();
             if ($existingAreaLink) {
                 if ((int)$existingAreaLink['area_competencia_id'] !== $area_competency_id) {
+                    $gradeCheck=$this->db->prepare('SELECT id FROM evaluation_grades WHERE evaluation_id=? LIMIT 1');
+                    $gradeCheck->bind_param('i',$eval_id);$gradeCheck->execute();$hasGrades=(bool)$gradeCheck->get_result()->fetch_assoc();$gradeCheck->close();
+                    if($hasGrades)return json_encode(['status'=>0,'message'=>'Esta evaluación ya tiene notas. No se puede cambiar su competencia para proteger el historial.']);
                     $updateLink = $this->db->prepare('UPDATE evaluation_area_competencies SET area_competencia_id=? WHERE id=? AND evaluation_id=?');
                     $updateLink->bind_param('iii', $area_competency_id, $existingAreaLink['id'], $eval_id);
                     if (!$updateLink->execute()) return json_encode(['status'=>0,'message'=>'No se pudo actualizar la competencia del área: '.$this->db->error]);
