@@ -60,7 +60,9 @@ if(!$yearId&&$years)$yearId=(int)$years[0]['id'];
   $.getJSON(api,{action:'area_competencies',academic_year_id:year,area_id:area,level:level}).done(function(r){
    items=r.competencies||[];let html='';
    items.forEach(function(c){
-    html+='<tr class="'+(+c.is_active?'':'acat-inactive')+'"><td>'+esc(c.name)+'</td><td class="text-center">'+esc(c.usage_count||0)+'</td><td class="text-center"><span class="badge badge-'+(+c.is_active?'success':'secondary')+'">'+(+c.is_active?'Activa':'Inactiva')+'</span></td><td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary acat-edit" data-id="'+c.id+'" title="Editar"><i class="fa fa-edit"></i></button> <button type="button" class="btn btn-sm btn-outline-'+(+c.is_active?'danger':'success')+' acat-toggle" data-id="'+c.id+'" data-active="'+(+c.is_active?0:1)+'" title="'+(+c.is_active?'Desactivar':'Activar')+'"><i class="fa fa-'+(+c.is_active?'ban':'check')+'"></i></button></td></tr>';
+    const used=Number(c.usage_count||0)>0,canDeactivate=!(+c.is_active===1&&used);
+    const toggleTitle=+c.is_active?(used?'No se puede desactivar: tiene evaluaciones vinculadas':'Desactivar'):'Activar';
+    html+='<tr class="'+(+c.is_active?'':'acat-inactive')+'"><td>'+esc(c.name)+'</td><td class="text-center">'+esc(c.usage_count||0)+'</td><td class="text-center"><span class="badge badge-'+(+c.is_active?'success':'secondary')+'">'+(+c.is_active?'Activa':'Inactiva')+'</span></td><td class="text-center"><button type="button" class="btn btn-sm btn-outline-primary acat-edit" data-id="'+c.id+'" title="Editar"><i class="fa fa-edit"></i></button> <button type="button" class="btn btn-sm btn-outline-'+(+c.is_active?'danger':'success')+' acat-toggle" data-id="'+c.id+'" data-active="'+(+c.is_active?0:1)+'" title="'+toggleTitle+'" '+(canDeactivate?'':'disabled')+'><i class="fa fa-'+(+c.is_active?'ban':'check')+'"></i></button></td></tr>';
    });
    $('#acat-body').html(html||'<tr><td colspan="4" class="text-center text-muted py-4">Todavía no hay competencias para esta área y nivel.</td></tr>');
   }).fail(function(x){message((x.responseJSON||{}).message||'No se pudieron consultar las competencias.','danger');});
@@ -77,11 +79,11 @@ if(!$yearId&&$years)$yearId=(int)$years[0]['id'];
    else message(r.message||'No se pudo guardar.','danger');
   }).fail(function(x){message((x.responseJSON||{}).message||'No se pudo guardar.','danger')}).always(end_load);
  });
- $(document).on('click','.acat-edit',function(){const c=items.find(x=>+x.id===+this.dataset.id);if(!c)return;$('#acat-id').val(c.id);$('#acat-name').val(c.name);$('#acat-order').val(c.display_order||0);$('#acat-cancel').removeClass('d-none');$('#acat-name').focus()});
+ $(document).off('click.acatEdit','.acat-edit').on('click.acatEdit','.acat-edit',function(){const c=items.find(x=>+x.id===+this.dataset.id);if(!c)return;$('#acat-id').val(c.id);$('#acat-name').val(c.name);$('#acat-order').val(c.display_order||0);$('#acat-cancel').removeClass('d-none');$('#acat-name').focus()});
  $('#acat-cancel').on('click',reset);
- $(document).on('click','.acat-toggle',function(){
+ $(document).off('click.acatToggle','.acat-toggle').on('click.acatToggle','.acat-toggle',function(){
   const id=this.dataset.id,active=this.dataset.active==='1';
-  if(!confirm(active?'¿Activar esta competencia?':'¿Desactivar esta competencia? Las evaluaciones existentes conservarán su relación.'))return;
+  if(!confirm(active?'¿Activar esta competencia?':'¿Desactivar esta competencia? Solo se permite cuando no tiene evaluaciones vinculadas.'))return;
   start_load();
   $.post(api+'?action=toggle_area_competency',{csrf_token:csrf,id:id,academic_year_id:$('#acat-year').val(),is_active:active?1:0},null,'json').done(function(r){message(r.message,r.status===1?'success':'danger');if(r.status===1){load();$(document).trigger('academic:changed')}}).fail(function(x){message((x.responseJSON||{}).message||'No se pudo actualizar.','danger')}).always(end_load);
  });
