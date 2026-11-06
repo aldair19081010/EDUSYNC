@@ -154,6 +154,66 @@ if ($show_avg && !empty($student_id_filter)) {
         }
     }
 
+    // La ficha del nuevo modelo muestra resultados por competencia y no calcula promedio del área.
+    if (!empty($course_id_filter)) {
+        $courseModelStmt=$conn->prepare('SELECT ac.id,ac.name,ac.area_id,ac.level,ac.academic_year_id,COALESCE(ac.evaluation_model,"weighted") evaluation_model FROM academic_courses ac WHERE ac.id=? AND ac.school_id=? LIMIT 1');
+        $courseModelStmt->bind_param('ii',$course_id_filter,$school_id);$courseModelStmt->execute();$courseModel=$courseModelStmt->get_result()->fetch_assoc();$courseModelStmt->close();
+        if($courseModel && $courseModel['evaluation_model']==='competency'){
+            $yearForCompetency=(int)($academic_year_id?:$courseModel['academic_year_id']);
+            $statusJoin=grades_report_table_exists($conn,'evaluations') && grades_report_table_column_exists($conn,'evaluations','status') ? " AND (e.status IS NULL OR e.status<>'Anulada')" : '';
+            $joinFilters='';$paramsArea=[$school_id,$yearForCompetency,$course_id_filter,$school_id,$yearForCompetency,$student_id_filter,$school_id,$yearForCompetency,$courseModel['area_id'],$courseModel['level']];$typesArea='iiiiii iiis';
+            $typesArea=str_replace(' ','',$typesArea);
+            if(!empty($bimestre_filter)){$joinFilters.=' AND e.bimestre=?';$paramsArea[]=$bimestre_filter;$typesArea.='s';}
+            if(!empty($evaluation_id_filter)){$joinFilters.=' AND e.id=?';$paramsArea[]=$evaluation_id_filter;$typesArea.='i';}
+            $teacherJoin='';
+            if($login_type==2&&$teacher_id&&!$reportDirector){$teacherJoin=' AND tc.teacher_id=?';$paramsArea[]=$teacher_id;$typesArea.='i';}
+            $sqlArea="SELECT c.id competency_id,c.name competency_name,e.id evaluation_id,e.title evaluation_title,e.bimestre,eg.grade
+                      FROM area_competencies c
+                      LEFT JOIN evaluation_area_competencies eac ON eac.area_competencia_id=c.id AND eac.school_id=? AND eac.academic_year_id=?
+                      LEFT JOIN evaluations e ON e.id=eac.evaluation_id$joinFilters$statusJoin
+                      LEFT JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.course_id=? AND tc.school_id=? AND tc.academic_year_id=?$teacherJoin
+                      LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.student_id=? AND eg.area_competencia_id=c.id AND tc.id IS NOT NULL
+                      WHERE c.school_id=? AND c.academic_year_id=? AND c.area_id=? AND c.level=? AND (c.is_active=1 OR e.id IS NOT NULL)
+                      ORDER BY c.display_order,c.id,e.created_at,e.id";
+            // Los filtros de evaluación se colocan después del vínculo de catálogo para conservar competencias sin notas.
+            $paramsArea=array_merge([$school_id,$yearForCompetency],$paramsArea);
+            $stmtArea=$conn->prepare($sqlArea);
+            if(!$stmtArea){echo '<div class="alert alert-danger">No se pudo preparar el reporte por competencias: '.htmlspecialchars($conn->error).'</div>';exit;}
+            $stmtArea->bind_param($typesArea,...$paramsArea);$stmtArea->execute();$resultArea=$stmtArea->get_result();$areaRows=[];
+            while($rowArea=$resultArea->fetch_assoc()){
+                $cid=(int)$rowArea['competency_id'];
+                if(!isset($areaRows[$cid]))$areaRows[$cid]=['name'=>$rowArea['competency_name'],'evaluations'=>[]];
+                if(!empty($rowArea['evaluation_id'])){
+                    $areaRows[$cid]['evaluations'][]=['title'=>$rowArea['evaluation_title'],'bimestre'=>$rowArea['bimestre'],'grade'=>$rowArea['grade']];
+                }
+            }
+            $stmtArea->close();
+            ?>
+            <style>
+            .individual-report{color:#344767}.individual-report .ir-heading{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid #e3e6f0;padding-bottom:14px;margin-bottom:14px}.individual-report h3{font-size:1.1rem;font-weight:700;margin:4px 0}.individual-report .ir-meta{color:#7b8499;font-size:.82rem}.individual-report .ir-card{border:1px solid #e3e6f0;border-radius:8px;margin-bottom:12px;overflow:hidden}.individual-report .ir-card-header{background:#f8f9fc;padding:11px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.individual-report .table{margin:0}.individual-report th,.individual-report td{padding:.6rem .8rem;vertical-align:middle}.individual-report .ir-number{text-align:right;white-space:nowrap}
+            </style>
+            <section class="individual-report">
+              <div class="ir-heading">
+                <div><div class="ir-meta">Ficha individual · <?php echo htmlspecialchars((string)$bimestre_filter); ?>° bimestre</div><h3><?php echo $student_name_avg; ?></h3><div><?php echo $course_name_for_avg_display; ?></div><div class="ir-meta"><?php echo htmlspecialchars(trim(($level_filter??'').' · '.($grado_filter??'').' '.($seccion_filter??''))); ?></div></div>
+                <div><span class="badge badge-info">Evaluación por competencias</span><div class="ir-meta mt-1">Sin promedio general del área</div></div>
+              </div>
+              <?php if(!$areaRows): ?><div class="alert alert-light border">No hay competencias configuradas para esta área y nivel.</div><?php endif; ?>
+              <?php foreach($areaRows as $comp): ?>
+                <?php $sum=0.0;$count=0;foreach($comp['evaluations'] as $ev){if($ev['grade']===null||trim((string)$ev['grade'])==='')continue;$sum+=letter_to_numeric_for_calc($ev['grade']);$count++;}$average=$count?$sum/$count:null; ?>
+                <div class="ir-card">
+                  <div class="ir-card-header"><strong><?php echo htmlspecialchars($comp['name']); ?></strong><?php if($average!==null): ?><span class="badge badge-success">Resultado: <?php echo number_format($average,2); ?></span><?php else: ?><span class="badge badge-secondary">Sin evaluar</span><?php endif; ?></div>
+                  <div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Evaluación</th><th>Bimestre</th><th class="ir-number">Nota</th></tr></thead><tbody>
+                    <?php foreach($comp['evaluations'] as $ev): ?><tr><td><?php echo htmlspecialchars($ev['title']); ?></td><td><?php echo htmlspecialchars((string)$ev['bimestre']); ?></td><td class="ir-number"><?php echo $ev['grade']===null||trim((string)$ev['grade'])===''?'—':format_grade($ev['grade']); ?></td></tr><?php endforeach; ?>
+                    <?php if(!$comp['evaluations']): ?><tr><td colspan="3" class="text-muted">Sin evaluaciones registradas.</td></tr><?php endif; ?>
+                  </tbody></table></div>
+                </div>
+              <?php endforeach; ?>
+            </section>
+            <?php
+            exit;
+        }
+    }
+
     $competencias_data = [];
     $final_average = 0;
     $has_competencias = false;
