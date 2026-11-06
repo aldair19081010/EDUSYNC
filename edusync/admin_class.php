@@ -2027,7 +2027,17 @@ function save_payment(){
             } else {
                 $insertLink = $this->db->prepare('INSERT INTO evaluation_area_competencies (school_id,academic_year_id,evaluation_id,area_competencia_id) VALUES (?,?,?,?)');
                 $insertLink->bind_param('iiii', $school_id, $academic_year_id, $eval_id, $area_competency_id);
-                if (!$insertLink->execute()) return json_encode(['status'=>0,'message'=>'No se pudo asociar la competencia del área: '.$this->db->error]);
+                if (!$insertLink->execute()) {
+                    $mappingError=$this->db->error;
+                    $insertLink->close();
+                    // Si acabamos de crear la evaluación, no dejar una fila
+                    // sin competencia curricular cuando falle la relación.
+                    if ($id <= 0) {
+                        $cleanup=$this->db->prepare('DELETE FROM evaluations WHERE id=? AND teacher_id=? AND teacher_course_id=? AND academic_year_id=?');
+                        if($cleanup){$cleanup->bind_param('iiii',$eval_id,$teacher_id,$teacher_course_id,$academic_year_id);$cleanup->execute();$cleanup->close();}
+                    }
+                    return json_encode(['status'=>0,'message'=>'No se pudo asociar la competencia del área: '.$mappingError]);
+                }
                 $insertLink->close();
             }
         } elseif (isset($_POST['competencias']) && is_array($_POST['competencias'])) {
