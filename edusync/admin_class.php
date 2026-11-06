@@ -1853,6 +1853,7 @@ function save_payment(){
     $academic_year_id = isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0;
 	if ($academic_year_id <= 0) $academic_year_id = (int)$assignment_row['academic_year_id'];
 	if ($academic_year_id !== (int)$assignment_row['academic_year_id']) return json_encode(['status'=>0,'message'=>'El año académico no coincide con la asignación seleccionada.']);
+    $id = intval($_POST['id'] ?? 0);
     $evaluation_model = ($assignment_row['evaluation_model'] ?? 'weighted') === 'competency' ? 'competency' : 'weighted';
     $area_competency_id = (int)($_POST['area_competencia_id'] ?? 0);
     if ($evaluation_model === 'competency') {
