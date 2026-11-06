@@ -359,7 +359,7 @@ if ($action === 'save') {
     }
     if (count($changes) > 3000) gradebook_response(['status'=>0,'message'=>'Solo puedes guardar hasta 3000 celdas por operación.']);
 
-    $assignmentResult = $conn->query("SELECT tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ay.year academic_year,ay.is_active".(gradebook_column_exists($conn,'academic_year','status')?',ay.status year_status':'')." FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=$teacherCourseId AND tc.teacher_id=$teacherId AND tc.school_id=$schoolId AND ay.school_id=$schoolId LIMIT 1");
+    $assignmentResult = $conn->query("SELECT tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,'weighted') evaluation_model,ay.year academic_year,ay.is_active".(gradebook_column_exists($conn,'academic_year','status')?',ay.status year_status':'')." FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=$teacherCourseId AND tc.teacher_id=$teacherId AND tc.school_id=$schoolId AND ay.school_id=$schoolId LIMIT 1");
     $assignment = $assignmentResult ? $assignmentResult->fetch_assoc() : null;
     if (!$assignment) gradebook_response(['status'=>0,'message'=>'La asignación no existe o no te pertenece.'],403);
     if ((int)$assignment['is_active'] !== 1 || (isset($assignment['year_status']) && in_array($assignment['year_status'],['Cerrado','Archivado'],true))) gradebook_response(['status'=>0,'message'=>'El año académico está cerrado y sus notas son de solo lectura.']);
@@ -377,12 +377,22 @@ if ($action === 'save') {
     if(!$evaluationIds||!$studentIds)gradebook_response(['status'=>0,'message'=>'Los cambios no contienen estudiantes o evaluaciones válidas.']);
     $evaluationList=implode(',',$evaluationIds);$studentList=implode(',',$studentIds);
     $statusCondition=gradebook_column_exists($conn,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
-    $validEvaluations=[];$evaluationTitles=[];$evaluationResult=$conn->query("SELECT e.id,e.title,(SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id FROM evaluations e WHERE e.id IN ($evaluationList) AND e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'$statusCondition");
+    $evaluationModel=($assignment['evaluation_model']??'weighted')==='competency'?'competency':'weighted';
+    if($evaluationModel==='competency'){
+        if(!gradebook_table_exists($conn,'evaluation_area_competencies')||!gradebook_table_exists($conn,'area_competencies'))gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql antes de guardar notas por competencias.'],409);
+        $evaluationResult=$conn->query("SELECT e.id,e.title,(SELECT eac.area_competencia_id FROM evaluation_area_competencies eac WHERE eac.evaluation_id=e.id ORDER BY eac.id LIMIT 1) competencia_id FROM evaluations e WHERE e.id IN ($evaluationList) AND e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'$statusCondition");
+    }else{
+        $evaluationResult=$conn->query("SELECT e.id,e.title,(SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id FROM evaluations e WHERE e.id IN ($evaluationList) AND e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'$statusCondition");
+    }
     while($evaluationResult&&($row=$evaluationResult->fetch_assoc())){$validEvaluations[(int)$row['id']]=(int)($row['competencia_id']??0);$evaluationTitles[(int)$row['id']]=(string)($row['title']??'Evaluación');}
     if(count($validEvaluations)!==count($evaluationIds))gradebook_response(['status'=>0,'message'=>'Una evaluación fue anulada o no pertenece al curso seleccionado.']);
 
     $validEvaluationCompetencies=[];
-    $linkResult=$conn->query("SELECT evaluation_id,competencia_id FROM evaluation_competencias WHERE evaluation_id IN ($evaluationList) ORDER BY evaluation_id,id");
+    if($evaluationModel==='competency'){
+        $linkResult=$conn->query("SELECT evaluation_id,area_competencia_id competencia_id FROM evaluation_area_competencies WHERE evaluation_id IN ($evaluationList) ORDER BY evaluation_id,id");
+    }else{
+        $linkResult=$conn->query("SELECT evaluation_id,competencia_id FROM evaluation_competencias WHERE evaluation_id IN ($evaluationList) ORDER BY evaluation_id,id");
+    }
     while($linkResult&&($link=$linkResult->fetch_assoc())){
         $eid=(int)$link['evaluation_id'];$cid=(int)$link['competencia_id'];
         if($eid>0&&$cid>0)$validEvaluationCompetencies[$eid][$cid]=true;
@@ -403,11 +413,19 @@ if ($action === 'save') {
     // En evaluaciones de una sola competencia, aceptar también la fila
     // histórica con competencia_id 0/NULL. ORDER BY id DESC coincide con la
     // lectura canónica del libro y evita falsos conflictos por duplicados.
-    $select=$conn->prepare('SELECT id,grade,COALESCE(competencia_id,0) competencia_id FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND (competencia_id=? OR (?=1 AND COALESCE(competencia_id,0)=0)) ORDER BY id DESC LIMIT 1');
-    $insert=$conn->prepare('INSERT INTO evaluation_grades (evaluation_id,student_id,competencia_id,grade) VALUES (?,?,?,?)');
-    $update=$conn->prepare('UPDATE evaluation_grades SET grade=?,competencia_id=? WHERE id=?');
-    $deleteMatching=$conn->prepare('DELETE FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND (competencia_id=? OR (?=1 AND COALESCE(competencia_id,0)=0))');
-    $deleteDuplicates=$conn->prepare('DELETE FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND (competencia_id=? OR (?=1 AND COALESCE(competencia_id,0)=0)) AND id<>?');
+    $gradeCompetencyColumn=$evaluationModel==='competency'?'area_competencia_id':'competencia_id';
+    $select=$conn->prepare("SELECT id,grade,COALESCE($gradeCompetencyColumn,0) competencia_id FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND (COALESCE($gradeCompetencyColumn,0)=? OR (?=1 AND COALESCE($gradeCompetencyColumn,0)=0)) ORDER BY id DESC LIMIT 1");
+    if($evaluationModel==='competency'){
+        $insert=$conn->prepare('INSERT INTO evaluation_grades (evaluation_id,student_id,competencia_id,area_competencia_id,grade) VALUES (?,?,0,?,?)');
+        $update=$conn->prepare('UPDATE evaluation_grades SET grade=?,area_competencia_id=? WHERE id=?');
+        $deleteMatching=$conn->prepare('DELETE FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND area_competencia_id=?');
+        $deleteDuplicates=$conn->prepare('DELETE FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND area_competencia_id=? AND id<>?');
+    }else{
+        $insert=$conn->prepare('INSERT INTO evaluation_grades (evaluation_id,student_id,competencia_id,grade) VALUES (?,?,?,?)');
+        $update=$conn->prepare('UPDATE evaluation_grades SET grade=?,competencia_id=? WHERE id=?');
+        $deleteMatching=$conn->prepare("DELETE FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND (competencia_id=? OR (?=1 AND COALESCE(competencia_id,0)=0))");
+        $deleteDuplicates=$conn->prepare("DELETE FROM evaluation_grades WHERE evaluation_id=? AND student_id=? AND (competencia_id=? OR (?=1 AND COALESCE(competencia_id,0)=0)) AND id<>?");
+    }
     $historyReady=gradebook_table_exists($conn,'evaluation_grade_history');$academicYearId=(int)$assignment['academic_year_id'];
     $saved=0;$gradePushChanges=[];$adminGradeChanges=[];
     $conn->begin_transaction();
@@ -442,7 +460,8 @@ if ($action === 'save') {
             if($value===''){
                 // Al dejar sin nota, limpiar también duplicados antiguos para
                 // que una fila vieja no reaparezca al recargar.
-                $deleteMatching->bind_param('iiii',$evaluationId,$studentId,$competencyId,$allowLegacy);
+                if($evaluationModel==='competency')$deleteMatching->bind_param('iii',$evaluationId,$studentId,$competencyId);
+                else $deleteMatching->bind_param('iiii',$evaluationId,$studentId,$competencyId,$allowLegacy);
                 if(!$deleteMatching->execute())throw new RuntimeException($deleteMatching->error);
             }elseif($existing){
                 $gradeId=(int)$existing['id'];
@@ -450,7 +469,8 @@ if ($action === 'save') {
                 // canónica al primer guardado normal del docente.
                 $update->bind_param('sii',$value,$competencyId,$gradeId);
                 if(!$update->execute())throw new RuntimeException($update->error);
-                $deleteDuplicates->bind_param('iiiii',$evaluationId,$studentId,$competencyId,$allowLegacy,$gradeId);
+                if($evaluationModel==='competency')$deleteDuplicates->bind_param('iiii',$evaluationId,$studentId,$competencyId,$gradeId);
+                else $deleteDuplicates->bind_param('iiiii',$evaluationId,$studentId,$competencyId,$allowLegacy,$gradeId);
                 if(!$deleteDuplicates->execute())throw new RuntimeException($deleteDuplicates->error);
             }else{
                 $insert->bind_param('iiis',$evaluationId,$studentId,$competencyId,$value);
