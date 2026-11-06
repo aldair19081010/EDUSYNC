@@ -377,7 +377,9 @@ foreach ($rows as $row) {
 }
 ?>
 <style>
-.gr-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}.gr-kpi{border:1px solid #e3e6f0;border-radius:8px;background:#fff;padding:11px 13px}.gr-kpi small{display:block;color:#7b8499;font-size:.72rem}.gr-kpi strong{font-size:1.35rem;color:#344767}.gr-status-bars{border:1px solid #e3e6f0;border-radius:8px;padding:14px;margin-bottom:16px;background:#fff}.gr-status-row{display:grid;grid-template-columns:145px 1fr 42px;gap:10px;align-items:center;margin:8px 0}.gr-status-track{height:13px;background:#f0f2f6;border-radius:999px;overflow:hidden}.gr-status-fill{height:100%;border-radius:999px}.gr-fill-ad{background:#13855c}.gr-fill-a{background:#1cc88a}.gr-fill-b{background:#f6c23e}.gr-fill-c{background:#e74a3b}.gr-alert-list{margin:0;padding-left:18px}.gr-matrix th{min-width:110px}.gr-matrix th:first-child{min-width:210px}.gr-status-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-weight:700;font-size:.75rem}.gr-pill-ad,.gr-pill-a{background:#e0f7ee;color:#107354}.gr-pill-b{background:#fff5d6;color:#856404}.gr-pill-c{background:#fde3e1;color:#a3281d}.gr-pill-none{background:#f1f3f5;color:#6c757d}@media(max-width:900px){.gr-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.gr-status-row{grid-template-columns:110px 1fr 36px}}
+.gr-kpi-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}.gr-kpi{border:1px solid #e3e6f0;border-radius:8px;background:#fff;padding:11px 13px}.gr-kpi small{display:block;color:#7b8499;font-size:.72rem}.gr-kpi strong{font-size:1.35rem;color:#344767}.gr-status-bars{border:1px solid #e3e6f0;border-radius:8px;padding:14px;margin-bottom:16px;background:#fff}.gr-status-row{display:grid;grid-template-columns:145px 1fr 42px;gap:10px;align-items:center;margin:8px 0}.gr-status-track{height:13px;background:#f0f2f6;border-radius:999px;overflow:hidden}.gr-status-fill{height:100%;border-radius:999px}.gr-fill-ad{background:#13855c}.gr-fill-a{background:#1cc88a}.gr-fill-b{background:#f6c23e}.gr-fill-c{background:#e74a3b}.gr-alert-list{margin:0;padding-left:18px}.gr-matrix th{min-width:110px}.gr-matrix th:first-child{min-width:210px}.gr-status-pill{display:inline-block;border-radius:999px;padding:3px 8px;font-weight:700;font-size:.75rem}.gr-pill-ad,.gr-pill-a{background:#e0f7ee;color:#107354}.gr-pill-b{background:#fff5d6;color:#856404}.gr-pill-c{background:#fde3e1;color:#a3281d}.gr-pill-none{background:#f1f3f5;color:#6c757d}@media(max-width:900px){.gr-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.gr-status-row{grid-template-columns:110px 1fr 36px}}
+
+.gr-competency-cell{display:flex;flex-direction:column;gap:3px;min-width:145px}.gr-competency-cell>div{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:2px 4px;background:#f8f9fc;border-radius:4px;font-size:.68rem}.gr-competency-cell>div span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:105px}.gr-competency-cell>div strong{white-space:nowrap}
 </style>
 <div class="grades-view-meta mb-3">
   <span><i class="fas fa-users mr-1"></i><?php echo count($students); ?> estudiante(s)</span>
@@ -442,7 +444,21 @@ foreach ($rows as $row) {
     }
     $validValues = [];
     $statusCounts = ['AD'=>0,'A'=>0,'B'=>0,'C'=>0];
+    $competencyResultCount=0;$competencyCourseCount=0;
     foreach ($records as $record) {
+        if (($record['course']['evaluation_mode']??'weighted')==='competency') {
+            $competencyCourseCount++;
+            $bimestersToCount=$bimester>0?[$bimester]:[1,2,3,4];
+            foreach($bimestersToCount as $bi){
+                $stats=report_competency_stats($record['course'],$bi);
+                foreach($stats['rows'] as $item){
+                    $competencyResultCount++;
+                    $letter=$item['status']['letter'];
+                    if(isset($statusCounts[$letter]))$statusCounts[$letter]++;
+                }
+            }
+            continue;
+        }
         if ($record['value'] === null) continue;
         $validValues[] = $record['value'];
         $status = report_status($record['value']);
@@ -452,7 +468,8 @@ foreach ($rows as $row) {
     $maxStatus = max(1, max($statusCounts));
   ?>
   <div class="gr-kpi-grid">
-    <div class="gr-kpi"><small>Promedio del aula</small><strong><?php echo report_fmt($classAvg); ?></strong></div>
+    <div class="gr-kpi"><small>Promedio de cursos ponderados</small><strong><?php echo report_fmt($classAvg); ?></strong><small><?php echo $competencyCourseCount?'No incluye cursos por competencias':''; ?></small></div>
+    <div class="gr-kpi"><small>Resultados por competencia</small><strong><?php echo $competencyResultCount; ?></strong></div>
     <div class="gr-kpi"><small>Logro destacado (AD)</small><strong><?php echo $statusCounts['AD']; ?></strong></div>
     <div class="gr-kpi"><small>Logro esperado (A)</small><strong><?php echo $statusCounts['A']; ?></strong></div>
     <div class="gr-kpi"><small>En proceso (B)</small><strong><?php echo $statusCounts['B']; ?></strong></div>
@@ -466,9 +483,9 @@ foreach ($rows as $row) {
   </div>
 
   <div class="table-responsive mb-4"><table class="table table-sm table-bordered report-clean-table js-report-table">
-    <thead><tr><th>Estudiante</th><th>DNI</th><th>Curso</th><th>Notas registradas</th><th>Promedio</th><th>Estado</th></tr></thead><tbody>
-    <?php foreach($records as $record): $value=$record['value']; $status=report_status($value); $biForCount=$bimester>0?$bimester:0; $graded=$biForCount?($record['course']['graded'][$biForCount]??0):array_sum($record['course']['graded']); ?>
-      <tr><td><?php echo htmlspecialchars($record['student']['name']); ?></td><td><?php echo htmlspecialchars($record['student']['dni']); ?></td><td><?php echo htmlspecialchars($record['course']['name']); ?></td><td><?php echo (int)$graded; ?></td><td><strong><?php echo report_fmt($value); ?></strong></td><td><span class="gr-status-pill gr-pill-<?php echo strtolower($status['letter']==='—'?'none':$status['letter']); ?>"><?php echo htmlspecialchars($status['letter'].' · '.$status['label']); ?></span></td></tr>
+    <thead><tr><th>Estudiante</th><th>DNI</th><th>Curso</th><th>Notas registradas</th><th>Resultado</th><th>Estado</th></tr></thead><tbody>
+    <?php foreach($records as $record): $value=$record['value']; $status=report_status($value); $biForCount=$bimester>0?$bimester:0; $graded=$biForCount?($record['course']['graded'][$biForCount]??0):array_sum($record['course']['graded']); $isCompetencyCourse=(($record['course']['evaluation_mode']??'weighted')==='competency'); $courseCompStats=$isCompetencyCourse?report_competency_stats($record['course'],$bimester>0?$bimester:1):null; ?>
+      <tr><td><?php echo htmlspecialchars($record['student']['name']); ?></td><td><?php echo htmlspecialchars($record['student']['dni']); ?></td><td><?php echo htmlspecialchars($record['course']['name']); ?></td><td><?php echo (int)$graded; ?></td><td><strong><?php echo $isCompetencyCourse?'<span class="badge badge-success">Por competencias</span>':report_fmt($value); ?></strong></td><td><?php if($isCompetencyCourse): ?><span class="text-muted">Consultar resultados individuales</span><?php else: ?><span class="gr-status-pill gr-pill-<?php echo strtolower($status['letter']==='—'?'none':$status['letter']); ?>"><?php echo htmlspecialchars($status['letter'].' · '.$status['label']); ?></span><?php endif; ?></td></tr>
     <?php endforeach; ?></tbody>
   </table></div>
 
@@ -482,11 +499,11 @@ foreach ($rows as $row) {
   ?>
     <h6 class="font-weight-bold text-primary mb-2"><i class="fas fa-th mr-2"></i>Matriz de competencias</h6>
     <div class="table-responsive"><table class="table table-sm table-bordered report-clean-table js-report-table gr-matrix">
-      <thead><tr><th>Estudiante</th><?php foreach($competencyColumns as $compName): ?><th><?php echo htmlspecialchars($compName); ?></th><?php endforeach; ?><th>Promedio</th></tr></thead><tbody>
+      <thead><tr><th>Estudiante</th><?php foreach($competencyColumns as $compName): ?><th><?php echo htmlspecialchars($compName); ?></th><?php endforeach; ?><th>Resultado</th></tr></thead><tbody>
       <?php foreach($students as $student): $course=$student['courses'][$courseId]??null; if(!$course)continue; ?>
         <tr><td><?php echo htmlspecialchars($student['name']); ?></td>
         <?php foreach($competencyColumns as $compId=>$compName): $comp=$course['competencies'][$bimester][$compId]??null; $value=$comp['avg']??null; $status=report_status($value); ?><td><span class="gr-status-pill gr-pill-<?php echo strtolower($status['letter']==='—'?'none':$status['letter']); ?>"><?php echo report_fmt($value); ?><?php if($value!==null): ?> · <?php echo $status['letter']; ?><?php endif; ?></span></td><?php endforeach; ?>
-        <td><strong><?php echo report_fmt($course['bimesters'][$bimester]??null); ?></strong></td></tr>
+        <td><strong><?php echo (($course['evaluation_mode']??'weighted')==='competency')?'<span class="text-muted">No se promedia</span>':report_fmt($course['bimesters'][$bimester]??null); ?></strong></td></tr>
       <?php endforeach; ?></tbody>
     </table></div>
   <?php else: ?>
@@ -494,4 +511,4 @@ foreach ($rows as $row) {
   <?php endif; ?>
 <?php endif; ?>
 
-<div class="small text-muted mt-2"><i class="fas fa-info-circle mr-1"></i>Los promedios se muestran como enteros redondeados. El cálculo conserva la fórmula por competencias: promedio de cada competencia multiplicado por su porcentaje, sin normalizar los pesos.</div>
+<div class="small text-muted mt-2"><i class="fas fa-info-circle mr-1"></i>Los cursos ponderados conservan su promedio según los porcentajes configurados. Los cursos por competencias muestran sus resultados individuales y no generan un promedio del área.</div>
