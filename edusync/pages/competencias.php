@@ -107,6 +107,7 @@ if ($level && !$course_id) {
         SELECT 
             ac.id,
             ac.name as course_name,
+            COALESCE(ac.evaluation_model,'weighted') evaluation_model,
             a.name as area_name,
             a.color as area_color,
             tc.level,
@@ -190,6 +191,7 @@ if ($level && !$course_id) {
 $course_query = $conn->prepare("
     SELECT 
         ac.*, 
+        COALESCE(ac.evaluation_model,'weighted') evaluation_model,
         a.name as area_name, 
         a.color as area_color,
         tc.level
@@ -205,6 +207,10 @@ $course = $course_query->get_result()->fetch_assoc();
 
 if (!$course) {
     echo "<div class='container mt-5'><div class='alert alert-danger'>Curso no encontrado o no tienes permisos para acceder a él. <a href='index.php?page=competencias&level=" . urlencode($level) . "'>Volver a cursos</a></div></div>";
+    exit;
+}
+if (($course['evaluation_model'] ?? 'weighted') === 'competency') {
+    echo "<div class='container-fluid'><div class='alert alert-info'><strong>Este curso utiliza evaluación por competencias.</strong><br>Las competencias curriculares se administran en Gestión Académica. Aquí no necesitas configurar componentes ni porcentajes; registra tus evaluaciones desde el Libro de Notas.</div></div>";
     exit;
 }
 
@@ -325,7 +331,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                             <?php if ($total_percentage == 100): ?>
                                 El porcentaje total es correcto. Los componentes suman 100%. 
                             <?php else: ?>
-                                El porcentaje total debe ser exactamente 100%.
+                                Los porcentajes de los componentes deben sumar exactamente 100%.
                             <?php endif; ?>
                         </p>
                     </div>
@@ -337,7 +343,7 @@ $total_percentage = array_sum(array_column($competencias, 'percentage'));
                     <i class="fa fa-info-circle mt-1 mr-2"></i>
                     <div>
                         <strong>¿Qué son los componentes de calificación?</strong>
-                        <p class="mb-0 small">Los componentes de calificación se aplican a <strong>todos los grados</strong> de este curso. Son útiles cuando quieres usar las mismas competencias para todos los grados del mismo curso.</p>
+                        <p class="mb-0 small">Los componentes de calificación se aplican a <strong>todos los grados</strong> de este curso. Se utilizan para organizar actividades y calcular el promedio ponderado del curso mediante porcentajes.</p>
                     </div>
                 </div>
             </div>
