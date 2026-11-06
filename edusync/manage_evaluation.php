@@ -431,26 +431,36 @@ if ($id) {
 						</select>
 						<?php endif; ?>
 					</div>
-					<div class="col-md-6 mb-3">
-						<label class="small font-weight-bold"><i class="fa fa-award"></i> Competencia a Evaluar</label>
-						<?php if ($from_notification): ?>
-						<div class="form-control form-control-sm" style="background-color: #f8f9fc; min-height: 38px;">
-							<?php 
-							$comp_names = [];
-							foreach ($competencias as $comp) {
-								if (in_array($comp['id'], $selected_competencias)) {
-									$comp_names[] = $comp['name'] . " (" . $comp['percentage'] . "%) - " . $comp['course_name'] . " (" . $comp['area_name'] . ")";
-								}
-							}
-							echo !empty($comp_names) ? htmlspecialchars(implode(', ', $comp_names)) : 'No hay competencias seleccionadas';
-							?>
-						</div>
-						<?php else: ?>
-						<select name="competencias[]" id="competencias" class="form-control form-control-sm select2" required>
-							<option value="">Seleccione curso y nivel para cargar competencias</option>
-						</select>
-						<?php endif; ?>
-					</div>
+					<?php if ($from_notification): ?>
+                    <div class="col-md-6 mb-3">
+                        <label class="small font-weight-bold"><i class="fa fa-award"></i> Componente de calificación</label>
+                        <div class="form-control form-control-sm" style="background-color: #f8f9fc; min-height: 38px;">
+                            <?php
+                            $comp_names = [];
+                            foreach ($competencias as $comp) {
+                                if (in_array($comp['id'], $selected_competencias)) {
+                                    $comp_names[] = $comp['name'] . " (" . $comp['percentage'] . "%) - " . $comp['course_name'] . " (" . $comp['area_name'] . ")";
+                                }
+                            }
+                            echo !empty($comp_names) ? htmlspecialchars(implode(', ', $comp_names)) : 'No hay componentes seleccionados';
+                            ?>
+                        </div>
+                    </div>
+                    <?php else: ?>
+                    <div class="col-md-6 mb-3" id="legacy-competency-group">
+                        <label for="competencias" class="small font-weight-bold"><i class="fa fa-award"></i> Componente de calificación</label>
+                        <select name="competencias[]" id="competencias" class="form-control form-control-sm select2" required>
+                            <option value="">Seleccione curso y nivel para cargar componentes</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3 d-none" id="area-competency-group">
+                        <label for="area_competencia_id" class="small font-weight-bold"><i class="fa fa-award"></i> Competencia curricular del área</label>
+                        <select name="area_competencia_id" id="area_competencia_id" class="form-control form-control-sm select2" disabled>
+                            <option value="">Selecciona curso, nivel, grado y sección</option>
+                        </select>
+                        <small class="text-muted">No utiliza porcentajes. El resultado se calcula de forma independiente.</small>
+                    </div>
+                    <?php endif; ?>
 					<?php if ($id && $has_existing_grades): ?>
 					<div class="col-md-6 mb-3">
 						<label class="small font-weight-bold"><i class="fa fa-history"></i> Acción para el historial</label>
@@ -569,19 +579,28 @@ var seccionesPorNombreNivelGrado = <?php echo json_encode($secciones_por_nombre_
 var teacherCourseMap = {};
 <?php
 $teacher_course_map = [];
+$teacher_course_meta_map = [];
 if ($is_teacher && $teacher_id) {
 	$year_filter = $academic_year_id ? "AND tc.academic_year_id = $academic_year_id" : "";
-	
-	$q = $conn->query("SELECT tc.id as tcid, ac.name, ac.level, tc.grado, tc.seccion
+	$q = $conn->query("SELECT tc.id as tcid,tc.academic_year_id,ac.name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,'weighted') evaluation_model,tc.grado,tc.seccion
 		FROM teacher_courses tc
 		INNER JOIN academic_courses ac ON ac.id = tc.course_id
-		WHERE tc.teacher_id = $teacher_id $year_filter");
+		WHERE tc.teacher_id = $teacher_id AND tc.school_id = $school_id $year_filter");
 	while ($row = $q->fetch_assoc()) {
-		$teacher_course_map[$row['name']][$row['level']][$row['grado']][$row['seccion'] ?? 'U'] = $row['tcid'];
+        $courseName=(string)$row['name'];$courseLevel=(string)$row['level'];$courseGrade=(string)$row['grado'];$courseSection=(string)($row['seccion']??'U');
+		$teacher_course_map[$courseName][$courseLevel][$courseGrade][$courseSection] = (int)$row['tcid'];
+        $teacher_course_meta_map[$courseName][$courseLevel][$courseGrade][$courseSection] = [
+            'teacher_course_id'=>(int)$row['tcid'],
+            'academic_year_id'=>(int)$row['academic_year_id'],
+            'evaluation_model'=>($row['evaluation_model']??'weighted')==='competency'?'competency':'weighted',
+            'area_id'=>(int)$row['area_id'],
+            'level'=>$courseLevel
+        ];
 	}
 }
 ?>
-teacherCourseMap = <?php echo json_encode($teacher_course_map); ?>;
+teacherCourseMap = <?php echo json_encode($teacher_course_map, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
+teacherCourseMetaMap = <?php echo json_encode($teacher_course_meta_map, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_AMP|JSON_HEX_QUOT); ?>;
 
 function updateNiveles() {
     var cname = $('#course_name').val();
@@ -639,94 +658,112 @@ function updateSecciones() {
     }, 100);
 }
 
+function currentTeacherCourseMeta() {
+    var cname=$('#course_name').val(),nivel=$('#level').val(),grado=$('#grado').val(),seccion=$('#seccion').val();
+    return cname&&nivel&&grado&&seccion&&teacherCourseMetaMap[cname]&&teacherCourseMetaMap[cname][nivel]&&teacherCourseMetaMap[cname][nivel][grado]
+        ? (teacherCourseMetaMap[cname][nivel][grado][seccion]||null) : null;
+}
+function resetCompetencySelectors(message) {
+    $('#legacy-competency-group').removeClass('d-none');
+    $('#competencias').prop('disabled',true).prop('required',false).html('<option value="">'+(message||'Seleccione curso, nivel, grado y sección')+'</option>');
+    $('#area-competency-group').addClass('d-none');
+    $('#area_competencia_id').prop('disabled',true).prop('required',false).html('<option value="">Selecciona una competencia curricular</option>');
+}
 function updateTeacherCourseIdHidden() {
     var cname = $('#course_name').val();
     var nivel = $('#level').val();
     var grado = $('#grado').val();
     var seccion = $('#seccion').val();
     var tcid = '';
-    
-    if (cname && nivel && grado && seccion && teacherCourseMap[cname] && 
-        teacherCourseMap[cname][nivel] && 
-        teacherCourseMap[cname][nivel][grado] && 
+    if (cname && nivel && grado && seccion && teacherCourseMap[cname] &&
+        teacherCourseMap[cname][nivel] && teacherCourseMap[cname][nivel][grado] &&
         teacherCourseMap[cname][nivel][grado][seccion]) {
         tcid = teacherCourseMap[cname][nivel][grado][seccion];
     }
-    
     $('#teacher_course_id_hidden').val(tcid);
+    return currentTeacherCourseMeta();
 }
-
 function updateCompetencias() {
-    var cname = $('#course_name').val();
-    var nivel = $('#level').val();
-    var $competencias = $('#competencias');
-    
-    $competencias.prop('disabled', true);
-    
-    if (cname && nivel) {
-        $competencias.html('<option value="">Cargando competencias...</option>');
-        
-        $.ajax({
-            url: 'ajax.php?action=get_course_competencies_by_name_level',
-            method: 'POST',
-            data: { 
-                course_name: cname,
-                level: nivel,
-                academic_year_id: <?php echo (int)$academic_year_id; ?>,
-                selected_competency_id: selectedCompetenciaId || 0
-            },
-            dataType: 'json',
-            success: function(resp) {
-                $competencias.html('<option value="">Seleccione una competencia</option>');
-                
-                var hasUnofficial = false;
-                if (resp.status == 1 && resp.competencies && resp.competencies.length > 0) {
-                    $.each(resp.competencies, function(index, competencia) {
-                        if (parseFloat(competencia.percentage) == 0 && competencia.name.toLowerCase().indexOf('no oficial') !== -1) {
-                            hasUnofficial = true;
-                        }
-                        var selected = '';
-                        if (typeof selectedCompetenciaId !== 'undefined' && selectedCompetenciaId == competencia.id) {
-                            selected = ' selected';
-                        }
-                        $competencias.append(
-                            '<option value="' + competencia.id + '"' + selected + '>' + 
-                            competencia.name + ' (' + competencia.percentage + '%) - ' + 
-                            competencia.course_name + ' (' + competencia.area_name + ')' +
-                            '</option>'
-                        );
-                    });
-                } else {
-                    $competencias.append('<option value="">No hay competencias configuradas, pero puede usar una no oficial.</option>');
-                }
-                
-                if (!hasUnofficial) {
-                    var selUnofficial = (typeof selectedCompetenciaId !== 'undefined' && selectedCompetenciaId === 'unofficial') ? ' selected' : '';
-                    $competencias.append('<option value="unofficial"'+selUnofficial+'>Evaluación No Oficial (No Promedia)</option>');
-                }
-                
-                $competencias.prop('disabled', false).trigger('change.select2');
-            },
-            error: function() {
-                $competencias.html('<option value="">Error al cargar competencias</option>');
-                $competencias.prop('disabled', false).trigger('change.select2');
+    var meta=currentTeacherCourseMeta();
+    var $competencias=$('#competencias');
+    var $areaCompetencia=$('#area_competencia_id');
+    if(!meta){resetCompetencySelectors('Selecciona curso, nivel, grado y sección');return;}
+    if(meta.evaluation_model==='competency'){
+        $('#legacy-competency-group').addClass('d-none');
+        $competencias.prop('disabled',true).prop('required',false).val('');
+        $('#area-competency-group').removeClass('d-none');
+        $areaCompetencia.prop('disabled',true).prop('required',false).html('<option value="">Cargando competencias curriculares...</option>');
+        $.getJSON('academic_management_api.php',{
+            action:'area_competencies',
+            academic_year_id:meta.academic_year_id,
+            area_id:meta.area_id,
+            level:meta.level
+        }).done(function(resp){
+            $areaCompetencia.html('<option value="">Selecciona una competencia curricular</option>');
+            if(resp.status===1&&resp.competencies&&resp.competencies.length){
+                $.each(resp.competencies,function(index,competency){
+                    if(+competency.is_active!==1)return;
+                    $areaCompetencia.append('<option value="'+competency.id+'">'+$('<div>').text(competency.name).html()+'</option>');
+                });
+                $areaCompetencia.prop('disabled',false).prop('required',true).trigger('change.select2');
+            }else{
+                $areaCompetencia.html('<option value="">No hay competencias activas para esta área y nivel</option>');
             }
+        }).fail(function(xhr){
+            $areaCompetencia.html('<option value="">'+(((xhr.responseJSON||{}).message)||'No se pudo cargar el catálogo curricular')+'</option>');
         });
-    } else {
-        $competencias.html('<option value="">Seleccione curso y nivel para cargar competencias</option>');
-        $competencias.prop('disabled', false).trigger('change.select2');
+        return;
     }
+    $('#area-competency-group').addClass('d-none');
+    $areaCompetencia.prop('disabled',true).prop('required',false).val('');
+    $('#legacy-competency-group').removeClass('d-none');
+    $competencias.prop('disabled',true).prop('required',true);
+    $.ajax({
+        url:'ajax.php?action=get_course_competencies_by_name_level',
+        method:'POST',
+        data:{
+            course_name:$('#course_name').val(),
+            level:$('#level').val(),
+            academic_year_id:<?php echo (int)$academic_year_id; ?>,
+            selected_competency_id:selectedCompetenciaId||0
+        },
+        dataType:'json',
+        success:function(resp){
+            $competencias.html('<option value="">Seleccione un componente de calificación</option>');
+            var hasUnofficial=false;
+            if(resp.status==1&&resp.competencies&&resp.competencies.length){
+                $.each(resp.competencies,function(index,competencia){
+                    if(parseFloat(competencia.percentage)==0&&competencia.name.toLowerCase().indexOf('no oficial')!==-1)hasUnofficial=true;
+                    var selected=(typeof selectedCompetenciaId!=='undefined'&&selectedCompetenciaId==competencia.id)?' selected':'';
+                    $competencias.append('<option value="'+competencia.id+'"'+selected+'>'+competencia.name+' ('+competencia.percentage+'%) - '+competencia.course_name+' ('+competencia.area_name+')</option>');
+                });
+            }else{
+                $competencias.append('<option value="">No hay componentes ponderados configurados</option>');
+            }
+            if(!hasUnofficial){
+                var unofficial=(typeof selectedCompetenciaId!=='undefined'&&selectedCompetenciaId==='unofficial')?' selected':'';
+                $competencias.append('<option value="unofficial"'+unofficial+'>Evaluación No Oficial (No Promedia)</option>');
+            }
+            $competencias.prop('disabled',false).trigger('change.select2');
+        },
+        error:function(){
+            $competencias.html('<option value="">Error al cargar componentes</option>');
+            $competencias.prop('disabled',false).trigger('change.select2');
+        }
+    });
 }
 
 $('#course_name').on('change', function() {
     updateNiveles();
+    $('#teacher_course_id_hidden').val('');
     $('#grado').html('<option value="">Seleccione un grado</option>').val('').prop('disabled', true);
     $('#seccion').html('<option value="">Seleccione una sección</option>').val('').prop('disabled', true);
-    $('#competencias').html('<option value="">Seleccione una competencia</option>').val('').prop('disabled', true);
+    resetCompetencySelectors('Seleccione curso, nivel, grado y sección');
 });
 
 $('#level').on('change', function() {
     updateGrados();
+    $('#teacher_course_id_hidden').val('');
     $('#seccion').html('<option value="">Seleccione una sección</option>').val('').prop('disabled', true);
 });
 
@@ -735,15 +772,9 @@ $('#grado').on('change', function() {
 });
 
 $('#course_name, #level, #grado, #seccion').on('change', function() {
-    updateTeacherCourseIdHidden();
-    
-    if ($(this).is('#course_name') || $(this).is('#level')) {
-        var cname = $('#course_name').val();
-        var nivel = $('#level').val();
-        if (cname && nivel) {
-            updateCompetencias();
-        }
-    }
+    var meta=updateTeacherCourseIdHidden();
+    if(meta)updateCompetencias();
+    else resetCompetencySelectors('Selecciona curso, nivel, grado y sección');
 });
 
 $(document).ready(function() {
@@ -851,14 +882,26 @@ $('#manage-evaluation').submit(function(e) {
       return;
   }
   
-	var compSel = $('#competencias').val();
-	if (!compSel || (Array.isArray(compSel) && compSel.length !== 1)) {
-		alert_toast('Seleccione exactamente una competencia', 'warning');
-		$('#competencias').focus();
-		try { var $p = window.parent && window.parent.$ ? window.parent.$ : $; $p('#uni_modal #submit').prop('disabled', false).text('Guardar'); } catch(_) {}
-		evalSubmitting = false;
-		return;
-	}
+  var selectedModelMeta=currentTeacherCourseMeta();
+  if(selectedModelMeta&&selectedModelMeta.evaluation_model==='competency'){
+      var areaCompetencyId=$('#area_competencia_id').val();
+      if(!areaCompetencyId){
+          alert_toast('Seleccione una competencia curricular del área.','warning');
+          $('#area_competencia_id').focus();
+          try { var $p = window.parent && window.parent.$ ? window.parent.$ : $; $p('#uni_modal #submit').prop('disabled', false).text('Guardar'); } catch(_) {}
+          evalSubmitting=false;
+          return;
+      }
+  }else{
+      var compSel=$('#competencias').val();
+      if(!compSel||(Array.isArray(compSel)&&compSel.length!==1)){
+          alert_toast('Seleccione exactamente un componente de calificación.','warning');
+          $('#competencias').focus();
+          try { var $p = window.parent && window.parent.$ ? window.parent.$ : $; $p('#uni_modal #submit').prop('disabled', false).text('Guardar'); } catch(_) {}
+          evalSubmitting=false;
+          return;
+      }
+  }
   
   start_load();
   $.ajax({
