@@ -7,8 +7,21 @@ if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(3
 $teacherId=(int)($_SESSION['login_teacher_id']??0);$schoolId=(int)($_SESSION['login_school_id']??0);$type=(int)($_SESSION['login_type']??0);
 $tcid=(int)($_GET['teacher_course_id']??0);$bim=(int)($_GET['bimestre']??0);$compId=(int)($_GET['competencia_id']??0);$sourceId=(int)($_GET['source_id']??0);
 if($type!==2||$teacherId<=0||$schoolId<=0||$tcid<=0||$bim<1||$bim>4||$compId<=0){echo '<div class="alert alert-danger">Contexto de evaluación no válido.</div>';exit;}
-$stmt=$conn->prepare('SELECT tc.academic_year_id,ac.name course_name,ac.level,tc.grado,tc.seccion,gcc.name competency_name,gcc.percentage FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id INNER JOIN general_course_competencies gcc ON gcc.id=? AND gcc.course_id=tc.course_id AND gcc.teacher_id=tc.teacher_id AND gcc.academic_year_id=tc.academic_year_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? AND ay.is_active=1 LIMIT 1');
-$stmt->bind_param('iiii',$compId,$tcid,$teacherId,$schoolId);$stmt->execute();$context=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$context){echo '<div class="alert alert-danger">La competencia o asignación no está disponible.</div>';exit;}
+$stmt=$conn->prepare('SELECT tc.academic_year_id,tc.course_id,ac.name course_name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,"weighted") evaluation_model,tc.grado,tc.seccion FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? AND ay.is_active=1 LIMIT 1');
+$stmt->bind_param('iii',$tcid,$teacherId,$schoolId);$stmt->execute();$context=$stmt->get_result()->fetch_assoc();$stmt->close();
+if(!$context){echo '<div class="alert alert-danger">La asignación no está disponible.</div>';exit;}
+$evaluationModel=($context['evaluation_model']??'weighted')==='competency'?'competency':'weighted';
+if($evaluationModel==='competency'){
+ $check=$conn->prepare('SELECT id,name FROM area_competencies WHERE id=? AND school_id=? AND academic_year_id=? AND area_id=? AND level=? AND is_active=1 LIMIT 1');
+ $check->bind_param('iiiis',$compId,$schoolId,$context['academic_year_id'],$context['area_id'],$context['level']);$check->execute();$competency=$check->get_result()->fetch_assoc();$check->close();
+ if(!$competency){echo '<div class="alert alert-danger">La competencia del área no está disponible para este curso.</div>';exit;}
+ $context['competency_name']=$competency['name'];$context['percentage']=null;
+}else{
+ $check=$conn->prepare('SELECT id,name,percentage FROM general_course_competencies WHERE id=? AND course_id=? AND teacher_id=? AND academic_year_id=? AND is_active=1 LIMIT 1');
+ $check->bind_param('iiii',$compId,$context['course_id'],$teacherId,$context['academic_year_id']);$check->execute();$competency=$check->get_result()->fetch_assoc();$check->close();
+ if(!$competency){echo '<div class="alert alert-danger">El componente de calificación no está disponible para este curso.</div>';exit;}
+ $context['competency_name']=$competency['name'];$context['percentage']=$competency['percentage'];
+}
 $title='';$evaluationType='Tarea';$description='';
 if($sourceId>0){$copy=$conn->prepare('SELECT title,type,description FROM evaluations WHERE id=? AND teacher_id=? AND teacher_course_id=? LIMIT 1');$copy->bind_param('iii',$sourceId,$teacherId,$tcid);$copy->execute();$source=$copy->get_result()->fetch_assoc();$copy->close();if($source){$title='Copia de '.$source['title'];$evaluationType=$source['type'];$description=$source['description'];}}
 ?>
@@ -41,8 +54,8 @@ if($sourceId>0){$copy=$conn->prepare('SELECT title,type,description FROM evaluat
 </style>
 <form id="quick-evaluation-form">
  <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['csrf_token'],ENT_QUOTES,'UTF-8'); ?>">
- <input type="hidden" name="teacher_course_id" value="<?php echo $tcid; ?>"><input type="hidden" name="academic_year_id" value="<?php echo (int)$context['academic_year_id']; ?>"><input type="hidden" name="teacher_id" value="<?php echo $teacherId; ?>"><input type="hidden" name="bimestre" value="<?php echo $bim; ?>"><input type="hidden" name="competencias[]" value="<?php echo $compId; ?>">
- <div class="qev-context mb-3"><strong><?php echo htmlspecialchars($context['course_name'].' · '.$context['level'].' · '.$context['grado'].' '.($context['seccion']?:'U')); ?></strong><br><small class="text-muted"><?php echo htmlspecialchars($context['competency_name']); ?> (<?php echo number_format((float)$context['percentage'],2); ?>%) · <?php echo $bim; ?>° Bimestre</small></div>
+ <input type="hidden" name="teacher_course_id" value="<?php echo $tcid; ?>"><input type="hidden" name="academic_year_id" value="<?php echo (int)$context['academic_year_id']; ?>"><input type="hidden" name="teacher_id" value="<?php echo $teacherId; ?>"><input type="hidden" name="bimestre" value="<?php echo $bim; ?>"><?php if($evaluationModel==='competency'): ?><input type="hidden" name="area_competencia_id" value="<?php echo $compId; ?>"><?php else: ?><input type="hidden" name="competencias[]" value="<?php echo $compId; ?>"><?php endif; ?>
+ <div class="qev-context mb-3"><strong><?php echo htmlspecialchars($context['course_name'].' · '.$context['level'].' · '.$context['grado'].' '.($context['seccion']?:'U')); ?></strong><br><small class="text-muted"><?php echo htmlspecialchars($context['competency_name']); ?><?php if($evaluationModel==='weighted'): ?> (<?php echo number_format((float)$context['percentage'],2); ?>%)<?php else: ?> · Competencia del área<?php endif; ?> · <?php echo $bim; ?>° Bimestre</small></div>
  <div class="form-group"><label class="small font-weight-bold">Nombre de la evaluación</label><input class="form-control" name="title" maxlength="150" required autofocus value="<?php echo htmlspecialchars($title,ENT_QUOTES,'UTF-8'); ?>" placeholder="Ej. Práctica 2"></div>
  <div class="form-group"><label class="small font-weight-bold">Tipo</label><select class="form-control" name="type" required><?php foreach(['Tarea','Examen','Práctica','Proyecto','Participación','Otro'] as $option): ?><option value="<?php echo $option; ?>" <?php echo $evaluationType===$option?'selected':''; ?>><?php echo $option; ?></option><?php endforeach; ?></select></div>
  <div class="form-group"><label class="small font-weight-bold">Tema u observación <span class="text-muted font-weight-normal">(opcional)</span></label><textarea class="form-control" name="description" rows="2" placeholder="Se usará el nombre si se deja vacío"><?php echo htmlspecialchars($description); ?></textarea></div>
