@@ -4,7 +4,7 @@ require_login_modal();
 include __DIR__.'/db_connect.php';
 $schoolId=(int)($_SESSION['login_school_id']??0);
 $loginType=(int)($_SESSION['login_type']??0);
-$yearId=(int)($_GET['academic_year_id']??0);
+$yearId=(int)($_GET['academic_year_id']??0);$initialAreaId=(int)($_GET['area_id']??0);$initialLevel=trim((string)($_GET['level']??''));if(!in_array($initialLevel,['Inicial','Primaria','Secundaria'],true))$initialLevel='';
 if($loginType!==1||$schoolId<=0){http_response_code(403);echo '<div class="alert alert-danger">No tienes permisos para administrar competencias del área.</div>';exit;}
 if(empty($_SESSION['csrf_token']))$_SESSION['csrf_token']=bin2hex(random_bytes(32));
 $years=[];
@@ -22,7 +22,7 @@ if(!$yearId&&$years)$yearId=(int)$years[0]['id'];
  <div class="form-row">
   <div class="form-group col-md-4"><label>Año académico</label><select id="acat-year" class="form-control form-control-sm"><?php foreach($years as $y):?><option value="<?=$y['id']?>" <?=$yearId===(int)$y['id']?'selected':''?>><?=htmlspecialchars($y['year'])?></option><?php endforeach?></select></div>
   <div class="form-group col-md-4"><label>Área curricular</label><select id="acat-area" class="form-control form-control-sm"><option value="">Cargando áreas...</option></select></div>
-  <div class="form-group col-md-4"><label>Nivel</label><select id="acat-level" class="form-control form-control-sm"><option>Inicial</option><option selected>Primaria</option><option>Secundaria</option></select></div>
+  <div class="form-group col-md-4"><label>Nivel</label><select id="acat-level" class="form-control form-control-sm"><option value="Inicial" <?=$initialLevel==='Inicial'?'selected':''?>>Inicial</option><option value="Primaria" <?=$initialLevel===''||$initialLevel==='Primaria'?'selected':''?>>Primaria</option><option value="Secundaria" <?=$initialLevel==='Secundaria'?'selected':''?>>Secundaria</option></select></div>
  </div>
  <form id="acat-form" class="border rounded p-3 mb-3">
   <input type="hidden" id="acat-id" value="">
@@ -37,7 +37,7 @@ if(!$yearId&&$years)$yearId=(int)$years[0]['id'];
 </div>
 <script>
 (function($){
- const api='academic_management_api.php',csrf=<?php echo json_encode($_SESSION['csrf_token']); ?>;
+ const api='academic_management_api.php',csrf=<?php echo json_encode($_SESSION['csrf_token']); ?>,initialArea=<?php echo (int)$initialAreaId; ?>;
  let items=[];
  function esc(v){return $('<div>').text(v==null?'':String(v)).html()}
  function message(text,type){$('#acat-message').html('<div class="alert alert-'+type+' py-2">'+esc(text)+'</div>')}
@@ -48,7 +48,8 @@ if(!$yearId&&$years)$yearId=(int)$years[0]['id'];
    let html='<option value="">Selecciona un área</option>';
    (r.areas||[]).filter(a=>+a.is_active===1).forEach(a=>html+='<option value="'+a.id+'">'+esc(a.name)+'</option>');
    $('#acat-area').html(html);
-   if((r.areas||[]).filter(a=>+a.is_active===1).length===1)$('#acat-area').val(String((r.areas||[]).filter(a=>+a.is_active===1)[0].id));
+   if(initialArea && (r.areas||[]).some(a=>+a.id===initialArea&&+a.is_active===1))$('#acat-area').val(String(initialArea));
+   else if((r.areas||[]).filter(a=>+a.is_active===1).length===1)$('#acat-area').val(String((r.areas||[]).filter(a=>+a.is_active===1)[0].id));
    load();
   }).fail(function(x){message((x.responseJSON||{}).message||'No se pudieron cargar las áreas.','danger')});
  }
