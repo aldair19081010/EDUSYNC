@@ -264,9 +264,29 @@ if ($action === 'copy_year') {
             $areaMap[(int)$area['id']]=$newId;
         }
         $findArea->close(); $insertArea->close();
+        // Copiar también el catálogo curricular independiente al año nuevo,
+        // manteniendo la relación con el área equivalente del destino.
+        if(amHasColumn($conn,'academic_courses','evaluation_model') && amHasTable($conn,'area_competencies')){
+            $sourceCompetencies=$conn->query("SELECT * FROM area_competencies WHERE school_id=$schoolId AND academic_year_id=$source ORDER BY id");
+            $findAreaCompetency=$conn->prepare('SELECT id FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND name=? LIMIT 1');
+            $insertAreaCompetency=$conn->prepare('INSERT INTO area_competencies (school_id,academic_year_id,area_id,level,name,display_order,is_active) VALUES (?,?,?,?,?,?,?)');
+            while($sourceCompetencies&&($competency=$sourceCompetencies->fetch_assoc())){
+                $newAreaId=$areaMap[(int)$competency['area_id']]??0;if(!$newAreaId)continue;
+                $levelValue=(string)$competency['level'];$nameValue=(string)$competency['name'];
+                $findAreaCompetency->bind_param('iiiss',$schoolId,$target,$newAreaId,$levelValue,$nameValue);$findAreaCompetency->execute();
+                if($findAreaCompetency->get_result()->fetch_assoc())continue;
+                $displayOrder=(int)$competency['display_order'];$isActive=(int)$competency['is_active'];
+                $insertAreaCompetency->bind_param('iiissii',$schoolId,$target,$newAreaId,$levelValue,$nameValue,$displayOrder,$isActive);
+                if(!$insertAreaCompetency->execute())throw new Exception($insertAreaCompetency->error);
+            }
+            $findAreaCompetency->close();$insertAreaCompetency->close();
+        }
         $courses=$conn->query("SELECT * FROM academic_courses WHERE school_id=$schoolId AND academic_year_id=$source ORDER BY id");
         $find=$conn->prepare('SELECT id FROM academic_courses WHERE school_id=? AND academic_year_id=? AND name=? AND level=? LIMIT 1');
-        $insert=$conn->prepare('INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,grades,weekly_hours,course_type,display_order,is_active,course_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $hasEvaluationModel=amHasColumn($conn,'academic_courses','evaluation_model');
+        $insert=$conn->prepare($hasEvaluationModel
+            ? 'INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,grades,weekly_hours,course_type,display_order,is_active,course_status,evaluation_model) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+            : 'INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,grades,weekly_hours,course_type,display_order,is_active,course_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $copied=0; $skipped=0;
         while($course=$courses->fetch_assoc()) {
             $find->bind_param('iiss',$schoolId,$target,$course['name'],$course['level']); $find->execute();
@@ -274,7 +294,8 @@ if ($action === 'copy_year') {
             $newArea=isset($areaMap[(int)$course['area_id']]) ? $areaMap[(int)$course['area_id']] : null;
             $hours=(float)$course['weekly_hours']; $order=(int)$course['display_order']; $active=(int)$course['is_active'];
             $courseStatus=$course['course_status']??($active?'Activo':'Inactivo');
-            $insert->bind_param('iiisssssdsiis',$schoolId,$target,$newArea,$course['name'],$course['course_code'],$course['description'],$course['level'],$course['grades'],$hours,$course['course_type'],$order,$active,$courseStatus);
+            if($hasEvaluationModel){$evaluationModel=($course['evaluation_model']??'weighted')==='competency'?'competency':'weighted';$insert->bind_param('iiisssssdsiiss',$schoolId,$target,$newArea,$course['name'],$course['course_code'],$course['description'],$course['level'],$course['grades'],$hours,$course['course_type'],$order,$active,$courseStatus,$evaluationModel);}
+            else{$insert->bind_param('iiisssssdsiis',$schoolId,$target,$newArea,$course['name'],$course['course_code'],$course['description'],$course['level'],$course['grades'],$hours,$course['course_type'],$order,$active,$courseStatus);}
             if(!$insert->execute()) throw new Exception($insert->error); $copied++;
         }
         $find->close(); $insert->close();
