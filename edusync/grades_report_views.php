@@ -73,6 +73,11 @@ function report_fmt($value) {
     $rounded = report_round_grade($value);
     return $rounded === null ? '—' : (string)$rounded;
 }
+function report_table_exists_views(mysqli $conn,string $table): bool {
+    $safe=preg_replace('/[^a-zA-Z0-9_]/','',$table);
+    $q=$conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($safe)."'");
+    return $q&&$q->num_rows>0;
+}
 function report_competency_stats($course, $bi) {
     $result = ['B' => 0, 'C' => 0, 'A' => 0, 'AD' => 0, 'rows' => []];
     foreach (($course['competencies'][$bi] ?? []) as $compId => $comp) {
@@ -96,7 +101,7 @@ $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
                ac.id course_id, ac.name course_name,
                e.id evaluation_id, e.title evaluation_title, e.bimestre,
                eg.grade, ec.competencia_id competency_id,
-               gcc.name competency_name, gcc.percentage
+               gcc.name competency_name, gcc.percentage,'weighted' evaluation_mode
         FROM evaluations e
         INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=?
         INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=?
@@ -132,7 +137,8 @@ $sql = "SELECT s.id student_id, s.name student_name, s.id_no,
             AND (eg.competencia_id=ec.competencia_id OR eg.competencia_id IS NULL)
         WHERE tc.academic_year_id=?
           AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
-          AND tc.grado=? AND tc.seccion=?";
+          AND tc.grado=? AND tc.seccion=?
+          AND COALESCE(ac.evaluation_mode,'weighted')='weighted'";
 
 $params = [$schoolId, $schoolId, $schoolId, report_level_key($level), $grade, $section, $yearId, report_level_key($level), $grade, $section];
 $types = 'iiisssisss';
@@ -187,6 +193,58 @@ while ($row = $result->fetch_assoc()) {
 }
 $stmt->close();
 
+$dualTablesReady=true;
+foreach(['area_competencies','evaluation_area_competencies','evaluation_area_grades'] as $tableName){
+    if(!report_table_exists_views($conn,$tableName))$dualTablesReady=false;
+}
+if($dualTablesReady){
+    $areaSql="SELECT s.id student_id,s.name student_name,s.id_no,
+        ac.id course_id,ac.name course_name,
+        e.id evaluation_id,e.title evaluation_title,e.bimestre,
+        eag.grade,acomp.id competency_id,acomp.name competency_name,
+        0 percentage,'competency' evaluation_mode
+        FROM evaluations e
+        INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.school_id=?
+        INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=?
+        INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id
+        INNER JOIN area_competencies acomp ON acomp.id=eac.area_competency_id
+        INNER JOIN student s ON s.school_id=? AND (
+            (EXISTS (SELECT 1 FROM academic_year ay_current WHERE ay_current.id=tc.academic_year_id AND ay_current.school_id=tc.school_id AND ay_current.is_active=1)
+             AND LOWER(REPLACE(TRIM(s.nivel),' ',''))=? AND s.grado=? AND s.seccion=?
+             AND (s.status='Activo' OR s.status='1' OR s.status IS NULL))
+            OR EXISTS (
+                SELECT 1 FROM evaluation_area_grades eag_history
+                INNER JOIN evaluations e_history ON e_history.id=eag_history.evaluation_id
+                INNER JOIN teacher_courses tc_history ON tc_history.id=e_history.teacher_course_id
+                INNER JOIN academic_courses ac_history ON ac_history.id=tc_history.course_id
+                WHERE eag_history.student_id=s.id AND tc_history.school_id=tc.school_id
+                  AND tc_history.academic_year_id=tc.academic_year_id
+                  AND LOWER(REPLACE(TRIM(ac_history.level),' ',''))=LOWER(REPLACE(TRIM(ac.level),' ',''))
+                  AND tc_history.grado=tc.grado AND tc_history.seccion=tc.seccion
+            )
+        )
+        LEFT JOIN evaluation_area_grades eag ON eag.evaluation_id=e.id AND eag.area_competency_id=eac.area_competency_id AND eag.student_id=s.id
+        WHERE tc.academic_year_id=? AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?
+          AND tc.grado=? AND tc.seccion=? AND ac.evaluation_mode='competency'
+          AND acomp.school_id=tc.school_id AND acomp.academic_year_id=tc.academic_year_id
+          AND acomp.area_id=ac.area_id AND acomp.level=ac.level";
+    $areaParams=[$schoolId,$schoolId,$schoolId,report_level_key($level),$grade,$section,$yearId,report_level_key($level),$grade,$section];
+    $areaTypes='iiisssisss';
+    if($selectedYear??false) {}
+    if($loginType===2&&$teacherId>0&&!$reportDirector){$areaSql.=' AND tc.teacher_id=?';$areaParams[]=$teacherId;$areaTypes.='i';}
+    if($courseId>0){$areaSql.=' AND tc.course_id=?';$areaParams[]=$courseId;$areaTypes.='i';}
+    if($studentId>0&&$dataMode!=='trend'){$areaSql.=' AND s.id=?';$areaParams[]=$studentId;$areaTypes.='i';}
+    $areaStatus=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+    if($areaStatus&&$areaStatus->num_rows)$areaSql.=" AND (e.status IS NULL OR e.status<>'Anulada')";
+    $areaSql.=' ORDER BY s.name,ac.name,e.bimestre,acomp.display_order,e.id';
+    $areaStmt=$conn->prepare($areaSql);
+    if($areaStmt){
+        report_bind($areaStmt,$areaTypes,$areaParams);$areaStmt->execute();$areaResult=$areaStmt->get_result();
+        while($row=$areaResult->fetch_assoc()){$row['numeric_grade']=report_numeric_grade($row['grade']);$rows[]=$row;}
+        $areaStmt->close();
+    }
+}
+
 $students = [];
 foreach ($rows as $row) {
     $sid = (int)$row['student_id'];
@@ -201,6 +259,7 @@ foreach ($rows as $row) {
     if (!isset($students[$sid]['courses'][$cid])) {
         $students[$sid]['courses'][$cid] = [
             'name' => $row['course_name'],
+            'evaluation_mode' => (string)($row['evaluation_mode']??'weighted'),
             'competencies' => [],
             'bimesters' => [],
             'values' => [],
@@ -233,6 +292,7 @@ foreach ($rows as $row) {
 foreach ($students as &$student) {
     foreach ($student['courses'] as &$course) {
         foreach ($course['competencies'] as $bi => &$competencies) {
+            $competencyMode=(string)($course['evaluation_mode']??'weighted')==='competency';
             $weighted = 0;
             $hasGrade = false;
             $missing = 0;
@@ -247,12 +307,12 @@ foreach ($students as &$student) {
                 $missing += max(0, $expectedCount - $gradedCount);
                 if ($gradedCount > 0) {
                     $comp['avg'] = array_sum($marks) / $gradedCount;
-                    $weighted += $comp['avg'] * $comp['percentage'] / 100;
+                    if(!$competencyMode)$weighted += $comp['avg'] * $comp['percentage'] / 100;
                     $hasGrade = true;
                 }
             }
             unset($comp);
-            $course['bimesters'][$bi] = $hasGrade ? $weighted : null;
+            $course['bimesters'][$bi] = ($hasGrade && !$competencyMode) ? $weighted : null;
             $course['missing'][$bi] = $missing;
             $course['expected'][$bi] = $expected;
             $course['graded'][$bi] = $graded;
@@ -274,6 +334,10 @@ if ($dataMode === 'trend') {
     }
     $studentScores = [];
     $classScores = [];
+    if((string)($students[$studentId]['courses'][$courseId]['evaluation_mode']??'weighted')==='competency'){
+        echo json_encode(['status'=>1,'evaluation_mode'=>'competency','no_aggregate'=>true,'message'=>'Este curso muestra resultados por competencia y no genera un promedio general.']);
+        exit;
+    }
     for ($bi = 1; $bi <= 4; $bi++) {
         $studentValue = $students[$studentId]['courses'][$courseId]['bimesters'][$bi] ?? null;
         $studentScores[$bi] = report_round_grade($studentValue);
