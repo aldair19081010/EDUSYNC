@@ -501,7 +501,15 @@ if ($action === 'save') {
                 $gradePushChanges[$studentId]['evaluation_ids'][$evaluationId]=true;
             }
 
-            if($historyReady){$userId=(int)($_SESSION['login_id']??0);$history=$conn->prepare("INSERT INTO evaluation_grade_history (school_id,academic_year_id,evaluation_id,student_id,competency_id,previous_grade,new_grade,changed_by,source) VALUES (?,?,?,?,?,?,?,?, 'Libro de notas')");$history->bind_param('iiiiissi',$schoolId,$academicYearId,$evaluationId,$studentId,$competencyId,$currentValue,$value,$userId);if(!$history->execute())throw new RuntimeException($history->error);$history->close();}
+            if($historyReady){
+                $userId=(int)($_SESSION['login_id']??0);
+                // competency_id sigue reservado al modelo ponderado; no escribir
+                // ahí IDs del catálogo curricular independiente.
+                $historyCompetencyId=$evaluationModel==='competency'?0:$competencyId;
+                $history=$conn->prepare("INSERT INTO evaluation_grade_history (school_id,academic_year_id,evaluation_id,student_id,competency_id,previous_grade,new_grade,changed_by,source) VALUES (?,?,?,?,?,?,?,?, 'Libro de notas')");
+                $history->bind_param('iiiiissi',$schoolId,$academicYearId,$evaluationId,$studentId,$historyCompetencyId,$currentValue,$value,$userId);
+                if(!$history->execute())throw new RuntimeException($history->error);$history->close();
+            }
             $saved++;
         }
         if(gradebook_table_exists($conn,'evaluation_audit_log')){
