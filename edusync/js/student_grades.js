@@ -117,7 +117,7 @@
             for (var i=1;i<=4;i++) {
                 var bim = available[i];
                 var active = Number(state.bimester) === i && state.view === 'bimester';
-                if (bim) html += '<button type="button" class="sg-bimester-btn' + (active ? ' active' : '') + '" data-bimester="' + i + '"><span><strong>' + roman(i) + ' Bimestre</strong><small>Publicado</small></span>' + gradePill(bim,true) + '</button>';
+                if (bim) html += '<button type="button" class="sg-bimester-btn' + (active ? ' active' : '') + '" data-bimester="' + i + '"><span><strong>' + roman(i) + ' Bimestre</strong><small>Publicado</small></span>' + (bim.promedio_bimestre == null ? '<span class="badge badge-info">Competencias</span>' : gradePill(bim,true)) + '</button>';
                 else html += '<button type="button" class="sg-bimester-btn is-empty" disabled><span><strong>' + roman(i) + ' Bimestre</strong><small>Sin publicar</small></span><i class="far fa-clock"></i></button>';
             }
             $nav.html(html).toggleClass('d-none', state.view === 'annual');
@@ -137,8 +137,8 @@
             courses.forEach(function (course,index) {
                 var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
                 var trend = trendForCourse(course.curso,bim.numero);
-                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div></td><td><span class="sg-area-name">' + esc(area) + '</span></td><td class="sg-result-cell">' + gradePill(course,false) + '</td><td class="sg-trend-cell">' + trendPill(trend) + '</td><td class="sg-action-cell"><button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></td></tr>';
-                cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + gradePill(course,false) + '</div><div class="sg-mobile-course-bottom">' + trendPill(trend) + '<button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></div></article>';
+                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div></td><td><span class="sg-area-name">' + esc(area) + '</span></td><td class="sg-result-cell">' + courseResultPill(course) + '</td><td class="sg-trend-cell"> + trendPill(trend) + '</td><td class="sg-action-cell"><button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></td></tr>';
+                cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + courseResultPill(course) + '</div><div class="sg-mobile-course-bottom">' + trendPill(trend) + '<button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></div></article>';
             });
             $content.html('<div class="sg-desktop-table sg-table-wrap"><table class="table sg-table"><thead><tr><th>Curso</th><th>Área</th><th class="text-center">Resultado</th><th>Evolución</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="sg-mobile-list">' + cards + '</div>');
         }
@@ -155,24 +155,31 @@
                 $content.html('<div class="sg-empty-state"><i class="fas fa-chart-line"></i><strong>Sin progreso anual disponible</strong><span>Se mostrará cuando existan calificaciones publicadas.</span></div>');
                 return;
             }
-            if (!courses.length && competencyCourses.length) {
-                var competencyHtml='<div class="sg-annual-competency-list">';
-                competencyCourses.forEach(function(course){
-                    var area=typeof course.area==='object'&&course.area?course.area.nombre:(course.area||'Área General');
-                    competencyHtml+='<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>'+esc(course.curso)+'</h3><div class="sg-area-name">'+esc(area)+'</div></div><span class="badge badge-info">Por competencias</span></div><div class="table-responsive"><table class="table table-sm sg-table mb-0"><thead><tr><th>Competencia</th><th class="text-center">Resultado anual</th></tr></thead><tbody>';
-                    (course.competencias||[]).forEach(function(comp){competencyHtml+='<tr><td>'+esc(comp.nombre)+'</td><td class="text-center">'+gradePill({promedio:comp.promedio_anual,nivel_logro:comp.nivel_logro,escala:comp.escala},true)+'</td></tr>';});
-                    competencyHtml+='</tbody></table></div></article>';
+            var html = '';
+            if (courses.length) {
+                var rows = '', cards = '';
+                courses.forEach(function (course) {
+                    var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
+                    var annualEntity = {promedio:course.promedio_anual,nivel_logro:course.nivel_logro,escala:course.escala};
+                    rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div><div class="sg-area-name">' + esc(area) + '</div></td><td class="sg-bim-col">' + annualCell(course,1) + '</td><td class="sg-bim-col">' + annualCell(course,2) + '</td><td class="sg-bim-col">' + annualCell(course,3) + '</td><td class="sg-bim-col">' + annualCell(course,4) + '</td><td class="sg-result-cell">' + gradePill(annualEntity,false) + '</td><td class="sg-trend-cell">' + trendPill(course.tendencia) + '</td></tr>';
+                    cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + gradePill(annualEntity,false) + '</div><div class="sg-mobile-bim-grid"><span class="sg-area-name">I:</span>' + annualCell(course,1) + '<span class="sg-area-name ml-1">II:</span>' + annualCell(course,2) + '<span class="sg-area-name ml-1">III:</span>' + annualCell(course,3) + '<span class="sg-area-name ml-1">IV:</span>' + annualCell(course,4) + '</div><div class="sg-mobile-course-bottom">' + trendPill(course.tendencia) + '</div></article>';
                 });
-                competencyHtml+='</div>';$content.html(competencyHtml);return;
+                html += '<div class="sg-desktop-table sg-table-wrap"><table class="table sg-table sg-annual-table"><thead><tr><th>Curso ponderado</th><th class="sg-bim-col">I</th><th class="sg-bim-col">II</th><th class="sg-bim-col">III</th><th class="sg-bim-col">IV</th><th class="text-center">Promedio anual</th><th>Evolución</th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="sg-mobile-list">' + cards + '</div>';
             }
-            var rows = '', cards = '';
-            courses.forEach(function (course) {
-                var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
-                var annualEntity = {promedio:course.promedio_anual,nivel_logro:course.nivel_logro,escala:course.escala};
-                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div><div class="sg-area-name">' + esc(area) + '</div></td><td class="sg-bim-col">' + annualCell(course,1) + '</td><td class="sg-bim-col">' + annualCell(course,2) + '</td><td class="sg-bim-col">' + annualCell(course,3) + '</td><td class="sg-bim-col">' + annualCell(course,4) + '</td><td class="sg-result-cell">' + gradePill(annualEntity,false) + '</td><td class="sg-trend-cell">' + trendPill(course.tendencia) + '</td></tr>';
-                cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + gradePill(annualEntity,false) + '</div><div class="sg-mobile-bim-grid"><span class="sg-area-name">I:</span>' + annualCell(course,1) + '<span class="sg-area-name ml-1">II:</span>' + annualCell(course,2) + '<span class="sg-area-name ml-1">III:</span>' + annualCell(course,3) + '<span class="sg-area-name ml-1">IV:</span>' + annualCell(course,4) + '</div><div class="sg-mobile-course-bottom">' + trendPill(course.tendencia) + '</div></article>';
-            });
-            $content.html('<div class="sg-desktop-table sg-table-wrap"><table class="table sg-table sg-annual-table"><thead><tr><th>Curso</th><th class="sg-bim-col">I</th><th class="sg-bim-col">II</th><th class="sg-bim-col">III</th><th class="sg-bim-col">IV</th><th class="text-center">Resultado</th><th>Evolución</th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="sg-mobile-list">' + cards + '</div>');
+            if (competencyCourses.length) {
+                var competencyHtml = '<section class="sg-annual-competency-list mt-3"><h3 class="h6 font-weight-bold mb-2">Resultados anuales por competencias</h3>';
+                competencyCourses.forEach(function(course){
+                    var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
+                    competencyHtml += '<article class="sg-mobile-course mb-3"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div><span class="badge badge-info">Por competencias</span></div><div class="table-responsive"><table class="table table-sm sg-table mb-0"><thead><tr><th>Competencia</th><th class="text-center">Resultado anual</th></tr></thead><tbody>';
+                    (course.competencias || []).forEach(function(comp){
+                        competencyHtml += '<tr><td>' + esc(comp.nombre) + '</td><td class="text-center">' + gradePill({promedio:comp.promedio_anual,nivel_logro:comp.nivel_logro,escala:comp.escala},true) + '</td></tr>';
+                    });
+                    competencyHtml += '</tbody></table></div></article>';
+                });
+                competencyHtml += '</section>';
+                html += competencyHtml;
+            }
+            $content.html(html);
         }
         function renderDetail(index) {
             var bim = selectedBimesterData();
