@@ -1945,10 +1945,15 @@ function save_payment(){
 		$tid = intval($teacher_id);
 		$tcid = intval($teacher_course_id);
 		$ayid = intval($academic_year_id);
-		$check = $this->db->query("SELECT id FROM evaluations WHERE title = '$esc_title' AND teacher_id = $tid AND teacher_course_id = $tcid AND academic_year_id = $ayid AND bimestre = '$esc_bim' LIMIT 1");
-		if ($check && $check->num_rows > 0) {
-			$id = intval($check->fetch_assoc()['id']);
-		}
+        if ($evaluation_mode === 'competency') {
+            $areaCompetencyForDedup=(int)$area_competency_id;
+            $check = $this->db->query("SELECT e.id FROM evaluations e INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id WHERE e.title = '$esc_title' AND e.teacher_id = $tid AND e.teacher_course_id = $tcid AND e.academic_year_id = $ayid AND e.bimestre = '$esc_bim' AND eac.area_competency_id = $areaCompetencyForDedup LIMIT 1");
+        } else {
+            $check = $this->db->query("SELECT id FROM evaluations WHERE title = '$esc_title' AND teacher_id = $tid AND teacher_course_id = $tcid AND academic_year_id = $ayid AND bimestre = '$esc_bim' LIMIT 1");
+        }
+        if ($check && $check->num_rows > 0) {
+            $id = intval($check->fetch_assoc()['id']);
+        }
 	}
 
 	if (empty($id)) {
