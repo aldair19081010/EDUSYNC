@@ -127,6 +127,10 @@ if (!empty($selected_course)) {
 }
 $export_format = $_GET['export_format'] ?? 'numeric';
 $isCompetencyExport=false;$courseAreaId=0;$courseLevel='';
+$areaEvalStatusCondition='';
+$areaEvalStatusCheck=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+if($areaEvalStatusCheck&&$areaEvalStatusCheck->num_rows>0)$areaEvalStatusCondition=" AND (e.status IS NULL OR e.status<>'Anulada')";
+
 if(!empty($selected_course)){
     $modelStmt=$conn->prepare("SELECT area_id,level,COALESCE(evaluation_model,'weighted') evaluation_model FROM academic_courses WHERE id=? AND school_id=? LIMIT 1");
     if($modelStmt){$modelStmt->bind_param('ii',$selected_course,$school_id);$modelStmt->execute();$modelRow=$modelStmt->get_result()->fetch_assoc();$modelStmt->close();if($modelRow){$isCompetencyExport=($modelRow['evaluation_model']??'weighted')==='competency';$courseAreaId=(int)$modelRow['area_id'];$courseLevel=(string)$modelRow['level'];}}
@@ -179,7 +183,7 @@ if (!empty($selected_course)) {
                             SELECT eac.area_competencia_id FROM evaluation_area_competencies eac
                             INNER JOIN evaluations e ON e.id=eac.evaluation_id
                             INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
-                            WHERE tc.course_id=? AND tc.school_id=? AND tc.academic_year_id=? AND e.bimestre=?
+                            WHERE tc.course_id=? AND tc.school_id=? AND tc.academic_year_id=? AND e.bimestre=?$areaEvalStatusCondition
                         ))
                       ORDER BY display_order,id";
         $stmt_comp=$conn->prepare($sqlCompArea);
@@ -255,7 +259,8 @@ if(!empty($selected_course)&&!empty($selected_bimestre)&&!empty($selected_academ
         $sql_eval="SELECT DISTINCT e.id,e.title,eac.area_competencia_id competencia_id
                    FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
                    INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id
-                   WHERE tc.course_id=? AND tc.school_id=? AND e.bimestre=? AND tc.academic_year_id=?";
+                     AND eac.school_id=tc.school_id AND eac.academic_year_id=tc.academic_year_id
+                   WHERE tc.course_id=? AND tc.school_id=? AND e.bimestre=? AND tc.academic_year_id=?$areaEvalStatusCondition";
     }else{
         $sql_eval="SELECT DISTINCT e.id,e.title,ec.competencia_id
                    FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
