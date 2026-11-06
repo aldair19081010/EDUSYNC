@@ -222,8 +222,9 @@ foreach ($data['students'] as $student) {
     $summary->setCellValue("A{$row}", gre_utf8_text($student['name']));
     $summaryCol = 2;
     foreach ($data['courses'] as $cid => $course) {
-        $result = grbd_course_result($data['competencies'][$cid] ?? [], $data['grades'], $student['id']);
-        $summary->setCellValue(Coordinate::stringFromColumnIndex($summaryCol++) . $row, grbd_display_avg($result, $format));
+        $isCompetencyCourse=(string)($course['evaluation_mode']??'weighted')==='competency';
+        $result = grbd_course_result($data['competencies'][$cid] ?? [], $data['grades'], $student['id'], $course['evaluation_mode']??'weighted');
+        $summary->setCellValue(Coordinate::stringFromColumnIndex($summaryCol++) . $row, $isCompetencyCourse ? 'Por competencias' : grbd_display_avg($result, $format));
     }
     $row++;
 }
@@ -245,6 +246,7 @@ foreach ($data['courses'] as $cid => $course) {
     $sheet = $spreadsheet->createSheet();
     $sheet->setTitle(gre_sheet_name($course['name'], $cid, $usedNames));
     $competencies = $data['competencies'][$cid] ?? [];
+    $competencyMode=(string)($course['evaluation_mode']??'weighted')==='competency';
     $averageColumns = [];
 
     $columnIndex = 2;
@@ -257,7 +259,7 @@ foreach ($data['courses'] as $cid => $course) {
         $endCol = Coordinate::stringFromColumnIndex($columnIndex + $evalCount);
         $sheet->mergeCells("{$startCol}1:{$endCol}1");
         $pct = rtrim(rtrim(number_format((float)$competency['percentage'], 2, '.', ''), '0'), '.');
-        $sheet->setCellValue("{$startCol}1", gre_upper($competency['name']) . " ({$pct}%)");
+        $sheet->setCellValue("{$startCol}1", gre_upper($competency['name']) . ($competencyMode ? '' : " ({$pct}%)"));
 
         if ($competency['evaluations']) {
             foreach ($competency['evaluations'] as $evaluation) {
@@ -271,13 +273,16 @@ foreach ($data['courses'] as $cid => $course) {
 
         $avgCol = Coordinate::stringFromColumnIndex($columnIndex++);
         $averageColumns[] = $avgCol;
-        $sheet->setCellValue("{$avgCol}2", 'PROMEDIO');
+        $sheet->setCellValue("{$avgCol}2", $competencyMode ? 'RESULTADO' : 'PROMEDIO');
     }
 
-    $finalCol = Coordinate::stringFromColumnIndex($columnIndex);
-    $sheet->mergeCells("{$finalCol}1:{$finalCol}2");
-    $sheet->setCellValue("{$finalCol}1", 'PROMEDIO FINAL');
-    gre_header_style($sheet, "A1:{$finalCol}2");
+    $finalCol = $competencyMode ? Coordinate::stringFromColumnIndex(max(1,$columnIndex-1)) : Coordinate::stringFromColumnIndex($columnIndex);
+    if(!$competencyMode){
+        $sheet->mergeCells("{$finalCol}1:{$finalCol}2");
+        $sheet->setCellValue("{$finalCol}1", 'PROMEDIO FINAL');
+    }
+    $lastCol=$finalCol;
+    gre_header_style($sheet, "A1:{$lastCol}2");
 
     $dataRow = 3;
     foreach ($data['students'] as $student) {
@@ -304,35 +309,39 @@ foreach ($data['courses'] as $cid => $course) {
             $avg = $values ? array_sum($values) / count($values) : null;
             $avgCol = Coordinate::stringFromColumnIndex($columnIndex++);
             $sheet->setCellValue("{$avgCol}{$dataRow}", grbd_display_avg($avg, $format));
-            if ($avg !== null) {
+            if ($avg !== null && !$competencyMode) {
                 $weighted += $avg * ((float)$competency['percentage'] / 100);
                 $hasAny = true;
             }
         }
 
-        $sheet->setCellValue(
-            Coordinate::stringFromColumnIndex($columnIndex) . $dataRow,
-            grbd_display_avg($hasAny ? $weighted : null, $format)
-        );
+        if(!$competencyMode){
+            $sheet->setCellValue(
+                Coordinate::stringFromColumnIndex($columnIndex) . $dataRow,
+                grbd_display_avg($hasAny ? $weighted : null, $format)
+            );
+        }
         $dataRow++;
     }
 
     $lastDataRow = max(2, $dataRow - 1);
-    if ($dataRow > 3) gre_body_style($sheet, "A3:{$finalCol}{$lastDataRow}");
+    if ($dataRow > 3) gre_body_style($sheet, "A3:{$lastCol}{$lastDataRow}");
 
     // Resaltar las columnas de promedio exactamente como en el exportador individual.
     foreach ($averageColumns as $avgColumn) {
         gre_average_style($sheet, "{$avgColumn}2:{$avgColumn}{$lastDataRow}");
     }
-    gre_average_style($sheet, "{$finalCol}1:{$finalCol}{$lastDataRow}");
+    if(!$competencyMode)gre_average_style($sheet, "{$finalCol}1:{$finalCol}{$lastDataRow}");
 
     $sheet->getColumnDimension('A')->setWidth(42);
     for ($c = 2; $c <= $columnIndex; $c++) {
         $sheet->getColumnDimension(Coordinate::stringFromColumnIndex($c))->setWidth(16);
     }
     $sheet->getStyle("A1:A{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
-    $sheet->getStyle("B1:{$finalCol}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-    $sheet->getStyle("A1:{$finalCol}{$lastDataRow}")->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
+    if($lastCol!=='A'){
+        $sheet->getStyle("B1:{$lastCol}{$lastDataRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+    }
+    $sheet->getStyle("A1:{$lastCol}{$lastDataRow}")->getAlignment()->setVertical(Alignment::VERTICAL_CENTER)->setWrapText(true);
     $sheet->getRowDimension(1)->setRowHeight(34);
     $sheet->getRowDimension(2)->setRowHeight(30);
     gre_page_setup($sheet);
