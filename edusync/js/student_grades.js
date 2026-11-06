@@ -137,7 +137,7 @@
             courses.forEach(function (course,index) {
                 var area = typeof course.area === 'object' && course.area ? course.area.nombre : (course.area || 'Área General');
                 var trend = trendForCourse(course.curso,bim.numero);
-                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div></td><td><span class="sg-area-name">' + esc(area) + '</span></td><td class="sg-result-cell">' + courseResultPill(course) + '</td><td class="sg-trend-cell"> + trendPill(trend) + '</td><td class="sg-action-cell"><button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></td></tr>';
+                rows += '<tr><td><div class="sg-course-name">' + esc(course.curso) + '</div></td><td><span class="sg-area-name">' + esc(area) + '</span></td><td class="sg-result-cell">' + courseResultPill(course) + '</td><td class="sg-trend-cell">' + trendPill(trend) + '</td><td class="sg-action-cell"><button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></td></tr>';
                 cards += '<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>' + esc(course.curso) + '</h3><div class="sg-area-name">' + esc(area) + '</div></div>' + courseResultPill(course) + '</div><div class="sg-mobile-course-bottom">' + trendPill(trend) + '<button type="button" class="sg-detail-btn" data-course-index="' + index + '"><i class="far fa-eye"></i>Detalle</button></div></article>';
             });
             $content.html('<div class="sg-desktop-table sg-table-wrap"><table class="table sg-table"><thead><tr><th>Curso</th><th>Área</th><th class="text-center">Resultado</th><th>Evolución</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div><div class="sg-mobile-list">' + cards + '</div>');
@@ -190,6 +190,7 @@
                 ? course.area.nombre
                 : (course.area || 'Área General');
             var competencies = course.competencias || [];
+            var isCompetencyModel = course.evaluation_model === 'competency';
 
             function numeric(value) {
                 if (value == null || value === '') return null;
@@ -243,8 +244,13 @@
             html += '<div class="sg-ir-meta">Año académico ' + esc(state.year) + '</div>';
             html += '</div>';
             html += '<div class="sg-ir-result">';
-            html += '<small>Promedio ponderado</small>';
-            html += '<div class="sg-ir-result-pill">' + gradePill(course,false) + '</div>';
+            if (isCompetencyModel) {
+                html += '<small>Evaluación por competencias</small>';
+                html += '<div class="sg-ir-result-pill"><span class="badge badge-info">Sin promedio del área</span></div>';
+            } else {
+                html += '<small>Promedio ponderado</small>';
+                html += '<div class="sg-ir-result-pill">' + gradePill(course,false) + '</div>';
+            }
             html += '</div>';
             html += '</div>';
 
@@ -271,8 +277,12 @@
                     html += '<h4>' + esc(compName) + '</h4>';
                     html += '</div>';
                     html += '<div class="sg-ir-meta-badges">';
-                    html += '<span class="sg-ir-info-badge"><i class="fas fa-percentage"></i>Ponderación ' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</span>';
-                    html += '<span class="sg-ir-info-badge"><i class="fas fa-calculator"></i>Aporte ' + numberText(contribution,2) + '</span>';
+                    if (isCompetencyModel) {
+                        html += '<span class="sg-ir-info-badge"><i class="fas fa-calculator"></i>Promedio simple</span>';
+                    } else {
+                        html += '<span class="sg-ir-info-badge"><i class="fas fa-percentage"></i>Ponderación ' + (weight > 0 ? numberText(weight,0) + '%' : '—') + '</span>';
+                        html += '<span class="sg-ir-info-badge"><i class="fas fa-calculator"></i>Aporte ' + numberText(contribution,2) + '</span>';
+                    }
                     html += '</div>';
                     html += '</div>';
 
@@ -306,12 +316,13 @@
                     html += '</div>';
 
                     html += '<div class="sg-ir-competency-footer">';
-                    html += '<span class="sg-ir-footer-label">Promedio de la competencia</span>';
+                    html += '<span class="sg-ir-footer-label">' + (isCompetencyModel ? 'Resultado de la competencia' : 'Promedio de la competencia') + '</span>';
                     html += '<span class="sg-ir-footer-average">' + gradePill(avgEntity,true) + '</span>';
                     html += '</div>';
                     html += '</div>';
                 });
 
+                if (!isCompetencyModel) {
                 html += '<div class="sg-ir-calc-compact">';
                 html += '<button class="sg-ir-calc-toggle collapsed" type="button" data-toggle="collapse" data-target="#sg-ir-calculation-panel" aria-expanded="false" aria-controls="sg-ir-calculation-panel">';
                 html += '<span><i class="fas fa-calculator mr-2"></i>Ver detalle del cálculo ponderado</span>';
@@ -347,6 +358,7 @@
                 html += '</table></div>';
                 html += '</div></div>';
                 html += '</div>';
+                }
             }
 
             html += '</section>';
