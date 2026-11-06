@@ -195,11 +195,18 @@ if ($action === 'contexts') {
 }
 
 if ($action === 'history') {
-    if(!gradebook_table_exists($conn,'evaluation_grade_history'))gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/gradebook_history_upgrade.sql para habilitar el historial por nota.']);
     $evaluationId=(int)($_GET['evaluation_id']??0);$studentId=(int)($_GET['student_id']??0);
-    $owner=$conn->query("SELECT e.title,s.name student_name FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN student s ON s.id=$studentId AND s.school_id=tc.school_id WHERE e.id=$evaluationId AND e.teacher_id=$teacherId AND tc.teacher_id=$teacherId AND tc.school_id=$schoolId LIMIT 1");$context=$owner?$owner->fetch_assoc():null;
+    $owner=$conn->query("SELECT e.title,s.name student_name,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN student s ON s.id=$studentId AND s.school_id=tc.school_id WHERE e.id=$evaluationId AND e.teacher_id=$teacherId AND tc.teacher_id=$teacherId AND tc.school_id=$schoolId LIMIT 1");$context=$owner?$owner->fetch_assoc():null;
     if(!$context)gradebook_response(['status'=>0,'message'=>'La nota no existe o no te pertenece.'],403);
-    $rows=[];$history=$conn->query("SELECT h.previous_grade,h.new_grade,h.source,h.created_at,u.name changed_by_name FROM evaluation_grade_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.school_id=$schoolId AND h.evaluation_id=$evaluationId AND h.student_id=$studentId ORDER BY h.created_at DESC,h.id DESC LIMIT 50");while($history&&($row=$history->fetch_assoc()))$rows[]=$row;
+    $rows=[];
+    if(($context['evaluation_mode']??'weighted')==='competency'){
+        if(!gradebook_table_exists($conn,'evaluation_area_grade_history'))gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_dual_model_upgrade.sql para habilitar el historial por nota.']);
+        $history=$conn->query("SELECT h.previous_grade,h.new_grade,h.source,h.created_at,u.name changed_by_name FROM evaluation_area_grade_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.school_id=$schoolId AND h.evaluation_id=$evaluationId AND h.student_id=$studentId ORDER BY h.created_at DESC,h.id DESC LIMIT 50");
+    }else{
+        if(!gradebook_table_exists($conn,'evaluation_grade_history'))gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/gradebook_history_upgrade.sql para habilitar el historial por nota.']);
+        $history=$conn->query("SELECT h.previous_grade,h.new_grade,h.source,h.created_at,u.name changed_by_name FROM evaluation_grade_history h LEFT JOIN users u ON u.id=h.changed_by WHERE h.school_id=$schoolId AND h.evaluation_id=$evaluationId AND h.student_id=$studentId ORDER BY h.created_at DESC,h.id DESC LIMIT 50");
+    }
+    while($history&&($row=$history->fetch_assoc()))$rows[]=$row;
     gradebook_response(['status'=>1,'evaluation'=>$context['title'],'student'=>$context['student_name'],'history'=>$rows]);
 }
 
