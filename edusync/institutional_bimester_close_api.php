@@ -162,8 +162,9 @@ function ibc_snapshot(mysqli $db, int $schoolId, int $yearId, int $bimester): ar
     while ($r=$q->fetch_assoc()) {if ((float)$r['percentage']<=0)continue;$key=(int)$r['course_id'].':'.(int)$r['teacher_id'];$competencies[$key][(int)$r['id']]=['name'=>$r['name'],'percentage'=>(float)$r['percentage']];}
     $s->close();
     $areaCompetencies=[];
+    $areaHistoryStatus=ibc_col($db,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
     if(ibc_table($db,'area_competencies')&&ibc_table($db,'evaluation_area_competencies')&&ibc_col($db,'evaluation_grades','area_competencia_id')){
-        $s=$db->prepare("SELECT id,area_id,level,name FROM area_competencies WHERE school_id=? AND academic_year_id=? AND (is_active=1 OR id IN (SELECT eac.area_competencia_id FROM evaluation_area_competencies eac INNER JOIN evaluations e ON e.id=eac.evaluation_id WHERE eac.school_id=? AND eac.academic_year_id=? AND e.academic_year_id=? AND CAST(e.bimestre AS UNSIGNED)=?)) ORDER BY display_order,id");
+        $s=$db->prepare("SELECT id,area_id,level,name FROM area_competencies WHERE school_id=? AND academic_year_id=? AND (is_active=1 OR id IN (SELECT eac.area_competencia_id FROM evaluation_area_competencies eac INNER JOIN evaluations e ON e.id=eac.evaluation_id WHERE eac.school_id=? AND eac.academic_year_id=? AND e.academic_year_id=? AND CAST(e.bimestre AS UNSIGNED)=?$areaHistoryStatus)) ORDER BY display_order,id");
         $s->bind_param('iiiiii',$schoolId,$yearId,$schoolId,$yearId,$yearId,$bimester);$s->execute();$q=$s->get_result();
         while($r=$q->fetch_assoc()){$key=(int)$r['area_id'].':'.(string)$r['level'];$areaCompetencies[$key][(int)$r['id']]=['name'=>$r['name'],'percentage'=>0];}
         $s->close();
