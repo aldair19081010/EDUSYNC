@@ -107,6 +107,15 @@ if ($action === 'areas') {
     amResponse(['status'=>1,'areas'=>$rows]);
 }
 
+if ($action === 'area_competencies') {
+    $yearId=(int)($_GET['academic_year_id']??0);$areaId=(int)($_GET['area_id']??0);$level=trim((string)($_GET['level']??''));
+    if(!$yearId||!$areaId||!in_array($level,['Inicial','Primaria','Secundaria'],true))amResponse(['status'=>0,'message'=>'Selecciona año, área y nivel.']);
+    $area=$conn->prepare('SELECT id,name FROM areas WHERE id=? AND school_id=? AND (academic_year_id=? OR academic_year_id IS NULL) LIMIT 1');$area->bind_param('iii',$areaId,$schoolId,$yearId);$area->execute();$areaRow=$area->get_result()->fetch_assoc();$area->close();if(!$areaRow)amResponse(['status'=>0,'message'=>'El área no pertenece al colegio o año seleccionado.']);
+    $stmt=$conn->prepare('SELECT c.id,c.name,c.display_order,c.is_active,(SELECT COUNT(*) FROM evaluation_area_competencies ec WHERE ec.area_competency_id=c.id) usage_count FROM area_competencies c WHERE c.school_id=? AND c.academic_year_id=? AND c.area_id=? AND c.level=? ORDER BY c.display_order,c.id');
+    $stmt->bind_param('iiis',$schoolId,$yearId,$areaId,$level);$stmt->execute();$res=$stmt->get_result();$items=[];while($row=$res->fetch_assoc())$items[]=$row;$stmt->close();
+    amResponse(['status'=>1,'area'=>$areaRow,'level'=>$level,'competencies'=>$items]);
+}
+
 if ($action === 'audit') {
     if (!amHasColumn($conn, 'academic_management_audit', 'id')) amResponse(['status'=>1,'logs'=>[]]);
     $yearId=(int)($_GET['academic_year_id']??0);$stmt=$conn->prepare("SELECT l.*,COALESCE(u.name,'Sistema') user_name FROM academic_management_audit l LEFT JOIN users u ON u.id=l.user_id WHERE l.school_id=? AND (l.academic_year_id=? OR ?=0) ORDER BY l.created_at DESC LIMIT 100");
@@ -133,11 +142,28 @@ if ($action === 'impact') {
     $stmt=$conn->prepare($sql);$bindTypes='ii'.str_repeat('i',count($ids)).'i';$bind=[$yearId,$yearId,...$ids,$schoolId];$stmt->bind_param($bindTypes,...$bind);$stmt->execute();$impact=$stmt->get_result()->fetch_assoc();$stmt->close();amResponse(['status'=>1,'impact'=>$impact]);
 }
 
-$writeActions = ['bulk','copy_year','save_area','save_course','save_competency','toggle_competency'];
+$writeActions = ['bulk','copy_year','save_area','save_course','save_competency','toggle_competency','save_area_competency','toggle_area_competency'];
 if (in_array($action, $writeActions, true)) {
     if (!amCanWrite($conn, $userId)) amResponse(['status'=>0,'message'=>'No tienes permisos para modificar la gestión académica.'],403);
     $token = $_POST['csrf_token'] ?? ''; $sessionToken = $_SESSION['csrf_token'] ?? '';
     if (!$sessionToken || !$token || !hash_equals($sessionToken, $token)) amResponse(['status'=>0,'message'=>'Solicitud no autorizada. Recarga la página.'],403);
+}
+
+if ($action === 'save_area_competency') {
+    $id=(int)($_POST['id']??0);$yearId=(int)($_POST['academic_year_id']??0);$areaId=(int)($_POST['area_id']??0);$level=trim((string)($_POST['level']??''));$name=trim((string)($_POST['name']??''));$order=(int)($_POST['display_order']??0);
+    amEnsureYearWritable($conn,$schoolId,$yearId);
+    if(!$yearId||!$areaId||$name===''||!in_array($level,['Inicial','Primaria','Secundaria'],true))amResponse(['status'=>0,'message'=>'Completa año, área, nivel y nombre de la competencia.']);
+    $area=$conn->prepare('SELECT id FROM areas WHERE id=? AND school_id=? AND (academic_year_id=? OR academic_year_id IS NULL) LIMIT 1');$area->bind_param('iii',$areaId,$schoolId,$yearId);$area->execute();$areaValid=(bool)$area->get_result()->fetch_assoc();$area->close();if(!$areaValid)amResponse(['status'=>0,'message'=>'El área seleccionada no pertenece al colegio o año.']);
+    $dup=$conn->prepare('SELECT id FROM area_competencies WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=? AND name=? AND id<>? LIMIT 1');$dup->bind_param('iiissi',$schoolId,$yearId,$areaId,$level,$name,$id);$dup->execute();$duplicate=(bool)$dup->get_result()->fetch_assoc();$dup->close();if($duplicate)amResponse(['status'=>0,'message'=>'Ya existe una competencia con ese nombre para el área y nivel.']);
+    if($id){$stmt=$conn->prepare('UPDATE area_competencies SET name=?,display_order=?,is_active=1 WHERE id=? AND school_id=? AND academic_year_id=? AND area_id=? AND level=?');$stmt->bind_param('siiiiis',$name,$order,$id,$schoolId,$yearId,$areaId,$level);$audit='updated';}
+    else{$stmt=$conn->prepare('INSERT INTO area_competencies (school_id,academic_year_id,area_id,level,name,display_order,is_active) VALUES (?,?,?,?,?,?,1)');$stmt->bind_param('iiissi',$schoolId,$yearId,$areaId,$level,$name,$order);$audit='created';}
+    if(!$stmt->execute())amResponse(['status'=>0,'message'=>$stmt->error]);if(!$id)$id=$stmt->insert_id;$stmt->close();amAudit($conn,$schoolId,$yearId,$userId,'area_competency',$id,$audit,['area_id'=>$areaId,'level'=>$level,'name'=>$name]);amResponse(['status'=>1,'message'=>'Competencia del área guardada correctamente.']);
+}
+
+if ($action === 'toggle_area_competency') {
+    $id=(int)($_POST['id']??0);$yearId=(int)($_POST['academic_year_id']??0);$active=(int)($_POST['is_active']??0);amEnsureYearWritable($conn,$schoolId,$yearId);
+    if(!in_array($active,[0,1],true))amResponse(['status'=>0,'message'=>'Estado inválido.']);
+    $stmt=$conn->prepare('UPDATE area_competencies SET is_active=? WHERE id=? AND school_id=? AND academic_year_id=?');$stmt->bind_param('iiii',$active,$id,$schoolId,$yearId);if(!$stmt->execute()||$stmt->affected_rows<1)amResponse(['status'=>0,'message'=>'No se pudo actualizar la competencia.']);$stmt->close();amAudit($conn,$schoolId,$yearId,$userId,'area_competency',$id,$active?'activated':'deactivated');amResponse(['status'=>1,'message'=>$active?'Competencia activada.':'Competencia desactivada; su historial se conserva.']);
 }
 
 if ($action === 'save_competency') {
@@ -173,14 +199,15 @@ if ($action === 'save_area') {
 }
 
 if ($action === 'save_course') {
-    $id=(int)($_POST['id']??0);$yearId=(int)($_POST['academic_year_id']??0);$areaId=(int)($_POST['area_id']??0);$name=trim($_POST['name']??'');$code=trim($_POST['course_code']??'');$description=trim($_POST['description']??'');$level=trim($_POST['level']??'');$grades=$_POST['grades']??[];$grades=is_array($grades)?implode(',',array_map('trim',$grades)):trim($grades);$hours=max(0,(float)($_POST['weekly_hours']??0));$type=trim($_POST['course_type']??'Curso');$order=(int)($_POST['display_order']??0);$courseStatus=trim($_POST['course_status']??'Activo');if(!in_array($courseStatus,['Activo','Suspendido','Inactivo'],true))$courseStatus='Activo';$active=$courseStatus==='Activo'?1:0;
+    $id=(int)($_POST['id']??0);$yearId=(int)($_POST['academic_year_id']??0);$areaId=(int)($_POST['area_id']??0);$name=trim($_POST['name']??'');$code=trim($_POST['course_code']??'');$description=trim($_POST['description']??'');$level=trim($_POST['level']??'');$grades=$_POST['grades']??[];$grades=is_array($grades)?implode(',',array_map('trim',$grades)):trim($grades);$hours=max(0,(float)($_POST['weekly_hours']??0));$type=trim($_POST['course_type']??'Curso');$order=(int)($_POST['display_order']??0);$courseStatus=trim($_POST['course_status']??'Activo');if(!in_array($courseStatus,['Activo','Suspendido','Inactivo'],true))$courseStatus='Activo';$active=$courseStatus==='Activo'?1:0;$evaluationModel=trim((string)($_POST['evaluation_model']??'weighted'));if(!in_array($evaluationModel,['weighted','competency'],true))$evaluationModel='weighted';
     if(!$yearId||!$areaId||$name===''||!in_array($level,['Inicial','Primaria','Secundaria'],true)) amResponse(['status'=>0,'message'=>'Completa año, área, nombre y nivel.']);
+    if($id){$current=$conn->prepare('SELECT evaluation_model FROM academic_courses WHERE id=? AND school_id=? AND academic_year_id=? LIMIT 1');$current->bind_param('iii',$id,$schoolId,$yearId);$current->execute();$currentRow=$current->get_result()->fetch_assoc();$current->close();if($currentRow&&($currentRow['evaluation_model']??'weighted')!==$evaluationModel){$used=$conn->prepare('SELECT COUNT(*) total FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE tc.course_id=? AND tc.academic_year_id=? AND tc.school_id=?');$used->bind_param('iii',$id,$yearId,$schoolId);$used->execute();$usedCount=(int)$used->get_result()->fetch_assoc()['total'];$used->close();if($usedCount>0)amResponse(['status'=>0,'message'=>'No se puede cambiar el modelo porque este curso ya tiene evaluaciones registradas en el año académico. Conserva el modelo actual para proteger el historial.'],409);}}
     amEnsureYearWritable($conn,$schoolId,$yearId);
     $area=$conn->prepare('SELECT id FROM areas WHERE id=? AND school_id=? AND (academic_year_id=? OR academic_year_id IS NULL)');$area->bind_param('iii',$areaId,$schoolId,$yearId);$area->execute();if(!$area->get_result()->fetch_assoc())amResponse(['status'=>0,'message'=>'El área no pertenece al año seleccionado.']);$area->close();
     $dup=$conn->prepare('SELECT id FROM academic_courses WHERE school_id=? AND academic_year_id=? AND name=? AND level=? AND id<>?');$dup->bind_param('iissi',$schoolId,$yearId,$name,$level,$id);$dup->execute();if($dup->get_result()->fetch_assoc())amResponse(['status'=>0,'message'=>'Ya existe ese curso para el nivel y año seleccionados.']);$dup->close();
-    if($id){$stmt=$conn->prepare('UPDATE academic_courses SET academic_year_id=?,area_id=?,name=?,course_code=?,description=?,level=?,grades=?,weekly_hours=?,course_type=?,display_order=?,is_active=?,course_status=? WHERE id=? AND school_id=?');$stmt->bind_param('iisssssdsiisii',$yearId,$areaId,$name,$code,$description,$level,$grades,$hours,$type,$order,$active,$courseStatus,$id,$schoolId);$audit='update';}
-    else{$stmt=$conn->prepare('INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,grades,weekly_hours,course_type,display_order,is_active,course_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');$stmt->bind_param('iiisssssdsiis',$schoolId,$yearId,$areaId,$name,$code,$description,$level,$grades,$hours,$type,$order,$active,$courseStatus);$audit='create';}
-    if(!$stmt->execute())amResponse(['status'=>0,'message'=>$stmt->error]);if(!$id)$id=$stmt->insert_id;$stmt->close();amAudit($conn,$schoolId,$yearId,$userId,'course',$id,$audit,['name'=>$name,'level'=>$level,'grades'=>$grades]);amResponse(['status'=>1,'message'=>'Curso guardado correctamente.']);
+    if($id){$stmt=$conn->prepare('UPDATE academic_courses SET academic_year_id=?,area_id=?,name=?,course_code=?,description=?,level=?,grades=?,weekly_hours=?,course_type=?,display_order=?,is_active=?,course_status=?,evaluation_model=? WHERE id=? AND school_id=?');$stmt->bind_param('iisssssdsiissii',$yearId,$areaId,$name,$code,$description,$level,$grades,$hours,$type,$order,$active,$courseStatus,$evaluationModel,$id,$schoolId);$audit='update';}
+    else{$stmt=$conn->prepare('INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,grades,weekly_hours,course_type,display_order,is_active,course_status,evaluation_model) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');$stmt->bind_param('iiisssssdsiiss',$schoolId,$yearId,$areaId,$name,$code,$description,$level,$grades,$hours,$type,$order,$active,$courseStatus,$evaluationModel);$audit='create';}
+    if(!$stmt->execute())amResponse(['status'=>0,'message'=>$stmt->error]);if(!$id)$id=$stmt->insert_id;$stmt->close();amAudit($conn,$schoolId,$yearId,$userId,'course',$id,$audit,['name'=>$name,'level'=>$level,'grades'=>$grades,'evaluation_model'=>$evaluationModel]);amResponse(['status'=>1,'message'=>'Curso guardado correctamente.']);
 }
 
 if ($action === 'bulk') {
