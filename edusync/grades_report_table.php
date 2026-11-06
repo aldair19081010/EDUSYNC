@@ -157,9 +157,88 @@ if ($show_avg && !empty($student_id_filter)) {
     $competencias_data = [];
     $final_average = 0;
     $has_competencias = false;
+    $is_area_competency_model = false;
     $total_percentage = 0;
-    
-    if (!empty($course_id_filter)) {        
+    $selected_evaluation_mode = 'weighted';
+
+    if (!empty($course_id_filter)) {
+        $modeStmt=$conn->prepare("SELECT COALESCE(evaluation_mode,'weighted') evaluation_mode FROM academic_courses WHERE id=? AND school_id=? LIMIT 1");
+        if($modeStmt){
+            $modeStmt->bind_param('ii',$course_id_filter,$school_id);$modeStmt->execute();
+            $modeRow=$modeStmt->get_result()->fetch_assoc();$modeStmt->close();
+            $selected_evaluation_mode=(string)($modeRow['evaluation_mode']??'weighted');
+        }
+    } else {
+        $modeSql="SELECT 1 FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.school_id=? AND ac.school_id=? AND COALESCE(ac.evaluation_mode,'weighted')='competency'";
+        $modeParams=[$school_id,$school_id];$modeTypes='ii';
+        if(!empty($academic_year_id)){$modeSql.=" AND tc.academic_year_id=?";$modeParams[]=$academic_year_id;$modeTypes.='i';}
+        if($normalized_level_key!==null){$modeSql.=" AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?";$modeParams[]=$normalized_level_key;$modeTypes.='s';}
+        if(!empty($grado_filter)){$modeSql.=" AND tc.grado=?";$modeParams[]=$grado_filter;$modeTypes.='s';}
+        if(!empty($seccion_filter)){$modeSql.=" AND tc.seccion=?";$modeParams[]=$seccion_filter;$modeTypes.='s';}
+        if($login_type==2&&$teacher_id&&!$reportDirector){$modeSql.=" AND tc.teacher_id=?";$modeParams[]=$teacher_id;$modeTypes.='i';}
+        $modeSql.=' LIMIT 1';
+        $modeStmt=$conn->prepare($modeSql);
+        if($modeStmt){$modeStmt->bind_param($modeTypes,...$modeParams);$modeStmt->execute();$hasCompetencyCourses=(bool)$modeStmt->get_result()->fetch_row();$modeStmt->close();
+            if($hasCompetencyCourses){
+                echo '<div class="alert alert-info"><i class="fa fa-info-circle mr-2"></i>Este filtro incluye cursos evaluados por competencias. Selecciona un curso específico para consultar sus resultados sin generar un promedio general entre áreas.</div>';
+                exit;
+            }
+        }
+    }
+    $is_area_competency_model = $selected_evaluation_mode === 'competency';
+
+    if ($is_area_competency_model) {
+        $dualTablesReady=true;
+        foreach(['area_competencies','evaluation_area_competencies','evaluation_area_grades'] as $tableName){
+            $tableCheck=$conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($tableName)."'");
+            if(!$tableCheck||$tableCheck->num_rows===0)$dualTablesReady=false;
+        }
+        if(!$dualTablesReady){
+            echo '<div class="alert alert-warning">Ejecuta <strong>sql/evaluation_dual_model_upgrade.sql</strong> para habilitar la consulta de resultados por competencias.</div>';
+            exit;
+        }
+        $statusFilter='';
+        $statusCheck=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+        if($statusCheck&&$statusCheck->num_rows)$statusFilter=" AND (e.status IS NULL OR e.status<>'Anulada')";
+        $areaSql="SELECT acomp.id,acomp.name,e.id evaluation_id,e.title evaluation_title,e.bimestre,eag.grade
+            FROM evaluation_area_grades eag
+            INNER JOIN evaluations e ON e.id=eag.evaluation_id
+            INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND eac.area_competency_id=eag.area_competency_id
+            INNER JOIN area_competencies acomp ON acomp.id=eac.area_competency_id
+            INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+            INNER JOIN academic_courses ac ON ac.id=tc.course_id
+            INNER JOIN student s ON s.id=eag.student_id AND s.school_id=tc.school_id
+            WHERE tc.course_id=? AND eag.student_id=? AND tc.school_id=? AND ac.school_id=?
+              AND ac.evaluation_mode='competency' AND acomp.school_id=tc.school_id
+              AND acomp.academic_year_id=tc.academic_year_id AND acomp.area_id=ac.area_id AND acomp.level=ac.level";
+        $areaParams=[$course_id_filter,$student_id_filter,$school_id,$school_id];$areaTypes='iiii';
+        if(!empty($academic_year_id)){$areaSql.=" AND tc.academic_year_id=?";$areaParams[]=$academic_year_id;$areaTypes.='i';}
+        if($normalized_level_key!==null){$areaSql.=" AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?";$areaParams[]=$normalized_level_key;$areaTypes.='s';}
+        if(!empty($grado_filter)){$areaSql.=" AND tc.grado=?";$areaParams[]=$grado_filter;$areaTypes.='s';}
+        if(!empty($seccion_filter)){$areaSql.=" AND tc.seccion=?";$areaParams[]=$seccion_filter;$areaTypes.='s';}
+        if(!empty($bimestre_filter)){$areaSql.=" AND e.bimestre=?";$areaParams[]=$bimestre_filter;$areaTypes.='s';}
+        if(!empty($evaluation_id_filter)){$areaSql.=" AND e.id=?";$areaParams[]=$evaluation_id_filter;$areaTypes.='i';}
+        if($login_type==2&&$teacher_id&&!$reportDirector){$areaSql.=" AND tc.teacher_id=?";$areaParams[]=$teacher_id;$areaTypes.='i';}
+        $areaSql.=$historicalLevelGuard;
+        $areaSql.=" $statusFilter ORDER BY acomp.display_order,acomp.id,e.id";
+        $areaStmt=$conn->prepare($areaSql);
+        if(!$areaStmt){echo '<div class="alert alert-danger">No se pudo preparar la consulta por competencias: '.htmlspecialchars($conn->error).'</div>';exit;}
+        $areaStmt->bind_param($areaTypes,...$areaParams);$areaStmt->execute();$areaResult=$areaStmt->get_result();
+        while($row=$areaResult->fetch_assoc()){
+            $compId=(int)$row['id'];
+            if(!isset($competencias_data[$compId]))$competencias_data[$compId]=['name'=>$row['name'],'percentage'=>0,'evaluations'=>[],'avg_grade'=>null];
+            $competencias_data[$compId]['evaluations'][]=['id'=>$row['evaluation_id'],'title'=>$row['evaluation_title'],'grade'=>$row['grade'],'bimestre'=>$row['bimestre']];
+        }
+        $areaStmt->close();
+        foreach($competencias_data as &$areaComp){
+            $sum=0.0;$count=0;
+            foreach($areaComp['evaluations'] as $evaluation){$grade=letter_to_numeric_for_calc($evaluation['grade']);if($grade>0||is_numeric($evaluation['grade'])){$sum+=$grade;$count++;}}
+            $areaComp['avg_grade']=$count?$sum/$count:null;
+        }
+        unset($areaComp);
+        $has_competencias=!empty($competencias_data);
+        $final_average=null;
+    } elseif (!empty($course_id_filter)) {        
         $sql_get_competencias = "SELECT DISTINCT gcc.id, gcc.name, gcc.percentage  
                                FROM general_course_competencies gcc
                                INNER JOIN evaluation_competencias ec ON gcc.id = ec.competencia_id
@@ -374,6 +453,8 @@ if ($show_avg && !empty($student_id_filter)) {
         }
     }
 
+    $promedio_final = null;
+    if (!$is_area_competency_model) {
     $sql_grades = "SELECT eg.grade
                 FROM evaluation_grades eg
                 INNER JOIN evaluations e ON eg.evaluation_id = e.id
@@ -459,6 +540,7 @@ if ($show_avg && !empty($student_id_filter)) {
     } else {
         echo "<div class='alert alert-danger'><i class='fa fa-exclamation-triangle mr-2'></i>Error al preparar la consulta de promedio: " . htmlspecialchars($conn->error) . "</div>";
     }
+    }
     ?>
 
     <style>
@@ -483,21 +565,22 @@ if ($show_avg && !empty($student_id_filter)) {
           <div><?php echo $course_name_for_avg_display; ?></div>
           <div class="ir-meta"><?php echo htmlspecialchars(trim(($level_filter ?? '').' · '.($grado_filter ?? '').' '.($seccion_filter ?? ''))); ?></div>
         </div>
-        <div class="ir-result"><small><?php echo $has_competencias ? 'Promedio ponderado' : 'Promedio'; ?></small><strong><?php echo $has_competencias ? number_format($final_average,2) : ($promedio_final !== null ? number_format($promedio_final,2) : '—'); ?></strong></div>
+        <div class="ir-result"><small><?php echo $is_area_competency_model ? 'Modelo de evaluación' : ($has_competencias ? 'Promedio ponderado' : 'Promedio'); ?></small><strong><?php echo $is_area_competency_model ? 'Por competencias' : ($has_competencias ? number_format($final_average,2) : ($promedio_final !== null ? number_format($promedio_final,2) : '—')); ?></strong><?php if($is_area_competency_model): ?><small class="text-muted">Sin promedio final del área</small><?php endif; ?></div>
       </div>
       <?php if ($has_competencias): ?>
         <?php foreach ($competencias_data as $comp_data): ?>
           <div class="ir-card">
-            <div class="ir-card-header"><h4><?php echo htmlspecialchars($comp_data['name']); ?></h4><span class="badge badge-light border"><?php echo number_format((float)$comp_data['percentage'],2); ?>% del promedio</span></div>
+            <div class="ir-card-header"><h4><?php echo htmlspecialchars($comp_data['name']); ?></h4><?php if(!$is_area_competency_model): ?><span class="badge badge-light border"><?php echo number_format((float)$comp_data['percentage'],2); ?>% del promedio</span><?php endif; ?></div>
             <div class="table-responsive"><table class="table table-sm table-hover">
               <thead><tr><th>Evaluación</th><th class="ir-number">Nota</th></tr></thead><tbody>
                 <?php foreach ($comp_data['evaluations'] as $eval): ?><tr><td><?php echo htmlspecialchars($eval['title']); ?></td><td class="ir-number"><?php echo format_grade($eval['grade']); ?></td></tr><?php endforeach; ?>
                 <?php if (empty($comp_data['evaluations'])): ?><tr><td colspan="2" class="text-muted">Sin notas registradas en este bimestre.</td></tr><?php else: ?>
-                <tr class="bg-light"><td><strong>Promedio de la competencia</strong></td><td class="ir-number"><strong><?php echo number_format($comp_data['avg_grade'],2); ?></strong></td></tr><?php endif; ?>
+                <tr class="bg-light"><td><strong><?php echo $is_area_competency_model?'Resultado de la competencia':'Promedio de la competencia'; ?></strong></td><td class="ir-number"><strong><?php echo $comp_data['avg_grade']!==null?number_format($comp_data['avg_grade'],2):'—'; ?></strong></td></tr><?php endif; ?>
               </tbody>
             </table></div>
           </div>
         <?php endforeach; ?>
+        <?php if(!$is_area_competency_model): ?>
         <div class="ir-card">
           <div class="ir-card-header"><h4><i class="fas fa-calculator text-primary mr-2"></i>Cálculo del promedio</h4></div>
           <div class="table-responsive"><table class="table table-sm">
@@ -509,7 +592,8 @@ if ($show_avg && !empty($student_id_filter)) {
           </table></div>
         </div>
         <p class="small text-muted">Cada aporte corresponde al promedio de la competencia multiplicado por su porcentaje. Las competencias con 0% no aportan al promedio.</p>
-        <?php if ($total_percentage < 100): ?><div class="alert alert-warning small">Los porcentajes considerados suman <?php echo htmlspecialchars((string)$total_percentage); ?>%. Revise la configuración de competencias.</div><?php endif; ?>
+        <?php if ($total_percentage < 100): ?><div class="alert alert-warning small">Los porcentajes considerados suman <?php echo htmlspecialchars((string)$total_percentage); ?>%. Revise la configuración de componentes de calificación.</div><?php endif; ?>
+        <?php endif; ?>
       <?php else: ?>
         <div class="alert alert-light border">No se encontraron competencias con notas para los filtros seleccionados.<?php if ($promedio_final !== null): ?> Se muestra el promedio simple disponible, como en el reporte anterior.<?php endif; ?></div>
       <?php endif; ?>
