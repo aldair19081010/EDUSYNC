@@ -89,7 +89,7 @@ if ($action === 'load') {
 
     $hasYearStatus = gradebook_column_exists($conn, 'academic_year', 'status');
     $yearStatusSelect = $hasYearStatus ? ',ay.status year_status' : '';
-    $assignmentSql = "SELECT tc.id,tc.course_id,tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ay.year,ay.is_active$yearStatusSelect
+    $assignmentSql = "SELECT tc.id,tc.course_id,tc.academic_year_id,tc.grado,tc.seccion,ac.name course_name,ac.level,ac.area_id,COALESCE(ac.evaluation_model,'weighted') evaluation_model,ay.year,ay.is_active$yearStatusSelect
                       FROM teacher_courses tc
                       INNER JOIN academic_courses ac ON ac.id=tc.course_id
                       INNER JOIN academic_year ay ON ay.id=tc.academic_year_id AND ay.school_id=tc.school_id
@@ -107,15 +107,31 @@ if ($action === 'load') {
         ? ' AND e.teacher_id='.$teacherId
             .' AND e.academic_year_id='.(int)$assignment['academic_year_id']
         : '';
-    $evaluationsSql = "SELECT e.id,e.title,e.type,e.created_at$evaluationStatusSelect,
-                              (SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id,
-                              (SELECT gcc.name FROM evaluation_competencias ec2 INNER JOIN general_course_competencies gcc ON gcc.id=ec2.competencia_id WHERE ec2.evaluation_id=e.id ORDER BY ec2.id LIMIT 1) competency_name,
-                              (SELECT gcc.percentage FROM evaluation_competencias ec3 INNER JOIN general_course_competencies gcc ON gcc.id=ec3.competencia_id WHERE ec3.evaluation_id=e.id ORDER BY ec3.id LIMIT 1) competency_percentage,
-                              (SELECT COUNT(*) FROM evaluation_grades egc WHERE egc.evaluation_id=e.id) grades_count
-                       FROM evaluations e
-                       WHERE e.teacher_course_id=$teacherCourseId {$historicalEvaluationFilter}
-                         AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
-                       ORDER BY e.created_at,e.id";
+    $evaluationModel = ($assignment['evaluation_model'] ?? 'weighted') === 'competency' ? 'competency' : 'weighted';
+    if ($evaluationModel === 'competency') {
+        if (!gradebook_table_exists($conn,'evaluation_area_competencies') || !gradebook_table_exists($conn,'area_competencies')) {
+            gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql para habilitar el modelo por competencias.'],409);
+        }
+        $evaluationsSql = "SELECT e.id,e.title,e.type,e.created_at$evaluationStatusSelect,
+                                  (SELECT eac.area_competencia_id FROM evaluation_area_competencies eac WHERE eac.evaluation_id=e.id ORDER BY eac.id LIMIT 1) competencia_id,
+                                  (SELECT acmp.name FROM evaluation_area_competencies eac2 INNER JOIN area_competencies acmp ON acmp.id=eac2.area_competencia_id WHERE eac2.evaluation_id=e.id ORDER BY eac2.id LIMIT 1) competency_name,
+                                  0 competency_percentage,
+                                  (SELECT COUNT(*) FROM evaluation_grades egc WHERE egc.evaluation_id=e.id) grades_count
+                           FROM evaluations e
+                           WHERE e.teacher_course_id=$teacherCourseId {$historicalEvaluationFilter}
+                             AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
+                           ORDER BY e.created_at,e.id";
+    } else {
+        $evaluationsSql = "SELECT e.id,e.title,e.type,e.created_at$evaluationStatusSelect,
+                                  (SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id,
+                                  (SELECT gcc.name FROM evaluation_competencias ec2 INNER JOIN general_course_competencies gcc ON gcc.id=ec2.competencia_id WHERE ec2.evaluation_id=e.id ORDER BY ec2.id LIMIT 1) competency_name,
+                                  (SELECT gcc.percentage FROM evaluation_competencias ec3 INNER JOIN general_course_competencies gcc ON gcc.id=ec3.competencia_id WHERE ec3.evaluation_id=e.id ORDER BY ec3.id LIMIT 1) competency_percentage,
+                                  (SELECT COUNT(*) FROM evaluation_grades egc WHERE egc.evaluation_id=e.id) grades_count
+                           FROM evaluations e
+                           WHERE e.teacher_course_id=$teacherCourseId {$historicalEvaluationFilter}
+                             AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'
+                           ORDER BY e.created_at,e.id";
+    }
     $evaluationResult = $conn->query($evaluationsSql);
     $evaluations = [];
     $evaluationIds = [];
@@ -132,16 +148,27 @@ if ($action === 'load') {
     $evaluationCompetencies = [];
     if ($evaluationIds) {
         $evaluationListForLinks = implode(',', $evaluationIds);
-        $linkResult = $conn->query(
-            "SELECT ec.evaluation_id,ec.competencia_id,
-                    COALESCE(gcc.name,'Competencia histórica') competency_name,
-                    COALESCE(gcc.percentage,0) competency_percentage
-             FROM evaluation_competencias ec
-             LEFT JOIN general_course_competencies gcc
-               ON gcc.id=ec.competencia_id
-             WHERE ec.evaluation_id IN ($evaluationListForLinks)
-             ORDER BY ec.evaluation_id,ec.id"
-        );
+        if ($evaluationModel === 'competency') {
+            $linkResult = $conn->query(
+                "SELECT eac.evaluation_id,eac.area_competencia_id competencia_id,
+                        COALESCE(acmp.name,'Competencia del área histórica') competency_name,
+                        0 competency_percentage
+                 FROM evaluation_area_competencies eac
+                 LEFT JOIN area_competencies acmp ON acmp.id=eac.area_competencia_id
+                 WHERE eac.evaluation_id IN ($evaluationListForLinks)
+                 ORDER BY eac.evaluation_id,eac.id"
+            );
+        } else {
+            $linkResult = $conn->query(
+                "SELECT ec.evaluation_id,ec.competencia_id,
+                        COALESCE(gcc.name,'Competencia histórica') competency_name,
+                        COALESCE(gcc.percentage,0) competency_percentage
+                 FROM evaluation_competencias ec
+                 LEFT JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+                 WHERE ec.evaluation_id IN ($evaluationListForLinks)
+                 ORDER BY ec.evaluation_id,ec.id"
+            );
+        }
         while ($linkResult && ($link = $linkResult->fetch_assoc())) {
             $evaluationId = (int)$link['evaluation_id'];
             $evaluationCompetencies[$evaluationId][] = [
@@ -153,11 +180,8 @@ if ($action === 'load') {
         foreach ($evaluations as &$evaluation) {
             $links = $evaluationCompetencies[(int)$evaluation['id']] ?? [];
             $evaluation['competency_links'] = $links;
-            $evaluation['competency_ids'] = array_values(array_map(
-                static function ($item) { return (int)$item['id']; },
-                $links
-            ));
-            $evaluation['historical_multi_competency'] = count($links) > 1;
+            $evaluation['competency_ids'] = array_values(array_map(static function ($item) { return (int)$item['id']; }, $links));
+            $evaluation['historical_multi_competency'] = $evaluationModel === 'weighted' && count($links) > 1;
         }
         unset($evaluation);
     }
@@ -221,7 +245,8 @@ if ($action === 'load') {
         $evaluationList = implode(',', $evaluationIds);
         // Ordenar por id hace determinista la lectura cuando existen filas
         // antiguas duplicadas. La última fila (id mayor) es la canónica.
-        $gradeResult = $conn->query("SELECT id,evaluation_id,student_id,competencia_id,grade FROM evaluation_grades WHERE evaluation_id IN ($evaluationList) AND student_id IN ($studentIds) ORDER BY evaluation_id,student_id,id");
+        $gradeCompetencyColumn = $evaluationModel === 'competency' ? 'area_competencia_id' : 'competencia_id';
+        $gradeResult = $conn->query("SELECT id,evaluation_id,student_id,COALESCE($gradeCompetencyColumn,0) competencia_id,grade FROM evaluation_grades WHERE evaluation_id IN ($evaluationList) AND student_id IN ($studentIds) ORDER BY evaluation_id,student_id,id");
         $gradeCellMap = [];
         while ($gradeResult && ($row = $gradeResult->fetch_assoc())) {
             $evaluationId = (int)$row['evaluation_id'];
@@ -266,40 +291,27 @@ if ($action === 'load') {
     $yearReadOnly = (int)$assignment['is_active'] !== 1 || (isset($assignment['year_status']) && in_array($assignment['year_status'], ['Cerrado','Archivado'], true));
 
     $competencies=[];
-    // El reporte web usa las competencias con evaluaciones en ese año
-    // aunque hoy figuren inactivas. Su peso histórico no debe perderse.
     $historicalYear=(int)$assignment['is_active']!==1;
     $relatedCompetencyIds=[];
-    foreach ($evaluationCompetencies as $links) {
-        foreach ($links as $link) {
-            $cid=(int)($link['id']??0);
-            if ($cid>0) $relatedCompetencyIds[$cid]=true;
-        }
-    }
-    $competencyScope=$historicalYear
-        ? ($relatedCompetencyIds
-            ? ' AND id IN ('.implode(',',array_keys($relatedCompetencyIds)).')'
-            : ' AND 1=0')
-        : ' AND is_active=1';
-    $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id'].$competencyScope." ORDER BY id");
-    while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>(float)$row['percentage']];
-    $officialWeightTotal=0.0;$officialWeightCount=0;foreach($competencies as $competency){$pct=(float)($competency['percentage']??0);if($pct<=0)continue;$officialWeightTotal+=$pct;$officialWeightCount++;}$officialWeightsValid=$officialWeightCount>0&&abs($officialWeightTotal-100.0)<=0.1;
-    $knownCompetencies=[];
-    foreach($competencies as $competency)$knownCompetencies[(int)$competency['id']]=true;
-    foreach($evaluationCompetencies as $links){
-        foreach($links as $link){
-            $historicalId=(int)($link['id']??0);
-            if($historicalId<=0||isset($knownCompetencies[$historicalId]))continue;
-            $competencies[]=[
-                'id'=>$historicalId,
-                'name'=>(string)($link['name']??'Competencia histórica'),
-                'percentage'=>(float)($link['percentage']??0),
-                // En un año archivado esta competencia participaba en el
-                // promedio del reporte original, incluso si hoy está inactiva.
-                'historical'=>!$historicalYear,
-            ];
-            $knownCompetencies[$historicalId]=true;
-        }
+    foreach ($evaluationCompetencies as $links) foreach ($links as $link) { $cid=(int)($link['id']??0); if($cid>0)$relatedCompetencyIds[$cid]=true; }
+    if ($evaluationModel === 'competency') {
+        $competencyScope=$historicalYear
+            ? ($relatedCompetencyIds ? ' AND id IN ('.implode(',',array_keys($relatedCompetencyIds)).')' : ' AND 1=0')
+            : ' AND is_active=1';
+        $competencyResult=$conn->query("SELECT id,name,0 percentage FROM area_competencies WHERE school_id=$schoolId AND academic_year_id=".(int)$assignment['academic_year_id']." AND area_id=".(int)$assignment['area_id']." AND level='".$conn->real_escape_string((string)$assignment['level'])."'".$competencyScope." ORDER BY display_order,id");
+        while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>0.0];
+        $knownCompetencies=[];foreach($competencies as $competency)$knownCompetencies[(int)$competency['id']]=true;
+        foreach($evaluationCompetencies as $links)foreach($links as $link){$cid=(int)($link['id']??0);if($cid>0&&!isset($knownCompetencies[$cid])){$competencies[]=['id'=>$cid,'name'=>(string)$link['name'],'percentage'=>0.0,'historical'=>true];$knownCompetencies[$cid]=true;}}
+        $officialWeightTotal=0.0;$officialWeightsValid=true;
+    } else {
+        $competencyScope=$historicalYear
+            ? ($relatedCompetencyIds ? ' AND id IN ('.implode(',',array_keys($relatedCompetencyIds)).')' : ' AND 1=0')
+            : ' AND is_active=1';
+        $competencyResult=$conn->query("SELECT id,name,percentage FROM general_course_competencies WHERE course_id=".(int)$assignment['course_id']." AND teacher_id=$teacherId AND academic_year_id=".(int)$assignment['academic_year_id'].$competencyScope." ORDER BY id");
+        while($competencyResult&&($row=$competencyResult->fetch_assoc()))$competencies[]=['id'=>(int)$row['id'],'name'=>$row['name'],'percentage'=>(float)$row['percentage']];
+        $officialWeightTotal=0.0;$officialWeightCount=0;foreach($competencies as $competency){$pct=(float)($competency['percentage']??0);if($pct<=0)continue;$officialWeightTotal+=$pct;$officialWeightCount++;}$officialWeightsValid=$officialWeightCount>0&&abs($officialWeightTotal-100.0)<=0.1;
+        $knownCompetencies=[];foreach($competencies as $competency)$knownCompetencies[(int)$competency['id']]=true;
+        foreach($evaluationCompetencies as $links)foreach($links as $link){$historicalId=(int)($link['id']??0);if($historicalId>0&&!isset($knownCompetencies[$historicalId])){$competencies[]=['id'=>$historicalId,'name'=>(string)$link['name'],'percentage'=>(float)$link['percentage'],'historical'=>!$historicalYear];$knownCompetencies[$historicalId]=true;}}
     }
 
     $readOnlyReason = '';
@@ -311,13 +323,14 @@ if ($action === 'load') {
         'status' => 1,
         'assignment' => [
             'id'=>(int)$assignment['id'],'academic_year_id'=>(int)$assignment['academic_year_id'],'year'=>$assignment['year'],
-            'course_name'=>$assignment['course_name'],'level'=>$assignment['level'],'grado'=>$assignment['grado'],'seccion'=>$assignment['seccion'] ?: 'U'
+            'course_name'=>$assignment['course_name'],'level'=>$assignment['level'],'grado'=>$assignment['grado'],'seccion'=>$assignment['seccion'] ?: 'U','evaluation_model'=>$evaluationModel
         ],
         'bimestre' => $bimester,
         'evaluations' => $evaluations,
         'competencies' => $competencies,
         'competency_weight_total' => $officialWeightTotal,
         'competency_weights_valid' => $officialWeightsValid,
+        'evaluation_model' => $evaluationModel,
         'students' => $students,
         'grades' => $grades,
         'grades_by_competency' => $gradesByCompetency,
