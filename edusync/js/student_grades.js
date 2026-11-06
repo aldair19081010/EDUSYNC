@@ -124,7 +124,12 @@
             for (var i=1;i<=4;i++) {
                 var bim = available[i];
                 var active = Number(state.bimester) === i && state.view === 'bimester';
-                if (bim) html += '<button type="button" class="sg-bimester-btn' + (active ? ' active' : '') + '" data-bimester="' + i + '"><span><strong>' + roman(i) + ' Bimestre</strong><small>Publicado</small></span>' + (bim.promedio_bimestre == null ? '<span class="badge badge-info">Competencias</span>' : gradePill(bim,true)) + '</button>';
+                if (bim) {
+                    var hasWeighted=(bim.cursos||[]).some(function(course){return course.evaluation_model!=='competency';});
+                    var hasCompetency=(bim.cursos||[]).some(function(course){return course.evaluation_model==='competency';});
+                    var bimBadge=hasWeighted&&hasCompetency?'<span class="badge badge-info">Mixto</span>':(hasCompetency?'<span class="badge badge-info">Competencias</span>':gradePill(bim,true));
+                    html += '<button type="button" class="sg-bimester-btn' + (active ? ' active' : '') + '" data-bimester="' + i + '"><span><strong>' + roman(i) + ' Bimestre</strong><small>Publicado</small></span>' + bimBadge + '</button>';
+                }
                 else html += '<button type="button" class="sg-bimester-btn is-empty" disabled><span><strong>' + roman(i) + ' Bimestre</strong><small>Sin publicar</small></span><i class="far fa-clock"></i></button>';
             }
             $nav.html(html).toggleClass('d-none', state.view === 'annual');
