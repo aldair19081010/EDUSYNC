@@ -11,7 +11,7 @@ if(!$roleData||(int)$roleData['type']!==1){echo '<div class="alert alert-danger"
 $stmt=$conn->prepare("SELECT gpc.*,tc.grado,COALESCE(NULLIF(tc.seccion,''),'U') seccion,ac.name course_name,ac.level,ay.year,t.name teacher_name,u.name closed_by_name,ru.name reopened_by_name FROM grade_period_closures gpc INNER JOIN teacher_courses tc ON tc.id=gpc.teacher_course_id AND tc.school_id=gpc.school_id INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=gpc.academic_year_id LEFT JOIN teacher t ON t.id=gpc.teacher_id LEFT JOIN users u ON u.id=gpc.closed_by AND u.school_id=gpc.school_id LEFT JOIN users ru ON ru.id=gpc.reopened_by AND ru.school_id=gpc.school_id WHERE gpc.id=? AND gpc.school_id=? LIMIT 1");
 $stmt->bind_param('ii',$id,$schoolId);$stmt->execute();$row=$stmt->get_result()->fetch_assoc();$stmt->close();
 if(!$row){echo '<div class="alert alert-warning">No se encontró el cierre.</div>';return;}
-$snapshot=json_decode((string)$row['closure_snapshot'],true)?:[];$summary=$snapshot['summary']??[];
+$snapshot=json_decode((string)$row['closure_snapshot'],true)?:[];$summary=$snapshot['summary']??[];$evaluationMode=(string)($snapshot['assignment']['evaluation_mode']??$snapshot['evaluation_mode']??'weighted');
 function gcd_date($value){if(!$value)return '—';$ts=strtotime($value);return $ts?date('d/m/Y h:i a',$ts):htmlspecialchars($value,ENT_QUOTES,'UTF-8');}
 ?>
 
@@ -45,7 +45,7 @@ edn_header('closure','Cierre de bimestre: '.$row['course_name'],
   <div class="card-body">
     <div class="small text-muted mb-3">Cerrado: <strong><?= gcd_date($row['closed_at']) ?></strong> · Versión <?= (int)$row['closure_version'] ?></div>
     <div class="row text-center">
-      <div class="col-4 mb-3"><div class="h5 mb-0 text-gray-800 font-weight-bold"><?= (int)($summary['competencies']??0) ?></div><small class="text-muted">Competencias</small></div>
+      <div class="col-4 mb-3"><div class="h5 mb-0 text-gray-800 font-weight-bold"><?= (int)($summary['competencies']??0) ?></div><small class="text-muted"><?= $evaluationMode==='competency' ? 'Competencias del área' : 'Componentes de calificación' ?></small></div>
       <div class="col-4 mb-3"><div class="h5 mb-0 text-gray-800 font-weight-bold"><?= (int)($summary['evaluations']??0) ?></div><small class="text-muted">Evaluaciones</small></div>
       <div class="col-4 mb-3"><div class="h5 mb-0 text-gray-800 font-weight-bold"><?= (int)($summary['students']??0) ?></div><small class="text-muted">Estudiantes</small></div>
     </div>
@@ -54,7 +54,7 @@ edn_header('closure','Cierre de bimestre: '.$row['course_name'],
     </div>
     <div class="d-flex justify-content-between small text-muted">
       <span><?= number_format((float)($summary['progress']??0),1) ?>% de avance</span>
-      <span><?= number_format((float)($summary['percentage_total']??0),2) ?>% ponderación</span>
+      <?php if($evaluationMode!=='competency'): ?><span><?= number_format((float)($summary['percentage_total']??0),2) ?>% ponderación</span><?php else: ?><span>Sin ponderación entre competencias</span><?php endif; ?>
     </div>
     <?php if($row['reopened_at']): ?>
       <div class="alert alert-info mt-3 mb-0"><i class="fas fa-unlock mr-1"></i>Reabierto el <?= gcd_date($row['reopened_at']) ?> por <?= edn_escape($row['reopened_by_name']?:'Administración') ?></div>
