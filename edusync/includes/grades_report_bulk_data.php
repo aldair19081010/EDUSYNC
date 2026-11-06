@@ -105,7 +105,8 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
 
     $sql = "SELECT tc.id teacher_course_id, tc.teacher_id, tc.course_id, tc.grado,
                    COALESCE(NULLIF(TRIM(tc.seccion),''),'U') seccion,
-                   ac.name course_name, ac.level
+                   ac.name course_name, ac.level,ac.area_id,
+                   COALESCE(ac.evaluation_model,'weighted') evaluation_model
             FROM teacher_courses tc
             INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=tc.school_id
             WHERE tc.school_id=? AND tc.academic_year_id=?";
@@ -140,6 +141,9 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
             $courses[$cid] = [
                 'id' => $cid,
                 'name' => (string)$row['course_name'],
+                'area_id' => (int)($row['area_id']??0),
+                'level' => (string)$row['level'],
+                'evaluation_model' => ($row['evaluation_model']??'weighted')==='competency'?'competency':'weighted',
                 'teacher_courses' => []
             ];
         }
@@ -244,44 +248,64 @@ function grbd_build(mysqli $conn, array $filters, array $access) {
     $grades = [];
     if ($evalIds) {
         $evalList = implode(',', array_map('intval', $evalIds));
-        $linkSql = "SELECT ec.evaluation_id,gcc.id competency_id,gcc.name,gcc.percentage
-                    FROM evaluation_competencias ec
-                    INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
-                    WHERE ec.evaluation_id IN ($evalList)
-
-                    ORDER BY gcc.id,ec.evaluation_id";
-        $links = $conn->query($linkSql);
-        while ($links && ($row = $links->fetch_assoc())) {
-            $evaluationId = (int)$row['evaluation_id'];
-            if (!isset($evaluations[$evaluationId])) continue;
-            $cid = (int)$evaluations[$evaluationId]['course_id'];
-            $competencyId = (int)$row['competency_id'];
-            if (!isset($competencies[$cid][$competencyId])) {
-                $competencies[$cid][$competencyId] = [
-                    'id' => $competencyId,
-                    'name' => (string)$row['name'],
-                    'percentage' => (float)$row['percentage'],
-                    'evaluations' => []
-                ];
-            }
-            $competencies[$cid][$competencyId]['evaluations'][$evaluationId] = $evaluations[$evaluationId];
+        $weightedEvalIds=[];$areaEvalIds=[];
+        foreach($evaluations as $evaluationId=>$evaluation){
+            $model=$courses[(int)$evaluation['course_id']]['evaluation_model']??'weighted';
+            if($model==='competency')$areaEvalIds[]=(int)$evaluationId;else $weightedEvalIds[]=(int)$evaluationId;
         }
-
-        $studentIds = array_keys($students);
-        if ($studentIds) {
-            $studentList = implode(',', array_map('intval', $studentIds));
-            $gradeSql = "SELECT evaluation_id,student_id,competencia_id,grade
-                         FROM evaluation_grades
-                         WHERE evaluation_id IN ($evalList)
-                           AND student_id IN ($studentList)
-                           AND grade IS NOT NULL
-                           AND TRIM(grade)<>''";
-            $gradeResult = $conn->query($gradeSql);
-            while ($gradeResult && ($row = $gradeResult->fetch_assoc())) {
-                $evaluationId = (int)$row['evaluation_id'];
-                $studentId = (int)$row['student_id'];
-                $competencyId = $row['competencia_id'] === null ? 0 : (int)$row['competencia_id'];
-                $grades[$studentId][$evaluationId][$competencyId] = $row['grade'];
+        if($weightedEvalIds){
+            $weightedList=implode(',',array_map('intval',$weightedEvalIds));
+            $linkSql="SELECT ec.evaluation_id,gcc.id competency_id,gcc.name,gcc.percentage
+                      FROM evaluation_competencias ec
+                      INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+                      WHERE ec.evaluation_id IN ($weightedList)
+                      ORDER BY gcc.id,ec.evaluation_id";
+            $links=$conn->query($linkSql);
+            while($links&&($row=$links->fetch_assoc())){
+                $evaluationId=(int)$row['evaluation_id'];if(!isset($evaluations[$evaluationId]))continue;
+                $cid=(int)$evaluations[$evaluationId]['course_id'];$competencyId=(int)$row['competency_id'];
+                if(!isset($competencies[$cid][$competencyId]))$competencies[$cid][$competencyId]=['id'=>$competencyId,'name'=>(string)$row['name'],'percentage'=>(float)$row['percentage'],'evaluations'=>[]];
+                $competencies[$cid][$competencyId]['evaluations'][$evaluationId]=$evaluations[$evaluationId];
+            }
+        }
+        if($areaEvalIds){
+            $areaIds=implode(',',array_map('intval',array_unique(array_column($courses,'area_id'))));
+            $levelEsc=$conn->real_escape_string($level);
+            $areaCompetencySql="SELECT id,area_id,name FROM area_competencies WHERE school_id=$schoolId AND academic_year_id=$yearId AND area_id IN ($areaIds) AND level='".$levelEsc."' AND (is_active=1 OR id IN (SELECT eac.area_competencia_id FROM evaluation_area_competencies eac WHERE eac.area_competencia_id=area_competencies.id AND eac.evaluation_id IN (".implode(',',array_map('intval',$areaEvalIds))."))) ORDER BY display_order,id";
+            $areaRows=$conn->query($areaCompetencySql);
+            while($areaRows&&($row=$areaRows->fetch_assoc())){
+                foreach($courses as $cid=>$course){
+                    if(($course['evaluation_model']??'weighted')==='competency'&&(int)$course['area_id']===(int)$row['area_id']){
+                        $competencyId=(int)$row['id'];if(!isset($competencies[$cid][$competencyId]))$competencies[$cid][$competencyId]=['id'=>$competencyId,'name'=>(string)$row['name'],'percentage'=>0.0,'evaluations'=>[]];
+                    }
+                }
+            }
+            $areaLinkSql="SELECT eac.evaluation_id,eac.area_competencia_id competency_id,acmp.name
+                          FROM evaluation_area_competencies eac
+                          INNER JOIN area_competencies acmp ON acmp.id=eac.area_competencia_id
+                          WHERE eac.evaluation_id IN (".implode(',',array_map('intval',$areaEvalIds)).")
+                          ORDER BY eac.area_competencia_id,eac.evaluation_id";
+            $areaLinks=$conn->query($areaLinkSql);
+            while($areaLinks&&($row=$areaLinks->fetch_assoc())){
+                $evaluationId=(int)$row['evaluation_id'];if(!isset($evaluations[$evaluationId]))continue;
+                $cid=(int)$evaluations[$evaluationId]['course_id'];$competencyId=(int)$row['competency_id'];
+                if(!isset($competencies[$cid][$competencyId]))$competencies[$cid][$competencyId]=['id'=>$competencyId,'name'=>(string)$row['name'],'percentage'=>0.0,'evaluations'=>[]];
+                $competencies[$cid][$competencyId]['evaluations'][$evaluationId]=$evaluations[$evaluationId];
+            }
+        }
+        $studentIds=array_keys($students);
+        if($studentIds){
+            $studentList=implode(',',array_map('intval',$studentIds));
+            $gradeSql="SELECT eg.evaluation_id,eg.student_id,eg.competencia_id,eg.area_competencia_id,eg.grade
+                       FROM evaluation_grades eg
+                       WHERE eg.evaluation_id IN ($evalList) AND eg.student_id IN ($studentList)
+                         AND eg.grade IS NOT NULL AND TRIM(eg.grade)<>''";
+            $gradeResult=$conn->query($gradeSql);
+            while($gradeResult&&($row=$gradeResult->fetch_assoc())){
+                $evaluationId=(int)$row['evaluation_id'];$studentId=(int)$row['student_id'];
+                $model=$courses[(int)$evaluations[$evaluationId]['course_id']]['evaluation_model']??'weighted';
+                $competencyId=$model==='competency'?(int)($row['area_competencia_id']??0):(int)($row['competencia_id']??0);
+                $grades[$studentId][$evaluationId][$competencyId]=$row['grade'];
             }
         }
     }
