@@ -42,7 +42,7 @@ if ($login_type === 1) {
                 ['page' => 'academic_management', 'label' => 'Gestión Académica', 'icon' => 'fa-graduation-cap'],
                 ['page' => 'academic_year', 'label' => 'Años Académicos', 'icon' => 'fa-calendar-alt'],
                 ['page' => 'teacher_followup', 'label' => 'Seguimiento Docente', 'icon' => 'fa-clipboard-check'],
-                ['page' => 'competencias', 'label' => 'Competencias por Nivel', 'icon' => 'fa-tasks'],
+                ['page' => 'competencias_area', 'label' => 'Competencias del área', 'icon' => 'fa-tasks'],
                 ['page' => 'grades', 'label' => 'Libro de Notas', 'icon' => 'fa-clipboard-list', 'separator_before' => true],
                 ['page' => 'grades_report', 'label' => 'Reporte de Notas', 'icon' => 'fa-chart-bar'],
                 ['page' => 'fichas_reportes', 'label' => 'Fichas y Reportes', 'icon' => 'fa-file-alt'],
@@ -106,7 +106,7 @@ if ($login_type === 1) {
             'heading' => 'Académico',
             'items' => [
                 ['page' => 'my_courses', 'label' => 'Mis Cursos', 'icon' => 'fa-book'],
-                ['page' => 'competencias', 'label' => 'Competencias por Nivel', 'icon' => 'fa-tasks'],
+                ['page' => 'competencias', 'label' => 'Componentes de calificación', 'icon' => 'fa-balance-scale'],
             ],
         ],
         [
