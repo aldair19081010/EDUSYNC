@@ -152,8 +152,8 @@ if ($action === 'save_area_competency') {
         $stmt=$conn->prepare('UPDATE area_competencies SET area_id=?,level=?,code=NULLIF(?,\'\'),name=?,description=?,display_order=?,is_active=? WHERE id=? AND school_id=? AND academic_year_id=?');
         $stmt->bind_param('issssiiiii',$areaId,$level,$code,$name,$description,$order,$active,$id,$schoolId,$yearId);$audit='area_competency_updated';
     }else{
-        $stmt=$conn->prepare('INSERT INTO area_competencies (school_id,academic_year_id,area_id,level,code,name,description,display_order,is_active) VALUES (?,?,?,?,NULLIF(?,\'\'),?,?,?,?,?)');
-        $stmt->bind_param('iiiisssii',$schoolId,$yearId,$areaId,$level,$code,$name,$description,$order,$active);$audit='area_competency_created';
+        $stmt=$conn->prepare('INSERT INTO area_competencies (school_id,academic_year_id,area_id,level,code,name,description,display_order,is_active) VALUES (?,?,?, ?,NULLIF(?,\'\'),?,?,?,?)');
+        $stmt->bind_param('iiissssii',$schoolId,$yearId,$areaId,$level,$code,$name,$description,$order,$active);$audit='area_competency_created';
     }
     if(!$stmt->execute()) amResponse(['status'=>0,'message'=>'No se pudo guardar la competencia: '.$stmt->error],500);
     if(!$id)$id=$stmt->insert_id;$stmt->close();
@@ -198,7 +198,7 @@ if ($action === 'impact') {
     $stmt=$conn->prepare($sql);$bindTypes='ii'.str_repeat('i',count($ids)).'i';$bind=[$yearId,$yearId,...$ids,$schoolId];$stmt->bind_param($bindTypes,...$bind);$stmt->execute();$impact=$stmt->get_result()->fetch_assoc();$stmt->close();amResponse(['status'=>1,'impact'=>$impact]);
 }
 
-$writeActions = ['bulk','copy_year','save_area','save_course','save_competency','toggle_competency'];
+$writeActions = ['bulk','copy_year','save_area','save_course','save_competency','toggle_competency','save_area_competency','toggle_area_competency'];
 if (in_array($action, $writeActions, true)) {
     if (!amCanWrite($conn, $userId)) amResponse(['status'=>0,'message'=>'No tienes permisos para modificar la gestión académica.'],403);
     $token = $_POST['csrf_token'] ?? ''; $sessionToken = $_SESSION['csrf_token'] ?? '';
@@ -254,10 +254,10 @@ if ($action === 'save_course') {
             if($evaluationCount>0) amResponse(['status'=>0,'message'=>'No se puede cambiar el modelo porque el curso ya tiene evaluaciones registradas. El historial debe conservar su modelo original.'],409);
         }
         $stmt=$conn->prepare('UPDATE academic_courses SET academic_year_id=?,area_id=?,name=?,course_code=?,description=?,level=?,evaluation_mode=?,grades=?,weekly_hours=?,course_type=?,display_order=?,is_active=?,course_status=? WHERE id=? AND school_id=?');
-        $stmt->bind_param('iissssssds iisii',$yearId,$areaId,$name,$code,$description,$level,$evaluationMode,$grades,$hours,$type,$order,$active,$courseStatus,$id,$schoolId);$audit='update';
+        $stmt->bind_param('iissssssdsiisii',$yearId,$areaId,$name,$code,$description,$level,$evaluationMode,$grades,$hours,$type,$order,$active,$courseStatus,$id,$schoolId);$audit='update';
     } else {
         $stmt=$conn->prepare('INSERT INTO academic_courses (school_id,academic_year_id,area_id,name,course_code,description,level,evaluation_mode,grades,weekly_hours,course_type,display_order,is_active,course_status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $stmt->bind_param('iiisssssssds iis',$schoolId,$yearId,$areaId,$name,$code,$description,$level,$evaluationMode,$grades,$hours,$type,$order,$active,$courseStatus);$audit='create';
+        $stmt->bind_param('iiissssssdsiis',$schoolId,$yearId,$areaId,$name,$code,$description,$level,$evaluationMode,$grades,$hours,$type,$order,$active,$courseStatus);$audit='create';
     }
     if(!$stmt->execute())amResponse(['status'=>0,'message'=>$stmt->error],500);if(!$id)$id=$stmt->insert_id;$stmt->close();amAudit($conn,$schoolId,$yearId,$userId,'course',$id,$audit,['name'=>$name,'level'=>$level,'grades'=>$grades,'evaluation_mode'=>$evaluationMode]);amResponse(['status'=>1,'message'=>'Curso guardado correctamente.']);
 }
