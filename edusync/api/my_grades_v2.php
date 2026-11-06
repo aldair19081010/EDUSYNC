@@ -217,6 +217,9 @@ try {
     $hasCompetencies = grades_has_table($conn, 'general_course_competencies');
     $hasEvaluationCompetencies = grades_has_table($conn, 'evaluation_competencias');
     $hasGradeCompetency = grades_has_column($conn, 'evaluation_grades', 'competencia_id');
+    $hasAreaCompetencies = grades_has_table($conn, 'area_competencies');
+    $hasEvaluationAreaCompetencies = grades_has_table($conn, 'evaluation_area_competencies');
+    $hasAreaGradeCompetency = grades_has_column($conn, 'evaluation_grades', 'area_competencia_id');
 
     $areaJoin = $hasAreas ? 'LEFT JOIN areas a ON a.id = ac.area_id' : '';
 
@@ -244,13 +247,18 @@ try {
     $areaNameSelect = $hasAreas && grades_has_column($conn, 'areas', 'name') ? "COALESCE(a.name, 'Área General')" : "'Área General'";
     $areaColorSelect = $hasAreas && grades_has_column($conn, 'areas', 'color') ? "COALESCE(a.color, '#6c757d')" : "'#6c757d'";
     $areaDescriptionSelect = $hasAreas && grades_has_column($conn, 'areas', 'description') ? 'a.description' : "''";
-    $compNameSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'name') ? "COALESCE(c.name, 'Evaluación General')" : "'Evaluación General'";
-    $compPercentageSelect = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'percentage') ? 'COALESCE(c.percentage, 100)' : '100';
-    $egCompSelect = $hasGradeCompetency
-        ? ($hasEvaluationCompetencies
-            ? 'COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id, 0)'
-            : 'COALESCE(eg.competencia_id, 0)')
+    $legacyCompName = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'name') ? "COALESCE(c.name, 'Componente de calificación')" : "'Componente de calificación'";
+    $legacyCompPercentage = $hasCompetencies && grades_has_column($conn, 'general_course_competencies', 'percentage') ? 'COALESCE(c.percentage, 100)' : '100';
+    $legacyCompId = $hasGradeCompetency
+        ? ($hasEvaluationCompetencies ? 'COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id, 0)' : 'COALESCE(eg.competencia_id, 0)')
         : ($hasEvaluationCompetencies ? 'COALESCE(ec.competencia_id, 0)' : '0');
+    $areaEvaluationJoin = ($hasEvaluationAreaCompetencies && $hasAreaCompetencies) ? 'LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id' : '';
+    $areaCompetencyJoin = ($hasAreaCompetencies && $hasAreaGradeCompetency) ? 'LEFT JOIN area_competencies acmp ON acmp.id=COALESCE(NULLIF(eg.area_competencia_id,0),eac.area_competencia_id)' : '';
+    $areaCompName = ($hasAreaCompetencies && $hasAreaGradeCompetency) ? "COALESCE(acmp.name,'Competencia del área')" : "'Competencia del área'";
+    $areaCompId = ($hasAreaGradeCompetency && $hasEvaluationAreaCompetencies) ? 'COALESCE(NULLIF(eg.area_competencia_id,0),eac.area_competencia_id,0)' : '0';
+    $compNameSelect = "CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN $areaCompName ELSE $legacyCompName END";
+    $compPercentageSelect = "CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN 0 ELSE $legacyCompPercentage END";
+    $egCompSelect = "CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN $areaCompId ELSE $legacyCompId END";
     $tcYearSelect = grades_has_column($conn, 'teacher_courses', 'academic_year_id') ? 'tc.academic_year_id' : 'NULL';
     $eYearSelect = grades_has_column($conn, 'evaluations', 'academic_year_id') ? 'e.academic_year_id' : 'NULL';
     $bimSelect = grades_has_column($conn, 'evaluations', 'bimestre') ? 'e.bimestre' : "'1'";
@@ -264,6 +272,7 @@ try {
                    $compNameSelect AS competencia_nombre,
                    $compPercentageSelect AS porcentaje,
                    $courseIdSelect AS course_id,
+                   COALESCE(ac.evaluation_model,'weighted') AS evaluation_model,
                    $courseNameSelect AS curso,
                    $areaNameSelect AS area_nombre,
                    $areaColorSelect AS area_color,
@@ -276,6 +285,8 @@ try {
             $areaJoin
             $evaluationCompetencyJoin
             $competencyJoin
+            $areaEvaluationJoin
+            $areaCompetencyJoin
             WHERE eg.student_id IN ($studentIdsSql)
               AND tc.school_id = $studentSchoolId
               AND ac.school_id = $studentSchoolId
@@ -305,13 +316,14 @@ try {
             $bucket[$yearLabel][$bim][$courseId] = [
                 'nombre'=>(string)$row['curso'],
                 'area'=>['nombre'=>(string)$row['area_nombre'],'color'=>(string)$row['area_color'],'descripcion'=>(string)($row['area_descripcion'] ?? '')],
-                'competencias'=>[]
+                'competencias'=>[],
+                'evaluation_model'=>($row['evaluation_model']??'weighted')==='competency'?'competency':'weighted'
             ];
         }
         if (!isset($bucket[$yearLabel][$bim][$courseId]['competencias'][$compId])) {
             $bucket[$yearLabel][$bim][$courseId]['competencias'][$compId] = [
                 'nombre'=>(string)$row['competencia_nombre'],
-                'peso'=>max(0.0, (float)$row['porcentaje']/100.0),
+                'peso'=>($row['evaluation_model']??'weighted')==='competency'?0.0:max(0.0, (float)$row['porcentaje']/100.0),
                 'notas'=>[]
             ];
         }
@@ -329,7 +341,7 @@ try {
         ];
         $bucket[$yearLabel][$bim][$courseId]['competencias'][$compId]['notas'][] = $evaluation;
         if (!isset($usedCompetencies[$yearLabel][$bim][$compId])) {
-            $usedCompetencies[$yearLabel][$bim][$compId] = ['nombre'=>(string)$row['competencia_nombre'],'peso'=>max(0.0,(float)$row['porcentaje']/100.0)];
+            $usedCompetencies[$yearLabel][$bim][$compId] = ['nombre'=>(string)$row['competencia_nombre'],'peso'=>($row['evaluation_model']??'weighted')==='competency'?0.0:max(0.0,(float)$row['porcentaje']/100.0),'evaluation_model'=>($row['evaluation_model']??'weighted')];
         }
     }
 
@@ -387,40 +399,37 @@ try {
                 }
                 if ($fallbackCount === 0) continue;
 
-                // Igual que la ficha individual: el resultado del curso es la
-                // suma de los aportes ponderados de sus competencias.
-                // aporte = promedio_competencia * porcentaje / 100.
-                $courseAverage = $weightedSum;
-                $courseScale = scale_type($courseLetterCount,$courseNumericCount);
-                $courseLevel = numeric_to_level($courseAverage);
-                $courseAverageFormatted = number_format($courseAverage, 2, '.', '');
-                $coursesExport[] = [
-                    'curso'=>$courseInfo['nombre'],'area'=>$courseInfo['area'],'promedio'=>$courseAverageFormatted,
-                    'nivel_logro'=>$courseLevel,'resultado'=>$courseAverageFormatted,
-                    'escala'=>$courseScale,'peso_evaluado'=>round($evaluatedWeight*100,2),'competencias'=>$competenciesExport
-                ];
-                $bimCourseSum += $courseAverage; $bimCourseCount++;
-                $bimLetterCount += $courseLetterCount; $bimNumericCount += $courseNumericCount;
+                $courseModel=($courseInfo['evaluation_model']??'weighted')==='competency'?'competency':'weighted';
+                $courseScale=scale_type($courseLetterCount,$courseNumericCount);
+                if($courseModel==='competency'){
+                    $courseAverageFormatted=null;$courseLevel=null;
+                    $coursesExport[]=['curso'=>$courseInfo['nombre'],'area'=>$courseInfo['area'],'evaluation_model'=>'competency','promedio'=>null,'nivel_logro'=>null,'resultado'=>null,'escala'=>$courseScale,'peso_evaluado'=>null,'competencias'=>$competenciesExport];
+                }else{
+                    // El promedio final ponderado sólo existe en el modelo actual.
+                    $courseAverage=$weightedSum;$courseLevel=numeric_to_level($courseAverage);$courseAverageFormatted=number_format($courseAverage,2,'.','');
+                    $coursesExport[]=['curso'=>$courseInfo['nombre'],'area'=>$courseInfo['area'],'evaluation_model'=>'weighted','promedio'=>$courseAverageFormatted,'nivel_logro'=>$courseLevel,'resultado'=>$courseAverageFormatted,'escala'=>$courseScale,'peso_evaluado'=>round($evaluatedWeight*100,2),'competencias'=>$competenciesExport];
+                    $bimCourseSum+=$courseAverage;$bimCourseCount++;$bimLetterCount+=$courseLetterCount;$bimNumericCount+=$courseNumericCount;
+                }
             }
             if ($bimCourseCount === 0) continue;
             usort($coursesExport,function($a,$b){return strcasecmp($a['curso'],$b['curso']);});
-            $bimAverage = $bimCourseSum/$bimCourseCount;
+            $bimAverage = $bimCourseCount>0?$bimCourseSum/$bimCourseCount:null;
             $bimScale = scale_type($bimLetterCount,$bimNumericCount);
             $attentionCount = 0;
-            foreach ($coursesExport as $course) if (in_array($course['nivel_logro'],['B','C'],true)) $attentionCount++;
+            foreach ($coursesExport as $course) { if (($course['evaluation_model']??'weighted')==='weighted' && in_array($course['nivel_logro'],['B','C'],true)) $attentionCount++; elseif (($course['evaluation_model']??'weighted')==='competency') foreach(($course['competencias']??[]) as $c) if(in_array($c['nivel_logro']??'', ['B','C'],true)){$attentionCount++;break;} }
             $compsExport = [];
             foreach (($usedCompetencies[$yearLabel][$bimNumber] ?? []) as $id=>$comp) $compsExport[] = ['competencia_id'=>(string)$id,'nombre'=>$comp['nombre'],'peso'=>$comp['peso']];
             $bimestersExport[] = [
                 'numero'=>(string)$bimNumber,'publicado'=>true,'competencias'=>$compsExport,'cursos'=>$coursesExport,
-                'promedio_bimestre'=>number_format($bimAverage,2,'.',''),'nivel_logro'=>numeric_to_level($bimAverage),
-                'resultado'=>number_format($bimAverage,2,'.',''),
+                'promedio_bimestre'=>$bimAverage===null?null:number_format($bimAverage,2,'.',''),'nivel_logro'=>$bimAverage===null?null:numeric_to_level($bimAverage),
+                'resultado'=>$bimAverage===null?null:number_format($bimAverage,2,'.',''),
                 'escala'=>$bimScale,'cursos_evaluados'=>$bimCourseCount,'cursos_por_reforzar'=>$attentionCount
             ];
             $yearBimSum += $bimAverage; $yearBimCount++;
         }
         if ($yearBimCount === 0) continue;
         usort($bimestersExport,function($a,$b){return (int)$a['numero']<=>(int)$b['numero'];});
-        $yearAverage = $yearBimSum/$yearBimCount;
+        $yearAverage = $yearBimCount>0?$yearBimSum/$yearBimCount:null;
 
         $annualCoursesMap = [];
         foreach ($bimestersExport as $bim) {
@@ -455,8 +464,8 @@ try {
         $yearScale = count($yearScales)===1?$yearScales[0]:'mixta';
         $yearsWithGrades[] = [
             'año'=>$yearInfo['año'],'descripcion'=>$yearInfo['descripcion'],'es_activo'=>$yearInfo['es_activo'],'bimestres'=>$bimestersExport,
-            'promedio_anual'=>number_format($yearAverage,2,'.',''),'nivel_logro'=>numeric_to_level($yearAverage),
-            'resultado'=>number_format($yearAverage,2,'.',''),
+            'promedio_anual'=>$yearAverage===null?null:number_format($yearAverage,2,'.',''),'nivel_logro'=>$yearAverage===null?null:numeric_to_level($yearAverage),
+            'resultado'=>$yearAverage===null?null:number_format($yearAverage,2,'.',''),
             'escala'=>$yearScale,'promedios_por_curso'=>$annualCourses
         ];
     }
