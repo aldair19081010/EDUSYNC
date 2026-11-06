@@ -605,7 +605,11 @@ if ($show_avg && !empty($student_id_filter)) {
     $sql_main = "SELECT s.name as student_name, s.id_no as student_dni, 
                         ac.name as course_name, ac.level as academic_level,
                         tc.grado as evaluation_grado, tc.seccion as evaluation_seccion,
-                        e.title as evaluation_title, 
+                        e.title as evaluation_title,
+                        (SELECT GROUP_CONCAT(DISTINCT gcc.name ORDER BY gcc.id SEPARATOR ', ')
+                         FROM evaluation_competencias ec
+                         INNER JOIN general_course_competencies gcc ON gcc.id=ec.competencia_id
+                         WHERE ec.evaluation_id=e.id) as competency_name,
                         e.bimestre, eg.grade as nota
                  FROM evaluation_grades eg
                  INNER JOIN student s ON eg.student_id = s.id AND s.school_id = ?
@@ -687,12 +691,58 @@ if ($show_avg && !empty($student_id_filter)) {
         $stmt_main->execute();
         $result_main = $stmt_main->get_result();
         while ($row = $result_main->fetch_assoc()) {
+            $row['evaluation_mode']='weighted';
             $report_data[] = $row;
         }
         $stmt_main->close();
     } else {
         echo "<div class='alert alert-danger'><i class='fa fa-exclamation-triangle mr-2'></i>Error al preparar la consulta: " . htmlspecialchars($conn->error) . "</div>";
     }
+
+    $dualTablesReady=true;
+    foreach(['area_competencies','evaluation_area_competencies','evaluation_area_grades'] as $tableName){
+        $tableCheck=$conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($tableName)."'");
+        if(!$tableCheck||$tableCheck->num_rows===0)$dualTablesReady=false;
+    }
+    if($dualTablesReady){
+        $areaMain="SELECT s.name AS student_name,s.id_no AS student_dni,ac.name AS course_name,ac.level AS academic_level,
+            tc.grado AS evaluation_grado,tc.seccion AS evaluation_seccion,e.title AS evaluation_title,
+            acomp.name AS competency_name,e.bimestre,eag.grade AS nota
+            FROM evaluation_area_grades eag
+            INNER JOIN student s ON s.id=eag.student_id AND s.school_id=?
+            INNER JOIN evaluations e ON e.id=eag.evaluation_id
+            INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND eac.area_competency_id=eag.area_competency_id
+            INNER JOIN area_competencies acomp ON acomp.id=eac.area_competency_id
+            INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+            INNER JOIN academic_courses ac ON ac.id=tc.course_id AND ac.school_id=?
+            WHERE ac.evaluation_mode='competency' AND acomp.school_id=tc.school_id
+              AND acomp.academic_year_id=tc.academic_year_id AND acomp.area_id=ac.area_id AND acomp.level=ac.level";
+        $areaParams=[$school_id,$school_id];$areaTypes='ii';
+        if(!empty($academic_year_id)){$areaMain.=' AND tc.academic_year_id=?';$areaParams[]=$academic_year_id;$areaTypes.='i';}
+        if($login_type==2&&$teacher_id&&!$reportDirector){$areaMain.=' AND tc.teacher_id=?';$areaParams[]=$teacher_id;$areaTypes.='i';}
+        if(!empty($course_id_filter)){$areaMain.=' AND tc.course_id=?';$areaParams[]=$course_id_filter;$areaTypes.='i';}
+        if($normalized_level_key!==null){$areaMain.=" AND LOWER(REPLACE(TRIM(ac.level),' ',''))=?";$areaParams[]=$normalized_level_key;$areaTypes.='s';}
+        if(!empty($grado_filter)){$areaMain.=' AND tc.grado=?';$areaParams[]=$grado_filter;$areaTypes.='s';}
+        if(!empty($seccion_filter)){$areaMain.=' AND tc.seccion=?';$areaParams[]=$seccion_filter;$areaTypes.='s';}
+        if(!empty($student_id_filter)){$areaMain.=' AND eag.student_id=?';$areaParams[]=$student_id_filter;$areaTypes.='i';}
+        if(!empty($evaluation_id_filter)){$areaMain.=' AND e.id=?';$areaParams[]=$evaluation_id_filter;$areaTypes.='i';}
+        if(!empty($bimestre_filter)){$areaMain.=' AND e.bimestre=?';$areaParams[]=$bimestre_filter;$areaTypes.='s';}
+        $areaStatusCheck=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+        if($areaStatusCheck&&$areaStatusCheck->num_rows)$areaMain.=" AND (e.status IS NULL OR e.status<>'Anulada')";
+        $areaMain.=$historicalLevelGuard;
+        $areaMain.=' ORDER BY s.name,ac.name,e.title';
+        $areaStmt=$conn->prepare($areaMain);
+        if($areaStmt){
+            $areaStmt->bind_param($areaTypes,...$areaParams);$areaStmt->execute();$areaResult=$areaStmt->get_result();
+            while($row=$areaResult->fetch_assoc()){$row['evaluation_mode']='competency';$report_data[]=$row;}
+            $areaStmt->close();
+        }
+    }
+    usort($report_data,function($a,$b){
+        return strcasecmp((string)$a['student_name'],(string)$b['student_name'])
+            ?: strcasecmp((string)$a['course_name'],(string)$b['course_name'])
+            ?: strcasecmp((string)$a['evaluation_title'],(string)$b['evaluation_title']);
+    });
     ?>
 
     <?php 
@@ -711,6 +761,7 @@ if ($show_avg && !empty($student_id_filter)) {
                     <th>Grado</th>
                     <th>Sección</th>
                     <th>Evaluación</th>
+                    <th>Competencia / Componente</th>
                     <th>Bimestre</th>
                     <th>Nota</th>
                 </tr>
@@ -727,13 +778,14 @@ if ($show_avg && !empty($student_id_filter)) {
                         <td><?php echo htmlspecialchars($row['evaluation_grado']); ?></td>
                         <td><?php echo htmlspecialchars($row['evaluation_seccion']); ?></td>
                         <td><?php echo htmlspecialchars($row['evaluation_title']); ?></td>
+                        <td><?php echo htmlspecialchars((string)($row['competency_name']??'')); ?></td>
                         <td><?php echo !empty($row['bimestre']) ? htmlspecialchars($row['bimestre']) . '° Bimestre' : 'N/A'; ?></td>
                         <td><?php echo format_grade($row['nota']); ?></td>
                     </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr class="no-data-row">
-                        <td colspan="10" class="text-center py-4">
+                        <td colspan="11" class="text-center py-4">
                             <i class="fa fa-info-circle mr-2"></i> No se encontraron registros con los filtros seleccionados.
                         </td>
                     </tr>
