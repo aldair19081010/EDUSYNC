@@ -151,7 +151,7 @@ if ($level && !$course_id) {
                 <div class="row">
                     <?php foreach ($courses as $course): ?>
                         <div class="col-md-6 col-lg-4 mb-4">
-                            <div class="card shadow h-100" style="cursor: pointer;" onclick="selectCourse(<?php echo $course['id']; ?>, '<?php echo htmlspecialchars($course['level']); ?>')">
+                            <div class="card shadow h-100" style="cursor:pointer" onclick="selectCourse(<?php echo (int)$course['id']; ?>,'<?php echo htmlspecialchars($course['level'],ENT_QUOTES,'UTF-8'); ?>','<?php echo ($course['evaluation_model']??'weighted')==='competency'?'competency':'weighted'; ?>')">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-start mb-3">
                                         <div>
@@ -162,9 +162,10 @@ if ($level && !$course_id) {
                                     <div class="mb-2">
                                         <span class="badge badge-success"><?php echo htmlspecialchars($course['level']); ?></span>
                                         <span class="badge badge-secondary"><?php echo $course['num_grados']; ?> grado(s)</span>
+                                        <?php if(($course['evaluation_model']??'weighted')==='competency'): ?><span class="badge badge-info">Por competencias</span><?php else: ?><span class="badge badge-light border">Ponderado</span><?php endif; ?>
                                     </div>
                                     <div class="text-center mt-3">
-                                        <small class="text-muted"><i class="fas fa-arrow-right text-primary"></i> Click para gestionar componentes de calificación</small>
+                                        <small class="text-muted"><i class="fas fa-arrow-right text-primary"></i> <?php echo ($course['evaluation_model']??'weighted')==='competency'?'Abrir Libro de Notas':'Gestionar componentes de calificación'; ?></small>
                                     </div>
                                 </div>
                             </div>
@@ -176,7 +177,11 @@ if ($level && !$course_id) {
     </div>
 
     <script>
-        function selectCourse(courseId, level) {
+        function selectCourse(courseId, level, model) {
+            if (model === 'competency') {
+                window.location.href = 'index.php?page=grades';
+                return;
+            }
             const url = new URL(window.location);
             url.searchParams.set('course_id', courseId);
             url.searchParams.set('level', level);
@@ -210,7 +215,7 @@ if (!$course) {
     exit;
 }
 if (($course['evaluation_model'] ?? 'weighted') === 'competency') {
-    echo "<div class='container-fluid'><div class='alert alert-info'><strong>Este curso utiliza evaluación por competencias.</strong><br>Las competencias curriculares se administran en Gestión Académica. Aquí no necesitas configurar componentes ni porcentajes; registra tus evaluaciones desde el Libro de Notas.</div></div>";
+    echo "<div class='container-fluid'><div class='alert alert-info'><strong>Este curso utiliza evaluación por competencias.</strong><br>Las competencias curriculares se configuran por área en Gestión Académica. Aquí no necesitas porcentajes; registra las evaluaciones y notas desde el Libro de Notas. <a class='btn btn-sm btn-primary mt-2' href='index.php?page=grades'>Abrir Libro de Notas</a></div></div>";
     exit;
 }
 
