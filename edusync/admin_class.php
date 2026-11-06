@@ -1844,12 +1844,37 @@ function save_payment(){
 	}
 	$teacher_id = $session_teacher_id;
 	$teacher_course_id = intval($_POST['teacher_course_id'] ?? 0);
-	$assignment = $this->db->prepare('SELECT tc.academic_year_id FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');
+	$assignment = $this->db->prepare("SELECT tc.academic_year_id,ac.id course_id,ac.area_id,ac.level,COALESCE(ac.evaluation_mode,'weighted') evaluation_mode FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1");
 	$assignment->bind_param('iii', $teacher_course_id, $teacher_id, $school_id);
 	$assignment->execute();
 	$assignment_row = $assignment->get_result()->fetch_assoc();
 	$assignment->close();
 	if (!$assignment_row) return json_encode(['status'=>0,'message'=>'La asignación académica no existe o no le pertenece.']);
+    $evaluation_mode=(string)($assignment_row['evaluation_mode']??'weighted');
+    $area_competency_id=(int)($_POST['area_competency_id']??0);
+    if(!in_array($evaluation_mode,['weighted','competency'],true))return json_encode(['status'=>0,'message'=>'El modelo de evaluación del curso no es válido.']);
+    if($evaluation_mode==='competency'){
+        foreach(['area_competencies','evaluation_area_competencies','evaluation_area_grades'] as $tableName){
+            $tableCheck=$this->db->query("SHOW TABLES LIKE '".$this->db->real_escape_string($tableName)."'");
+            if(!$tableCheck||$tableCheck->num_rows===0)return json_encode(['status'=>0,'migration_required'=>true,'message'=>'Ejecute sql/evaluation_dual_model_upgrade.sql para habilitar las competencias del área.']);
+        }
+        if($area_competency_id<=0&&$id>0){
+            $oldLink=$this->db->prepare('SELECT area_competency_id FROM evaluation_area_competencies WHERE evaluation_id=? LIMIT 1');
+            $oldLink->bind_param('i',$id);$oldLink->execute();$area_competency_id=(int)($oldLink->get_result()->fetch_assoc()['area_competency_id']??0);$oldLink->close();
+        }
+        if($area_competency_id<=0)return json_encode(['status'=>0,'message'=>'Selecciona la competencia del área que evaluará esta actividad.']);
+        $competencyCheck=$this->db->prepare('SELECT id FROM area_competencies WHERE id=? AND school_id=? AND academic_year_id=? AND area_id=? AND level=? AND is_active=1 LIMIT 1');
+        $competencyCheck->bind_param('iiiis',$area_competency_id,$school_id,$assignment_row['academic_year_id'],$assignment_row['area_id'],$assignment_row['level']);
+        $competencyCheck->execute();$validAreaCompetency=(bool)$competencyCheck->get_result()->fetch_assoc();$competencyCheck->close();
+        if(!$validAreaCompetency)return json_encode(['status'=>0,'message'=>'La competencia no pertenece al área, nivel y año académico del curso seleccionado.']);
+        if($id>0){
+            $existingAreaGrade=$this->db->prepare('SELECT COUNT(*) total FROM evaluation_area_grades WHERE evaluation_id=?');
+            $existingAreaGrade->bind_param('i',$id);$existingAreaGrade->execute();$areaGradeCount=(int)$existingAreaGrade->get_result()->fetch_assoc()['total'];$existingAreaGrade->close();
+            $existingAreaLink=$this->db->prepare('SELECT area_competency_id FROM evaluation_area_competencies WHERE evaluation_id=? LIMIT 1');
+            $existingAreaLink->bind_param('i',$id);$existingAreaLink->execute();$oldAreaCompetency=(int)($existingAreaLink->get_result()->fetch_assoc()['area_competency_id']??0);$existingAreaLink->close();
+            if($areaGradeCount>0&&$oldAreaCompetency!==$area_competency_id)return json_encode(['status'=>0,'message'=>'Esta evaluación ya tiene notas. Su competencia no se puede cambiar para proteger el historial.']);
+        }
+    }
     $academic_year_id = isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0;
 	if ($academic_year_id <= 0) $academic_year_id = (int)$assignment_row['academic_year_id'];
 	if ($academic_year_id !== (int)$assignment_row['academic_year_id']) return json_encode(['status'=>0,'message'=>'El año académico no coincide con la asignación seleccionada.']);
@@ -1959,8 +1984,22 @@ function save_payment(){
     if ($save) {
         // Obtener el id de la evaluación (insert o update)
         $eval_id = empty($id) ? $this->db->insert_id : $id;
-        // Guardar competencias asociadas (ahora usando competencias por curso)
-		if (isset($_POST['competencias']) && is_array($_POST['competencias'])) {
+        // El modelo por competencias reales usa una relación independiente y única por evaluación.
+        if ($evaluation_mode === 'competency') {
+            $areaLink=$this->db->prepare('SELECT area_competency_id FROM evaluation_area_competencies WHERE evaluation_id=? LIMIT 1');
+            $areaLink->bind_param('i',$eval_id);$areaLink->execute();$currentLink=(int)($areaLink->get_result()->fetch_assoc()['area_competency_id']??0);$areaLink->close();
+            if($currentLink>0){
+                $linkSave=$this->db->prepare('UPDATE evaluation_area_competencies SET area_competency_id=? WHERE evaluation_id=?');
+                $linkSave->bind_param('ii',$area_competency_id,$eval_id);
+            }else{
+                $linkSave=$this->db->prepare('INSERT INTO evaluation_area_competencies (evaluation_id,area_competency_id) VALUES (?,?)');
+                $linkSave->bind_param('ii',$eval_id,$area_competency_id);
+            }
+            if(!$linkSave->execute())return json_encode(['status'=>0,'message'=>'No se pudo asociar la evaluación a la competencia del área: '.$this->db->error]);
+            $linkSave->close();
+        }
+        // El modelo ponderado conserva su relación histórica actual.
+		elseif (isset($_POST['competencias']) && is_array($_POST['competencias'])) {
 			// Forzar a una sola competencia: tomar solo la primera seleccionada
 			$comp_list = array_values($_POST['competencias']);
 			$first_comp_input = count($comp_list) ? $comp_list[0] : 0;
@@ -2041,7 +2080,7 @@ function save_payment(){
 	function delete_evaluation() {
 		$id = intval($_POST['id'] ?? 0);$school_id=intval($_SESSION['login_school_id']??0);$teacher_id=intval($_SESSION['login_teacher_id']??0);$login_type=intval($_SESSION['login_type']??0);
 		if($id<=0||$school_id<=0||$teacher_id<=0||$login_type!==2)return json_encode(['status'=>0,'message'=>'No tiene permisos para modificar esta evaluación.']);
-		$stmt=$this->db->prepare('SELECT e.academic_year_id,e.title,(SELECT COUNT(*) FROM evaluation_grades eg WHERE eg.evaluation_id=e.id) grade_count FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=? AND e.teacher_id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');$stmt->bind_param('iiii',$id,$teacher_id,$teacher_id,$school_id);$stmt->execute();$evaluation=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$evaluation)return json_encode(['status'=>0,'message'=>'La evaluación no existe o no le pertenece.']);
+		$stmt=$this->db->prepare('SELECT e.academic_year_id,e.title,((SELECT COUNT(*) FROM evaluation_grades eg WHERE eg.evaluation_id=e.id)+(SELECT COUNT(*) FROM evaluation_area_grades eag WHERE eag.evaluation_id=e.id)) grade_count FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE e.id=? AND e.teacher_id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');$stmt->bind_param('iiii',$id,$teacher_id,$teacher_id,$school_id);$stmt->execute();$evaluation=$stmt->get_result()->fetch_assoc();$stmt->close();if(!$evaluation)return json_encode(['status'=>0,'message'=>'La evaluación no existe o no le pertenece.']);
 		$grade_count=(int)$evaluation['grade_count'];
 		if($grade_count>0){
 			$reason=trim($_POST['reason']??'');if($reason==='')return json_encode(['status'=>0,'requires_reason'=>true,'message'=>'Indique el motivo para anular una evaluación que ya tiene notas.']);
@@ -2049,7 +2088,7 @@ function save_payment(){
 			$user_id=intval($_SESSION['login_id']??0);$reason_safe=$this->db->real_escape_string($reason);$ok=$this->db->query("UPDATE evaluations SET status='Anulada',annulled_at=NOW(),annulled_by=$user_id,annulment_reason='$reason_safe' WHERE id=$id AND teacher_id=$teacher_id");if(!$ok)return json_encode(['status'=>0,'message'=>'No se pudo anular la evaluación.']);
 			$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'annulled',['reason'=>$reason,'grades_preserved'=>$grade_count]);return json_encode(['status'=>1,'action'=>'annulled','message'=>'La evaluación fue anulada y sus notas se conservaron.']);
 		}
-		$delete=$this->db->query("DELETE FROM evaluation_competencias WHERE evaluation_id=$id")&&$this->db->query("DELETE FROM evaluations WHERE id=$id AND teacher_id=$teacher_id");if($delete){$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'deleted',['title'=>$evaluation['title'],'without_grades'=>true]);return json_encode(['status'=>1,'action'=>'deleted','message'=>'La evaluación sin notas fue eliminada.']);}
+		$delete=$this->db->query("DELETE FROM evaluation_competencias WHERE evaluation_id=$id")&&$this->db->query("DELETE FROM evaluation_area_competencies WHERE evaluation_id=$id")&&$this->db->query("DELETE FROM evaluations WHERE id=$id AND teacher_id=$teacher_id");if($delete){$this->audit_evaluation($id,$school_id,(int)$evaluation['academic_year_id'],$teacher_id,'deleted',['title'=>$evaluation['title'],'without_grades'=>true]);return json_encode(['status'=>1,'action'=>'deleted','message'=>'La evaluación sin notas fue eliminada.']);}
 		return json_encode(['status'=>0,'message'=>'Error al eliminar la evaluación.']);
 	}
 	function save_evaluation_grades() {
