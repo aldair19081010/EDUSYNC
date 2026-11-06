@@ -423,7 +423,7 @@ try {
                 'numero'=>(string)$bimNumber,'publicado'=>true,'competencias'=>$compsExport,'cursos'=>$coursesExport,
                 'promedio_bimestre'=>$bimAverage===null?null:number_format($bimAverage,2,'.',''),'nivel_logro'=>$bimAverage===null?null:numeric_to_level($bimAverage),
                 'resultado'=>$bimAverage===null?null:number_format($bimAverage,2,'.',''),
-                'escala'=>$bimScale,'cursos_evaluados'=>$bimCourseCount,'cursos_por_reforzar'=>$attentionCount
+                'escala'=>$bimScale,'cursos_evaluados'=>count($coursesExport),'cursos_ponderados'=>$bimCourseCount,'cursos_por_reforzar'=>$attentionCount
             ];
             if($bimAverage!==null){$yearBimSum += $bimAverage; $yearBimCount++;}
         }
