@@ -125,7 +125,12 @@ if (!empty($selected_course)) {
         $course_name = $course_row['name'];
     }
 }
-$export_format = $_GET['export_format'] ?? 'numeric'; // Nuevo parÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡metro para el formato
+$export_format = $_GET['export_format'] ?? 'numeric';
+$isCompetencyExport=false;$courseAreaId=0;$courseLevel='';
+if(!empty($selected_course)){
+    $modelStmt=$conn->prepare("SELECT area_id,level,COALESCE(evaluation_model,'weighted') evaluation_model FROM academic_courses WHERE id=? AND school_id=? LIMIT 1");
+    if($modelStmt){$modelStmt->bind_param('ii',$selected_course,$school_id);$modelStmt->execute();$modelRow=$modelStmt->get_result()->fetch_assoc();$modelStmt->close();if($modelRow){$isCompetencyExport=($modelRow['evaluation_model']??'weighted')==='competency';$courseAreaId=(int)$modelRow['area_id'];$courseLevel=(string)$modelRow['level'];}}
+} // Nuevo parÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¡metro para el formato
 
 // Validar que al menos tengamos el aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±o acadÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©mico
 if (empty($selected_academic_year)) {
@@ -167,63 +172,36 @@ if (!empty($selected_course)) {
 
 $competencias = [];
 if (!empty($selected_course)) {
-    $sql_comp = "SELECT DISTINCT gcc.id, gcc.name, gcc.percentage 
-                 FROM general_course_competencies gcc
-                 INNER JOIN evaluation_competencias ec ON ec.competencia_id = gcc.id
-                 INNER JOIN evaluations e ON e.id = ec.evaluation_id
-                 INNER JOIN teacher_courses tc ON tc.id = e.teacher_course_id
-                 WHERE tc.course_id = ?
-                 AND tc.school_id = ?
-                 AND tc.academic_year_id = ?
-                 AND e.bimestre = ?
-";
-    
-    $params_comp = [$selected_course, $school_id, $selected_academic_year, $selected_bimestre];
-    $types_comp = "iiis";
-        $level_key = normalize_level_for_key($selected_level);
-    if (!empty($selected_level)) {
-        $sql_comp .= " AND LOWER(REPLACE(TRIM((SELECT ac.level FROM academic_courses ac WHERE ac.id=tc.course_id)), ' ', '')) = ?";
-        $params_comp[] = $level_key;
-        $types_comp .= "s";
+    if($isCompetencyExport){
+        $sqlCompArea="SELECT id,name,0 percentage FROM area_competencies
+                      WHERE school_id=? AND academic_year_id=? AND area_id=? AND level=?
+                        AND (is_active=1 OR id IN (
+                            SELECT eac.area_competencia_id FROM evaluation_area_competencies eac
+                            INNER JOIN evaluations e ON e.id=eac.evaluation_id
+                            INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                            WHERE tc.course_id=? AND tc.school_id=? AND tc.academic_year_id=? AND e.bimestre=?
+                        ))
+                      ORDER BY display_order,id";
+        $stmt_comp=$conn->prepare($sqlCompArea);
+        $stmt_comp->bind_param('iiisiiis',$school_id,$selected_academic_year,$courseAreaId,$courseLevel,$selected_course,$school_id,$selected_academic_year,$selected_bimestre);
+        $stmt_comp->execute();$res_comp=$stmt_comp->get_result();while($row=$res_comp->fetch_assoc())$competencias[]=$row;$stmt_comp->close();
+    }else{
+        $sql_comp = "SELECT DISTINCT gcc.id,gcc.name,gcc.percentage
+                     FROM general_course_competencies gcc
+                     INNER JOIN evaluation_competencias ec ON ec.competencia_id=gcc.id
+                     INNER JOIN evaluations e ON e.id=ec.evaluation_id
+                     INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                     WHERE tc.course_id=? AND tc.school_id=? AND tc.academic_year_id=? AND e.bimestre=?";
+        $params_comp=[$selected_course,$school_id,$selected_academic_year,$selected_bimestre];$types_comp="iiis";
+        $level_key=normalize_level_for_key($selected_level);
+        if(!empty($selected_level)){$sql_comp.=" AND LOWER(REPLACE(TRIM((SELECT ac.level FROM academic_courses ac WHERE ac.id=tc.course_id)),' ',''))=?";$params_comp[]=$level_key;$types_comp.="s";}
+        if(!empty($selected_grado)){$sql_comp.=" AND LOWER(TRIM(tc.grado))=LOWER(TRIM(?))";$params_comp[]=$selected_grado;$types_comp.="s";}
+        if(!empty($selected_seccion)){$sql_comp.=" AND LOWER(TRIM(tc.seccion))=LOWER(TRIM(?))";$params_comp[]=$selected_seccion;$types_comp.="s";}
+        if(!empty($selected_evaluation)){$sql_comp.=" AND e.id=?";$params_comp[]=$selected_evaluation;$types_comp.="i";}
+        $sql_comp.=" ORDER BY gcc.id";$stmt_comp=$conn->prepare($sql_comp);$stmt_comp->bind_param($types_comp,...$params_comp);$stmt_comp->execute();$res_comp=$stmt_comp->get_result();$temp=[];
+        while($row=$res_comp->fetch_assoc())$temp[(int)$row['id']]=$row;
+        $competencias=array_values($temp);$stmt_comp->close();
     }
-    
-    if (!empty($selected_grado)) {
-        $sql_comp .= " AND LOWER(TRIM(tc.grado)) = LOWER(TRIM(?))";
-        $params_comp[] = $selected_grado;
-        $types_comp .= "s";
-    }
-    
-    if (!empty($selected_seccion)) {
-        $sql_comp .= " AND LOWER(TRIM(tc.seccion)) = LOWER(TRIM(?))";
-        $params_comp[] = $selected_seccion;
-        $types_comp .= "s";
-    }
-    
-    if (!empty($selected_evaluation)) {
-        $sql_comp .= " AND e.id = ?";
-        $params_comp[] = $selected_evaluation;
-        $types_comp .= "i";
-    }
-    
-    $sql_comp .= " ORDER BY gcc.id";
-    
-    $stmt_comp = $conn->prepare($sql_comp);
-    $stmt_comp->bind_param($types_comp, ...$params_comp);
-    $stmt_comp->execute();
-    $res_comp = $stmt_comp->get_result();
-    
-    // Respaldo adicional ante filas repetidas en evaluation_competencias.
-    $competencias_temp = [];
-    while ($row = $res_comp->fetch_assoc()) {
-        $comp_id = $row['id'];
-        if (!isset($competencias_temp[$comp_id])) {
-            $competencias_temp[$comp_id] = $row;
-        }
-    }
-    
-    // Convertir a array indexado manteniendo el orden
-    $competencias = array_values($competencias_temp);
-    $stmt_comp->close();
 }
 
 // Obtener estudiantes que tienen evaluaciones en el aÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â±o acadÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â©mico/nivel/grado/secciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n seleccionado
@@ -266,61 +244,31 @@ if (!empty($selected_level) && !empty($selected_grado) && !empty($selected_secci
 }
 
 // Obtener evaluaciones para el curso y bimestre seleccionados
-$evaluations = [];
-if (!empty($selected_course) && !empty($selected_bimestre) && !empty($selected_academic_year)) {
-    $sql_eval = "SELECT DISTINCT e.id, e.title, ec.competencia_id 
-                FROM evaluations e 
-                INNER JOIN teacher_courses tc ON e.teacher_course_id = tc.id 
-                INNER JOIN evaluation_competencias ec ON ec.evaluation_id = e.id
-                WHERE tc.course_id = ? 
-                AND tc.school_id = ?
-                AND e.bimestre = ?
-                AND tc.academic_year_id = ?";
-    
-    $params_eval = [$selected_course, $school_id, $selected_bimestre, $selected_academic_year];
-    $types_eval = "iisi";
-    
-    if (!empty($selected_level)) {
-        $sql_eval .= " AND LOWER(REPLACE(TRIM((SELECT ac.level FROM academic_courses ac WHERE ac.id=tc.course_id)), ' ', '')) = ?";
-        $params_eval[] = normalize_level_for_key($selected_level);
-        $types_eval .= "s";
+$evaluations=[];
+if(!empty($selected_course)&&!empty($selected_bimestre)&&!empty($selected_academic_year)){
+    $params_eval=[$selected_course,$school_id,$selected_bimestre,$selected_academic_year];$types_eval="iisi";
+    if(!empty($selected_level)){$params_eval[]=normalize_level_for_key($selected_level);$types_eval.="s";}
+    if(!empty($selected_grado)){$params_eval[]=$selected_grado;$types_eval.="s";}
+    if(!empty($selected_seccion)){$params_eval[]=$selected_seccion;$types_eval.="s";}
+    if(!empty($selected_evaluation)){$params_eval[]=$selected_evaluation;$types_eval.="i";}
+    if($isCompetencyExport){
+        $sql_eval="SELECT DISTINCT e.id,e.title,eac.area_competencia_id competencia_id
+                   FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                   INNER JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id
+                   WHERE tc.course_id=? AND tc.school_id=? AND e.bimestre=? AND tc.academic_year_id=?";
+    }else{
+        $sql_eval="SELECT DISTINCT e.id,e.title,ec.competencia_id
+                   FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id
+                   INNER JOIN evaluation_competencias ec ON ec.evaluation_id=e.id
+                   WHERE tc.course_id=? AND tc.school_id=? AND e.bimestre=? AND tc.academic_year_id=?";
     }
-    
-    if (!empty($selected_grado)) {
-        $sql_eval .= " AND LOWER(TRIM(tc.grado)) = LOWER(TRIM(?))";
-        $params_eval[] = $selected_grado;
-        $types_eval .= "s";
-    }
-    
-    if (!empty($selected_seccion)) {
-        $sql_eval .= " AND LOWER(TRIM(tc.seccion)) = LOWER(TRIM(?))";
-        $params_eval[] = $selected_seccion;
-        $types_eval .= "s";
-    }
-    
-    if (!empty($selected_evaluation)) {
-        $sql_eval .= " AND e.id = ?";
-        $params_eval[] = $selected_evaluation;
-        $types_eval .= "i";
-    }
-    
-    // Ordenar por competencia y luego por tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­tulo de evaluaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n para mantener consistencia
-    $sql_eval .= " ORDER BY ec.competencia_id, e.id, e.title";
-    
-    $stmt_eval = $conn->prepare($sql_eval);
-    $stmt_eval->bind_param($types_eval, ...$params_eval);
-    $stmt_eval->execute();
-    $res_eval = $stmt_eval->get_result();
-    
-    // Agrupar evaluaciones por competencia y evitar duplicados
-    $seen_evaluations = [];
-    while ($row = $res_eval->fetch_assoc()) {
-        $eval_key = $row['id'] . '_' . $row['competencia_id'];
-        if (!isset($seen_evaluations[$eval_key])) {
-            $evaluations[$row['competencia_id']][] = $row;
-            $seen_evaluations[$eval_key] = true;
-        }
-    }
+    if(!empty($selected_level))$sql_eval.=" AND LOWER(REPLACE(TRIM((SELECT ac.level FROM academic_courses ac WHERE ac.id=tc.course_id)),' ',''))=?";
+    if(!empty($selected_grado))$sql_eval.=" AND LOWER(TRIM(tc.grado))=LOWER(TRIM(?))";
+    if(!empty($selected_seccion))$sql_eval.=" AND LOWER(TRIM(tc.seccion))=LOWER(TRIM(?))";
+    if(!empty($selected_evaluation))$sql_eval.=" AND e.id=?";
+    $sql_eval.=" ORDER BY competencia_id,e.id,e.title";
+    $stmt_eval=$conn->prepare($sql_eval);$stmt_eval->bind_param($types_eval,...$params_eval);$stmt_eval->execute();$res_eval=$stmt_eval->get_result();
+    $seen=[];while($row=$res_eval->fetch_assoc()){$key=$row['id'].'_'.$row['competencia_id'];if(!isset($seen[$key])){$evaluations[$row['competencia_id']][]=$row;$seen[$key]=true;}}
     $stmt_eval->close();
 }
 
@@ -336,7 +284,7 @@ if (!empty($evaluations)) {
     
     if (!empty($eval_ids)) {
         $placeholders = str_repeat('?,', count($eval_ids) - 1) . '?';
-        $sql_grades = "SELECT DISTINCT eg.evaluation_id, eg.student_id, eg.competencia_id, eg.grade 
+        $sql_grades = "SELECT DISTINCT eg.evaluation_id, eg.student_id, eg.competencia_id, eg.area_competencia_id, eg.grade 
                       FROM evaluation_grades eg
                       INNER JOIN evaluations e ON eg.evaluation_id = e.id
                       INNER JOIN teacher_courses tc ON e.teacher_course_id = tc.id
@@ -428,8 +376,7 @@ foreach ($students as $student) {
     foreach ($competencias as $comp) {
         $comp_id = $comp['id'];
         if (isset($promedios_competencias[$student_id][$comp_id]) && !is_null($promedios_competencias[$student_id][$comp_id])) {
-            $total_weighted += $promedios_competencias[$student_id][$comp_id] * ($comp['percentage'] / 100);
-            $total_percentage += $comp['percentage'];
+            if(!$isCompetencyExport){$total_weighted += $promedios_competencias[$student_id][$comp_id] * ($comp['percentage'] / 100);$total_percentage += $comp['percentage'];}
         }
     }
     if ($total_percentage > 0) {
@@ -545,10 +492,10 @@ foreach ($competencias as $comp) {
     $num_evaluaciones = isset($evaluations[$comp['id']]) ? count($evaluations[$comp['id']]) : 0;
     $cols = max(1, $num_evaluaciones) + 1; // Al menos 1 columna para evaluaciÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â³n + 1 para promedio
     
-    echo '<th colspan="' . $cols . '" class="competencia-header">' . $comp_name . ' (' . $comp_percentage . '%)</th>';
+    echo '<th colspan="' . $cols . '" class="competencia-header">' . $comp_name . ($isCompetencyExport ? '' : ' (' . $comp_percentage . '%)') . '</th>';
 }
 
-echo '<th rowspan="2" class="promedio-final" style="background-color:#DAE3F3; width:60px;">PROMEDIO FINAL</th>';
+if(!$isCompetencyExport)echo '<th rowspan="2" class="promedio-final" style="background-color:#DAE3F3; width:60px;">PROMEDIO FINAL</th>';
 echo '</tr>';
 
 // Fila para los tÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â­tulos de evaluaciones
@@ -571,7 +518,7 @@ foreach ($competencias as $comp) {
     }
     
     // Columna de promedio
-    echo '<th class="promedio-col" style="background-color:#DAE3F3; font-weight:bold;">PROMEDIO</th>';
+    echo '<th class="promedio-col" style="background-color:#DAE3F3; font-weight:bold;">'.($isCompetencyExport?'RESULTADO':'PROMEDIO').'</th>';
 }
 echo '</tr>';
 
@@ -625,24 +572,19 @@ foreach ($students as $student) {
             echo '<td class="promedio-col" style="background-color:#DAE3F3; font-weight:bold;">' . 
                 $promedio_display . 
             '</td>';
-            $weighted_sum += $promedio_comp * ($comp_percentage / 100);
-            $total_percentage += $comp_percentage;
+            if(!$isCompetencyExport){$weighted_sum += $promedio_comp * ($comp_percentage / 100);$total_percentage += $comp_percentage;}
         } else {
             echo '<td class="promedio-col" style="background-color:#DAE3F3; font-weight:bold;">-</td>';
         }
     }
     
-    // Mostrar promedio final
-    if ($total_percentage > 0) {
-        $promedio_final = $weighted_sum;
-        $promedio_final_display = ($export_format === 'letters') ? 
-            format_grade_display($promedio_final, 'letters') : 
-            number_format(round($promedio_final), 0);
-        echo '<td class="promedio-final" style="background-color:#DAE3F3; font-weight:bold;">' . 
-            $promedio_final_display . 
-        '</td>';
-    } else {
-        echo '<td class="promedio-final" style="background-color:#DAE3F3; font-weight:bold;">-</td>';
+    // El promedio final sólo existe para el modelo ponderado.
+    if (!$isCompetencyExport) {
+        if ($total_percentage > 0) {
+            $promedio_final = $weighted_sum;
+            $promedio_final_display = ($export_format === 'letters') ? format_grade_display($promedio_final, 'letters') : number_format(round($promedio_final), 0);
+            echo '<td class="promedio-final" style="background-color:#DAE3F3; font-weight:bold;">'.$promedio_final_display.'</td>';
+        } else echo '<td class="promedio-final" style="background-color:#DAE3F3; font-weight:bold;">-</td>';
     }
     
     echo '</tr>';
