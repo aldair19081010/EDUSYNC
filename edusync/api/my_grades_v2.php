@@ -305,6 +305,9 @@ try {
             INNER JOIN academic_courses ac ON ac.id=tc.course_id
             ".($hasAreas?'LEFT JOIN areas a ON a.id=ac.area_id':'')."
             WHERE eag.student_id=$studentIdsSql AND tc.school_id=$studentSchoolId AND ac.school_id=$studentSchoolId
+              AND ac.evaluation_mode='competency' AND acomp.school_id=tc.school_id
+              AND acomp.academic_year_id=tc.academic_year_id AND acomp.area_id=ac.area_id AND acomp.level=ac.level
+              ".(grades_has_column($conn,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":"")."
             ORDER BY e.id ASC";
         $areaGradeResult=$conn->query($areaGradeSql);
         if(!$areaGradeResult)throw new RuntimeException('Consulta de competencias: '.$conn->error);
