@@ -37,7 +37,7 @@ if($academic_year_query && $academic_year_query->num_rows > 0) {
 
 if (!$id && $is_teacher && $teacher_id && !empty($_GET['teacher_course_id'])) {
 	$requested_teacher_course_id = intval($_GET['teacher_course_id']);
-	$tc_stmt = $conn->prepare("SELECT tc.id,tc.course_id,tc.grado,tc.seccion,tc.academic_year_id,ac.name course_name,ac.level FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? AND ay.is_active=1 AND ac.is_active=1 AND COALESCE(ac.course_status,'Activo')='Activo' LIMIT 1");
+	$tc_stmt = $conn->prepare("SELECT tc.id,tc.course_id,tc.grado,tc.seccion,tc.academic_year_id,ac.name course_name,ac.level,COALESCE(ac.evaluation_model,'weighted') evaluation_model FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id INNER JOIN academic_year ay ON ay.id=tc.academic_year_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? AND ay.is_active=1 AND ac.is_active=1 AND COALESCE(ac.course_status,'Activo')='Activo' LIMIT 1");
 	if ($tc_stmt) {
 		$tc_stmt->bind_param('iii', $requested_teacher_course_id, $teacher_id, $school_id);
 		$tc_stmt->execute();
@@ -51,6 +51,13 @@ if (!$id && $is_teacher && $teacher_id && !empty($_GET['teacher_course_id'])) {
 			$selected_grado = $tc_row['grado'];
 			$selected_seccion = $tc_row['seccion'];
 			$academic_year_id = (int)$tc_row['academic_year_id'];
+            if (($tc_row['evaluation_model'] ?? 'weighted') === 'competency') {
+                $_GET['teacher_course_id'] = (int)$tc_row['id'];
+                $_GET['bimestre'] = (int)($_GET['bimestre'] ?? 0);
+                $_GET['competencia_id'] = (int)($_GET['competencia_id'] ?? 0);
+                require __DIR__.'/quick_manage_evaluation.php';
+                exit;
+            }
 		}
 	}
 }
