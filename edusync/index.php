@@ -36,7 +36,7 @@ $allowed_pages = [
     'students', 'bulk_student_update',
     'teachers', 'teacher_courses',
     'academic_management', 'academic_year', 'teacher_followup',
-    'competencias',
+    'competencias', 'competencias_area',
     'concepts', 'fees', 'payments', 'discounts',
     'asistencia', 'attendance_rules_page',
     'grades', 'risk_dashboard',
