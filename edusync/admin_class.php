@@ -1844,7 +1844,7 @@ function save_payment(){
 	}
 	$teacher_id = $session_teacher_id;
 	$teacher_course_id = intval($_POST['teacher_course_id'] ?? 0);
-	$assignment = $this->db->prepare('SELECT tc.academic_year_id FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');
+	$assignment = $this->db->prepare('SELECT tc.academic_year_id,ac.area_id,ac.level,COALESCE(ac.evaluation_model,"weighted") evaluation_model FROM teacher_courses tc INNER JOIN academic_courses ac ON ac.id=tc.course_id WHERE tc.id=? AND tc.teacher_id=? AND tc.school_id=? LIMIT 1');
 	$assignment->bind_param('iii', $teacher_course_id, $teacher_id, $school_id);
 	$assignment->execute();
 	$assignment_row = $assignment->get_result()->fetch_assoc();
@@ -1853,6 +1853,33 @@ function save_payment(){
     $academic_year_id = isset($_POST['academic_year_id']) ? intval($_POST['academic_year_id']) : 0;
 	if ($academic_year_id <= 0) $academic_year_id = (int)$assignment_row['academic_year_id'];
 	if ($academic_year_id !== (int)$assignment_row['academic_year_id']) return json_encode(['status'=>0,'message'=>'El año académico no coincide con la asignación seleccionada.']);
+    $evaluation_model = ($assignment_row['evaluation_model'] ?? 'weighted') === 'competency' ? 'competency' : 'weighted';
+    $area_competency_id = (int)($_POST['area_competencia_id'] ?? 0);
+    if ($evaluation_model === 'competency') {
+        if ($area_competency_id <= 0) return json_encode(['status'=>0,'message'=>'Selecciona una competencia del área para esta evaluación.']);
+        $area_competency = $this->db->prepare('SELECT id FROM area_competencies WHERE id=? AND school_id=? AND academic_year_id=? AND area_id=? AND level=? AND is_active=1 LIMIT 1');
+        if (!$area_competency) return json_encode(['status'=>0,'message'=>'El catálogo de competencias del área todavía no está habilitado. Ejecuta la migración correspondiente.']);
+        $area_competency->bind_param('iiiis', $area_competency_id, $school_id, $academic_year_id, $assignment_row['area_id'], $assignment_row['level']);
+        $area_competency->execute();
+        $valid_area_competency = (bool)$area_competency->get_result()->fetch_assoc();
+        $area_competency->close();
+        if (!$valid_area_competency) return json_encode(['status'=>0,'message'=>'La competencia seleccionada no pertenece al área y nivel del curso.']);
+        if ($id > 0) {
+            $old_link = $this->db->prepare('SELECT area_competencia_id FROM evaluation_area_competencies WHERE evaluation_id=? AND school_id=? AND academic_year_id=? LIMIT 1');
+            $old_link->bind_param('iii', $id, $school_id, $academic_year_id);
+            $old_link->execute();
+            $old_area_competency_id = (int)($old_link->get_result()->fetch_assoc()['area_competencia_id'] ?? 0);
+            $old_link->close();
+            $grade_check = $this->db->prepare('SELECT id FROM evaluation_grades WHERE evaluation_id=? LIMIT 1');
+            $grade_check->bind_param('i', $id);
+            $grade_check->execute();
+            $has_area_grades = (bool)$grade_check->get_result()->fetch_assoc();
+            $grade_check->close();
+            if ($has_area_grades && $old_area_competency_id !== $area_competency_id) {
+                return json_encode(['status'=>0,'message'=>'Esta evaluación ya tiene notas. No se puede cambiar su competencia para proteger el historial.']);
+            }
+        }
+    }
 	$id = intval($_POST['id'] ?? 0);
 	if ($id > 0) {
 		$ownership = $this->db->prepare('SELECT id FROM evaluations WHERE id=? AND teacher_id=? AND teacher_course_id=? AND academic_year_id=? LIMIT 1');
@@ -1960,7 +1987,26 @@ function save_payment(){
         // Obtener el id de la evaluación (insert o update)
         $eval_id = empty($id) ? $this->db->insert_id : $id;
         // Guardar competencias asociadas (ahora usando competencias por curso)
-		if (isset($_POST['competencias']) && is_array($_POST['competencias'])) {
+		if ($evaluation_model === 'competency') {
+            $existingLink = $this->db->prepare('SELECT id,area_competencia_id FROM evaluation_area_competencies WHERE evaluation_id=? LIMIT 1');
+            $existingLink->bind_param('i', $eval_id);
+            $existingLink->execute();
+            $existingAreaLink = $existingLink->get_result()->fetch_assoc();
+            $existingLink->close();
+            if ($existingAreaLink) {
+                if ((int)$existingAreaLink['area_competencia_id'] !== $area_competency_id) {
+                    $updateLink = $this->db->prepare('UPDATE evaluation_area_competencies SET area_competencia_id=? WHERE id=? AND evaluation_id=?');
+                    $updateLink->bind_param('iii', $area_competency_id, $existingAreaLink['id'], $eval_id);
+                    if (!$updateLink->execute()) return json_encode(['status'=>0,'message'=>'No se pudo actualizar la competencia del área: '.$this->db->error]);
+                    $updateLink->close();
+                }
+            } else {
+                $insertLink = $this->db->prepare('INSERT INTO evaluation_area_competencies (school_id,academic_year_id,evaluation_id,area_competencia_id) VALUES (?,?,?,?)');
+                $insertLink->bind_param('iiii', $school_id, $academic_year_id, $eval_id, $area_competency_id);
+                if (!$insertLink->execute()) return json_encode(['status'=>0,'message'=>'No se pudo asociar la competencia del área: '.$this->db->error]);
+                $insertLink->close();
+            }
+        } elseif (isset($_POST['competencias']) && is_array($_POST['competencias'])) {
 			// Forzar a una sola competencia: tomar solo la primera seleccionada
 			$comp_list = array_values($_POST['competencias']);
 			$first_comp_input = count($comp_list) ? $comp_list[0] : 0;
