@@ -368,94 +368,196 @@ try {
         if (empty($bucket[$yearLabel])) continue;
         ksort($bucket[$yearLabel], SORT_NATURAL);
         $bimestersExport = [];
-        $yearBimSum = 0.0;
-        $yearBimCount = 0;
+        $yearWeightedSum = 0.0;
+        $yearWeightedBimCount = 0;
+        $yearHasCompetencyModel = false;
 
         foreach ($bucket[$yearLabel] as $bimNumber => $coursesData) {
             $coursesExport = [];
-            $bimCourseSum = 0.0;
+            $bimWeightedSum = 0.0;
+            $bimWeightedCount = 0;
             $bimCourseCount = 0;
             $bimLetterCount = 0;
             $bimNumericCount = 0;
+            $bimHasCompetencyModel = false;
+            $bimCompetencyCount = 0;
+            $attentionCount = 0;
 
             foreach ($coursesData as $courseInfo) {
+                $competencyMode = (string)($courseInfo['evaluation_mode'] ?? 'weighted') === 'competency';
                 $competenciesExport = [];
                 $weightedSum = 0.0;
                 $evaluatedWeight = 0.0;
-                $fallbackSum = 0.0;
                 $fallbackCount = 0;
                 $courseLetterCount = 0;
                 $courseNumericCount = 0;
 
-                foreach ($courseInfo['competencias'] as $compData) {
+                foreach ($courseInfo['competencias'] as $competencyId => $compData) {
                     if (empty($compData['notas'])) continue;
-                    $sum = 0.0; $count = 0; $compLetterCount = 0; $compNumericCount = 0;
+                    $sum = 0.0;
+                    $count = 0;
+                    $compLetterCount = 0;
+                    $compNumericCount = 0;
                     foreach ($compData['notas'] as $note) {
-                        $sum += (float)$note['numeric']; $count++;
-                        if (($note['tipo'] ?? '') === 'literal') $compLetterCount++; else $compNumericCount++;
+                        $sum += (float)$note['numeric'];
+                        $count++;
+                        if (($note['tipo'] ?? '') === 'literal') $compLetterCount++;
+                        else $compNumericCount++;
                     }
                     if ($count === 0) continue;
-                    $compAverage = $sum/$count;
-                    $weight = (float)$compData['peso'];
-                    if ($weight > 0) { $weightedSum += $compAverage*$weight; $evaluatedWeight += $weight; }
-                    $fallbackSum += $compAverage; $fallbackCount++;
-                    $courseLetterCount += $compLetterCount; $courseNumericCount += $compNumericCount;
-                    $compScale = scale_type($compLetterCount,$compNumericCount);
+                    $compAverage = $sum / $count;
+                    $weight = $competencyMode ? 0.0 : (float)$compData['peso'];
+                    if (!$competencyMode && $weight > 0) {
+                        $weightedSum += $compAverage * $weight;
+                        $evaluatedWeight += $weight;
+                    }
+                    $fallbackCount++;
+                    $courseLetterCount += $compLetterCount;
+                    $courseNumericCount += $compNumericCount;
+                    $compScale = scale_type($compLetterCount, $compNumericCount);
                     $compAverageFormatted = number_format($compAverage, 2, '.', '');
                     $compWeighted = $compAverage * $weight;
                     $compWeightedFormatted = number_format($compWeighted, 2, '.', '');
                     $competenciesExport[] = [
-                        'competencia'=>$compData['nombre'],'nombre'=>$compData['nombre'],'peso'=>$weight,
-                        'porcentaje'=>round($weight*100,2),
-                        'promedio'=>$compAverageFormatted,'promedio_simple'=>$compAverageFormatted,
-                        'ponderado'=>$compWeightedFormatted,'aporte'=>$compWeightedFormatted,
+                        'competencia_id'=>(string)$competencyId,
+                        'competencia'=>$compData['nombre'],
+                        'nombre'=>$compData['nombre'],
+                        'peso'=>$weight,
+                        'porcentaje'=>$competencyMode ? 0 : round($weight * 100, 2),
+                        'promedio'=>$compAverageFormatted,
+                        'promedio_simple'=>$compAverageFormatted,
+                        'ponderado'=>$competencyMode ? null : $compWeightedFormatted,
+                        'aporte'=>$competencyMode ? null : $compWeightedFormatted,
+                        'promedio_anual'=>null,
                         'nivel_logro'=>numeric_to_level($compAverage),
                         'resultado'=>$compAverageFormatted,
-                        'escala'=>$compScale,'notas'=>$compData['notas'],'evaluaciones'=>$compData['notas']
+                        'escala'=>$compScale,
+                        'notas'=>$compData['notas'],
+                        'evaluaciones'=>$compData['notas']
                     ];
+                    if (in_array(numeric_to_level($compAverage), ['B','C'], true)) $attentionCount++;
                 }
-                if ($fallbackCount === 0) continue;
 
-                // Igual que la ficha individual: el resultado del curso es la
-                // suma de los aportes ponderados de sus competencias.
-                // aporte = promedio_competencia * porcentaje / 100.
+                if ($fallbackCount === 0) continue;
+                $bimCourseCount++;
+                if ($competencyMode) {
+                    $bimHasCompetencyModel = true;
+                    $yearHasCompetencyModel = true;
+                    $bimCompetencyCount += count($competenciesExport);
+                    $coursesExport[] = [
+                        'curso'=>$courseInfo['nombre'],
+                        'area'=>$courseInfo['area'],
+                        'evaluation_mode'=>'competency',
+                        'escala'=>'por_competencias',
+                        'competencias'=>$competenciesExport,
+                        'resultados_por_competencia'=>$competenciesExport,
+                        'competencias_evaluadas'=>count($competenciesExport)
+                    ];
+                    continue;
+                }
+
+                // El modelo ponderado conserva su cálculo histórico del curso.
                 $courseAverage = $weightedSum;
-                $courseScale = scale_type($courseLetterCount,$courseNumericCount);
+                $courseScale = scale_type($courseLetterCount, $courseNumericCount);
                 $courseLevel = numeric_to_level($courseAverage);
                 $courseAverageFormatted = number_format($courseAverage, 2, '.', '');
                 $coursesExport[] = [
-                    'curso'=>$courseInfo['nombre'],'area'=>$courseInfo['area'],'promedio'=>$courseAverageFormatted,
-                    'nivel_logro'=>$courseLevel,'resultado'=>$courseAverageFormatted,
-                    'escala'=>$courseScale,'peso_evaluado'=>round($evaluatedWeight*100,2),'competencias'=>$competenciesExport
+                    'curso'=>$courseInfo['nombre'],
+                    'area'=>$courseInfo['area'],
+                    'evaluation_mode'=>'weighted',
+                    'promedio'=>$courseAverageFormatted,
+                    'nivel_logro'=>$courseLevel,
+                    'resultado'=>$courseAverageFormatted,
+                    'escala'=>$courseScale,
+                    'peso_evaluado'=>round($evaluatedWeight * 100, 2),
+                    'competencias'=>$competenciesExport
                 ];
-                $bimCourseSum += $courseAverage; $bimCourseCount++;
-                $bimLetterCount += $courseLetterCount; $bimNumericCount += $courseNumericCount;
+                $bimWeightedSum += $courseAverage;
+                $bimWeightedCount++;
+                $bimLetterCount += $courseLetterCount;
+                $bimNumericCount += $courseNumericCount;
+                if (in_array($courseLevel, ['B','C'], true)) $attentionCount++;
             }
+
             if ($bimCourseCount === 0) continue;
-            usort($coursesExport,function($a,$b){return strcasecmp($a['curso'],$b['curso']);});
-            $bimAverage = $bimCourseSum/$bimCourseCount;
-            $bimScale = scale_type($bimLetterCount,$bimNumericCount);
-            $attentionCount = 0;
-            foreach ($coursesExport as $course) if (in_array($course['nivel_logro'],['B','C'],true)) $attentionCount++;
+            usort($coursesExport, function($a, $b) { return strcasecmp($a['curso'], $b['curso']); });
+            $bimAverage = (!$bimHasCompetencyModel && $bimWeightedCount > 0)
+                ? $bimWeightedSum / $bimWeightedCount : null;
+            $bimScale = $bimHasCompetencyModel
+                ? ($bimWeightedCount > 0 ? 'mixta_modelos' : 'por_competencias')
+                : scale_type($bimLetterCount, $bimNumericCount);
             $compsExport = [];
-            foreach (($usedCompetencies[$yearLabel][$bimNumber] ?? []) as $id=>$comp) $compsExport[] = ['competencia_id'=>(string)$id,'nombre'=>$comp['nombre'],'peso'=>$comp['peso']];
+            foreach (($usedCompetencies[$yearLabel][$bimNumber] ?? []) as $id => $comp) {
+                $compsExport[] = [
+                    'competencia_id'=>(string)$id,
+                    'nombre'=>$comp['nombre'],
+                    'peso'=>$comp['peso']
+                ];
+            }
             $bimestersExport[] = [
-                'numero'=>(string)$bimNumber,'publicado'=>true,'competencias'=>$compsExport,'cursos'=>$coursesExport,
-                'promedio_bimestre'=>number_format($bimAverage,2,'.',''),'nivel_logro'=>numeric_to_level($bimAverage),
-                'resultado'=>number_format($bimAverage,2,'.',''),
-                'escala'=>$bimScale,'cursos_evaluados'=>$bimCourseCount,'cursos_por_reforzar'=>$attentionCount
+                'numero'=>(string)$bimNumber,
+                'publicado'=>true,
+                'competencias'=>$compsExport,
+                'cursos'=>$coursesExport,
+                'promedio_bimestre'=>$bimAverage === null ? null : number_format($bimAverage, 2, '.', ''),
+                'nivel_logro'=>$bimAverage === null ? null : numeric_to_level($bimAverage),
+                'resultado'=>$bimAverage === null ? null : number_format($bimAverage, 2, '.', ''),
+                'escala'=>$bimScale,
+                'cursos_evaluados'=>$bimCourseCount,
+                'cursos_por_reforzar'=>$attentionCount,
+                'competencias_evaluadas'=>$bimCompetencyCount,
+                'tiene_modelo_competencias'=>$bimHasCompetencyModel
             ];
-            $yearBimSum += $bimAverage; $yearBimCount++;
+            if ($bimAverage !== null) {
+                $yearWeightedSum += $bimAverage;
+                $yearWeightedBimCount++;
+            }
         }
-        if ($yearBimCount === 0) continue;
-        usort($bimestersExport,function($a,$b){return (int)$a['numero']<=>(int)$b['numero'];});
-        $yearAverage = $yearBimSum/$yearBimCount;
+
+        if (!$bimestersExport) continue;
+        usort($bimestersExport, function($a, $b) { return (int)$a['numero'] <=> (int)$b['numero']; });
+        $yearAverage = (!$yearHasCompetencyModel && $yearWeightedBimCount > 0)
+            ? $yearWeightedSum / $yearWeightedBimCount : null;
 
         $annualCoursesMap = [];
         foreach ($bimestersExport as $bim) {
             foreach ($bim['cursos'] as $course) {
                 $name = $course['curso'];
-                if (!isset($annualCoursesMap[$name])) $annualCoursesMap[$name] = ['area'=>$course['area'],'promedios'=>[],'bimestres'=>[],'niveles'=>[],'escalas'=>[]];
+                $courseMode = (string)($course['evaluation_mode'] ?? 'weighted');
+                if (!isset($annualCoursesMap[$name])) {
+                    $annualCoursesMap[$name] = [
+                        'area'=>$course['area'],
+                        'evaluation_mode'=>$courseMode,
+                        'promedios'=>[],
+                        'bimestres'=>[],
+                        'niveles'=>[],
+                        'escalas'=>[],
+                        'competencias'=>[]
+                    ];
+                }
+                if ($courseMode === 'competency') {
+                    foreach (($course['competencias'] ?? []) as $comp) {
+                        $compId=(string)($comp['competencia_id']??$comp['nombre']??'');
+                        if(!isset($annualCoursesMap[$name]['competencias'][$compId])){
+                            $annualCoursesMap[$name]['competencias'][$compId]=[
+                                'competencia_id'=>$compId,
+                                'nombre'=>$comp['nombre']??$comp['competencia']??'Competencia',
+                                'notas'=>[],
+                                'bimestres'=>[],
+                                'niveles'=>[],
+                                'escalas'=>[]
+                            ];
+                        }
+                        $annualComp=&$annualCoursesMap[$name]['competencias'][$compId];
+                        foreach(($comp['notas']??[]) as $note)$annualComp['notas'][]=$note;
+                        $annualComp['bimestres'][(string)$bim['numero']]=$comp['promedio']??null;
+                        $annualComp['niveles'][(string)$bim['numero']]=$comp['nivel_logro']??null;
+                        $annualComp['escalas'][]=$comp['escala']??'sin_datos';
+                        unset($annualComp);
+                    }
+                    continue;
+                }
+                if (!isset($course['promedio']) || $course['promedio'] === null) continue;
                 $numeric = (float)$course['promedio'];
                 $annualCoursesMap[$name]['promedios'][] = $numeric;
                 $annualCoursesMap[$name]['bimestres'][$bim['numero']] = $numeric;
@@ -463,30 +565,74 @@ try {
                 $annualCoursesMap[$name]['escalas'][$bim['numero']] = $course['escala'];
             }
         }
+
         $annualCourses = [];
-        foreach ($annualCoursesMap as $name=>$courseData) {
-            $avg = count($courseData['promedios']) ? array_sum($courseData['promedios'])/count($courseData['promedios']) : 0;
-            $bims = $courseData['bimestres']; ksort($bims,SORT_NATURAL); $values = array_values($bims);
-            $trend = 'sin_datos';
-            if (count($values)>=2) { $diff=$values[count($values)-1]-$values[count($values)-2]; $trend=$diff>.5?'sube':($diff<-.5?'baja':'estable'); }
-            $scales = array_values(array_unique($courseData['escalas']));
-            $annualScale = count($scales)===1?$scales[0]:'mixta';
-            $annualCourses[] = [
-                'curso'=>$name,'area'=>$courseData['area'],'promedio_anual'=>number_format($avg,2,'.',''),'nivel_logro'=>numeric_to_level($avg),
+        foreach ($annualCoursesMap as $name => $courseData) {
+            if (($courseData['evaluation_mode'] ?? 'weighted') === 'competency') {
+                $annualCompetencies=[];
+                foreach($courseData['competencias'] as $compData){
+                    $sum=0.0;$count=0;$letterCount=0;$numericCount=0;
+                    foreach($compData['notas'] as $note){
+                        $sum+=(float)($note['numeric']??0);$count++;
+                        if(($note['tipo']??'')==='literal')$letterCount++;else$numericCount++;
+                    }
+                    if(!$count)continue;
+                    $average=$sum/$count;$bims=$compData['bimestres'];ksort($bims,SORT_NATURAL);
+                    $levels=$compData['niveles'];ksort($levels,SORT_NATURAL);
+                    $annualCompetencies[]=[
+                        'competencia_id'=>$compData['competencia_id'],
+                        'nombre'=>$compData['nombre'],
+                        'promedio_anual'=>number_format($average,2,'.',''),
+                        'promedio'=>number_format($average,2,'.',''),
+                        'resultado'=>number_format($average,2,'.',''),
+                        'nivel_logro'=>numeric_to_level($average),
+                        'escala'=>scale_type($letterCount,$numericCount),
+                        'detalle_bimestres'=>$bims,
+                        'detalle_niveles'=>$levels,
+                        'notas'=>$compData['notas']
+                    ];
+                }
+                $annualCourses[]=[
+                    'curso'=>$name,
+                    'area'=>$courseData['area'],
+                    'evaluation_mode'=>'competency',
+                    'promedio_anual'=>null,
+                    'nivel_logro'=>null,
+                    'resultado'=>null,
+                    'escala'=>'por_competencias',
+                    'competencias'=>$annualCompetencies,
+                    'tendencia'=>'sin_datos'
+                ];
+                continue;
+            }
+            $avg=count($courseData['promedios'])?array_sum($courseData['promedios'])/count($courseData['promedios']):0;
+            $bims=$courseData['bimestres'];ksort($bims,SORT_NATURAL);$values=array_values($bims);
+            $trend='sin_datos';
+            if(count($values)>=2){$diff=$values[count($values)-1]-$values[count($values)-2];$trend=$diff>.5?'sube':($diff<-.5?'baja':'estable');}
+            $scales=array_values(array_unique($courseData['escalas']));$annualScale=count($scales)===1?$scales[0]:'mixta';
+            $annualCourses[]=[
+                'curso'=>$name,'area'=>$courseData['area'],'evaluation_mode'=>'weighted',
+                'promedio_anual'=>number_format($avg,2,'.',''),'nivel_logro'=>numeric_to_level($avg),
                 'resultado'=>number_format($avg,2,'.',''),'escala'=>$annualScale,
                 'detalle_bimestres'=>$bims,'detalle_niveles'=>$courseData['niveles'],'tendencia'=>$trend
             ];
         }
         usort($annualCourses,function($a,$b){return strcasecmp($a['curso'],$b['curso']);});
-        $yearScales = [];
-        foreach ($bimestersExport as $bim) $yearScales[] = $bim['escala'];
-        $yearScales = array_values(array_unique($yearScales));
-        $yearScale = count($yearScales)===1?$yearScales[0]:'mixta';
-        $yearsWithGrades[] = [
-            'año'=>$yearInfo['año'],'descripcion'=>$yearInfo['descripcion'],'es_activo'=>$yearInfo['es_activo'],'bimestres'=>$bimestersExport,
-            'promedio_anual'=>number_format($yearAverage,2,'.',''),'nivel_logro'=>numeric_to_level($yearAverage),
-            'resultado'=>number_format($yearAverage,2,'.',''),
-            'escala'=>$yearScale,'promedios_por_curso'=>$annualCourses
+        $yearScales=[];
+        foreach($bimestersExport as $bim)$yearScales[]=$bim['escala'];
+        $yearScales=array_values(array_unique($yearScales));
+        $yearScale=$yearHasCompetencyModel?'mixta_modelos':(count($yearScales)===1?$yearScales[0]:'mixta');
+        $yearsWithGrades[]=[
+            'año'=>$yearInfo['año'],
+            'descripcion'=>$yearInfo['descripcion'],
+            'es_activo'=>$yearInfo['es_activo'],
+            'bimestres'=>$bimestersExport,
+            'promedio_anual'=>$yearAverage===null?null:number_format($yearAverage,2,'.',''),
+            'nivel_logro'=>$yearAverage===null?null:numeric_to_level($yearAverage),
+            'resultado'=>$yearAverage===null?null:number_format($yearAverage,2,'.',''),
+            'escala'=>$yearScale,
+            'tiene_modelo_competencias'=>$yearHasCompetencyModel,
+            'promedios_por_curso'=>$annualCourses
         ];
     }
 
