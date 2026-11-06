@@ -225,19 +225,19 @@ try {
 
     if ($hasEvaluationCompetencies) {
         $evaluationCompetencyJoin = $hasGradeCompetency
-            ? 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id AND (COALESCE(eg.competencia_id,0) = 0 OR ec.competencia_id = eg.competencia_id)'
-            : 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id';
+            ? 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id AND COALESCE(ac.evaluation_model,\'weighted\')<>\'competency\' AND (COALESCE(eg.competencia_id,0) = 0 OR ec.competencia_id = eg.competencia_id)'
+            : 'LEFT JOIN evaluation_competencias ec ON ec.evaluation_id = e.id AND COALESCE(ac.evaluation_model,\'weighted\')<>\'competency\';
     } else {
         $evaluationCompetencyJoin = '';
     }
 
     if ($hasCompetencies) {
         if ($hasEvaluationCompetencies && $hasGradeCompetency) {
-            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id)';
+            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id) AND COALESCE(ac.evaluation_model,\'weighted\')<>\'competency\';
         } elseif ($hasGradeCompetency) {
-            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id';
+            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = eg.competencia_id AND COALESCE(ac.evaluation_model,\'weighted\')<>\'competency\';
         } elseif ($hasEvaluationCompetencies) {
-            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = ec.competencia_id';
+            $competencyJoin = 'LEFT JOIN general_course_competencies c ON c.id = ec.competencia_id AND COALESCE(ac.evaluation_model,\'weighted\')<>\'competency\';
         } else {
             $competencyJoin = '';
         }
@@ -252,8 +252,8 @@ try {
     $legacyCompId = $hasGradeCompetency
         ? ($hasEvaluationCompetencies ? 'COALESCE(NULLIF(eg.competencia_id,0), ec.competencia_id, 0)' : 'COALESCE(eg.competencia_id, 0)')
         : ($hasEvaluationCompetencies ? 'COALESCE(ec.competencia_id, 0)' : '0');
-    $areaEvaluationJoin = ($hasEvaluationAreaCompetencies && $hasAreaCompetencies) ? 'LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id' : '';
-    $areaCompetencyJoin = ($hasAreaCompetencies && $hasAreaGradeCompetency) ? 'LEFT JOIN area_competencies acmp ON acmp.id=COALESCE(NULLIF(eg.area_competencia_id,0),eac.area_competencia_id)' : '';
+    $areaEvaluationJoin = ($hasEvaluationAreaCompetencies && $hasAreaCompetencies) ? 'LEFT JOIN evaluation_area_competencies eac ON eac.evaluation_id=e.id AND COALESCE(ac.evaluation_model,\'weighted\')=\'competency\'' : '';
+    $areaCompetencyJoin = ($hasAreaCompetencies && $hasAreaGradeCompetency && $hasEvaluationAreaCompetencies) ? 'LEFT JOIN area_competencies acmp ON acmp.id=COALESCE(NULLIF(eg.area_competencia_id,0),eac.area_competencia_id)' : '';
     $areaCompName = ($hasAreaCompetencies && $hasAreaGradeCompetency) ? "COALESCE(acmp.name,'Competencia del área')" : "'Competencia del área'";
     $areaCompId = ($hasAreaGradeCompetency && $hasEvaluationAreaCompetencies) ? 'COALESCE(NULLIF(eg.area_competencia_id,0),eac.area_competencia_id,0)' : '0';
     $compNameSelect = "CASE WHEN COALESCE(ac.evaluation_model,'weighted')='competency' THEN $areaCompName ELSE $legacyCompName END";
