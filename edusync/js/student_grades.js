@@ -46,6 +46,11 @@
             var extra = entity && entity.escala !== 'literal' && level ? '<span aria-hidden="true">·</span><span>' + esc(level) + '</span>' : '';
             return '<span class="' + (compact ? 'sg-mini-result' : 'sg-grade-pill') + ' ' + gradeClass(level) + '">' + result + extra + '</span>';
         }
+        function courseResultPill(course) {
+            return course && course.evaluation_model === 'competency'
+                ? '<span class="badge badge-info">Por competencias</span>'
+                : gradePill(course, false);
+        }
         function trendMeta(trend) {
             if (trend === 'sube') return {cls:'sg-trend-up',icon:'fa-arrow-up',text:'Mejoró'};
             if (trend === 'baja') return {cls:'sg-trend-down',icon:'fa-arrow-down',text:'Por reforzar'};
@@ -88,9 +93,12 @@
             }
             if (state.view === 'annual') {
                 var annualCourses = state.yearData.promedios_por_curso || [];
+                var competencyCourses = state.yearData.competencias_anuales || [];
                 var published = (state.yearData.bimestres || []).length;
                 var attention = annualCourses.filter(function (course) { return ['B','C'].indexOf(resultLevel(course)) !== -1; }).length;
-                $summary.html(summaryCard('fa-star','Resultado anual',gradePill(state.yearData,false),'Con los bimestres publicados') + summaryCard('fa-book-open','Cursos con notas',String(annualCourses.length),'En el año seleccionado') + summaryCard('fa-life-ring','Por reforzar',String(attention),'Cursos en nivel B o C') + summaryCard('fa-calendar-check','Avance',published + ' / 4','Bimestres publicados'));
+                competencyCourses.forEach(function(course){(course.competencias||[]).forEach(function(comp){if(['B','C'].indexOf(comp.nivel_logro||'')!==-1)attention++;});});
+                var annualResult = annualCourses.length ? gradePill(state.yearData,false) : '<span class="badge badge-info">Por competencias</span>';
+                $summary.html(summaryCard('fa-star',annualCourses.length?'Resultado anual':'Resultados anuales',annualResult,'Los resultados se muestran por modelo de evaluación') + summaryCard('fa-book-open','Cursos con notas',String(annualCourses.length+competencyCourses.length),'En el año seleccionado') + summaryCard('fa-life-ring','Por reforzar',String(attention),'Resultados en nivel B o C') + summaryCard('fa-calendar-check','Avance',published + ' / 4','Bimestres publicados'));
                 return;
             }
             var bim = selectedBimesterData();
@@ -98,7 +106,9 @@
                 $summary.html(summaryCard('fa-star','Resultado','—','Bimestre sin publicar') + summaryCard('fa-book-open','Cursos evaluados','0','') + summaryCard('fa-life-ring','Por reforzar','0','') + summaryCard('fa-calendar-alt','Bimestre',roman(state.bimester) + ' / IV','Aún sin calificaciones'));
                 return;
             }
-            $summary.html(summaryCard('fa-star','Resultado del bimestre',gradePill(bim,false),'Promedio de cursos evaluados') + summaryCard('fa-book-open','Cursos evaluados',String(bim.cursos_evaluados || (bim.cursos || []).length),'Con calificaciones publicadas') + summaryCard('fa-life-ring','Por reforzar',String(bim.cursos_por_reforzar || 0),'Cursos en nivel B o C') + summaryCard('fa-calendar-alt','Bimestre',roman(bim.numero) + ' / IV','Año ' + state.year));
+            var hasWeighted=(bim.cursos||[]).some(function(course){return course.evaluation_model!=='competency';});
+            var bimResult=hasWeighted?gradePill(bim,false):'<span class="badge badge-info">Por competencias</span>';
+            $summary.html(summaryCard('fa-star',hasWeighted?'Resultado del bimestre':'Resultados del bimestre',bimResult,hasWeighted?'Promedio de cursos ponderados':'Cada competencia tiene su propio resultado') + summaryCard('fa-book-open','Cursos evaluados',String(bim.cursos_evaluados || (bim.cursos || []).length),'Con calificaciones publicadas') + summaryCard('fa-life-ring','Por reforzar',String(bim.cursos_por_reforzar || 0),'Resultados en nivel B o C') + summaryCard('fa-calendar-alt','Bimestre',roman(bim.numero) + ' / IV','Año ' + state.year));
         }
         function renderBimesterNav() {
             var available = {};
@@ -140,9 +150,20 @@
         }
         function renderAnnual() {
             var courses = state.yearData ? (state.yearData.promedios_por_curso || []) : [];
-            if (!courses.length) {
+            var competencyCourses = state.yearData ? (state.yearData.competencias_anuales || []) : [];
+            if (!courses.length && !competencyCourses.length) {
                 $content.html('<div class="sg-empty-state"><i class="fas fa-chart-line"></i><strong>Sin progreso anual disponible</strong><span>Se mostrará cuando existan calificaciones publicadas.</span></div>');
                 return;
+            }
+            if (!courses.length && competencyCourses.length) {
+                var competencyHtml='<div class="sg-annual-competency-list">';
+                competencyCourses.forEach(function(course){
+                    var area=typeof course.area==='object'&&course.area?course.area.nombre:(course.area||'Área General');
+                    competencyHtml+='<article class="sg-mobile-course"><div class="sg-mobile-course-top"><div><h3>'+esc(course.curso)+'</h3><div class="sg-area-name">'+esc(area)+'</div></div><span class="badge badge-info">Por competencias</span></div><div class="table-responsive"><table class="table table-sm sg-table mb-0"><thead><tr><th>Competencia</th><th class="text-center">Resultado anual</th></tr></thead><tbody>';
+                    (course.competencias||[]).forEach(function(comp){competencyHtml+='<tr><td>'+esc(comp.nombre)+'</td><td class="text-center">'+gradePill({promedio:comp.promedio_anual,nivel_logro:comp.nivel_logro,escala:comp.escala},true)+'</td></tr>';});
+                    competencyHtml+='</tbody></table></div></article>';
+                });
+                competencyHtml+='</div>';$content.html(competencyHtml);return;
             }
             var rows = '', cards = '';
             courses.forEach(function (course) {
