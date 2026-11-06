@@ -250,6 +250,10 @@ if ($action === 'bulk') {
     $conn->begin_transaction();
     try {
         if ($operation === 'assign_area') {
+            $idsSql=implode(',',array_map('intval',$ids));
+            $usedCourses=$conn->query("SELECT COUNT(*) total FROM academic_courses ac WHERE ac.id IN ($idsSql) AND ac.school_id=$schoolId AND ac.academic_year_id=$yearId AND EXISTS (SELECT 1 FROM evaluations e INNER JOIN teacher_courses tc ON tc.id=e.teacher_course_id WHERE tc.course_id=ac.id AND tc.school_id=ac.school_id AND tc.academic_year_id=ac.academic_year_id)");
+            $usedCount=(int)($usedCourses?$usedCourses->fetch_assoc()['total']:0);
+            if($usedCount>0)throw new Exception('No se puede reasignar el área a cursos que ya tienen evaluaciones. Crea una estructura nueva para conservar su historial.');
             $areaId=(int)($_POST['area_id'] ?? 0);
             $check=$conn->prepare('SELECT id FROM areas WHERE id=? AND school_id=? AND (academic_year_id=? OR academic_year_id IS NULL)');
             $check->bind_param('iii',$areaId,$schoolId,$yearId); $check->execute();
