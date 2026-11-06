@@ -117,7 +117,7 @@ if ($action === 'load') {
         : '';
     $evaluationModel = ($assignment['evaluation_model'] ?? 'weighted') === 'competency' ? 'competency' : 'weighted';
     if ($evaluationModel === 'competency') {
-        if (!gradebook_table_exists($conn,'evaluation_area_competencies') || !gradebook_table_exists($conn,'area_competencies')) {
+        if (!gradebook_table_exists($conn,'evaluation_area_competencies') || !gradebook_table_exists($conn,'area_competencies') || !gradebook_column_exists($conn,'evaluation_grades','area_competencia_id')) {
             gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql para habilitar el modelo por competencias.'],409);
         }
         $evaluationsSql = "SELECT e.id,e.title,e.type,e.created_at$evaluationStatusSelect,
@@ -387,7 +387,7 @@ if ($action === 'save') {
     $statusCondition=gradebook_column_exists($conn,'evaluations','status')?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
     $evaluationModel=($assignment['evaluation_model']??'weighted')==='competency'?'competency':'weighted';
     if($evaluationModel==='competency'){
-        if(!gradebook_table_exists($conn,'evaluation_area_competencies')||!gradebook_table_exists($conn,'area_competencies'))gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql antes de guardar notas por competencias.'],409);
+        if(!gradebook_table_exists($conn,'evaluation_area_competencies')||!gradebook_table_exists($conn,'area_competencies')||!gradebook_column_exists($conn,'evaluation_grades','area_competencia_id'))gradebook_response(['status'=>0,'migration_required'=>true,'message'=>'La migración sql/evaluation_models_competencies_v1.sql no está completa. Ejecútala antes de guardar notas por competencias.'],409);
         $evaluationResult=$conn->query("SELECT e.id,e.title,(SELECT eac.area_competencia_id FROM evaluation_area_competencies eac WHERE eac.evaluation_id=e.id ORDER BY eac.id LIMIT 1) competencia_id FROM evaluations e WHERE e.id IN ($evaluationList) AND e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'$statusCondition");
     }else{
         $evaluationResult=$conn->query("SELECT e.id,e.title,(SELECT ec.competencia_id FROM evaluation_competencias ec WHERE ec.evaluation_id=e.id ORDER BY ec.id LIMIT 1) competencia_id FROM evaluations e WHERE e.id IN ($evaluationList) AND e.teacher_course_id=$teacherCourseId AND e.teacher_id=$teacherId AND e.academic_year_id=".(int)$assignment['academic_year_id']." AND e.bimestre='".$conn->real_escape_string((string)$bimester)."'$statusCondition");
