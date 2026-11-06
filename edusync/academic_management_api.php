@@ -112,7 +112,7 @@ if ($action === 'areas') {
 }
 
 if ($action === 'area_competencies') {
-    if(!amHasColumn($conn,'area_competencies','id'))amResponse(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql para habilitar el catálogo de competencias del área.'],409);
+    if(!amHasColumn($conn,'area_competencies','id')||!amHasColumn($conn,'evaluation_area_competencies','id')||!amHasColumn($conn,'evaluation_grades','area_competencia_id'))amResponse(['status'=>0,'migration_required'=>true,'message'=>'La migración sql/evaluation_models_competencies_v1.sql no está completa. Ejecútala antes de usar el catálogo curricular.'],409);
     $yearId=(int)($_GET['academic_year_id']??0);$areaId=(int)($_GET['area_id']??0);$level=trim((string)($_GET['level']??''));
     if(!$yearId||!$areaId||!in_array($level,['Inicial','Primaria','Secundaria'],true))amResponse(['status'=>0,'message'=>'Selecciona año, área y nivel.']);
     $area=$conn->prepare('SELECT id,name FROM areas WHERE id=? AND school_id=? AND (academic_year_id=? OR academic_year_id IS NULL) LIMIT 1');$area->bind_param('iii',$areaId,$schoolId,$yearId);$area->execute();$areaRow=$area->get_result()->fetch_assoc();$area->close();if(!$areaRow)amResponse(['status'=>0,'message'=>'El área no pertenece al colegio o año seleccionado.']);
@@ -155,7 +155,7 @@ if (in_array($action, $writeActions, true)) {
 }
 
 if ($action === 'save_area_competency') {
-    if(!amHasColumn($conn,'area_competencies','id'))amResponse(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql para habilitar el catálogo de competencias del área.'],409);
+    if(!amHasColumn($conn,'area_competencies','id')||!amHasColumn($conn,'evaluation_area_competencies','id')||!amHasColumn($conn,'evaluation_grades','area_competencia_id'))amResponse(['status'=>0,'migration_required'=>true,'message'=>'La migración sql/evaluation_models_competencies_v1.sql no está completa. Ejecútala antes de usar el catálogo curricular.'],409);
     $id=(int)($_POST['id']??0);$yearId=(int)($_POST['academic_year_id']??0);$areaId=(int)($_POST['area_id']??0);$level=trim((string)($_POST['level']??''));$name=trim((string)($_POST['name']??''));$order=(int)($_POST['display_order']??0);
     amEnsureYearWritable($conn,$schoolId,$yearId);
     if(!$yearId||!$areaId||$name===''||!in_array($level,['Inicial','Primaria','Secundaria'],true))amResponse(['status'=>0,'message'=>'Completa año, área, nivel y nombre de la competencia.']);
@@ -172,7 +172,7 @@ $stmt->bind_param('siiiiis',$name,$order,$id,$schoolId,$yearId,$areaId,$level);$
 }
 
 if ($action === 'toggle_area_competency') {
-    if(!amHasColumn($conn,'area_competencies','id'))amResponse(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql para habilitar el catálogo de competencias del área.'],409);
+    if(!amHasColumn($conn,'area_competencies','id')||!amHasColumn($conn,'evaluation_area_competencies','id')||!amHasColumn($conn,'evaluation_grades','area_competencia_id'))amResponse(['status'=>0,'migration_required'=>true,'message'=>'La migración sql/evaluation_models_competencies_v1.sql no está completa. Ejecútala antes de usar el catálogo curricular.'],409);
     $id=(int)($_POST['id']??0);$yearId=(int)($_POST['academic_year_id']??0);$active=(int)($_POST['is_active']??0);amEnsureYearWritable($conn,$schoolId,$yearId);
     if(!in_array($active,[0,1],true))amResponse(['status'=>0,'message'=>'Estado inválido.']);
     if($active===0){$used=$conn->prepare('SELECT COUNT(*) total FROM evaluation_area_competencies eac INNER JOIN evaluations e ON e.id=eac.evaluation_id WHERE eac.area_competencia_id=? AND e.academic_year_id=?');$used->bind_param('ii',$id,$yearId);$used->execute();$usedCount=(int)$used->get_result()->fetch_assoc()['total'];$used->close();if($usedCount>0)amResponse(['status'=>0,'message'=>'No se puede desactivar porque ya tiene evaluaciones vinculadas. Conserva la competencia activa para proteger los cierres y el historial.']);}
@@ -215,6 +215,7 @@ if ($action === 'save_area') {
 if ($action === 'save_course') {
     if(!amHasColumn($conn,'academic_courses','evaluation_model'))amResponse(['status'=>0,'migration_required'=>true,'message'=>'Ejecuta sql/evaluation_models_competencies_v1.sql antes de configurar modelos de evaluación.'],409);
     $id=(int)($_POST['id']??0);$yearId=(int)($_POST['academic_year_id']??0);$areaId=(int)($_POST['area_id']??0);$name=trim($_POST['name']??'');$code=trim($_POST['course_code']??'');$description=trim($_POST['description']??'');$level=trim($_POST['level']??'');$grades=$_POST['grades']??[];$grades=is_array($grades)?implode(',',array_map('trim',$grades)):trim($grades);$hours=max(0,(float)($_POST['weekly_hours']??0));$type=trim($_POST['course_type']??'Curso');$order=(int)($_POST['display_order']??0);$courseStatus=trim($_POST['course_status']??'Activo');if(!in_array($courseStatus,['Activo','Suspendido','Inactivo'],true))$courseStatus='Activo';$active=$courseStatus==='Activo'?1:0;$evaluationModel=trim((string)($_POST['evaluation_model']??'weighted'));if(!in_array($evaluationModel,['weighted','competency'],true))$evaluationModel='weighted';
+    if($evaluationModel==='competency'&&(!amHasColumn($conn,'area_competencies','id')||!amHasColumn($conn,'evaluation_area_competencies','id')||!amHasColumn($conn,'evaluation_grades','area_competencia_id')))amResponse(['status'=>0,'migration_required'=>true,'message'=>'La migración sql/evaluation_models_competencies_v1.sql no está completa. Ejecútala antes de activar el modelo por competencias.'],409);
     if(!$yearId||!$areaId||$name===''||!in_array($level,['Inicial','Primaria','Secundaria'],true)) amResponse(['status'=>0,'message'=>'Completa año, área, nombre y nivel.']);
     if($id){
         $current=$conn->prepare('SELECT evaluation_model,area_id,level FROM academic_courses WHERE id=? AND school_id=? AND academic_year_id=? LIMIT 1');
