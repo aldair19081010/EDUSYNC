@@ -160,32 +160,32 @@ if ($show_avg && !empty($student_id_filter)) {
         $courseModelStmt->bind_param('ii',$course_id_filter,$school_id);$courseModelStmt->execute();$courseModel=$courseModelStmt->get_result()->fetch_assoc();$courseModelStmt->close();
         if($courseModel && $courseModel['evaluation_model']==='competency'){
             $yearForCompetency=(int)($academic_year_id?:$courseModel['academic_year_id']);
-            $statusJoin=grades_report_table_exists($conn,'evaluations') && grades_report_table_column_exists($conn,'evaluations','status') ? " AND (e.status IS NULL OR e.status<>'Anulada')" : '';
-            $joinFilters='';$paramsArea=[$school_id,$yearForCompetency,$course_id_filter,$school_id,$yearForCompetency,$student_id_filter,$school_id,$yearForCompetency,$courseModel['area_id'],$courseModel['level']];$typesArea='iiiiii iiis';
-            $typesArea=str_replace(' ','',$typesArea);
-            if(!empty($bimestre_filter)){$joinFilters.=' AND e.bimestre=?';$paramsArea[]=$bimestre_filter;$typesArea.='s';}
-            if(!empty($evaluation_id_filter)){$joinFilters.=' AND e.id=?';$paramsArea[]=$evaluation_id_filter;$typesArea.='i';}
-            $teacherJoin='';
-            if($login_type==2&&$teacher_id&&!$reportDirector){$teacherJoin=' AND tc.teacher_id=?';$paramsArea[]=$teacher_id;$typesArea.='i';}
+            $statusProbe=$conn->query("SHOW COLUMNS FROM evaluations LIKE 'status'");
+            $statusJoin=($statusProbe&&$statusProbe->num_rows)?" AND (e.status IS NULL OR e.status<>'Anulada')":'';
+            $evaluationFilters='';$evaluationParams=[];$evaluationTypes='';
+            if(!empty($bimestre_filter)){$evaluationFilters.=' AND e.bimestre=?';$evaluationParams[]=$bimestre_filter;$evaluationTypes.='s';}
+            if(!empty($evaluation_id_filter)){$evaluationFilters.=' AND e.id=?';$evaluationParams[]=(int)$evaluation_id_filter;$evaluationTypes.='i';}
+            $assignmentFilters='';$assignmentParams=[];$assignmentTypes='';
+            if(!empty($grado_filter)){$assignmentFilters.=' AND tc.grado=?';$assignmentParams[]=$grado_filter;$assignmentTypes.='s';}
+            if(!empty($seccion_filter)){$assignmentFilters.=' AND tc.seccion=?';$assignmentParams[]=$seccion_filter;$assignmentTypes.='s';}
+            if($login_type==2&&$teacher_id&&!$reportDirector){$assignmentFilters.=' AND tc.teacher_id=?';$assignmentParams[]=(int)$teacher_id;$assignmentTypes.='i';}
             $sqlArea="SELECT c.id competency_id,c.name competency_name,e.id evaluation_id,e.title evaluation_title,e.bimestre,eg.grade
                       FROM area_competencies c
                       LEFT JOIN evaluation_area_competencies eac ON eac.area_competencia_id=c.id AND eac.school_id=? AND eac.academic_year_id=?
-                      LEFT JOIN evaluations e ON e.id=eac.evaluation_id$joinFilters$statusJoin
-                      LEFT JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.course_id=? AND tc.school_id=? AND tc.academic_year_id=?$teacherJoin
+                      LEFT JOIN evaluations e ON e.id=eac.evaluation_id$evaluationFilters$statusJoin
+                      LEFT JOIN teacher_courses tc ON tc.id=e.teacher_course_id AND tc.course_id=? AND tc.school_id=? AND tc.academic_year_id=?$assignmentFilters
                       LEFT JOIN evaluation_grades eg ON eg.evaluation_id=e.id AND eg.student_id=? AND eg.area_competencia_id=c.id AND tc.id IS NOT NULL
                       WHERE c.school_id=? AND c.academic_year_id=? AND c.area_id=? AND c.level=? AND (c.is_active=1 OR e.id IS NOT NULL)
                       ORDER BY c.display_order,c.id,e.created_at,e.id";
-            // Los filtros de evaluación se colocan después del vínculo de catálogo para conservar competencias sin notas.
-            $paramsArea=array_merge([$school_id,$yearForCompetency],$paramsArea);
+            $paramsArea=array_merge([$school_id,$yearForCompetency],$evaluationParams,[$course_id_filter,$school_id,$yearForCompetency],$assignmentParams,[$student_id_filter,$school_id,$yearForCompetency,$courseModel['area_id'],$courseModel['level']]);
+            $typesArea='ii'.$evaluationTypes.'iii'.$assignmentTypes.'iiis';
             $stmtArea=$conn->prepare($sqlArea);
             if(!$stmtArea){echo '<div class="alert alert-danger">No se pudo preparar el reporte por competencias: '.htmlspecialchars($conn->error).'</div>';exit;}
             $stmtArea->bind_param($typesArea,...$paramsArea);$stmtArea->execute();$resultArea=$stmtArea->get_result();$areaRows=[];
             while($rowArea=$resultArea->fetch_assoc()){
                 $cid=(int)$rowArea['competency_id'];
                 if(!isset($areaRows[$cid]))$areaRows[$cid]=['name'=>$rowArea['competency_name'],'evaluations'=>[]];
-                if(!empty($rowArea['evaluation_id'])){
-                    $areaRows[$cid]['evaluations'][]=['title'=>$rowArea['evaluation_title'],'bimestre'=>$rowArea['bimestre'],'grade'=>$rowArea['grade']];
-                }
+                if(!empty($rowArea['evaluation_id']))$areaRows[$cid]['evaluations'][]=['title'=>$rowArea['evaluation_title'],'bimestre'=>$rowArea['bimestre'],'grade'=>$rowArea['grade']];
             }
             $stmtArea->close();
             ?>
