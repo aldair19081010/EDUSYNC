@@ -49,7 +49,7 @@ if ($year) {
     $params[] = $year;
 }
 
-$sql = "SELECT po.receipt_full,po.payment_date,po.status,po.total_amount,po.remarks,
+$sql = "SELECT po.receipt_full,po.payment_date,po.created_at,po.status,po.total_amount,po.remarks,
         po.cancellation_reason,s.id_no,s.name,
         (SELECT GROUP_CONCAT(CONCAT(pm.name,': S/ ',FORMAT(pom.amount,2),
             IF(pom.reference_number IS NULL,'',CONCAT(' #',pom.reference_number)))
@@ -88,7 +88,7 @@ $sheet->getStyle('A1:K1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartCol
 $row = 2;
 while ($item = $result->fetch_assoc()) {
     $sheet->fromArray([
-        $item['receipt_full'], $item['payment_date'], $item['id_no'], $item['name'],
+        $item['receipt_full'], edusync_payment_datetime_for_display($item['payment_date'], $item['created_at']), $item['id_no'], $item['name'],
         $item['concepts'], $item['methods'], (float)$item['total_amount'], $item['status'],
         $item['cashier'], $item['remarks'], $item['cancellation_reason']
     ], null, 'A' . $row++);
