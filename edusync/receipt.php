@@ -291,8 +291,11 @@ $receipt_operation_id = (int)$operation['id'];
 $receipt_payment_id = (int)($concepts[0]['payment_id'] ?? 0);
 $receipt_debt_id = (int)($concepts[0]['ef_id'] ?? 0);
 
-function receiptDate(string $value, bool $time = true): string
+function receiptDate(string $value, bool $time = true, $createdAt = null): string
 {
+    if ($time && $createdAt !== null) {
+        $value = edusync_payment_datetime_for_display($value, $createdAt);
+    }
     $months = [1=>'ene',2=>'feb',3=>'mar',4=>'abr',5=>'may',6=>'jun',7=>'jul',8=>'ago',9=>'sep',10=>'oct',11=>'nov',12=>'dic'];
     $timestamp = strtotime($value);
     if (!$timestamp) return '';
@@ -324,7 +327,7 @@ function receiptDate(string $value, bool $time = true): string
         <div class="receipt-meta-item"><span>Estudiante</span><strong><?php echo htmlspecialchars($operation['student_name']); ?></strong></div>
         <div class="receipt-meta-item"><span>DNI</span><strong><?php echo htmlspecialchars($operation['id_no']); ?></strong></div>
         <div class="receipt-meta-item"><span>Nivel, grado y sección</span><strong><?php echo htmlspecialchars(trim($operation['nivel'] . ' · ' . $operation['grado'] . ' ' . ($operation['seccion'] ?? ''))); ?></strong></div>
-        <div class="receipt-meta-item"><span>Fecha y hora</span><strong><?php echo receiptDate($operation['payment_date']); ?></strong></div>
+        <div class="receipt-meta-item"><span>Fecha y hora</span><strong><?php echo receiptDate($operation['payment_date'], true, $operation['created_at'] ?? null); ?></strong></div>
         <div class="receipt-meta-item"><span>Registrado por</span><strong><?php echo htmlspecialchars($operation['cashier_name']); ?></strong></div>
         <div class="receipt-meta-item"><span>Caja</span><strong><?php echo !empty($operation['cash_session_id']) ? '#' . (int)$operation['cash_session_id'] : 'Sin sesión de caja'; ?></strong></div>
         <div class="receipt-meta-item"><span>Conceptos cubiertos</span><strong><?php echo count($concepts); ?></strong></div>
