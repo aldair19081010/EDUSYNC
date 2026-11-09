@@ -1,7 +1,8 @@
 <?php
 ob_start();
 include_once 'includes/session_check.php';
-include 'db_connect.php';
+include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 header('Content-Type: application/json; charset=utf-8');
 function prOut(array $data,int $code=200):void{while(ob_get_level())ob_end_clean();http_response_code($code);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);exit;}
 function prBind(mysqli_stmt $stmt,string $types,array &$params):void{if($types==='')return;$args=[$types];foreach($params as &$value)$args[]=&$value;call_user_func_array([$stmt,'bind_param'],$args);}
