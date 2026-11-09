@@ -2,6 +2,7 @@
 include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 
 $school = (int)($_SESSION['login_school_id'] ?? 0);
 $type = (int)($_SESSION['login_type'] ?? 0);
@@ -23,6 +24,7 @@ $conceptName = $hasConceptSnapshots
     ? "COALESCE(NULLIF(c.course,''),NULLIF(pcs.concept_name,''),$legacyConceptFallback)"
     : "COALESCE(NULLIF(c.course,''),$legacyConceptFallback)";
 
+$paymentDateSql = edusync_payment_datetime_sql('po');
 $where = ['po.school_id=?'];
 $types = 'i';
 $params = [$school];
@@ -34,8 +36,8 @@ $method = (int)($_GET['method_id'] ?? 0);
 $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_GET['ids'] ?? '')))));
 
 if ($ids) $where[] = 'po.id IN(' . implode(',', $ids) . ')';
-if ($from) { $where[] = 'DATE(po.payment_date)>=?'; $types .= 's'; $params[] = $from; }
-if ($to) { $where[] = 'DATE(po.payment_date)<=?'; $types .= 's'; $params[] = $to; }
+if ($from) { $where[] = 'DATE(' . $paymentDateSql . ')>=?'; $types .= 's'; $params[] = $from; }
+if ($to) { $where[] = 'DATE(' . $paymentDateSql . ')<=?'; $types .= 's'; $params[] = $to; }
 if ($status) { $where[] = 'po.status=?'; $types .= 's'; $params[] = $status; }
 if ($method) {
     $where[] = 'EXISTS(SELECT 1 FROM payment_operation_methods px WHERE px.operation_id=po.id AND px.payment_method_id=?)';
@@ -48,7 +50,7 @@ if ($year) {
     $params[] = $year;
 }
 
-$sql = "SELECT po.receipt_full,po.payment_date,po.status,po.total_amount,po.remarks,
+$sql = "SELECT po.receipt_full,po.payment_date,po.created_at,po.status,po.total_amount,po.remarks,
         po.cancellation_reason,s.id_no,s.name,
         (SELECT GROUP_CONCAT(CONCAT(pm.name,': S/ ',FORMAT(pom.amount,2),
             IF(pom.reference_number IS NULL,'',CONCAT(' #',pom.reference_number)))
@@ -67,8 +69,7 @@ $sql = "SELECT po.receipt_full,po.payment_date,po.status,po.total_amount,po.rema
     FROM payment_operations po
     INNER JOIN student s ON s.id=po.student_id
     LEFT JOIN users u ON u.id=po.created_by
-    WHERE " . implode(' AND ', $where) . '
-    ORDER BY po.payment_date DESC';
+    WHERE " . implode(' AND ', $where) . "\n    ORDER BY " . $paymentDateSql . " DESC";
 
 $stmt = $conn->prepare($sql);
 $bind = [$types];
@@ -87,7 +88,7 @@ $sheet->getStyle('A1:K1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartCol
 $row = 2;
 while ($item = $result->fetch_assoc()) {
     $sheet->fromArray([
-        $item['receipt_full'], $item['payment_date'], $item['id_no'], $item['name'],
+        $item['receipt_full'], edusync_payment_datetime_for_display($item['payment_date'], $item['created_at']), $item['id_no'], $item['name'],
         $item['concepts'], $item['methods'], (float)$item['total_amount'], $item['status'],
         $item['cashier'], $item['remarks'], $item['cancellation_reason']
     ], null, 'A' . $row++);

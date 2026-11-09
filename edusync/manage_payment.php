@@ -2,6 +2,7 @@
 include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 
 $schoolId = (int)($_SESSION['login_school_id'] ?? 0);
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -24,7 +25,7 @@ $correction = null;
 if ($correctionOf > 0) {
     $column = $conn->query("SHOW COLUMNS FROM payment_operations LIKE 'corrected_from_id'");
     if ($column && $column->num_rows) {
-        $stmt = $conn->prepare("SELECT po.id,po.student_id,po.payment_date,po.remarks,po.receipt_full,s.name student_name FROM payment_operations po INNER JOIN student s ON s.id=po.student_id WHERE po.id=? AND po.school_id=? AND po.status='Confirmado' LIMIT 1");
+        $stmt = $conn->prepare("SELECT po.id,po.student_id,po.payment_date,po.created_at,po.remarks,po.receipt_full,s.name student_name FROM payment_operations po INNER JOIN student s ON s.id=po.student_id WHERE po.id=? AND po.school_id=? AND po.status='Confirmado' LIMIT 1");
         $stmt->bind_param('ii', $correctionOf, $schoolId); $stmt->execute(); $base = $stmt->get_result()->fetch_assoc(); $stmt->close();
         if ($base) {
             $base['concepts'] = []; $base['methods'] = [];
@@ -69,7 +70,7 @@ if ($correctionOf > 0) {
     <div id="payment-msg"></div>
     <div class="pm-section"><h6><i class="fa fa-user mr-2"></i>Estudiante y fecha</h6><div class="form-row">
         <div class="form-group col-md-7"><label>Estudiante</label><select name="student_id" id="student_id" class="form-control select2" <?php echo $correction ? 'disabled' : ''; ?> required><option value="">Seleccione</option><?php foreach ($students as $student): ?><option value="<?php echo (int)$student['id']; ?>" <?php echo $correction && (int)$correction['student_id']===(int)$student['id']?'selected':''; ?>><?php echo htmlspecialchars($student['id_no'] . ' - ' . $student['name'] . ($student['status'] !== 'Activo' ? ' [' . $student['status'] . ']' : '')); ?></option><?php endforeach; ?></select><?php if($correction): ?><input type="hidden" name="student_id" value="<?php echo (int)$correction['student_id']; ?>"><?php endif; ?></div>
-        <div class="form-group col-md-5"><label>Fecha y hora del pago</label><input type="datetime-local" name="payment_date" class="form-control" value="<?php echo htmlspecialchars($correction ? date('Y-m-d\TH:i',strtotime($correction['payment_date'])) : date('Y-m-d\TH:i')); ?>" required></div>
+        <div class="form-group col-md-5"><label>Fecha y hora del pago</label><input type="datetime-local" name="payment_date" class="form-control" value="<?php echo htmlspecialchars($correction ? date('Y-m-d\TH:i',strtotime(edusync_payment_datetime_for_display($correction['payment_date'], $correction['created_at'] ?? null))) : date('Y-m-d\TH:i')); ?>" required></div>
     </div></div>
     <div class="pm-section"><h6><i class="fa fa-file-invoice mr-2"></i>Aplicación del pago</h6>
         <div class="form-group"><label>Deudas pendientes</label><select id="debt-select" class="form-control select2" multiple disabled></select></div>

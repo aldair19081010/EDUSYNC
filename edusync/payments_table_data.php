@@ -3,6 +3,7 @@ ob_start();
 ini_set('display_errors', '0');
 include_once __DIR__ . '/includes/session_check.php';
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function paymentTableResponse(array $data): void
@@ -44,12 +45,13 @@ try {
     $dateTo = trim($_GET['date_to'] ?? '');
     $status = trim($_GET['status'] ?? '');
     $methodId = (int)($_GET['method_id'] ?? 0);
+    $paymentDateSql = edusync_payment_datetime_sql('po');
     $where = ['po.school_id = ?'];
     $types = 'i';
     $params = [$schoolId];
 
-    if ($dateFrom !== '') { $where[] = 'DATE(po.payment_date) >= ?'; $types .= 's'; $params[] = $dateFrom; }
-    if ($dateTo !== '') { $where[] = 'DATE(po.payment_date) <= ?'; $types .= 's'; $params[] = $dateTo; }
+    if ($dateFrom !== '') { $where[] = 'DATE(' . $paymentDateSql . ') >= ?'; $types .= 's'; $params[] = $dateFrom; }
+    if ($dateTo !== '') { $where[] = 'DATE(' . $paymentDateSql . ') <= ?'; $types .= 's'; $params[] = $dateTo; }
     if ($status !== '') { $where[] = 'po.status = ?'; $types .= 's'; $params[] = $status; }
     if ($methodId > 0) { $where[] = 'EXISTS (SELECT 1 FROM payment_operation_methods pom2 WHERE pom2.operation_id = po.id AND pom2.payment_method_id = ?)'; $types .= 'i'; $params[] = $methodId; }
     if ($yearId > 0) { $where[] = 'EXISTS (SELECT 1 FROM payments py INNER JOIN student_ef_list efy ON efy.id = py.ef_id INNER JOIN courses cy ON cy.id = efy.course_id WHERE py.operation_id = po.id AND cy.academic_year_id = ?)'; $types .= 'i'; $params[] = $yearId; }
@@ -73,10 +75,10 @@ try {
     $filtered = (int)$countStmt->get_result()->fetch_assoc()['total'];
     $countStmt->close();
 
-    $orderColumns = ['po.id', 'po.payment_date', 's.id_no', 'po.receipt_full', 's.name', 'po.total_amount', 'po.status', 'po.id'];
+    $orderColumns = ['po.id', $paymentDateSql, 's.id_no', 'po.receipt_full', 's.name', 'po.total_amount', 'po.status', 'po.id'];
     $orderColumn = (int)($_GET['order'][0]['column'] ?? 1);
     $orderDirection = strtolower($_GET['order'][0]['dir'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
-    $orderBy = $orderColumns[$orderColumn] ?? 'po.payment_date';
+    $orderBy = $orderColumns[$orderColumn] ?? $paymentDateSql;
     $sql = "SELECT po.*, s.name student_name, s.id_no,
             (SELECT GROUP_CONCAT(DISTINCT pm.name ORDER BY pm.name SEPARATOR ', ') FROM payment_operation_methods pom INNER JOIN payment_methods pm ON pm.id = pom.payment_method_id WHERE pom.operation_id = po.id) methods,
             (SELECT GROUP_CONCAT(DISTINCT CONCAT($conceptNameSql, IF($conceptYearSql IS NULL OR $conceptYearSql='', '', CONCAT(' · ', $conceptYearSql))) ORDER BY $conceptYearSql, $conceptNameSql SEPARATOR ' | ')
@@ -124,7 +126,7 @@ try {
 
         $rows[] = [
             '<input class="payment-check" type="checkbox" value="' . $operationId . '">',
-            date('d/m/Y H:i', strtotime($payment['payment_date'])),
+            date('d/m/Y H:i', strtotime(edusync_payment_datetime_for_display($payment['payment_date'], $payment['created_at'] ?? null))),
             htmlspecialchars($payment['id_no']),
             '<strong>' . htmlspecialchars($payment['receipt_full']) . '</strong>',
             '<strong>' . htmlspecialchars($payment['student_name']) . '</strong><div class="small text-primary"><i class="fa fa-file-invoice-dollar mr-1"></i>' . htmlspecialchars($payment['concepts'] ?: 'Concepto no disponible') . '</div>',
