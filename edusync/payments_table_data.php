@@ -3,6 +3,7 @@ ob_start();
 ini_set('display_errors', '0');
 include_once __DIR__ . '/includes/session_check.php';
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function paymentTableResponse(array $data): void
