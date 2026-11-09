@@ -1,5 +1,6 @@
 <?php
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 header('Cache-Control: no-store, private');
 header('Referrer-Policy: no-referrer');
 
