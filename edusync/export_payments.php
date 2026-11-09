@@ -24,6 +24,7 @@ $conceptName = $hasConceptSnapshots
     ? "COALESCE(NULLIF(c.course,''),NULLIF(pcs.concept_name,''),$legacyConceptFallback)"
     : "COALESCE(NULLIF(c.course,''),$legacyConceptFallback)";
 
+$paymentDateSql = edusync_payment_datetime_sql('po');
 $where = ['po.school_id=?'];
 $types = 'i';
 $params = [$school];
@@ -35,8 +36,8 @@ $method = (int)($_GET['method_id'] ?? 0);
 $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', $_GET['ids'] ?? '')))));
 
 if ($ids) $where[] = 'po.id IN(' . implode(',', $ids) . ')';
-if ($from) { $where[] = 'DATE(po.payment_date)>=?'; $types .= 's'; $params[] = $from; }
-if ($to) { $where[] = 'DATE(po.payment_date)<=?'; $types .= 's'; $params[] = $to; }
+if ($from) { $where[] = 'DATE(' . $paymentDateSql . ')>=?'; $types .= 's'; $params[] = $from; }
+if ($to) { $where[] = 'DATE(' . $paymentDateSql . ')<=?'; $types .= 's'; $params[] = $to; }
 if ($status) { $where[] = 'po.status=?'; $types .= 's'; $params[] = $status; }
 if ($method) {
     $where[] = 'EXISTS(SELECT 1 FROM payment_operation_methods px WHERE px.operation_id=po.id AND px.payment_method_id=?)';
