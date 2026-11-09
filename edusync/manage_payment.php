@@ -3,6 +3,7 @@ include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
 require_once __DIR__ . '/includes/payment_timezone.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 
 $schoolId = (int)($_SESSION['login_school_id'] ?? 0);
 if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
