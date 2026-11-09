@@ -126,7 +126,7 @@ try {
 
         $rows[] = [
             '<input class="payment-check" type="checkbox" value="' . $operationId . '">',
-            date('d/m/Y H:i', strtotime($payment['payment_date'])),
+            date('d/m/Y H:i', strtotime(edusync_payment_datetime_for_display($payment['payment_date'], $payment['created_at'] ?? null))),
             htmlspecialchars($payment['id_no']),
             '<strong>' . htmlspecialchars($payment['receipt_full']) . '</strong>',
             '<strong>' . htmlspecialchars($payment['student_name']) . '</strong><div class="small text-primary"><i class="fa fa-file-invoice-dollar mr-1"></i>' . htmlspecialchars($payment['concepts'] ?: 'Concepto no disponible') . '</div>',
