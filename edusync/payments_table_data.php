@@ -4,7 +4,6 @@ ini_set('display_errors', '0');
 include_once __DIR__ . '/includes/session_check.php';
 include __DIR__ . '/db_connect.php';
 require_once __DIR__ . '/includes/payment_timezone.php';
-require_once __DIR__ . '/includes/payment_timezone.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function paymentTableResponse(array $data): void
@@ -46,12 +45,13 @@ try {
     $dateTo = trim($_GET['date_to'] ?? '');
     $status = trim($_GET['status'] ?? '');
     $methodId = (int)($_GET['method_id'] ?? 0);
+    $paymentDateSql = edusync_payment_datetime_sql('po');
     $where = ['po.school_id = ?'];
     $types = 'i';
     $params = [$schoolId];
 
-    if ($dateFrom !== '') { $where[] = 'DATE(po.payment_date) >= ?'; $types .= 's'; $params[] = $dateFrom; }
-    if ($dateTo !== '') { $where[] = 'DATE(po.payment_date) <= ?'; $types .= 's'; $params[] = $dateTo; }
+    if ($dateFrom !== '') { $where[] = 'DATE(' . $paymentDateSql . ') >= ?'; $types .= 's'; $params[] = $dateFrom; }
+    if ($dateTo !== '') { $where[] = 'DATE(' . $paymentDateSql . ') <= ?'; $types .= 's'; $params[] = $dateTo; }
     if ($status !== '') { $where[] = 'po.status = ?'; $types .= 's'; $params[] = $status; }
     if ($methodId > 0) { $where[] = 'EXISTS (SELECT 1 FROM payment_operation_methods pom2 WHERE pom2.operation_id = po.id AND pom2.payment_method_id = ?)'; $types .= 'i'; $params[] = $methodId; }
     if ($yearId > 0) { $where[] = 'EXISTS (SELECT 1 FROM payments py INNER JOIN student_ef_list efy ON efy.id = py.ef_id INNER JOIN courses cy ON cy.id = efy.course_id WHERE py.operation_id = po.id AND cy.academic_year_id = ?)'; $types .= 'i'; $params[] = $yearId; }
