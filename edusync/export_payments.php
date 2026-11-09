@@ -69,8 +69,7 @@ $sql = "SELECT po.receipt_full,po.payment_date,po.created_at,po.status,po.total_
     FROM payment_operations po
     INNER JOIN student s ON s.id=po.student_id
     LEFT JOIN users u ON u.id=po.created_by
-    WHERE " . implode(' AND ', $where) . '
-    ORDER BY po.payment_date DESC';
+    WHERE " . implode(' AND ', $where) . "\n    ORDER BY " . $paymentDateSql . " DESC";
 
 $stmt = $conn->prepare($sql);
 $bind = [$types];
