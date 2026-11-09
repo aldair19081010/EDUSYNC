@@ -11,6 +11,7 @@ if (!$isPublicReceipt) {
         exit('<div class="alert alert-danger">No tiene permisos para consultar recibos.</div>');
     }
 }
+require_once __DIR__ . '/includes/payment_timezone.php';
 $schoolId = $isPublicReceipt ? (int)($publicReceiptContext['school_id'] ?? 0) : (int)($_SESSION['login_school_id'] ?? 0);
 $paymentId = $isPublicReceipt ? (int)($publicReceiptContext['payment_id'] ?? 0) : (int)($_GET['pid'] ?? 0);
 $debtId = $isPublicReceipt ? (int)($publicReceiptContext['debt_id'] ?? 0) : (int)($_GET['ef_id'] ?? 0);
