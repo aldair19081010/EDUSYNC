@@ -38,6 +38,7 @@ if (!$payload) {
 }
 
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 
 $schoolId = (int)($payload['school_id'] ?? 0);
 $studentId = (int)($payload['student_id'] ?? 0);
