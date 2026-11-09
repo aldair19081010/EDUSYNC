@@ -75,10 +75,10 @@ try {
     $filtered = (int)$countStmt->get_result()->fetch_assoc()['total'];
     $countStmt->close();
 
-    $orderColumns = ['po.id', 'po.payment_date', 's.id_no', 'po.receipt_full', 's.name', 'po.total_amount', 'po.status', 'po.id'];
+    $orderColumns = ['po.id', $paymentDateSql, 's.id_no', 'po.receipt_full', 's.name', 'po.total_amount', 'po.status', 'po.id'];
     $orderColumn = (int)($_GET['order'][0]['column'] ?? 1);
     $orderDirection = strtolower($_GET['order'][0]['dir'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
-    $orderBy = $orderColumns[$orderColumn] ?? 'po.payment_date';
+    $orderBy = $orderColumns[$orderColumn] ?? $paymentDateSql;
     $sql = "SELECT po.*, s.name student_name, s.id_no,
             (SELECT GROUP_CONCAT(DISTINCT pm.name ORDER BY pm.name SEPARATOR ', ') FROM payment_operation_methods pom INNER JOIN payment_methods pm ON pm.id = pom.payment_method_id WHERE pom.operation_id = po.id) methods,
             (SELECT GROUP_CONCAT(DISTINCT CONCAT($conceptNameSql, IF($conceptYearSql IS NULL OR $conceptYearSql='', '', CONCAT(' · ', $conceptYearSql))) ORDER BY $conceptYearSql, $conceptNameSql SEPARATOR ' | ')
