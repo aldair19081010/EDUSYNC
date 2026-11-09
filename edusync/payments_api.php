@@ -4,7 +4,6 @@ include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
 require_once __DIR__ . '/includes/payment_timezone.php';
-require_once __DIR__ . '/includes/payment_timezone.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function paymentOut(array $data, int $code = 200): void
