@@ -1,7 +1,8 @@
 <?php
 include_once 'includes/session_check.php';
 require_login_modal();
-include 'db_connect.php';
+include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 $school=(int)($_SESSION['login_school_id']??0);if($school<=0)die('Institución no válida.');
 function pprBind(mysqli_stmt $stmt,string $types,array &$params):void{if($types==='')return;$args=[$types];foreach($params as &$value)$args[]=&$value;call_user_func_array([$stmt,'bind_param'],$args);}
 $startDate=trim($_GET['start_date']??'');$endDate=trim($_GET['end_date']??'');$year=(int)($_GET['academic_year_id']??0);$level=trim($_GET['nivel_educativo']??'');$grade=trim($_GET['grado']??'');$section=trim($_GET['seccion']??'');$student=(int)($_GET['student_id']??0);$method=(int)($_GET['payment_method_id']??0);$course=(int)($_GET['course_id']??0);$studentStatus=trim($_GET['student_status']??'');$status=trim($_GET['operation_status']??'Confirmado');
