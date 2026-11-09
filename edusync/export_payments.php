@@ -2,6 +2,7 @@
 include_once __DIR__ . '/includes/session_check.php';
 require_login_modal();
 include __DIR__ . '/db_connect.php';
+require_once __DIR__ . '/includes/payment_timezone.php';
 
 $school = (int)($_SESSION['login_school_id'] ?? 0);
 $type = (int)($_SESSION['login_type'] ?? 0);
